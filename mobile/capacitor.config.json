@@ -1,0 +1,13 @@
+{
+  "appId": "com.kevinhelgers.cryptocopytrading",
+  "appName": "Crypto Copy-Trading",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

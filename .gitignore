@@ -1,0 +1,21 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+data/*.json
+
+# Node / mobile
+node_modules/
+mobile/node_modules/
+mobile/dist/
+mobile/www/
+mobile/.gradle/
+mobile/android/app/build/
+mobile/ios/App/build/
+
+# Build artifacts
+*.log
+.env
+
+# Third-party skills clone (external repo)
+skills/
