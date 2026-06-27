@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crypto Copy-Trading</title>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#161b22; --panel2:#1c2230; --line:#2a3140;
+    --txt:#e6edf3; --dim:#8b949e; --accent:#3b82f6; --accent2:#2563eb;
+    --green:#22c55e; --red:#ef4444; --orange:#f59e0b; --blue:#3b82f6;
+    --grijs:#6b7280; --groen:#22c55e; --geel:#f59e0b; --rood:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--txt);font-size:15px;line-height:1.5;
+       padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  header{padding:18px 20px;border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,#11161f,#0e1117);position:sticky;top:0;z-index:10}
+  header h1{margin:0;font-size:18px;display:flex;align-items:center;gap:10px}
+  header p{margin:4px 0 0;color:var(--dim);font-size:12px}
+  .tabs{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--line);
+        background:var(--bg);position:sticky;top:72px;z-index:9;overflow-x:auto}
+  .tab{padding:10px 13px;cursor:pointer;border:none;background:none;color:var(--dim);
+       font-size:14px;font-weight:600;border-bottom:3px solid transparent;border-radius:6px 6px 0 0;white-space:nowrap}
+  .tab:hover{color:var(--txt);background:var(--panel)}
+  .tab.actief{color:var(--txt);border-bottom-color:var(--accent)}
+  main{padding:20px 16px;max-width:1080px;margin:0 auto}
+  .view{display:none} .view.actief{display:block}
+  h2{font-size:17px;margin:0 0 6px}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 18px}
+  button{cursor:pointer;font-family:inherit}
+  .btn{background:var(--accent);color:#fff;border:none;padding:12px 20px;border-radius:9px;
+       font-size:15px;font-weight:600;transition:.15s}
+  .btn:hover{background:var(--accent2)}
+  .btn:disabled{opacity:.55;cursor:wait}
+  .btn-groot{font-size:16px;padding:15px 26px;width:100%}
+  .subtabs{display:flex;gap:6px;margin:0 0 20px;border-bottom:1px solid var(--line);overflow-x:auto}
+  .subtab{background:none;border:none;color:var(--dim);font-size:14px;font-weight:600;
+          padding:9px 13px;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+  .subtab:hover{color:var(--txt)}
+  .subtab.actief{color:var(--txt);border-bottom-color:var(--accent)}
+  .subview{display:none} .subview.actief{display:block}
+  .holdtab{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px;display:block;overflow-x:auto;white-space:nowrap}
+  .holdtab th,.holdtab td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right}
+  .holdtab th:first-child,.holdtab td:first-child{text-align:left}
+  .holdtab th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+  .traderkop{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap}
+  .btn-sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .btn-sec:hover{border-color:var(--accent)}
+  .btn-mini{font-size:12px;padding:7px 11px;border-radius:7px}
+  .btn-rood{background:#3a1d22;color:#ff8a8a;border:1px solid #5a2a2a}
+  .btn-rood:hover{background:#4a2329}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .lvl{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line);font-size:14px;gap:8px}
+  .lvl:last-child{border-bottom:none}
+  .lvl b{font-variant-numeric:tabular-nums;text-align:right}
+  .sumcard{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;background:linear-gradient(90deg,#13233d,#161b22)}
+  .sumvak{display:flex;flex-direction:column;gap:3px;padding:4px 10px;border-right:1px solid var(--line)}
+  .sumvak:last-child{border-right:none}
+  .sumvak span{font-size:12px;color:var(--dim)}
+  .sumvak b{font-size:17px;font-variant-numeric:tabular-nums}
+  @media(max-width:680px){.sumcard{grid-template-columns:repeat(2,1fr)}.sumvak{border-right:none}}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .b-groen{background:#0f2d1a;color:#5ee08a;border:1px solid #1d5235}
+  .b-geel{background:#352a0e;color:#f6cd5b;border:1px solid #5a4a1d}
+  .b-rood{background:#3a1418;color:#ff7a7a;border:1px solid #5a2026}
+  .b-blauw{background:#11243d;color:#74b1ff;border:1px solid #1d3f66}
+  .b-oranje{background:#3a2a0e;color:#ffb454;border:1px solid #5a431d}
+  .b-grijs{background:#22272f;color:#9aa4b1;border:1px solid #353c47}
+  .hc{background:linear-gradient(90deg,#1a2740,#161b22);border-color:#2d4a7a}
+  .rij-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px}
+  .sym{font-size:19px;font-weight:800;letter-spacing:.5px}
+  .veld{margin-bottom:13px}
+  .veld label{display:block;font-size:13px;color:var(--dim);margin-bottom:5px;font-weight:600}
+  .veld input{width:100%;padding:11px 12px;border-radius:9px;border:1px solid var(--line);
+              background:var(--panel2);color:var(--txt);font-size:16px;font-family:inherit}
+  .veld input:focus{outline:none;border-color:var(--accent)}
+  .veld .hint{font-size:12px;color:var(--dim);margin-top:4px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .leeg{color:var(--dim);text-align:center;padding:30px;border:1px dashed var(--line);border-radius:12px}
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid #ffffff55;
+           border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px;margin-right:7px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .bar{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:6px}
+  .bar > i{display:block;height:100%;background:var(--green)}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#1d2532;
+         border:1px solid var(--line);padding:12px 20px;border-radius:10px;opacity:0;transition:.3s;z-index:50;max-width:90%;text-align:center}
+  .toast.toon{opacity:1}
+  .disc{font-size:12px;color:var(--dim);margin-top:8px;border-top:1px solid var(--line);padding-top:12px}
+  .pill{font-size:11px;color:var(--dim);background:var(--panel2);padding:2px 8px;border-radius:6px}
+  details summary{cursor:pointer;color:var(--accent);font-size:13px;font-weight:600;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 Crypto Copy-Trading <span class="pill" id="klok"></span></h1>
+  <p>Beoordeel eToro-traders · genereer trades met stop loss &amp; take profit · volg je eigen posities</p>
+</header>
+
+<div class="tabs">
+  <button class="tab actief" data-view="analyse">🎯 Analyse</button>
+  <button class="tab" data-view="mijn">📈 Mijn Trades</button>
+  <button class="tab" data-view="traders">👥 eToro Traders</button>
+</div>
+
+<main>
+  <!-- ===================== ANALYSE ===================== -->
+  <section class="view actief" id="view-analyse">
+    <div class="subtabs">
+      <button class="subtab actief" data-sub="markt">📊 Marktanalyse</button>
+      <button class="subtab" data-sub="copy">👥 Traders kopiëren</button>
+      <button class="subtab" data-sub="kansen">🚀 Grote kansen</button>
+    </div>
+
+    <!-- sub: marktanalyse -->
+    <div class="subview actief" id="sub-markt">
+      <h2>Wat zal ik vandaag kopen?</h2>
+      <p class="sub">Eén klik haalt verse marktdata op (Binance + CoinGecko) en berekent voor elke kans een
+         entry-zone, stop loss en take profit met minimaal 1:2 risk/reward.</p>
+      <button class="btn btn-groot" id="knopAnalyse">🚀 Start Analyse</button>
+      <span id="analyseTijd" class="pill" style="display:block;margin-top:12px"></span>
+      <div id="analyseUitvoer" style="margin-top:18px"></div>
+    </div>
+
+    <!-- sub: traders kopiëren -->
+    <div class="subview" id="sub-copy">
+      <h2>Wat traden jouw opgeslagen traders?</h2>
+      <p class="sub">Per opgeslagen eToro-trader zie je hun huidige posities mét live
+         entry / stop loss / take profit, zodat je een trade met één klik kunt overnemen.</p>
+      <button class="btn btn-groot" id="knopCopy">🔄 Laad trader-posities</button>
+      <span id="copyTijd" class="pill" style="display:block;margin-top:12px"></span>
+      <div id="copyUitvoer" style="margin-top:18px"></div>
+    </div>
+
+    <!-- sub: grote kansen -->
+    <div class="subview" id="sub-kansen">
+      <h2>Potentiële grote winsten 🚀</h2>
+      <p class="sub">De app scant honderden coins (via CoinGecko) op sterk momentum, kleinere
+         marktcap en herstelruimte — kandidaten met <b>bovengemiddeld winstpotentieel én
+         bovengemiddeld risico</b>. Elke kaart legt uit waarom.</p>
+      <button class="btn btn-groot" id="knopKansen">🚀 Zoek grote kansen</button>
+      <span id="kansenTijd" class="pill" style="display:block;margin-top:12px"></span>
+      <div id="kansenUitvoer" style="margin-top:18px"></div>
+      <p style="font-size:12.5px;color:var(--orange);margin-top:14px;background:#2a1f0e;border:1px solid #5a431d;padding:10px 13px;border-radius:9px">
+        ⚠️ Dit zijn speculatieve, volatiele coins. Ze kunnen hard stijgen maar ook hard dalen.
+        Gebruik altijd de stop loss en investeer alleen wat je kunt missen.</p>
+    </div>
+
+    <p class="disc">⚠️ Geen financieel advies. Trades zijn technische signalen ter ondersteuning van je eigen onderzoek.
+       Controleer altijd de live koers op eToro voordat je een order plaatst.</p>
+  </section>
+
+  <!-- ===================== MIJN TRADES ===================== -->
+  <section class="view" id="view-mijn">
+    <h2>Mijn open posities</h2>
+    <p class="sub">Voeg een trade toe en de app volgt de live prijs en geeft je per positie een
+       <b>VERKOOP / HOUD / WINST</b>-tip op basis van je stop loss, take profit en het momentum.</p>
+
+    <div class="card">
+      <div class="form-grid">
+        <div class="veld"><label>Symbool</label><input id="t_sym" placeholder="bv. BTC" autocapitalize="characters"></div>
+        <div class="veld"><label>Aantal (optioneel)</label><input id="t_aantal" type="number" step="any" inputmode="decimal" placeholder="bv. 0.05"></div>
+        <div class="veld"><label>Entry-prijs ($)</label><input id="t_entry" type="number" step="any" inputmode="decimal" placeholder="instapkoers"></div>
+        <div class="veld"><label>Stop loss ($)</label><input id="t_stop" type="number" step="any" inputmode="decimal" placeholder="verkoop bij verlies"></div>
+        <div class="veld"><label>Take profit ($)</label><input id="t_tp" type="number" step="any" inputmode="decimal" placeholder="winstdoel"></div>
+        <div class="veld" style="display:flex;align-items:flex-end">
+          <button class="btn" id="knopTradeToe" style="width:100%">+ Trade toevoegen</button>
+        </div>
+      </div>
+      <p class="hint" style="color:var(--dim);font-size:12px;margin:0">Tip: vanuit het Analyse-tabblad kun je een trade met één klik hierheen kopiëren.</p>
+    </div>
+
+    <div id="samenvatting"></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 12px;gap:10px;flex-wrap:wrap">
+      <span class="pill" id="trackTijd"></span>
+      <div style="display:flex;align-items:center;gap:14px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);cursor:pointer">
+          <input type="checkbox" id="autoVernieuw" checked> Auto-vernieuwen (1 min)</label>
+        <button class="btn btn-sec btn-mini" id="knopVernieuw">🔄 Prijzen vernieuwen</button>
+      </div>
+    </div>
+    <div id="mijnUitvoer"></div>
+
+    <h2 style="margin-top:28px">Gesloten</h2>
+    <div id="geslotenUitvoer"></div>
+  </section>
+
+  <!-- ===================== TRADERS ===================== -->
+  <section class="view" id="view-traders">
+    <h2>eToro traders beoordelen</h2>
+    <p class="sub">Vul de stats in van een "Popular Investor" (tabblad Stats op eToro). Je krijgt direct een
+       🟢/🟡/🔴-oordeel en een aanbevolen <b>Copy Stop Loss</b> om in te stellen bij het kopiëren.</p>
+
+    <div class="card">
+      <div class="form-grid">
+        <div class="veld"><label>Naam trader</label><input id="tr_naam" placeholder="bv. JeppeKirkBonde"></div>
+        <div class="veld"><label>eToro Risk Score (1–7)</label><input id="tr_risk" type="number" min="1" max="7" inputmode="numeric" placeholder="bv. 4"></div>
+      </div>
+      <div class="veld"><label>Maandrendementen laatste ~12 mnd (%)</label>
+        <input id="tr_maanden" placeholder="bv. 3.1, -1.2, 5.4, 2.2, -0.8, 4.0, 1.5, 6.2, -2.1, 3.3, 0.9, 2.7">
+        <div class="hint">Komma-gescheiden. Negatief = verliesmaand.</div></div>
+      <div class="form-grid">
+        <div class="veld"><label>Max. drawdown (%)</label><input id="tr_dd" type="number" step="any" inputmode="decimal" placeholder="bv. 18"></div>
+        <div class="veld"><label>Jaarrendement (%, optioneel)</label><input id="tr_jaar" type="number" step="any" inputmode="decimal" placeholder="leeg = auto"></div>
+      </div>
+      <div class="veld"><label>Portfolio-allocatie (optioneel)</label>
+        <input id="tr_port" placeholder="bv. BTC:35, ETH:25, SOL:15, Cash:25">
+        <div class="hint">Formaat SYMBOOL:percentage, komma-gescheiden.</div></div>
+      <button class="btn" id="knopTraderToe">+ Trader beoordelen &amp; bewaren</button>
+    </div>
+
+    <div id="tradersUitvoer" style="margin-top:18px"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="engine.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const fmt = p => p==null ? "—" : (p>=100 ? "$"+p.toLocaleString("en-US",{maximumFractionDigits:2})
+            : p>=1 ? "$"+p.toFixed(3) : "$"+p.toFixed(5));
+
+// De app draait volledig op het toestel: geen server. "api" roept de lokale
+// analyse-engine aan (engine.js) i.p.v. een HTTP-endpoint.
+const api = (pad, body) => window.AppEngine.api(pad, body);
+
+function toast(t){ const e=$("#toast"); e.textContent=t; e.classList.add("toon"); setTimeout(()=>e.classList.remove("toon"),2600); }
+
+// Tabs
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("actief"));
+  document.querySelectorAll(".view").forEach(x=>x.classList.remove("actief"));
+  t.classList.add("actief");
+  $("#view-"+t.dataset.view).classList.add("actief");
+  if(t.dataset.view==="mijn"){ laadTrades(); startAuto(); } else { stopAuto(); }
+  if(t.dataset.view==="traders") laadTraders();
+});
+
+// Sub-tabs binnen Analyse
+document.querySelectorAll(".subtab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".subtab").forEach(x=>x.classList.remove("actief"));
+  document.querySelectorAll(".subview").forEach(x=>x.classList.remove("actief"));
+  t.classList.add("actief");
+  $("#sub-"+t.dataset.sub).classList.add("actief");
+  if(t.dataset.sub==="copy" && !$("#copyUitvoer").dataset.geladen) laadCopy();
+  if(t.dataset.sub==="kansen" && !$("#kansenUitvoer").dataset.geladen) laadKansen();
+});
+
+// Auto-vernieuwen (alleen op tab "Mijn Trades")
+let autoTimer=null;
+function startAuto(){ stopAuto(); if($("#autoVernieuw").checked) autoTimer=setInterval(laadTrades,60000); }
+function stopAuto(){ if(autoTimer){ clearInterval(autoTimer); autoTimer=null; } }
+document.addEventListener("change", e=>{ if(e.target.id==="autoVernieuw") startAuto(); });
+
+// Klok
+setInterval(()=>{ $("#klok").textContent = new Date().toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"}); },1000);
+
+// ---------- ANALYSE ----------
+$("#knopAnalyse").onclick = async () => {
+  const knop=$("#knopAnalyse");
+  knop.disabled=true; knop.innerHTML='<span class="spinner"></span>Markt analyseren… (~30 sec)';
+  $("#analyseUitvoer").innerHTML='';
+  try{
+    const d = await api("/api/analyse", {});
+    $("#analyseTijd").textContent = "bijgewerkt " + (d.tijd||"");
+    if(!d.trades || !d.trades.length){
+      $("#analyseUitvoer").innerHTML='<div class="leeg">Geen trades voldeden vandaag aan de criteria (min. R/R 1:2). Markt mogelijk richtingloos — geduld is ook een positie.</div>';
+    } else {
+      $("#analyseUitvoer").innerHTML='<div class="grid">'+d.trades.map(kaartAnalyse).join("")+'</div>';
+    }
+  }catch(e){ $("#analyseUitvoer").innerHTML='<div class="leeg">Fout: '+e+'</div>'; }
+  knop.disabled=false; knop.innerHTML='🚀 Start Analyse';
+};
+
+function kaartAnalyse(t){
+  const sig = t.high_conviction ? '<span class="badge b-groen">🚀 HIGH CONVICTION</span>'
+            : t.signaal==="KOOP" ? '<span class="badge b-blauw">KOOP</span>'
+            : '<span class="badge b-grijs">WATCH</span>';
+  const data = encodeURIComponent(JSON.stringify({symbool:t.symbool,entry:t.entry,stop_loss:t.stop_loss,take_profit:t.take_profit}));
+  return `<div class="card ${t.high_conviction?'hc':''}">
+    <div class="rij-top"><span class="sym">${t.symbool}</span>${sig}</div>
+    ${verdictBadge(t.oordeel)}
+    <div class="lvl"><span>Huidige prijs</span><b>${fmt(t.prijs)}</b></div>
+    <div class="lvl"><span>Entry-zone</span><b>${fmt(t.entry_laag)} – ${fmt(t.entry_hoog)}</b></div>
+    <div class="lvl"><span>🛑 Stop loss</span><b style="color:var(--red)">${fmt(t.stop_loss)}</b></div>
+    <div class="lvl"><span>🎯 Take profit</span><b style="color:var(--green)">${fmt(t.take_profit)}</b></div>
+    <div class="lvl"><span>Risk / Reward</span><b>1:${t.rr}</b></div>
+    <div class="lvl"><span>Signaalscore · RSI</span><b>${t.score}/100 · ${t.rsi}</b></div>
+    ${infoBlok(t.info, t.oordeel, (t.redenen||[]).join(", ")+" · data: "+t.bron)}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-mini" style="flex:1" onclick="markeerGetrade('${data}')">✅ Getrade</button>
+      <button class="btn btn-sec btn-mini" onclick="naarMijnTrades('${data}')">✏️ Aanpassen</button>
+    </div>
+  </div>`;
+}
+
+function naarMijnTrades(data){
+  const t = JSON.parse(decodeURIComponent(data));
+  document.querySelector('.tab[data-view="mijn"]').click();
+  $("#t_sym").value=t.symbool; $("#t_entry").value=t.entry.toFixed(t.entry<1?6:3);
+  $("#t_stop").value=t.stop_loss.toFixed(t.stop_loss<1?6:3); $("#t_tp").value=t.take_profit.toFixed(t.take_profit<1?6:3);
+  $("#t_aantal").focus(); toast("Gegevens overgenomen — vul je aantal in en klik 'Trade toevoegen'.");
+}
+
+// "Getrade": vraag alleen de aankoopprijs; stop loss & take profit van deze
+// coin gaan automatisch mee en de trade wordt direct in Mijn Trades opgeslagen.
+async function markeerGetrade(data){
+  const t = JSON.parse(decodeURIComponent(data));
+  const standaard = (t.entry!=null) ? t.entry.toFixed(t.entry<1?6:3) : "";
+  const ingevoerd = prompt(`Tegen welke prijs heb je ${t.symbool} gekocht? ($)`, standaard);
+  if(ingevoerd===null) return;                       // geannuleerd
+  const koop = parseFloat(String(ingevoerd).replace(",","."));
+  if(!(koop>0)){ toast("Ongeldige prijs — niets opgeslagen."); return; }
+  await api("/api/trades", {symbool:t.symbool, entry:koop, aantal:0,
+                            stop_loss:t.stop_loss, take_profit:t.take_profit});
+  toast(`${t.symbool} opgeslagen in Mijn Trades · 🛑 ${fmt(t.stop_loss)} · 🎯 ${fmt(t.take_profit)}`);
+}
+
+// ---------- TRADERS KOPIËREN ----------
+$("#knopCopy").onclick = laadCopy;
+async function laadCopy(){
+  const knop=$("#knopCopy");
+  knop.disabled=true; knop.innerHTML='<span class="spinner"></span>Posities & live koersen ophalen…';
+  try{
+    const d = await api("/api/copytrades", {});
+    $("#copyTijd").textContent = d.tijd ? "bijgewerkt "+d.tijd : "";
+    $("#copyUitvoer").dataset.geladen = "1";
+    if(!d.traders || !d.traders.length){
+      $("#copyUitvoer").innerHTML='<div class="leeg">Nog geen opgeslagen traders. Voeg er één toe via het tabblad <b>👥 eToro Traders</b> (vul ook hun portfolio-allocatie in).</div>';
+    } else {
+      $("#copyUitvoer").innerHTML = d.traders.map(kaartCopyTrader).join("");
+    }
+  }catch(e){ $("#copyUitvoer").innerHTML='<div class="leeg">Fout: '+e+'</div>'; }
+  knop.disabled=false; knop.innerHTML='🔄 Posities vernieuwen';
+}
+
+function kaartCopyTrader(tr){
+  const map={GROEN:"b-groen",GEEL:"b-geel",ROOD:"b-rood"};
+  const emoji={GROEN:"🟢",GEEL:"🟡",ROOD:"🔴"};
+  const holds = tr.holdings||[];
+  let rijen = holds.map(h=>{
+    const tip = h.info ? (h.info.naam+" — "+h.info.wat) : "";
+    const symcel = `<b title="${tip}">${h.symbool}</b>`;
+    if(h.cash){
+      return `<tr><td>${symcel}</td><td>${h.allocatie}%</td><td colspan="5" style="color:var(--dim)">— cash, geen trade —</td></tr>`;
+    }
+    if(h.prijs==null){
+      return `<tr><td>${symcel}</td><td>${h.allocatie}%</td><td colspan="5" style="color:var(--dim)">geen marktdata beschikbaar</td></tr>`;
+    }
+    const data = encodeURIComponent(JSON.stringify({symbool:h.symbool,entry:h.entry,stop_loss:h.stop_loss,take_profit:h.take_profit}));
+    const trend = h.trend_op ? '<span class="pos">↑</span>' : '<span class="neg">↓</span>';
+    return `<tr>
+      <td>${symcel} ${trend}</td>
+      <td>${h.allocatie}%</td>
+      <td>${fmt(h.prijs)}</td>
+      <td style="color:var(--red)">${fmt(h.stop_loss)}</td>
+      <td style="color:var(--green)">${fmt(h.take_profit)}</td>
+      <td>1:${h.rr}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-mini" onclick="markeerGetrade('${data}')">✅ Getrade</button>
+        <button class="btn btn-sec btn-mini" onclick="naarMijnTrades('${data}')">✏️</button>
+      </td>
+    </tr>`;
+  }).join("");
+  if(!holds.length) rijen = `<tr><td colspan="7" style="color:var(--dim)">Geen portfolio-allocatie ingevuld voor deze trader.</td></tr>`;
+  return `<div class="card">
+    <div class="traderkop">
+      <span class="sym" style="font-size:17px">${tr.naam}</span>
+      <span class="badge ${map[tr.oordeel]||'b-grijs'}">${emoji[tr.oordeel]||''} ${tr.oordeel} · ${tr.score}/100 · CSL ${tr.csl}%</span>
+    </div>
+    <table class="holdtab">
+      <tr><th>Asset</th><th>Allocatie</th><th>Prijs</th><th>🛑 Stop</th><th>🎯 Doel</th><th>R/R</th><th></th></tr>
+      ${rijen}
+    </table>
+  </div>`;
+}
+
+// ---------- Gedeelde helpers: koop-oordeel + coin-info ----------
+function verdictBadge(o){
+  if(!o) return '';
+  return `<div style="margin:2px 0 12px"><span class="badge b-${o.kleur||'grijs'}">${o.label||''}</span></div>`;
+}
+function infoBlok(info, oordeel, technisch){
+  const wat = info ? `<b>${info.naam}</b> <span class="pill">${info.categorie||''}</span><br>${info.wat||''}` : '';
+  const koop = oordeel ? `<br><br><b>Koopadvies (technisch):</b> ${oordeel.uitleg||''}` : '';
+  const tech = technisch ? `<br><br><span style="color:var(--dim)">Signalen: ${technisch}</span>` : '';
+  return `<details><summary>ℹ️ Over deze coin</summary>
+    <p style="font-size:13px;color:var(--txt);margin:8px 0 0;line-height:1.55">${wat}${koop}${tech}</p></details>`;
+}
+
+// ---------- GROTE KANSEN (tab 3) ----------
+$("#knopKansen").onclick = laadKansen;
+async function laadKansen(){
+  const knop=$("#knopKansen");
+  knop.disabled=true; knop.innerHTML='<span class="spinner"></span>Markt scannen op kansen… (~30 sec)';
+  try{
+    const d = await api("/api/kansen", {});
+    $("#kansenTijd").textContent = d.tijd ? "bijgewerkt "+d.tijd : "";
+    $("#kansenUitvoer").dataset.geladen = "1";
+    if(!d.kansen || !d.kansen.length){
+      $("#kansenUitvoer").innerHTML='<div class="leeg">Geen duidelijke kansen gevonden — de markt is mogelijk zwak. Probeer het later opnieuw.</div>';
+    } else {
+      $("#kansenUitvoer").innerHTML='<div class="grid">'+d.kansen.map(kaartKans).join("")+'</div>';
+    }
+  }catch(e){ $("#kansenUitvoer").innerHTML='<div class="leeg">Fout: '+e+'</div>'; }
+  knop.disabled=false; knop.innerHTML='🔄 Opnieuw scannen';
+}
+
+function kaartKans(k){
+  const pc = v => (v>=0?'+':'')+v+'%';
+  const cls = v => v>=0?'pos':'neg';
+  const mcap = k.marktcap ? '$'+(k.marktcap/1e6).toLocaleString("en-US",{maximumFractionDigits:0})+'M' : '—';
+  const data = encodeURIComponent(JSON.stringify({symbool:k.symbool,entry:k.entry,stop_loss:k.stop_loss,take_profit:k.take_profit}));
+  return `<div class="card hc">
+    <div class="rij-top"><span class="sym">${k.symbool}</span><span class="badge b-${(k.oordeel&&k.oordeel.kleur)||'oranje'}">${(k.oordeel&&k.oordeel.label)||'Speculatief'}</span></div>
+    <div style="font-size:13px;color:var(--dim);margin:-6px 0 10px">${k.naam} · #${k.rang||'?'} · cap ${mcap}</div>
+    <div class="lvl"><span>24u / 7d / 30d</span><b><span class="${cls(k.p24)}">${pc(k.p24)}</span> · <span class="${cls(k.p7)}">${pc(k.p7)}</span> · <span class="${cls(k.p30)}">${pc(k.p30)}</span></b></div>
+    <div class="lvl"><span>Prijs</span><b>${fmt(k.prijs)}</b></div>
+    <div class="lvl"><span>🛑 Stop loss</span><b style="color:var(--red)">${fmt(k.stop_loss)}</b></div>
+    <div class="lvl"><span>🎯 Take profit</span><b style="color:var(--green)">${fmt(k.take_profit)}</b></div>
+    <div class="lvl"><span>Risk / Reward</span><b>1:${k.rr}</b></div>
+    <div style="margin-top:10px;background:var(--panel2);padding:10px 12px;border-radius:9px;font-size:13px">
+      <b>Waarom potentiële grote winst:</b><br>${(k.redenen||[]).map(r=>'• '+r).join("<br>")}
+      <div style="color:var(--dim);font-size:11.5px;margin-top:6px">Niveaus: ${k.methode||''}</div>
+    </div>
+    ${infoBlok(k.info, null, null)}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-mini" style="flex:1" onclick="markeerGetrade('${data}')">✅ Getrade</button>
+      <button class="btn btn-sec btn-mini" onclick="naarMijnTrades('${data}')">✏️ Aanpassen</button>
+    </div>
+  </div>`;
+}
+
+// ---------- MIJN TRADES ----------
+$("#knopTradeToe").onclick = async () => {
+  const sym=$("#t_sym").value.trim();
+  if(!sym){ toast("Vul een symbool in."); return; }
+  const d = await api("/api/trades",{symbool:sym,aantal:$("#t_aantal").value,entry:$("#t_entry").value,
+                       stop_loss:$("#t_stop").value,take_profit:$("#t_tp").value});
+  ["t_sym","t_aantal","t_entry","t_stop","t_tp"].forEach(i=>$("#"+i).value="");
+  toonTrades(d); toast("Trade toegevoegd.");
+};
+$("#knopVernieuw").onclick = laadTrades;
+
+async function laadTrades(){
+  $("#mijnUitvoer").innerHTML='<div class="leeg"><span class="spinner" style="border-top-color:#3b82f6;border-color:#3b82f655"></span>Live prijzen ophalen…</div>';
+  toonTrades(await api("/api/trades"));
+}
+
+function toonTrades(d){
+  $("#trackTijd").textContent = d.tijd ? "live · "+d.tijd : "";
+  toonSamenvatting(d.samenvatting);
+  const o=d.open||[];
+  if(!o.length){ $("#mijnUitvoer").innerHTML='<div class="leeg">Nog geen open trades. Voeg er hierboven één toe of kopieer er één vanuit Analyse.</div>'; }
+  else {
+    $("#mijnUitvoer").innerHTML = '<div class="grid">'+o.map(kaartTrade).join("")+'</div>';
+  }
+  const g=d.gesloten||[];
+  $("#geslotenUitvoer").innerHTML = g.length ?
+    '<div class="card"><table><tr><th>Symbool</th><th class="num">Entry</th><th class="num">Stop</th><th class="num">Doel</th><th>Geopend</th><th></th></tr>'+
+    g.map(t=>`<tr><td><b>${t.symbool}</b></td><td class="num">${fmt(t.entry)}</td><td class="num">${fmt(t.stop_loss)}</td><td class="num">${fmt(t.take_profit)}</td><td>${t.datum||''}</td>
+       <td class="num"><button class="btn btn-rood btn-mini" onclick="verwijderTrade('${t.id}')">verwijderen</button></td></tr>`).join("")+
+    '</table></div>' : '<div class="leeg">Nog niets gesloten.</div>';
+}
+
+function toonSamenvatting(s){
+  const box=$("#samenvatting");
+  if(!s || !s.open_posities){ box.innerHTML=''; return; }
+  const heeftWaarde = s.posities_met_aantal>0;
+  const pnlc = s.pnl>=0?'pos':'neg';
+  const pnlTxt = !heeftWaarde ? '—'
+      : `<span class="${pnlc}">${s.pnl>=0?'+':'-'}$${Math.abs(s.pnl).toLocaleString("en-US",{maximumFractionDigits:2})}`
+        + (s.pnl_pct!=null?` (${s.pnl_pct>=0?'+':''}${s.pnl_pct}%)`:'') + '</span>';
+  box.innerHTML = `<div class="card sumcard">
+    <div class="sumvak"><span>Open posities</span><b>${s.open_posities}</b></div>
+    <div class="sumvak"><span>Ingelegd</span><b>${heeftWaarde?'$'+s.inleg.toLocaleString("en-US",{maximumFractionDigits:2}):'—'}</b></div>
+    <div class="sumvak"><span>Huidige waarde</span><b>${heeftWaarde?'$'+s.waarde_nu.toLocaleString("en-US",{maximumFractionDigits:2}):'—'}</b></div>
+    <div class="sumvak"><span>Totaal W/V</span><b>${pnlTxt}</b></div>
+    <div class="sumvak"><span>Actie nodig</span><b class="${s.actie_nodig>0?'neg':''}">${s.actie_nodig}</b></div>
+  </div>`;
+}
+
+function kaartTrade(t){
+  const kl = "b-"+(t.advies_kleur||"grijs");
+  const pnl = t.pnl_pct==null ? '—' : (t.pnl_pct>=0?'+':'')+t.pnl_pct+'%';
+  const pnlW = t.pnl_waarde==null ? '' : ' ('+(t.pnl_waarde>=0?'+':'')+'$'+t.pnl_waarde.toLocaleString("en-US",{maximumFractionDigits:2})+')';
+  const pnlc = t.pnl_pct==null?'':(t.pnl_pct>=0?'pos':'neg');
+  return `<div class="card">
+    <div class="rij-top"><span class="sym">${t.symbool}</span><span class="badge ${kl}">${t.advies}</span></div>
+    <div class="lvl"><span>Live prijs</span><b>${fmt(t.prijs)}</b></div>
+    <div class="lvl"><span>Jouw entry</span><b>${fmt(t.entry)}</b></div>
+    <div class="lvl"><span>Resultaat</span><b class="${pnlc}">${pnl}${pnlW}</b></div>
+    <div class="lvl"><span>🛑 Stop / 🎯 Doel</span><b>${fmt(t.stop_loss)} / ${fmt(t.take_profit)}</b></div>
+    ${t.voortgang_pct!=null?`<div class="bar"><i style="width:${t.voortgang_pct}%"></i></div>
+       <div style="font-size:11px;color:var(--dim);margin-top:4px">${t.voortgang_pct}% van entry naar take profit</div>`:''}
+    <p style="font-size:13px;margin:12px 0 0;background:var(--panel2);padding:10px 12px;border-radius:9px">${t.uitleg||''}</p>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-sec btn-mini" style="flex:1" onclick="sluitTrade('${t.id}')">✓ Gesloten markeren</button>
+      <button class="btn btn-rood btn-mini" onclick="verwijderTrade('${t.id}')">verwijderen</button>
+    </div>
+  </div>`;
+}
+async function sluitTrade(id){ toonTrades(await api("/api/trades/close",{id})); toast("Trade gesloten."); }
+async function verwijderTrade(id){ toonTrades(await api("/api/trades/delete",{id})); }
+
+// ---------- TRADERS ----------
+$("#knopTraderToe").onclick = async () => {
+  const naam=$("#tr_naam").value.trim();
+  if(!naam){ toast("Vul een naam in."); return; }
+  const d = await api("/api/traders",{naam,risk_score:$("#tr_risk").value||4,maandrendementen:$("#tr_maanden").value,
+                       max_drawdown:$("#tr_dd").value||0,jaarrendement:$("#tr_jaar").value,portfolio:$("#tr_port").value});
+  ["tr_naam","tr_risk","tr_maanden","tr_dd","tr_jaar","tr_port"].forEach(i=>$("#"+i).value="");
+  toonTraders(d); toast("Trader beoordeeld.");
+};
+async function laadTraders(){ toonTraders(await api("/api/traders")); }
+
+function toonTraders(d){
+  const tr=d.traders||[];
+  if(!tr.length){ $("#tradersUitvoer").innerHTML='<div class="leeg">Nog geen traders. Vul hierboven de stats in van een eToro-trader.</div>'; return; }
+  $("#tradersUitvoer").innerHTML='<div class="grid">'+tr.map(kaartTrader).join("")+'</div>';
+}
+function kaartTrader(b){
+  const map={GROEN:"b-groen",GEEL:"b-geel",ROOD:"b-rood",FOUT:"b-grijs"};
+  const emoji={GROEN:"🟢",GEEL:"🟡",ROOD:"🔴",FOUT:"⚠️"};
+  return `<div class="card">
+    <div class="rij-top"><span class="sym" style="font-size:17px">${b.naam}</span>
+      <span class="badge ${map[b.oordeel]||'b-grijs'}">${emoji[b.oordeel]||''} ${b.oordeel}</span></div>
+    <div class="lvl"><span>Totaalscore</span><b>${b.score}/100</b></div>
+    <div class="lvl"><span>➡️ Aanbevolen Copy Stop Loss</span><b style="color:var(--accent)">${b.csl}%</b></div>
+    ${b.consistentie?`<div class="lvl"><span>Consistentie</span><b>${b.consistentie.score}/100</b></div>
+    <div class="lvl"><span>Risico/Return</span><b>${b.risico.score}/100</b></div>
+    <div class="lvl"><span>Portfolio</span><b>${b.portfolio.score}/100</b></div>
+    <details><summary>Toelichting</summary><p style="font-size:13px;color:var(--dim);margin:8px 0 0">
+      <b>Consistentie:</b> ${b.consistentie.opmerking}<br>
+      <b>Risico:</b> jaar ${b.risico.jaarrendement}% / drawdown ${b.risico.max_drawdown}% — ${b.risico.opmerking}<br>
+      <b>Portfolio:</b> ${b.portfolio.opmerking}</p></details>`:''}
+    <button class="btn btn-rood btn-mini" style="margin-top:12px" onclick="verwijderTrader('${b.id}')">verwijderen</button>
+  </div>`;
+}
+async function verwijderTrader(id){ toonTraders(await api("/api/traders/delete",{id})); }
+
+// init
+$("#klok").textContent = new Date().toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"});
+</script>
+</body>
+</html>

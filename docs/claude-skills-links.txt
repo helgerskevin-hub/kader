@@ -1,0 +1,27 @@
+Claude Skills — Links for eToro Crypto Copy-Trading Analysis
+============================================================
+
+MOST RELEVANT — Trading skills
+- Claude Trading Skills (market analysis, screeners, risk, journaling):
+  https://github.com/tradermonty/claude-trading-skills
+
+OFFICIAL ANTHROPIC
+- Financial Services reference architectures (DCF, memos, research notes):
+  https://github.com/anthropics/financial-services
+- Official Skills repo (incl. docx / pdf / pptx / xlsx for reports):
+  https://github.com/anthropics/skills
+
+DISCOVERY — Curated skill directories
+- awesome-claude-skills (travisvn):
+  https://github.com/travisvn/awesome-claude-skills
+- awesome-claude-skills (ComposioHQ):
+  https://github.com/ComposioHQ/awesome-claude-skills
+
+HOW TO INSTALL
+- Web/desktop app: download the .skill package, then Settings > Skills > upload.
+- Claude Code (CLI/desktop): copy the skill folder into Settings > Skills >
+  Open Skills Folder, then restart.
+
+Note: These skills help you ANALYZE and structure decisions. None of them
+automate live trades on eToro. Crypto and copy trading carry real risk of
+capital loss — analysis is a decision aid, not financial advice.
