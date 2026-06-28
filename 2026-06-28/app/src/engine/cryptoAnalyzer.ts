@@ -449,6 +449,29 @@ export function fmtPrijs(p: number | null | undefined): string {
   return '$' + p.toFixed(5);
 }
 
+// ---------------------------------------------------------------------------
+// Live price (single ticker — no full candle analysis needed)
+// ---------------------------------------------------------------------------
+export async function haalLivePrijs(symbool: string): Promise<number | null> {
+  const pair = `${symbool}USDT`;
+  for (const base of BINANCE_BASES) {
+    const data = await httpGet<{ price: string }>(`${base}/api/v3/ticker/price`, { symbol: pair });
+    if (data && data.price) {
+      const p = parseFloat(data.price);
+      if (!isNaN(p)) return p;
+    }
+  }
+  // CoinGecko fallback
+  const cgId = COINGECKO_IDS[symbool];
+  if (cgId) {
+    const data = await httpGet<Record<string, { usd: number }>>(`${COINGECKO_BASE}/simple/price`, {
+      ids: cgId, vs_currencies: 'usd',
+    });
+    if (data?.[cgId]?.usd) return data[cgId].usd;
+  }
+  return null;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }

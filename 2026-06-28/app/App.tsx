@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,16 +9,18 @@ import { IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold,
 import { IBMPlexMono_400Regular, IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import { Activity, Zap, Wallet, Users } from 'lucide-react-native';
 
-import MarktScreen    from './src/screens/MarktScreen';
-import KansenScreen   from './src/screens/KansenScreen';
-import PortfolioScreen from './src/screens/PortfolioScreen';
-import TradersScreen  from './src/screens/TradersScreen';
+import MarktScreen      from './src/screens/MarktScreen';
+import KansenScreen     from './src/screens/KansenScreen';
+import PortfolioScreen  from './src/screens/PortfolioScreen';
+import TradersScreen    from './src/screens/TradersScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import { Colors } from './src/theme/colors';
 import { Font } from './src/theme/typography';
+import { isOnboardingGedaan } from './src/storage/storage';
 
 const Tab = createBottomTabNavigator();
 
-const ICON_SIZE = 22;
+const ICON_SIZE   = 22;
 const ICON_STROKE = 1.75;
 
 export default function App() {
@@ -31,11 +33,26 @@ export default function App() {
     IBMPlexMono_500Medium,
   });
 
-  if (!fontsLoaded) {
+  const [onboardingGedaan, setOnboardingGedaan] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    isOnboardingGedaan().then(setOnboardingGedaan);
+  }, []);
+
+  if (!fontsLoaded || onboardingGedaan === null) {
     return (
       <View style={s.splash}>
         <ActivityIndicator color={Colors.cta} size="large" />
       </View>
+    );
+  }
+
+  if (!onboardingGedaan) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <OnboardingScreen onKlaar={() => setOnboardingGedaan(true)} />
+      </SafeAreaProvider>
     );
   }
 
@@ -65,30 +82,22 @@ export default function App() {
           <Tab.Screen
             name="Markt"
             component={MarktScreen}
-            options={{
-              tabBarIcon: ({ color }) => <Activity size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} />,
-            }}
+            options={{ tabBarIcon: ({ color }) => <Activity size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} /> }}
           />
           <Tab.Screen
             name="Kansen"
             component={KansenScreen}
-            options={{
-              tabBarIcon: ({ color }) => <Zap size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} />,
-            }}
+            options={{ tabBarIcon: ({ color }) => <Zap size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} /> }}
           />
           <Tab.Screen
             name="Portfolio"
             component={PortfolioScreen}
-            options={{
-              tabBarIcon: ({ color }) => <Wallet size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} />,
-            }}
+            options={{ tabBarIcon: ({ color }) => <Wallet size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} /> }}
           />
           <Tab.Screen
             name="Traders"
             component={TradersScreen}
-            options={{
-              tabBarIcon: ({ color }) => <Users size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} />,
-            }}
+            options={{ tabBarIcon: ({ color }) => <Users size={ICON_SIZE} color={color} strokeWidth={ICON_STROKE} /> }}
           />
         </Tab.Navigator>
       </NavigationContainer>

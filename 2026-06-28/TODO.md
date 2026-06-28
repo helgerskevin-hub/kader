@@ -49,21 +49,21 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [x] Kale Expo-app opzetten + lokaal een installeerbare APK bouwen (bewijs dat de gratis bouw-/sideload-loop werkt). JDK 17 bleek niet nodig — Android Studio's JBR (OpenJDK 21) volstaat. Project staat in `app/`, gebouwd vanuit `D:\dev\crypto-market`.
 - [x] Analyse-engine porten: Python-logica uit `src/` overzetten naar TypeScript-modules in `app/`. Prioriteit: `cryptoAnalyzer.ts`, `etoroAuditor.ts`, `coinInfo.ts`.
 - [x] Navigatiestructuur opzetten (React Navigation): Tab-navigatie met Marktanalyse, Grote kansen, Mijn Trades, Traders.
-- [ ] Schermen bouwen — volledig functioneel:
-  - [ ] **Marktanalyse-scherm** — lijst met trade-kaarten (entry / stop / take profit / score)
-  - [ ] **Grote Kansen-scherm** — momentum-scanner resultaten
-  - [ ] **Mijn Trades-scherm** — open posities met live prijs + advies (HOUD/VERKOOP/WINST)
-  - [ ] **eToro Traders-scherm** — traders toevoegen, beoordelen (GROEN/GEEL/ROOD) en hun posities bekijken
-  - [ ] **Onboarding-scherm** — eerste-keer uitleg: wat is de app, hoe werkt een stop loss, disclaimer
-- [ ] Lokale opslag aansluiten (`expo-sqlite` of `AsyncStorage`) voor traders en eigen posities
+- [x] Schermen bouwen — volledig functioneel:
+  - [x] **Marktanalyse-scherm** — lijst met trade-kaarten (entry / stop / take profit / score)
+  - [x] **Grote Kansen-scherm** — momentum-scanner resultaten
+  - [x] **Mijn Trades-scherm** — open posities met live prijs + advies (HOUD/VERKOOP/WINST)
+  - [x] **eToro Traders-scherm** — traders toevoegen, beoordelen (GROEN/GEEL/ROOD) en hun posities bekijken
+  - [x] **Onboarding-scherm** — eerste-keer uitleg: wat is de app, hoe werkt een stop loss, disclaimer
+- [x] Lokale opslag aansluiten (AsyncStorage) voor traders en eigen posities
 - [ ] Pushmeldingen inschakelen (`expo-notifications`): seintje als stop loss of take profit van een eigen trade geraakt wordt
 - [ ] Desktop-versie (Python `app.py` + `app_ui.py`) uitfaseren zodra de native app alle functies overneemt
 
 ### Functioneel / inhoud
-- [ ] **Live prijs-polling** op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden (net als desktop-versie)
+- [x] **Live prijs-polling** op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden (net als desktop-versie)
 - [ ] **eToro API** onderzoeken: kunnen we tradable coins automatisch ophalen zodat de Grote Kansen-scan alleen beschikbare coins toont?
 - [x] **Copy trading stappen** vereenvoudigen: stappenplan in de app hoe je een signaal op eToro uitvoert
-- [ ] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
+- [x] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
 
 ### Kwaliteit & stabiliteit
 - [x] Bugrapport opgesteld + alle 9 bugs gefixed (zie `docs/bugrapport-2026-06-28.md`)

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, KeyboardAvoidingView, Platform,
@@ -7,25 +7,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
 import { Font, Size } from '../theme/typography';
 import { beoordeel, TraderBeoordeling } from '../engine/etoroAuditor';
+import { laadTraders, slaTraderOp, verwijderTrader } from '../storage/storage';
 
 export default function TradersScreen() {
-  const [naam, setNaam] = useState('');
-  const [riskScore, setRiskScore] = useState('');
-  const [maanden, setMaanden] = useState('');
-  const [drawdown, setDrawdown] = useState('');
+  const [naam,          setNaam]          = useState('');
+  const [riskScore,     setRiskScore]     = useState('');
+  const [maanden,       setMaanden]       = useState('');
+  const [drawdown,      setDrawdown]      = useState('');
   const [jaarrendement, setJaarrendement] = useState('');
-  const [portfolio, setPortfolio] = useState('');
+  const [portfolio,     setPortfolio]     = useState('');
   const [beoordelingen, setBeoordelingen] = useState<TraderBeoordeling[]>([]);
-  const [fout, setFout] = useState('');
+  const [fout,          setFout]          = useState('');
 
-  function beoordelen() {
+  useEffect(() => {
+    laadTraders().then(setBeoordelingen);
+  }, []);
+
+  async function beoordelen() {
     setFout('');
     if (!naam.trim()) { setFout('Vul de naam in.'); return; }
     const risk = parseInt(riskScore, 10);
     if (isNaN(risk) || risk < 1 || risk > 7) { setFout('Risk Score moet 1–7 zijn.'); return; }
     const mnd = maanden.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
     if (mnd.length < 3) { setFout('Vul minimaal 3 maandrendementen in.'); return; }
-    const dd = parseFloat(drawdown);
+    const dd = parseFloat(drawdown.replace(',', '.'));
     if (isNaN(dd) || dd <= 0) { setFout('Vul een geldige max. drawdown in (%).'); return; }
 
     const port: Record<string, number> = {};
@@ -38,13 +43,19 @@ export default function TradersScreen() {
       naam: naam.trim(),
       maandrendementen: mnd,
       maxDrawdown: dd,
-      jaarrendement: jaarrendement ? parseFloat(jaarrendement) : null,
+      jaarrendement: jaarrendement ? parseFloat(jaarrendement.replace(',', '.')) : null,
       riskScore: risk,
       portfolio: port,
     });
 
-    setBeoordelingen(prev => [result, ...prev.filter(b => b.naam !== result.naam)]);
+    await slaTraderOp(result);
+    setBeoordelingen(await laadTraders());
     setNaam(''); setRiskScore(''); setMaanden(''); setDrawdown(''); setJaarrendement(''); setPortfolio('');
+  }
+
+  async function verwijder(traderNaam: string) {
+    await verwijderTrader(traderNaam);
+    setBeoordelingen(await laadTraders());
   }
 
   return (
@@ -55,12 +66,12 @@ export default function TradersScreen() {
           <Text style={s.sub}>Beoordeel een Popular Investor en krijg een 🟢/🟡/🔴-oordeel plus aanbevolen Copy Stop Loss.</Text>
 
           <View style={s.card}>
-            <Veld label="Naam trader" value={naam} onChangeText={setNaam} placeholder="bv. JeppeKirkBonde" />
-            <Veld label="eToro Risk Score (1–7)" value={riskScore} onChangeText={setRiskScore} placeholder="bv. 4" keyboardType="numeric" />
-            <Veld label="Maandrendementen laatste 12 mnd (%)" value={maanden} onChangeText={setMaanden} placeholder="bv. 3.1, -1.2, 5.4, 2.2, -0.8, 4.0" hint="Komma-gescheiden. Negatief = verliesmaand." />
-            <Veld label="Max. drawdown (%)" value={drawdown} onChangeText={setDrawdown} placeholder="bv. 18" keyboardType="decimal-pad" />
-            <Veld label="Jaarrendement (%, optioneel)" value={jaarrendement} onChangeText={setJaarrendement} placeholder="leeg = auto" keyboardType="decimal-pad" />
-            <Veld label="Portfolio-allocatie (optioneel)" value={portfolio} onChangeText={setPortfolio} placeholder="bv. BTC:35, ETH:25, SOL:15, Cash:25" hint="Formaat SYMBOOL:percentage, komma-gescheiden." />
+            <Veld label="Naam trader"                            value={naam}          onChangeText={setNaam}          placeholder="bv. JeppeKirkBonde" />
+            <Veld label="eToro Risk Score (1–7)"                 value={riskScore}     onChangeText={setRiskScore}     placeholder="bv. 4"              keyboardType="numeric" />
+            <Veld label="Maandrendementen laatste 12 mnd (%)"   value={maanden}       onChangeText={setMaanden}       placeholder="3.1, -1.2, 5.4, 2.2, -0.8, 4.0" hint="Komma-gescheiden. Negatief = verliesmaand." />
+            <Veld label="Max. drawdown (%)"                      value={drawdown}      onChangeText={setDrawdown}      placeholder="bv. 18"             keyboardType="decimal-pad" />
+            <Veld label="Jaarrendement (%, optioneel)"           value={jaarrendement} onChangeText={setJaarrendement} placeholder="leeg = auto"        keyboardType="decimal-pad" />
+            <Veld label="Portfolio-allocatie (optioneel)"        value={portfolio}     onChangeText={setPortfolio}     placeholder="BTC:35, ETH:25, SOL:15, Cash:25" hint="Formaat SYMBOOL:percentage, komma-gescheiden." />
 
             {!!fout && <Text style={s.fout}>{fout}</Text>}
 
@@ -69,7 +80,13 @@ export default function TradersScreen() {
             </TouchableOpacity>
           </View>
 
-          {beoordelingen.map(b => <BeoordelingKaart key={b.naam} b={b} onVerwijder={() => setBeoordelingen(prev => prev.filter(x => x.naam !== b.naam))} />)}
+          {beoordelingen.length === 0 && (
+            <View style={s.leeg}><Text style={s.leegTxt}>Nog geen traders beoordeeld. Vul het formulier in om te beginnen.</Text></View>
+          )}
+
+          {beoordelingen.map(b => (
+            <BeoordelingKaart key={b.naam} b={b} onVerwijder={() => verwijder(b.naam)} />
+          ))}
 
           <Text style={s.disc}>Geen financieel advies. Controleer altijd de live koers op eToro voordat je een order plaatst.</Text>
         </ScrollView>
@@ -78,7 +95,7 @@ export default function TradersScreen() {
   );
 }
 
-function Veld({ label, hint, ...props }: { label: string; hint?: string } & React.ComponentProps<typeof TextInput>) {
+function Veld({ label, hint, style: _style, ...props }: { label: string; hint?: string; style?: object } & React.ComponentProps<typeof TextInput>) {
   return (
     <View style={s.veld}>
       <Text style={s.veldLabel}>{label}</Text>
@@ -109,9 +126,9 @@ function BeoordelingKaart({ b, onVerwijder }: { b: TraderBeoordeling; onVerwijde
       </View>
 
       <View style={s.deelRij}>
-        <DeelScore label="Consistentie" score={b.consistentie.score} opmerking={b.consistentie.opmerking} />
-        <DeelScore label="Risico/Return" score={b.risico.score} opmerking={`jaar ${b.risico.jaarrendement}% / DD ${b.risico.maxDrawdown}%`} />
-        <DeelScore label="Portfolio" score={b.portfolio.score} opmerking={b.portfolio.opmerking} />
+        <DeelScore label="Consistentie"  score={b.consistentie.score} opmerking={b.consistentie.opmerking} />
+        <DeelScore label="Risico/Return" score={b.risico.score}       opmerking={`jaar ${b.risico.jaarrendement}% / DD ${b.risico.maxDrawdown}%`} />
+        <DeelScore label="Portfolio"     score={b.portfolio.score}    opmerking={b.portfolio.opmerking} />
       </View>
 
       <TouchableOpacity onPress={onVerwijder} style={s.verwijderKnop}>
@@ -148,6 +165,9 @@ const s = StyleSheet.create({
   fout:   { fontFamily: Font.sans, fontSize: Size.caption, color: Colors.red, marginBottom: 8 },
   btn:    { backgroundColor: Colors.cta, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   btnTxt: { fontFamily: Font.sansSb, fontSize: Size.body, color: '#fff' },
+
+  leeg:    { backgroundColor: Colors.muted, borderRadius: 12, padding: 20, alignItems: 'center', marginBottom: 12 },
+  leegTxt: { fontFamily: Font.sans, fontSize: Size.body, color: Colors.dim, textAlign: 'center', lineHeight: 22 },
 
   bCard:  { backgroundColor: Colors.card, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
   bTop:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
