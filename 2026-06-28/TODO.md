@@ -24,7 +24,6 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 
 - [ ] **Analyse-engine porten:** `engine.js` overzetten naar de Expo-app (`app/`) in TypeScript.
   Python `src/` blijft de referentie/"bron van waarheid" voor de berekeningen.
-- [ ] **Analyse-uitleg voor de gebruiker:** maak duidelijk hoe de score (0-100), stop loss en take profit berekend worden. Branch: `feat/analyse-uitleg-ui`. Oplossing: nieuwe "Hoe werkt dit?" subtab in de web-app (`src/app_ui.py`) met uitleg per indicator, scorekaart en ATR-berekening.
 
 ## 🎨 Huisstijl & Branding
 
@@ -70,3 +69,4 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] TODO-lijst aangemaakt 🎉
 - [x] Techniekkeuze native app onderzocht → **React Native + Expo** ([`docs/native-app-techniekkeuze.md`](docs/native-app-techniekkeuze.md))
 - [x] Kale Expo-app gebouwd en via ADB geverifieerd op emulator ("Hallo wereld — Crypto Markt — app werkt!"). Project verplaatst naar `D:\dev\crypto-market` (lokaal, geen netwerkdrive).
+- [x] **Analyse-uitleg voor de gebruiker** (`feat/analyse-uitleg-ui`) — "📖 Hoe werkt dit?" subtab in `src/app_ui.py` met scorekaart, interactieve score-simulator, ATR-rekenmachine en visuele scorebalk + signaal-badges op elke analysekaart.
