@@ -17,9 +17,6 @@ mobile/ios/App/build/
 *.log
 .env
 
-# Third-party skills clone (external repo)
-skills/
-
 # IDE
 .idea/
 .vscode/

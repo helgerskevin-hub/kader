@@ -92,6 +92,21 @@ HTML = r"""<!DOCTYPE html>
   @keyframes sp{to{transform:rotate(360deg)}}
   .bar{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:6px}
   .bar > i{display:block;height:100%;background:var(--green)}
+  .scorebalk{height:8px;background:var(--panel2);border-radius:5px;overflow:hidden;margin:5px 0 7px}
+  .scorebalk>i{display:block;height:100%;border-radius:5px;transition:width .4s}
+  .sbar-groen{background:linear-gradient(90deg,#1d5235,#22c55e)}
+  .sbar-blauw{background:linear-gradient(90deg,#1d3f66,#3b82f6)}
+  .sbar-grijs{background:#353c47}
+  .signaal-tag{display:inline-block;font-size:11px;background:#1c2d1e;color:#5ee08a;
+               border:1px solid #1d5235;border-radius:5px;padding:2px 7px;margin:2px 3px 2px 0}
+  .uitleg-input{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line);
+                background:var(--panel2);color:var(--txt);font-size:15px;font-family:inherit;margin-top:4px}
+  .uitleg-input:focus{outline:none;border-color:var(--accent)}
+  .sim-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .sim-row:last-child{border-bottom:none}
+  .sim-row input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+  .sim-row label{flex:1;font-size:14px;cursor:pointer}
+  .sim-punten{font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#1d2532;
          border:1px solid var(--line);padding:12px 20px;border-radius:10px;opacity:0;transition:.3s;z-index:50}
   .toast.toon{opacity:1}
@@ -119,6 +134,7 @@ HTML = r"""<!DOCTYPE html>
       <button class="subtab actief" data-sub="markt">📊 Marktanalyse</button>
       <button class="subtab" data-sub="copy">👥 Traders kopiëren</button>
       <button class="subtab" data-sub="kansen">🚀 Grote kansen</button>
+      <button class="subtab" data-sub="uitleg">📖 Hoe werkt dit?</button>
     </div>
 
     <!-- sub: marktanalyse -->
@@ -153,6 +169,201 @@ HTML = r"""<!DOCTYPE html>
       <p style="font-size:12.5px;color:var(--orange);margin-top:14px;background:#2a1f0e;border:1px solid #5a431d;padding:10px 13px;border-radius:9px">
         ⚠️ Dit zijn speculatieve, volatiele coins. Ze kunnen hard stijgen maar ook hard dalen.
         Gebruik altijd de stop loss en investeer alleen wat je kunt missen.</p>
+    </div>
+
+    <!-- sub: hoe werkt dit? -->
+    <div class="subview" id="sub-uitleg">
+      <h2>Hoe werkt de analyse?</h2>
+      <p class="sub">De app berekent voor elke coin een <b>score van 0 tot 100</b> op basis van vijf
+         technische indicatoren. Hieronder zie je precies wat elke indicator meet, hoeveel punten
+         hij oplevert en hoe de stop loss en take profit worden berekend.</p>
+
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="margin:0 0 14px;font-size:15px">📊 Scorekaart — wat levert wat op?</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Indicator</th>
+              <th class="num">Max. punten</th>
+              <th>Wat meet het?</th>
+              <th>Wanneer punten?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>EMA 20 &gt; EMA 50</b></td>
+              <td class="num">25</td>
+              <td>Opwaartse trend (snelle lijn boven trage lijn)</td>
+              <td>Altijd als de 20-daagse EMA boven de 50-daagse staat</td>
+            </tr>
+            <tr>
+              <td><b>Prijs &gt; EMA 20</b></td>
+              <td class="num">15</td>
+              <td>Momentum bevestiging</td>
+              <td>Als de huidige prijs boven het 20-daagse gemiddelde uitkomt</td>
+            </tr>
+            <tr>
+              <td><b>RSI (gezond)</b></td>
+              <td class="num">20</td>
+              <td>Kracht van de beweging (0–100)</td>
+              <td>+20 als RSI tussen 45 en 68 (niet overgebought), +10 als RSI &lt; 35 (oversold, mogelijke bounce)</td>
+            </tr>
+            <tr>
+              <td><b>MACD bullish</b></td>
+              <td class="num">25</td>
+              <td>Trendbevestiging op middellange termijn</td>
+              <td>+20 als MACD-lijn boven signaallijn, +5 extra als histogram positief is</td>
+            </tr>
+            <tr>
+              <td><b>Volume spike</b></td>
+              <td class="num">15</td>
+              <td>Marktinteresse / institutionele activiteit</td>
+              <td>+15 als volume ≥ 1,5× het 20-daags gemiddelde, +8 als ≥ 1,2×</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td><b>Totaal</b></td>
+              <td class="num"><b>100</b></td>
+              <td colspan="2" style="color:var(--dim)">Score wordt afgekapt op 100</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="margin:0 0 14px;font-size:15px">🎯 Wat betekent de score?</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+          <div style="background:#0f2d1a;border:1px solid #1d5235;border-radius:10px;padding:14px">
+            <div style="font-size:22px;font-weight:800;color:#5ee08a">75–100</div>
+            <div style="font-weight:700;color:#5ee08a;margin-bottom:4px">HIGH CONVICTION ⭐</div>
+            <div style="font-size:13px;color:#8b949e">Alle indicatoren wijzen dezelfde kant op. EMA-trend, MACD en volume bevestigen elkaar. Sterkste kansen.</div>
+          </div>
+          <div style="background:#11243d;border:1px solid #1d3f66;border-radius:10px;padding:14px">
+            <div style="font-size:22px;font-weight:800;color:#74b1ff">55–74</div>
+            <div style="font-weight:700;color:#74b1ff;margin-bottom:4px">KOOP-signaal</div>
+            <div style="font-size:13px;color:#8b949e">Meerdere indicatoren groen. Degelijk instapmoment, maar niet alle seinen staan op groen.</div>
+          </div>
+          <div style="background:#1c2230;border:1px solid #2a3140;border-radius:10px;padding:14px">
+            <div style="font-size:22px;font-weight:800;color:#9aa4b1">0–54</div>
+            <div style="font-weight:700;color:#9aa4b1;margin-bottom:4px">WATCH</div>
+            <div style="font-size:13px;color:#8b949e">Te weinig bevestiging. Coin verschijnt niet in de resultatentabel — je hoeft er niets mee te doen.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="margin:0 0 14px;font-size:15px">📐 Hoe worden stop loss en take profit berekend?</h3>
+        <p style="margin:0 0 12px;font-size:14px">De app gebruikt <b>ATR</b> (Average True Range) — een maat voor hoe wild een coin
+           de afgelopen 14 dagen bewoog. Daarmee worden de niveaus dynamisch ingesteld,
+           zodat een volatiele coin een bredere stop krijgt dan een rustige coin.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:4px">
+          <div style="background:var(--panel2);border-radius:9px;padding:13px;text-align:center">
+            <div style="font-size:12px;color:var(--dim);margin-bottom:5px">ENTRY</div>
+            <div style="font-size:18px;font-weight:700">Huidige prijs</div>
+            <div style="font-size:12px;color:var(--dim);margin-top:4px">± 0,2 × ATR</div>
+          </div>
+          <div style="background:#3a1418;border:1px solid #5a2026;border-radius:9px;padding:13px;text-align:center">
+            <div style="font-size:12px;color:#ff7a7a;margin-bottom:5px">STOP LOSS</div>
+            <div style="font-size:18px;font-weight:700;color:#ff7a7a">Entry − 1,5 × ATR</div>
+            <div style="font-size:12px;color:var(--dim);margin-top:4px">Risicobeheer</div>
+          </div>
+          <div style="background:#0f2d1a;border:1px solid #1d5235;border-radius:9px;padding:13px;text-align:center">
+            <div style="font-size:12px;color:#5ee08a;margin-bottom:5px">TAKE PROFIT</div>
+            <div style="font-size:18px;font-weight:700;color:#5ee08a">Entry + 3,0 × ATR</div>
+            <div style="font-size:12px;color:var(--dim);margin-top:4px">Risk/Reward ≥ 1:2</div>
+          </div>
+        </div>
+        <p style="margin:12px 0 0;font-size:13px;color:var(--dim)">Voorbeeld: ATR = $500. Entry = $10.000. Stop loss = $9.250 (−$750). Take profit = $11.500 (+$1.500). R/R = 2:1.</p>
+      </div>
+
+      <!-- Interactieve score-simulator -->
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="margin:0 0 4px;font-size:15px">🧮 Score-simulator</h3>
+        <p style="margin:0 0 14px;font-size:13px;color:var(--dim)">Vink aan welke signalen aanwezig zijn — zie direct hoe de score opgebouwd wordt.</p>
+        <div id="sim-rijen">
+          <div class="sim-row"><input type="checkbox" id="sim1" data-pts="25"><label for="sim1">EMA 20 &gt; EMA 50 — opwaartse trend</label><span class="sim-punten">+25 pts</span></div>
+          <div class="sim-row"><input type="checkbox" id="sim2" data-pts="15"><label for="sim2">Prijs boven EMA 20 — momentum bevestigd</label><span class="sim-punten">+15 pts</span></div>
+          <div class="sim-row"><input type="checkbox" id="sim3" data-pts="20"><label for="sim3">RSI 45–68 — gezonde zone (niet overbought)</label><span class="sim-punten">+20 pts</span></div>
+          <div class="sim-row"><input type="checkbox" id="sim3b" data-pts="10"><label for="sim3b">RSI &lt; 35 — oversold, mogelijke bounce (alternatief)</label><span class="sim-punten">+10 pts</span></div>
+          <div class="sim-row"><input type="checkbox" id="sim4" data-pts="20"><label for="sim4">MACD boven signaallijn — trend bevestigd</label><span class="sim-punten">+20 pts</span></div>
+          <div class="sim-row"><input type="checkbox" id="sim4b" data-pts="5"><label for="sim4b">MACD histogram positief (extra bevestiging)</label><span class="sim-punten">+5 pts</span></div>
+          <div class="sim-row"><input type="checkbox" id="sim5" data-pts="15"><label for="sim5">Volume spike ≥ 1,5× gemiddelde — sterke interesse</label><span class="sim-punten">+15 pts</span></div>
+          <div class="sim-row"><input type="checkbox" id="sim5b" data-pts="8"><label for="sim5b">Verhoogd volume 1,2–1,5× (alternatief)</label><span class="sim-punten">+8 pts</span></div>
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:13px;color:var(--dim)">Score</span>
+            <span id="sim-getal" style="font-size:24px;font-weight:800">0</span>
+          </div>
+          <div class="scorebalk"><i id="sim-balk" class="sbar-grijs" style="width:0%"></i></div>
+          <div id="sim-label" style="font-size:13px;color:var(--dim);margin-top:6px">Vink signalen aan om de score te berekenen</div>
+        </div>
+      </div>
+
+      <!-- Interactieve ATR-rekenmachine -->
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="margin:0 0 4px;font-size:15px">🔢 ATR-rekenmachine</h3>
+        <p style="margin:0 0 14px;font-size:13px;color:var(--dim)">Vul een prijs en ATR in om te zien wat de stop loss en take profit worden.</p>
+        <div class="form-grid" style="gap:12px">
+          <div><label style="font-size:13px;color:var(--dim);font-weight:600">Entry-prijs ($)</label>
+            <input class="uitleg-input" id="atr-entry" type="number" step="any" placeholder="bv. 65000"></div>
+          <div><label style="font-size:13px;color:var(--dim);font-weight:600">ATR ($)</label>
+            <input class="uitleg-input" id="atr-atr" type="number" step="any" placeholder="bv. 2500"></div>
+        </div>
+        <div id="atr-uitvoer" style="margin-top:14px;display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px">
+            <div style="background:var(--panel2);border-radius:9px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--dim);margin-bottom:4px">ENTRY-ZONE</div>
+              <div id="atr-elaag" style="font-size:14px;font-weight:700"></div>
+              <div style="font-size:11px;color:var(--dim)">t/m</div>
+              <div id="atr-ehoog" style="font-size:14px;font-weight:700"></div>
+            </div>
+            <div style="background:#3a1418;border:1px solid #5a2026;border-radius:9px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:#ff7a7a;margin-bottom:4px">🛑 STOP LOSS</div>
+              <div id="atr-stop" style="font-size:18px;font-weight:800;color:#ff7a7a"></div>
+              <div id="atr-stop-afstand" style="font-size:11px;color:var(--dim);margin-top:3px"></div>
+            </div>
+            <div style="background:#0f2d1a;border:1px solid #1d5235;border-radius:9px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:#5ee08a;margin-bottom:4px">🎯 TAKE PROFIT</div>
+              <div id="atr-tp" style="font-size:18px;font-weight:800;color:#5ee08a"></div>
+              <div id="atr-tp-afstand" style="font-size:11px;color:var(--dim);margin-top:3px"></div>
+            </div>
+          </div>
+          <p id="atr-rr" style="margin:10px 0 0;font-size:13px;color:var(--dim);text-align:center"></p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="margin:0 0 14px;font-size:15px">🚀 Signaal uitvoeren op eToro — stap voor stap</h3>
+        <p style="margin:0 0 14px;font-size:14px;color:var(--dim)">Je hebt een signaal van de app (entry, stop loss, take profit). Zo voer je dat daadwerkelijk uit op eToro:</p>
+        <ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.0">
+          <li style="margin-bottom:11px"><b>Open eToro</b> — ga naar <em>etoro.com</em> of de eToro-app op je telefoon</li>
+          <li style="margin-bottom:11px"><b>Zoek de coin</b> — typ het symbool in de zoekbalk (bv. <code style="background:var(--panel2);padding:1px 5px;border-radius:4px">BTC</code> of <code style="background:var(--panel2);padding:1px 5px;border-radius:4px">ETH</code>) en klik op het zoekresultaat</li>
+          <li style="margin-bottom:11px"><b>Klik op "Trade"</b> — de handelskaart verschijnt rechts in beeld (of als pop-up in de app)</li>
+          <li style="margin-bottom:11px"><b>Vul het bedrag in</b> — begin klein totdat je vertrouwen in het systeem hebt; investeer alleen wat je kunt missen</li>
+          <li style="margin-bottom:11px"><b>Stel de Stop Loss in</b> — klik op het stop loss-veld, kies <em>"Prijs"</em> en vul de waarde in die de app toont <span class="badge b-rood" style="vertical-align:middle;margin-left:4px">🛑 stop loss uit app</span></li>
+          <li style="margin-bottom:11px"><b>Stel de Take Profit in</b> — klik op het take profit-veld, kies <em>"Prijs"</em> en vul de waarde in die de app toont <span class="badge b-groen" style="vertical-align:middle;margin-left:4px">🎯 take profit uit app</span></li>
+          <li style="margin-bottom:11px"><b>Leverage op ×1</b> — zorg dat de hefboom op <em>×1</em> staat (geen geleend geld; je bezit de coin zelf)</li>
+          <li style="margin-bottom:0"><b>Bevestig de order</b> — klik "Openen" en bewaar het bevestigde entry-bedrag; voer de trade daarna in via de <b>Mijn Trades</b>-tab zodat de app de prijs voor je bijhoudt</li>
+        </ol>
+        <div style="margin-top:16px;padding:10px 13px;background:#11243d;border:1px solid #1d3f66;border-radius:8px;font-size:13px">
+          💡 <b>Snelkoppeling:</b> klik op <em>"✅ Getrade"</em> op een analysekaart of in het Traders kopiëren-tabblad om de trade inclusief stop loss en take profit direct in <b>Mijn Trades</b> op te slaan.
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="margin:0 0 10px;font-size:15px">📡 Waar komen de gegevens vandaan?</h3>
+        <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.9">
+          <li><b>Binance</b> — dagelijkse candlestick-data (gratis publieke API, geen account nodig)</li>
+          <li><b>CoinGecko</b> — fallback als Binance tijdelijk onbereikbaar is</li>
+          <li>Geen enkele berekening wordt op een externe server gedaan — alles loopt lokaal op jouw computer</li>
+        </ul>
+      </div>
+
+      <p style="font-size:13px;color:var(--dim);background:var(--panel);border:1px solid var(--line);padding:12px 14px;border-radius:9px">
+        ℹ️ De indicatoren (RSI, EMA, MACD, ATR) zijn industrie-standaard technische analyse tools.
+        Ze voorspellen niets — ze beschrijven het huidig momentum. Gebruik ze altijd samen met je eigen oordeel.</p>
     </div>
 
     <p class="disc">⚠️ Geen financieel advies. Trades zijn technische signalen ter ondersteuning van je eigen onderzoek.
@@ -286,6 +497,9 @@ function kaartAnalyse(t){
             : t.signaal==="KOOP" ? '<span class="badge b-blauw">KOOP</span>'
             : '<span class="badge b-grijs">WATCH</span>';
   const data = encodeURIComponent(JSON.stringify({symbool:t.symbool,entry:t.entry,stop_loss:t.stop_loss,take_profit:t.take_profit}));
+  const scoreKleur = t.score>=75 ? 'var(--green)' : t.score>=55 ? 'var(--blue)' : 'var(--grijs)';
+  const scoreKlas  = t.score>=75 ? 'sbar-groen' : t.score>=55 ? 'sbar-blauw' : 'sbar-grijs';
+  const reden_tags = (t.redenen||[]).map(r=>`<span class="signaal-tag">✓ ${r}</span>`).join('');
   return `<div class="card ${t.high_conviction?'hc':''}">
     <div class="rij-top"><span class="sym">${t.symbool}</span>${sig}</div>
     ${verdictBadge(t.oordeel)}
@@ -294,8 +508,15 @@ function kaartAnalyse(t){
     <div class="lvl"><span>🛑 Stop loss</span><b style="color:var(--red)">${fmt(t.stop_loss)}</b></div>
     <div class="lvl"><span>🎯 Take profit</span><b style="color:var(--green)">${fmt(t.take_profit)}</b></div>
     <div class="lvl"><span>Risk / Reward</span><b>1:${t.rr}</b></div>
-    <div class="lvl"><span>Signaalscore · RSI</span><b>${t.score}/100 · ${t.rsi}</b></div>
-    ${infoBlok(t.info, t.oordeel, (t.redenen||[]).join(", ")+" · data: "+t.bron)}
+    <div style="margin:10px 0 4px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--dim)">
+        <span>Signaalscore <span style="font-size:11px">(RSI: ${t.rsi})</span></span>
+        <b style="color:${scoreKleur}">${t.score}/100</b>
+      </div>
+      <div class="scorebalk"><i class="${scoreKlas}" style="width:${t.score}%"></i></div>
+      <div style="margin-top:6px">${reden_tags}</div>
+    </div>
+    ${infoBlok(t.info, t.oordeel, "data: "+t.bron)}
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-mini" style="flex:1" onclick="markeerGetrade('${data}')">✅ Getrade</button>
       <button class="btn btn-sec btn-mini" onclick="naarMijnTrades('${data}')">✏️ Aanpassen</button>
@@ -548,6 +769,81 @@ function kaartTrader(b){
   </div>`;
 }
 async function verwijderTrader(id){ toonTraders(await api("/api/traders/delete",{id})); }
+
+// ---------- UITLEG: SCORE-SIMULATOR ----------
+(function(){
+  // RSI-opties (sim3 / sim3b) en volume-opties (sim5 / sim5b) zijn in de
+  // engine elif-branches — maximaal één per paar is tegelijk van toepassing.
+  const exclusiefParen = [['sim3','sim3b'], ['sim5','sim5b']];
+  function bereken(){
+    let score = 0;
+    document.querySelectorAll('#sim-rijen input[type=checkbox]').forEach(cb=>{
+      if(cb.checked) score += parseInt(cb.dataset.pts);
+    });
+    score = Math.min(score, 100);
+    const getal = document.getElementById('sim-getal');
+    const balk  = document.getElementById('sim-balk');
+    const lbl   = document.getElementById('sim-label');
+    if(!getal) return;
+    getal.textContent = score + '/100';
+    balk.style.width = score + '%';
+    if(score >= 75){
+      getal.style.color = 'var(--green)';
+      balk.className = 'sbar-groen';
+      lbl.innerHTML = '⭐ <b style="color:var(--green)">HIGH CONVICTION</b> — sterkst mogelijke kans. Alle seinen staan op groen.';
+    } else if(score >= 55){
+      getal.style.color = 'var(--blue)';
+      balk.className = 'sbar-blauw';
+      lbl.innerHTML = '🟦 <b style="color:var(--blue)">KOOP-signaal</b> — meerdere indicatoren groen, degelijk instapmoment.';
+    } else {
+      getal.style.color = 'var(--dim)';
+      balk.className = 'sbar-grijs';
+      lbl.innerHTML = '⬜ <b style="color:var(--dim)">WATCH</b> — te weinig bevestiging. Coin verschijnt niet in de resultaten.';
+    }
+  }
+  function maakExclusief(idA, idB){
+    const a = document.getElementById(idA);
+    const b = document.getElementById(idB);
+    if(!a || !b) return;
+    a.addEventListener('change', ()=>{ if(a.checked) b.checked=false; bereken(); });
+    b.addEventListener('change', ()=>{ if(b.checked) a.checked=false; bereken(); });
+  }
+  exclusiefParen.forEach(([a,b])=>maakExclusief(a,b));
+  document.querySelectorAll('#sim-rijen input[type=checkbox]').forEach(cb=>{
+    const isPaarLid = exclusiefParen.some(p=>p.includes(cb.id));
+    if(!isPaarLid) cb.addEventListener('change', bereken);
+  });
+})();
+
+// ---------- UITLEG: ATR-REKENMACHINE ----------
+(function(){
+  function berekenAtr(){
+    const entry = parseFloat(document.getElementById('atr-entry').value);
+    const atr   = parseFloat(document.getElementById('atr-atr').value);
+    const uitvoer = document.getElementById('atr-uitvoer');
+    if(!(entry>0) || !(atr>0)){ uitvoer.style.display='none'; return; }
+    const sl = entry - 1.5 * atr;
+    const tp = entry + 3.0 * atr;
+    const risk   = entry - sl;
+    const reward = tp - entry;
+    const rr = (reward/risk).toFixed(1);
+    const dp = entry >= 1000 ? 2 : entry >= 1 ? 4 : 6;
+    const f = v => '$' + v.toFixed(dp).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const pct = v => (v>=0?'+':'')+v.toFixed(1)+'%';
+    document.getElementById('atr-elaag').textContent = f(entry - 0.2*atr);
+    document.getElementById('atr-ehoog').textContent = f(entry + 0.2*atr);
+    document.getElementById('atr-stop').textContent  = f(sl);
+    document.getElementById('atr-tp').textContent    = f(tp);
+    document.getElementById('atr-stop-afstand').textContent = pct(-risk/entry*100) + ' van entry';
+    document.getElementById('atr-tp-afstand').textContent   = pct(reward/entry*100) + ' van entry';
+    document.getElementById('atr-rr').textContent = `Risk: ${f(risk)} · Reward: ${f(reward)} · R/R = 1:${rr}`;
+    uitvoer.style.display = 'block';
+  }
+  ['atr-entry','atr-atr'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el){ el.addEventListener('input', berekenAtr); el.addEventListener('change', berekenAtr); }
+  });
+})();
 
 // init
 $("#klok").textContent = new Date().toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"});

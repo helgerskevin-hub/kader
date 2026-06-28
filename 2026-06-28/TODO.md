@@ -36,34 +36,57 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 
 _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 
-- [ ] Naam voor de app bedenken
 - [ ] Inloggen? Zo ja, database?
 - [ ] Wens: portfolio uit eToro kunnen halen zodat je je trades niet zelf hoeft in te vullen
+- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt
+- [ ] Favorietenlijst: vaste coins markeren zodat ze altijd bovenaan de analyse staan
+- [ ] Historisch overzicht gesloten trades met winst/verlies-statistieken (trefferpercentage, gem. R/R behaald)
+- [ ] Dark/light mode
 
 ## 🛠️ Te doen
 
 ### Migratie naar native app (React Native + Expo)
 - [x] Kale Expo-app opzetten + lokaal een installeerbare APK bouwen (bewijs dat de gratis bouw-/sideload-loop werkt). JDK 17 bleek niet nodig — Android Studio's JBR (OpenJDK 21) volstaat. Project staat in `app/`, gebouwd vanuit `D:\dev\crypto-market`.
-- [ ] Analyse-engine porten: `engine.js` overzetten naar de Expo-app (TypeScript). Python `src/` blijft de referentie/"bron van waarheid" voor de berekeningen.
-- [ ] Schermen (her)bouwen op basis van Kevin's UX/UI-keuzes: Marktanalyse, Grote kansen, Mijn Trades, eToro-traders, onboarding.
-- [ ] Pushmeldingen + lokale opslag aansluiten (`expo-notifications`, `expo-sqlite`).
-- [ ] Desktop-versie (Python web-UI: `app.py` + `app_ui.py`) uitfaseren/verwijderen zodra de native app de functies overneemt.
+- [ ] Analyse-engine porten: Python-logica uit `src/` overzetten naar TypeScript-modules in `app/`. Prioriteit: `cryptoAnalyzer.ts`, `etoroAuditor.ts`, `coinInfo.ts`.
+- [ ] Navigatiestructuur opzetten (React Navigation): Tab-navigatie met Marktanalyse, Grote kansen, Mijn Trades, Traders.
+- [ ] Schermen bouwen — volledig functioneel:
+  - [ ] **Marktanalyse-scherm** — lijst met trade-kaarten (entry / stop / take profit / score)
+  - [ ] **Grote Kansen-scherm** — momentum-scanner resultaten
+  - [ ] **Mijn Trades-scherm** — open posities met live prijs + advies (HOUD/VERKOOP/WINST)
+  - [ ] **eToro Traders-scherm** — traders toevoegen, beoordelen (GROEN/GEEL/ROOD) en hun posities bekijken
+  - [ ] **Onboarding-scherm** — eerste-keer uitleg: wat is de app, hoe werkt een stop loss, disclaimer
+- [ ] Lokale opslag aansluiten (`expo-sqlite` of `AsyncStorage`) voor traders en eigen posities
+- [ ] Pushmeldingen inschakelen (`expo-notifications`): seintje als stop loss of take profit van een eigen trade geraakt wordt
+- [ ] Desktop-versie (Python `app.py` + `app_ui.py`) uitfaseren zodra de native app alle functies overneemt
 
 ### Functioneel / inhoud
-- [ ] Begrijpen wat de "score" (0–100) van een coin betekent (zie `crypto_analyzer.py`) — uitleg in de app. **Uitgesteld:** hoort in de nieuwe native app (de mobiele frontend bestond niet meer in de checkout).
-- [ ] eToro API integratie en mogelijkheden uitwerken.
-- [ ] Grote Kansen laat nu ook niet tradable coins zien bij eToro. Wellicht mogelijk met API de scan te filteren op enkel tradable coins
-- [ ] Copy trading uitwerken, makkelijkere stappen
-- [ ] User Onboarding in de app
-- [ ] Volledig app design maken (Kevin — UX/UI; zie pointers in `docs/native-app-techniekkeuze.md`)
-- [ ] Naam van de app bedenken
-- [ ] Account? Vrienden?
+- [ ] **Live prijs-polling** op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden (net als desktop-versie)
+- [ ] **eToro API** onderzoeken: kunnen we tradable coins automatisch ophalen zodat de Grote Kansen-scan alleen beschikbare coins toont?
+- [x] **Copy trading stappen** vereenvoudigen: stappenplan in de app hoe je een signaal op eToro uitvoert
+- [ ] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
+
+### Kwaliteit & stabiliteit
+- [x] Bugrapport opgesteld + alle 9 bugs gefixed (zie `docs/bugrapport-2026-06-28.md`)
+- [ ] Handmatige smoke-test checklist uitvoeren na elke grote wijziging (zie hieronder)
+- [ ] Error boundary toevoegen in de Expo-app zodat één kapotte component niet de hele app neergooit
+- [ ] Offline-modus: nette foutmelding als de telefoon geen internet heeft i.p.v. een lege pagina
+
+### Smoke-test checklist (desktop web-UI)
+_(Doorloop dit na elke wijziging aan `src/` om regressies te voorkomen.)_
+- [ ] `python src/app.py` start zonder fouten, browser opent op `http://localhost:8765`
+- [ ] Tab "Analyse" → "Start Analyse" geeft trade-kaarten terug (of nette leeg-melding)
+- [ ] Tab "Analyse" → "Grote kansen" geeft coins terug met stop loss en take profit
+- [ ] Tab "Analyse" → "Traders kopiëren" toont posities voor opgeslagen traders
+- [ ] Tab "Analyse" → "Hoe werkt dit?" — score-simulator: RSI-opties en volume-opties sluiten elkaar uit
+- [ ] Tab "Mijn Trades" → trade toevoegen, auto-vernieuwen, trade sluiten, verwijderen
+- [ ] Tab "eToro Traders" → trader toevoegen, oordeel GROEN/GEEL/ROOD zichtbaar, verwijderen
+- [ ] `python src/daily_report.py` schrijft een geldig markdown-bestand in `reports/`
 
 ## 🐛 Bugs / dingen die kapot zijn
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
-- [ ] _(nog niks)_
+- _(geen open bugs — alle gevonden bugs zijn opgelost, zie `docs/bugrapport-2026-06-28.md`)_
 
 ## ✅ Klaar
 
@@ -72,3 +95,5 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] TODO-lijst aangemaakt 🎉
 - [x] Techniekkeuze native app onderzocht → **React Native + Expo** ([`docs/native-app-techniekkeuze.md`](docs/native-app-techniekkeuze.md))
 - [x] Kale Expo-app gebouwd en via ADB geverifieerd op emulator ("Hallo wereld — Crypto Markt — app werkt!"). Project verplaatst naar `D:\dev\crypto-market` (lokaal, geen netwerkdrive).
+- [x] **Analyse-uitleg voor de gebruiker** (`feat/analyse-uitleg-ui`) — "📖 Hoe werkt dit?" subtab in `src/app_ui.py` met scorekaart, interactieve score-simulator, ATR-rekenmachine en visuele scorebalk + signaal-badges op elke analysekaart.
+- [x] **Bugrapport + alle fixes** (`feat/analyse-uitleg-ui`) — 9 bugs gevonden en opgelost: race condition, dode R/R-filter, ongebruikte dependency, verkeerd kleur-veld, simulator-inconsistentie, niet-atomaire schrijfacties, NaN-check, gedupliceerde functie, deprecated mobile-map.
