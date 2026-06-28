@@ -47,8 +47,8 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 
 ### Migratie naar native app (React Native + Expo)
 - [x] Kale Expo-app opzetten + lokaal een installeerbare APK bouwen (bewijs dat de gratis bouw-/sideload-loop werkt). JDK 17 bleek niet nodig — Android Studio's JBR (OpenJDK 21) volstaat. Project staat in `app/`, gebouwd vanuit `D:\dev\crypto-market`.
-- [ ] Analyse-engine porten: Python-logica uit `src/` overzetten naar TypeScript-modules in `app/`. Prioriteit: `cryptoAnalyzer.ts`, `etoroAuditor.ts`, `coinInfo.ts`.
-- [ ] Navigatiestructuur opzetten (React Navigation): Tab-navigatie met Marktanalyse, Grote kansen, Mijn Trades, Traders.
+- [x] Analyse-engine porten: Python-logica uit `src/` overzetten naar TypeScript-modules in `app/`. Prioriteit: `cryptoAnalyzer.ts`, `etoroAuditor.ts`, `coinInfo.ts`.
+- [x] Navigatiestructuur opzetten (React Navigation): Tab-navigatie met Marktanalyse, Grote kansen, Mijn Trades, Traders.
 - [ ] Schermen bouwen — volledig functioneel:
   - [ ] **Marktanalyse-scherm** — lijst met trade-kaarten (entry / stop / take profit / score)
   - [ ] **Grote Kansen-scherm** — momentum-scanner resultaten
