@@ -81,8 +81,10 @@ VOLUME_GEMIDDELDE_PERIODE = 20
 
 # Risk/Reward-instellingen.
 ATR_STOP_MULTIPLIER = 1.5      # stop loss = entry - 1.5 * ATR
-MIN_RISK_REWARD = 2.0          # minimaal 1:2
-REWARD_MULTIPLIER = 3.0        # take profit = entry + 3 * ATR  (=> R/R 2.0 bij 1.5 ATR stop)
+REWARD_MULTIPLIER = 3.0        # take profit = entry + 3 * ATR
+# R/R wordt volledig bepaald door de twee multipliers hierboven (3.0 / 1.5 = 2.0).
+# MIN_RISK_REWARD is hier puur documentatie; de berekening garandeert altijd exact deze waarde.
+MIN_RISK_REWARD = REWARD_MULTIPLIER / ATR_STOP_MULTIPLIER
 
 HIGH_CONVICTION_SCORE = 75     # drempel voor "HIGH CONVICTION"
 HTTP_TIMEOUT = 15
@@ -280,9 +282,6 @@ def analyseer_coin(symbool: str) -> dict | None:
     # Entry-zone: smalle band rond de huidige prijs (0.4 * ATR breed).
     entry_laag = entry - 0.2 * atr_nu
     entry_hoog = entry + 0.2 * atr_nu
-
-    if rr < MIN_RISK_REWARD - 1e-9:
-        return None  # filter: alleen trades met minimaal 1:2 (tolerant voor float-afronding)
 
     signaal_tekst = "KOOP" if score >= 55 else "WATCH"
     high_conviction = (

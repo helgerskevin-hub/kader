@@ -24,7 +24,9 @@ Daarna opent automatisch http://localhost:8765 in je browser.
 from __future__ import annotations
 
 import json
+import math
 import os
+import tempfile
 import threading
 import webbrowser
 from datetime import datetime, timezone
@@ -44,22 +46,31 @@ POORT = 8765
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
+_bestand_lock = threading.Lock()
+
 
 # ---------------------------------------------------------------------------
 # Opslag (simpele JSON-bestanden)
 # ---------------------------------------------------------------------------
 
 def _laad(pad: str, standaard):
-    try:
-        with open(pad, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return standaard
+    with _bestand_lock:
+        try:
+            with open(pad, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return standaard
 
 
 def _bewaar(pad: str, data) -> None:
-    with open(pad, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    dir_ = os.path.dirname(pad) or "."
+    with _bestand_lock:
+        with tempfile.NamedTemporaryFile(
+            "w", dir=dir_, delete=False, suffix=".tmp", encoding="utf-8"
+        ) as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            tmp = f.name
+        os.replace(tmp, pad)
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +132,7 @@ def _live_indicatoren(symbool: str) -> dict | None:
         "ema20": float(ema20.iloc[-1]),
         "ema50": float(ema50.iloc[-1]),
         "macd_bullish": float(macd_lijn.iloc[-1]) > float(signaal_lijn.iloc[-1]),
-        "atr": float(atr.iloc[-1]) if atr.iloc[-1] == atr.iloc[-1] else prijs * 0.03,
+        "atr": float(atr.iloc[-1]) if not math.isnan(atr.iloc[-1]) else prijs * 0.03,
     }
 
 
@@ -340,7 +351,7 @@ def api_traders_lijst() -> dict:
                 "id": tr["id"],
                 "naam": b["naam"],
                 "oordeel": b["oordeel"],
-                "kleur": b["oordeel"],
+                "kleur": b["kleur"],
                 "score": b["totaalscore"],
                 "csl": b["csl"],
                 "consistentie": b["consistentie"],

@@ -754,10 +754,9 @@ async function verwijderTrader(id){ toonTraders(await api("/api/traders/delete",
 
 // ---------- UITLEG: SCORE-SIMULATOR ----------
 (function(){
-  const labels = {
-    sim1:'EMA20>EMA50', sim2:'Prijs>EMA20', sim3:'RSI gezond', sim3b:'RSI oversold',
-    sim4:'MACD bullish', sim4b:'MACD histogram', sim5:'Volume spike', sim5b:'Volume verhoogd'
-  };
+  // RSI-opties (sim3 / sim3b) en volume-opties (sim5 / sim5b) zijn in de
+  // engine elif-branches — maximaal één per paar is tegelijk van toepassing.
+  const exclusiefParen = [['sim3','sim3b'], ['sim5','sim5b']];
   function bereken(){
     let score = 0;
     document.querySelectorAll('#sim-rijen input[type=checkbox]').forEach(cb=>{
@@ -784,7 +783,18 @@ async function verwijderTrader(id){ toonTraders(await api("/api/traders/delete",
       lbl.innerHTML = '⬜ <b style="color:var(--dim)">WATCH</b> — te weinig bevestiging. Coin verschijnt niet in de resultaten.';
     }
   }
-  document.querySelectorAll('#sim-rijen input[type=checkbox]').forEach(cb=>cb.addEventListener('change', bereken));
+  function maakExclusief(idA, idB){
+    const a = document.getElementById(idA);
+    const b = document.getElementById(idB);
+    if(!a || !b) return;
+    a.addEventListener('change', ()=>{ if(a.checked) b.checked=false; bereken(); });
+    b.addEventListener('change', ()=>{ if(b.checked) a.checked=false; bereken(); });
+  }
+  exclusiefParen.forEach(([a,b])=>maakExclusief(a,b));
+  document.querySelectorAll('#sim-rijen input[type=checkbox]').forEach(cb=>{
+    const isPaarLid = exclusiefParen.some(p=>p.includes(cb.id));
+    if(!isPaarLid) cb.addEventListener('change', bereken);
+  });
 })();
 
 // ---------- UITLEG: ATR-REKENMACHINE ----------

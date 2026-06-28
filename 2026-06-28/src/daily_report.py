@@ -37,13 +37,7 @@ try:
 except Exception:
     _console = None
 
-
-def _fmt(p: float) -> str:
-    if p >= 100:
-        return f"${p:,.2f}"
-    if p >= 1:
-        return f"${p:,.3f}"
-    return f"${p:,.5f}"
+_fmt = ca._fmt
 
 
 def bouw_markdown(trades: list[dict], audits: list[dict], datum: str, tijd: str) -> str:

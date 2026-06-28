@@ -1,8 +1,15 @@
-# 📱 Crypto Copy-Trading — Android-app
+# 📱 Crypto Copy-Trading — Android-app (Capacitor — DEPRECATED)
 
-Dit is de **telefoonversie** van het Crypto Copy-Trading-systeem: dezelfde app
+> ⚠️ **Deze map is vervangen door `../app/` (React Native + Expo).**
+> De Capacitor-aanpak wordt niet meer actief onderhouden.
+> De `mobile/www/`-map (frontend + engine.js) is gitignored en hoeft niet
+> meer gegenereerd te worden — gebruik de Expo-app in `../app/` in plaats hiervan.
+
+---
+
+Dit was de **telefoonversie** van het Crypto Copy-Trading-systeem: dezelfde app
 (Marktanalyse, Traders kopiëren, Grote kansen, Mijn Trades, eToro-traders), maar
-nu als een **echte Android-app (APK)** die je op je toestel installeert.
+dan als een **echte Android-app (APK)** via een Capacitor-WebView.
 
 De hele analyse draait **op het toestel zelf** — er is geen computer of server
 meer nodig. Alleen verse marktdata wordt live opgehaald (Binance + CoinGecko),
