@@ -2,7 +2,7 @@
 
 **Structuur in crypto.**
 
-Persoonlijke crypto copy-trading app. Analyseert gratis marktdata en geeft concrete technische signalen — inclusief entry, stop-loss en take-profit. Geen hype, gewoon data.
+Persoonlijke crypto copy-trading app. Analyseert gratis marktdata en geeft concrete technische signalen, inclusief entry, stop-loss en take-profit. Geen hype, gewoon data.
 
 > Geen financieel advies. Kader levert technische signalen ter ondersteuning van eigen onderzoek. Handel nooit met geld dat je niet kunt missen.
 
@@ -17,12 +17,12 @@ Persoonlijke crypto copy-trading app. Analyseert gratis marktdata en geeft concr
 
 ## Platform
 
-Android — React Native + Expo (`2026-06-28/app/`)
+Android: React Native + Expo (`app/`)
 
 ## Huisstijl
 
-Zie `2026-06-28/docs/huisstijl-kader.md`
+Zie `docs/huisstijl-kader.md`
 
 ---
 
-*Kader — Grip op de markt.*
+*Kader. Grip op de markt.*
