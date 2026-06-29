@@ -15,8 +15,8 @@ interface Stap {
 const STAPPEN: Stap[] = [
   {
     Icon: Activity,
-    titel: 'Welkom bij\nCrypto Signalen',
-    body: 'Analyseer de crypto-markt met technische indicatoren en ontdek kansrijke trades met duidelijke stop-loss en take-profit niveaus.',
+    titel: 'Welkom bij\nKader',
+    body: 'Structuur in crypto. Analyseer de markt met technische indicatoren en ontdek kansrijke trades met duidelijke stop-loss en take-profit niveaus.',
   },
   {
     Icon: TrendingUp,
