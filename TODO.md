@@ -43,6 +43,26 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [ ] Historisch overzicht gesloten trades met winst/verlies-statistieken (trefferpercentage, gem. R/R behaald)
 - [ ] Dark/light mode
 
+### 🎯 Kevins kernvisie voor Kader
+_(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
+
+- [ ] **"Wat moet ik nu kopen?"** — één duidelijk scherm dat simpel zegt welke coins op dit moment slim zijn om in te stappen. Geen ruis, geen uitleg, gewoon een aanbeveling + reden in één zin.
+- [ ] **Zo makkelijk mogelijk kopen/verkopen** — vanuit de aanbeveling direct door naar de trade. Zo min mogelijk stappen tussen "ziet er goed uit" en "gekocht". Koppeling met eToro of een exchange-API is het einddoel.
+- [ ] **Short/long met leverage** — ook hefboomposities ondersteunen in de analyse en het uitvoerscherm. Niet alleen spot. Kader moet aangeven of een coin beter geschikt is voor long of short op dat moment.
+- [ ] **Grote whales kopiëren (Trump, Saylor, etc.)** — toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps.
+
+### 💡 Inspiratie van Market Mirror (concurrent)
+_(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Kader)_
+
+- [ ] **Liquidatiekaart**: visualiseer waar de grote liquidatieniveaus liggen (longs vs. shorts) — geeft aan waar cascade-bewegingen kunnen starten. Nuttig als extra context bij een kans-signaal. Databron: Coinglass API (gratis tier beschikbaar).
+- [ ] **Marktpulsscore uitbreiden**: Market Mirror weegt 8 live-inputs in één score (whale-activiteit, liquidaties, funding rates, Fear & Greed, ETF-flows, crowd-consensus). Kader heeft al een eigen score (0–100) — die kunnen we verrijken met funding rate en Fear & Greed als extra inputs.
+- [ ] **ETF-flow tracking**: toon of er netto geld in- of uitstroomt bij BTC/ETH ETF's (bijv. BlackRock IBIT). Sterke institutionele instroom = bullish signaal. Databron: bijv. The Block of Farside Investors (scrapeable).
+- [ ] **Fear & Greed Index**: prominenter tonen op het marktscherm als extra context naast de Kader-score. API van Alternative.me is gratis.
+- [ ] **Whale-wallettracking**: volg bekende grote wallets (bijv. Michael Saylor, exchange cold wallets) en toon wat ze kopen/verkopen. Nuttig als bevestiging bij een signaal. Databron: Etherscan / blockchain.info API.
+- [ ] **Social sentimentscore per coin**: aggregeer sentiment van X/Twitter en Reddit tot één score per coin. Geeft aan of retail bullish of bearish is — handig als contra-indicator. Mogelijke API: LunarCrush.
+- [ ] **Pushmelding bij grote whale-trade**: stuur een notificatie als een bekende wallet of exchange een grote positie opent in een coin die je volgt. Market Mirror doet dit live ("Whale opened $112K ETH LONG").
+- [ ] **Freemium-model als referentie**: Market Mirror rekent gratis / $9,99 / $29,99 per maand. Als Kader ooit betaald wordt, is dit een realistische bandbreedte voor crypto-apps.
+
 ## 🛠️ Te doen
 
 ### Migratie naar native app (React Native + Expo)
