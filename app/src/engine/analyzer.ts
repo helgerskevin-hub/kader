@@ -2,7 +2,7 @@ import { Trade } from './types';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
 import { haalData, delay } from './marketData';
 
-// Configuratie — gespiegeld met src/crypto_analyzer.py
+// Configuratie
 export const STANDAARD_UNIVERSUM = [
   'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOGE',
   'LINK', 'DOT', 'MATIC', 'LTC', 'ATOM', 'NEAR', 'ARB', 'OP',
@@ -53,7 +53,7 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
     volumeRatio = volGem > 0 ? volNu / volGem : 1.0;
   }
 
-  // Scoring 0-100 — identiek aan Python
+  // Scoring 0-100
   let score = 0;
   const redenen: string[] = [];
 

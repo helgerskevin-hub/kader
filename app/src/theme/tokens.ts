@@ -1,4 +1,4 @@
-// Design-tokens uit "Crypto Copy-Trading Design System"
+// Design-tokens — Kader
 // Licht = default; donker beschikbaar voor latere toggle.
 
 export interface ColorTokens {

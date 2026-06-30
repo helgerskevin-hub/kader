@@ -1,6 +1,6 @@
-# Crypto Copy-Trading — app-beschrijving (context voor Claude Design)
+# Kader — app-beschrijving (context voor Claude Design)
 
-Dit document beschrijft de app **Crypto Copy-Trading** zodat het als context kan
+Dit document beschrijft de app **Kader** zodat het als context kan
 dienen voor een design-opdracht (bijv. een nieuw, mooier UI-ontwerp, een
 app-icoon, screenshots voor een store-pagina, of een herontwerp van losse
 schermen). Het bevat: wat de app doet, de schermen/tabbladen, de visuele stijl,
@@ -14,7 +14,7 @@ en de nieuwe meldingen-functie.
 
 ## 1. Wat is de app?
 
-Een **persoonlijke Android-app** (Capacitor/WebView, sideloaded — niet in de Play
+Een **persoonlijke Android-app** (React Native + Expo, sideloaded — niet in de Play
 Store) die een crypto-belegger helpt om:
 
 1. **de markt te analyseren** en kansrijke trades te genereren met een vooraf
@@ -27,17 +27,17 @@ Store) die een crypto-belegger helpt om:
 
 De volledige analyse draait **op het toestel zelf** (geen server). Alleen verse
 marktdata wordt live opgehaald van gratis publieke bronnen (Binance + CoinGecko).
-Traders en trades worden lokaal opgeslagen (localStorage).
+Traders en trades worden lokaal opgeslagen (AsyncStorage).
 
 - **Taal van de interface:** Nederlands.
-- **Platform:** Android (Capacitor 6, WebView). Eén HTML/CSS/JS-frontend.
-- **App-id / naam:** `com.kevinhelgers.cryptocopytrading` — "Crypto Copy-Trading".
+- **Platform:** Android (React Native + Expo).
+- **App-id / naam:** `com.kevinhelgers.kader` — "Kader".
 
 ---
 
 ## 2. Schermen / navigatie
 
-De app heeft een **header** met titel "📊 Crypto Copy-Trading" en een live klokje,
+De app heeft een **header** met titel "Kader" en een live klokje,
 daaronder een **hoofd-tabbalk** met 3 tabs:
 
 ### Tab 1 — 🎯 Analyse
@@ -78,7 +78,7 @@ Bevat 3 sub-tabbladen:
 
 De app controleert om de **10 minuten** automatisch alle open trades in "Mijn
 Trades" en stuurt een **pushmelding** (native Android-melding via
-`@capacitor/local-notifications`) in twee gevallen:
+`expo-notifications`) in twee gevallen:
 
 1. **🎯 Take-profit verhogen** — de koers nadert (of overschrijdt) de ingestelde
    take-profit terwijl het momentum nog sterk is (opwaartse trend, MACD bullish,
@@ -147,7 +147,7 @@ checken voordat hij een order plaatst.
 
 - Een **modern herontwerp** van de drie hoofdschermen (Analyse, Mijn Trades,
   eToro Traders) met dezelfde donkere fintech-stijl, maar verfijnder.
-- Een **app-icoon** ("Crypto Copy-Trading") en splash screen.
+- Een **app-icoon** ("Kader") en splash screen.
 - Een mooi ontwerp voor de **pushmelding-kaart** en de meldingen zelf.
 - **Trade-kaart**-component (live prijs, voortgangsbalk entry→take-profit,
   advies-badge) als hero-component.

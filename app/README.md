@@ -1,6 +1,4 @@
-# Crypto Markt — React Native / Expo app
-
-Kale Expo-app (TypeScript). De analyse-engine komt hier naartoe zodra `engine.js` is geport.
+# Kader — React Native / Expo app
 
 ## Vereisten
 
