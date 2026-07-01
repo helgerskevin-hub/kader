@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Kader** is a personal crypto copy-trading analysis tool (not financial advice; it produces technical signals). It analyses free public market data and outputs concrete trades with a pre-computed entry, ATR-based stop-loss and take-profit (minimum 1:2 risk/reward), plus an eToro "Popular Investor" auditor. **All user-facing text is Dutch** -- keep generated output, UI strings and comments in Dutch to match the existing code.
 
-The project is a single Android app: React Native + Expo, located in `app/`. App id: `com.kevinhelgers.kader`.
+The project is a single Android app: React Native + Expo, located in `app/`. App id: `com.kader.app`.
 
 ## Commands
 
@@ -41,7 +41,7 @@ There is **no test suite** and no linter configured.
 ## App specifics
 
 - Market-data requests use native `fetch` (no CORS issues in React Native).
-- App id / name: `com.kevinhelgers.kader` / "Kader".
+- App id / name: `com.kader.app` / "Kader".
 - Push notifications via `expo-notifications`: every ~10 min the app checks open trades and notifies to raise take-profit (price near TP, momentum strong) or raise stop-loss / exit early (in profit but momentum flattening). Same alert repeats at most once per ~6h unless the suggested level moves >2%.
 - The APK is signed with the default debug key (fine for personal sideloading; Play Store would need a release keystore).
 

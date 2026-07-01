@@ -1,17 +1,20 @@
 import React, { useCallback, useReducer, useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, LayoutAnimation,
+  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, LayoutAnimation, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RefreshCw, ChevronDown, ChevronUp, Zap } from 'lucide-react-native';
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
+import { useReduceMotion } from '../theme/useReduceMotion';
 import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { LevelRow } from '../components/LevelRow';
 import { Disclaimer } from '../components/Disclaimer';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { SkeletonCard } from '../components/SkeletonCard';
 
 // ---------- State machine ----------
 type KansenState =
@@ -39,6 +42,7 @@ function reducer(state: KansenState, action: Action): KansenState {
 // ---------- OpportunityCard ----------
 function OpportunityCard({ kans }: { kans: Opportunity }) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
 
   const randKleur = kans.trendOp === true ? colors.winst
@@ -49,7 +53,9 @@ function OpportunityCard({ kans }: { kans: Opportunity }) {
     p > 0 ? colors.winst : p < 0 ? colors.verlies : colors.tekstGedimd;
 
   function wisselUitgeklapt() {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (!reduceMotion) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
     setUitgeklapt(v => !v);
   }
 
@@ -201,6 +207,7 @@ const cardStyles = StyleSheet.create({
 export function KansenScreen() {
   const { colors } = useTheme();
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
+  const [ververst, setVerverstState] = useState(false);
 
   const startScan = useCallback(async () => {
     dispatch({ type: 'START' });
@@ -214,16 +221,34 @@ export function KansenScreen() {
     }
   }, []);
 
+  async function handleVervers() {
+    setVerverstState(true);
+    await startScan();
+    setVerverstState(false);
+  }
+
+  const metaText = state.status === 'success'
+    ? `${state.kansen.length} coins · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+    : undefined;
+
   return (
     <SafeAreaView style={[screenStyles.root, { backgroundColor: colors.achtergrond }]}>
-      <View style={[screenStyles.header, { borderBottomColor: colors.rand }]}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Grote kansen</Text>
-        {state.status === 'success' && (
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-            {state.kansen.length} coins · {state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        )}
-      </View>
+      <ScreenHeader
+        titel="Grote kansen"
+        meta={metaText}
+        rechts={
+          state.status === 'success' ? (
+            <Pressable
+              onPress={handleVervers}
+              accessibilityRole="button"
+              accessibilityLabel="Ververs scan"
+              style={screenStyles.ververskOp}
+            >
+              <RefreshCw size={18} color={colors.letOp} strokeWidth={1.75} />
+            </Pressable>
+          ) : undefined
+        }
+      />
 
       {state.status === 'idle' && (
         <View style={screenStyles.midden}>
@@ -250,13 +275,12 @@ export function KansenScreen() {
       )}
 
       {state.status === 'loading' && (
-        <View style={screenStyles.midden}>
-          <ActivityIndicator size="large" color={colors.letOp} />
-          <Text style={[Type.sectiekop, { color: colors.tekstPrimair, marginTop: spacing.lg }]}>
-            Markt scannen…
-          </Text>
+        <View style={{ flex: 1 }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
           {state.totaal > 0 && (
-            <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.sm }]}>
+            <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm }]}>
               {state.gescand} van {state.totaal} kandidaten
             </Text>
           )}
@@ -291,6 +315,14 @@ export function KansenScreen() {
           keyExtractor={item => item.symbool}
           renderItem={({ item }) => <OpportunityCard kans={item} />}
           contentContainerStyle={screenStyles.lijst}
+          refreshControl={
+            <RefreshControl
+              refreshing={ververst}
+              onRefresh={handleVervers}
+              colors={[colors.letOp]}
+              tintColor={colors.letOp}
+            />
+          }
           ListHeaderComponent={
             <View style={screenStyles.lijstKop}>
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
@@ -307,14 +339,11 @@ export function KansenScreen() {
 
 const screenStyles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row',
+  ververskOp: {
+    minHeight: 44,
+    minWidth: 44,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
   },
   midden: {
     flex: 1,

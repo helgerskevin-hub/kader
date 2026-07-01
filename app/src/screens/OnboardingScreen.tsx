@@ -1,40 +1,42 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Activity, TrendingUp, Target, Users, Shield, ArrowRight } from 'lucide-react-native';
+import { TrendingUp, Target, Users, Shield, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import { KaderLogo } from '../components/KaderLogo';
 
 interface Stap {
-  Icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+  Icon?: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+  isWelkom?: boolean;
   titel: string;
   body: string;
 }
 
 const STAPPEN: Stap[] = [
   {
-    Icon: Activity,
-    titel: 'Welkom bij\nKader',
+    isWelkom: true,
+    titel: 'Welkom bij Kader',
     body: 'Structuur in crypto. Analyseer de markt met technische indicatoren en ontdek kansrijke trades met duidelijke stop-loss en take-profit niveaus.',
   },
   {
-    Icon: TrendingUp,
+    Icon: TrendingUp as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Hoe werkt\nde analyse?',
     body: 'De app gebruikt RSI, voortschrijdende gemiddelden (EMA) en ATR om de markt te scannen. Coins met score ≥ 75 zijn "high conviction" — meerdere indicatoren wijzen tegelijk op een kans.',
   },
   {
-    Icon: Target,
+    Icon: Target as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Stop, entry\nen doel',
     body: 'Bij elk signaal zie je drie niveaus:\n\n· Stop-loss: maximaal verlies (1,5× ATR)\n· Entry: instapprijs\n· Doel: take-profit (3× ATR)\n\nDe risk/reward is altijd minimaal 1:2.',
   },
   {
-    Icon: Users,
+    Icon: Users as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'eToro-trader\nbeoordelen',
     body: 'Kopieer je een Popular Investor? Vul zijn statistieken in op het Traders-tabblad en krijg een GROEN/GEEL/ROOD oordeel met een aanbevolen Copy Stop Loss percentage.',
   },
   {
-    Icon: Shield,
+    Icon: Shield as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Disclaimer',
     body: 'Deze app geeft technische signalen op basis van historische koersdata — geen financieel advies.\n\nControleer altijd de live koers op eToro vóór je een trade plaatst.',
   },
@@ -97,17 +99,34 @@ export function OnboardingScreen({ onKlaar }: Props) {
 
       {/* Inhoud */}
       <View style={styles.inhoud}>
-        <View style={[styles.iconContainer, { backgroundColor: colors.verhoogd }]}>
-          <stap.Icon size={36} color={colors.cta} strokeWidth={1.5} />
-        </View>
-
-        <Text style={[Type.display, styles.titel, { color: colors.tekstPrimair }]}>
-          {stap.titel}
-        </Text>
-
-        <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
-          {stap.body}
-        </Text>
+        {stap.isWelkom ? (
+          <>
+            <View style={styles.logoContainer}>
+              <KaderLogo size={80} />
+            </View>
+            <Text style={[Type.display, styles.titel, { color: colors.tekstPrimair }]}>
+              Welkom bij Kader
+            </Text>
+            <Text style={[Type.sectiekop, styles.slogan, { color: colors.primair }]}>
+              Structuur in crypto.
+            </Text>
+            <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
+              {stap.body}
+            </Text>
+          </>
+        ) : (
+          <>
+            <View style={[styles.iconContainer, { backgroundColor: colors.verhoogd }]}>
+              {stap.Icon && <stap.Icon size={36} color={colors.cta} strokeWidth={1.5} />}
+            </View>
+            <Text style={[Type.display, styles.titel, { color: colors.tekstPrimair }]}>
+              {stap.titel}
+            </Text>
+            <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
+              {stap.body}
+            </Text>
+          </>
+        )}
       </View>
 
       {/* Navigatie */}
@@ -171,6 +190,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  logoContainer: {
+    marginBottom: spacing.xl,
+  },
   iconContainer: {
     width: 84,
     height: 84,
@@ -180,6 +202,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   titel: {
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  slogan: {
     textAlign: 'center',
     marginBottom: spacing.base,
   },

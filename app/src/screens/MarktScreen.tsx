@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet,
+  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RefreshCw } from 'lucide-react-native';
@@ -12,6 +12,9 @@ import { spacing } from '../theme/tokens';
 import { TradeCard } from '../components/TradeCard';
 import { GetradeFormulier } from '../components/GetradeFormulier';
 import { Disclaimer } from '../components/Disclaimer';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { SkeletonCard } from '../components/SkeletonCard';
+import { MarktBalk } from '../components/MarktBalk';
 
 type Progress = { current: number; total: number; symbool: string };
 
@@ -19,18 +22,40 @@ export function MarktScreen() {
   const { colors } = useTheme();
   const { state, startAnalyse } = useMarkt();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
+  const [ververst, setVerverstState] = useState(false);
+
+  async function handleVervers() {
+    setVerverstState(true);
+    await startAnalyse();
+    setVerverstState(false);
+  }
+
+  const gemScore = state.status === 'success' && state.trades.length > 0
+    ? state.trades.reduce((s, t) => s + t.score, 0) / state.trades.length
+    : null;
+
+  const metaText = state.status === 'success'
+    ? `${state.trades.length} coins · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+    : undefined;
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
-      {/* Koptekst */}
-      <View style={[styles.header, { borderBottomColor: colors.rand }]}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Markt</Text>
-        {state.status === 'success' && (
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-            {state.trades.length} coins · {state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        )}
-      </View>
+      <ScreenHeader
+        titel="Markt"
+        meta={metaText}
+        rechts={
+          state.status === 'success' ? (
+            <Pressable
+              onPress={handleVervers}
+              accessibilityRole="button"
+              accessibilityLabel="Ververs analyse"
+              style={styles.ververskOp}
+            >
+              <RefreshCw size={18} color={colors.cta} strokeWidth={1.75} />
+            </Pressable>
+          ) : undefined
+        }
+      />
 
       {/* Inhoud per state */}
       {state.status === 'idle' && <IdleView onStart={startAnalyse} />}
@@ -47,12 +72,23 @@ export function MarktScreen() {
             />
           )}
           contentContainerStyle={styles.lijst}
+          refreshControl={
+            <RefreshControl
+              refreshing={ververst}
+              onRefresh={handleVervers}
+              colors={[colors.cta]}
+              tintColor={colors.cta}
+            />
+          }
           ListHeaderComponent={
-            <View style={styles.lijstKop}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                {state.trades.length} coins geanalyseerd · gesorteerd op signaalsterkte
-              </Text>
-            </View>
+            <>
+              {gemScore !== null && <MarktBalk score={gemScore} />}
+              <View style={styles.lijstKop}>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                  {state.trades.length} coins geanalyseerd · gesorteerd op signaalsterkte
+                </Text>
+              </View>
+            </>
           }
           ListFooterComponent={<Disclaimer />}
         />
@@ -94,13 +130,12 @@ function IdleView({ onStart }: { onStart: () => void }) {
 function LadenView({ progress }: { progress: Progress | null }) {
   const { colors } = useTheme();
   return (
-    <View style={styles.midden}>
-      <ActivityIndicator size="large" color={colors.cta} />
-      <Text style={[Type.sectiekop, { color: colors.tekstPrimair, marginTop: spacing.lg }]}>
-        Markt analyseren…
-      </Text>
+    <View style={{ flex: 1 }}>
+      <SkeletonCard />
+      <SkeletonCard />
+      <SkeletonCard />
       {progress && (
-        <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.sm }]}>
+        <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm }]}>
           {progress.current}/{progress.total} · {progress.symbool}
         </Text>
       )}
@@ -136,14 +171,11 @@ function FoutView({ melding, lastAttempt, onRetry }: { melding: string; lastAtte
 // ---------- Stijlen ----------
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row',
+  ververskOp: {
+    minHeight: 44,
+    minWidth: 44,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
   },
   midden: {
     flex: 1,

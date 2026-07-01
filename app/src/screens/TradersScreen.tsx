@@ -11,6 +11,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { Disclaimer } from '../components/Disclaimer';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { laadLijst, bewaarLijst, SLEUTELS } from '../storage/opslag';
 
 // ---------- Helpers ----------
@@ -493,18 +494,20 @@ export function TradersScreen() {
 
   return (
     <SafeAreaView style={[tradersStyles.root, { backgroundColor: colors.achtergrond }]}>
-      <View style={[tradersStyles.header, { borderBottomColor: colors.rand }]}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>eToro-traders</Text>
-        <Pressable
-          style={[tradersStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
-          onPress={() => setFormulierZichtbaar(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Trader toevoegen"
-        >
-          <Plus size={16} color="white" strokeWidth={2} />
-          <Text style={[Type.caption, { color: 'white', fontWeight: '600' }]}>Voeg toe</Text>
-        </Pressable>
-      </View>
+      <ScreenHeader
+        titel="eToro-traders"
+        rechts={
+          <Pressable
+            style={[tradersStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
+            onPress={() => setFormulierZichtbaar(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Trader toevoegen"
+          >
+            <Plus size={16} color="white" strokeWidth={2} />
+            <Text style={[Type.caption, { color: 'white', fontWeight: '600' }]}>Voeg toe</Text>
+          </Pressable>
+        }
+      />
 
       {traders.length === 0 ? (
         <View style={tradersStyles.leeg}>
@@ -559,15 +562,6 @@ export function TradersScreen() {
 
 const tradersStyles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   toevoegenKnop: {
     flexDirection: 'row',
     alignItems: 'center',

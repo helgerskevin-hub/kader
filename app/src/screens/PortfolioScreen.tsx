@@ -10,6 +10,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { Disclaimer } from '../components/Disclaimer';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
@@ -426,34 +427,32 @@ export function PortfolioScreen() {
 
   return (
     <SafeAreaView style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
-      <View style={[portfolioStyles.header, { borderBottomColor: colors.rand }]}>
-        <View>
-          <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Mijn trades</Text>
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-            {syncing ? 'Prijzen ophalen...' : seconden !== null ? `Sync over ${seconden}s` : ''}
-          </Text>
-        </View>
-        <View style={portfolioStyles.headerActies}>
-          <Pressable
-            onPress={verversPrijzen}
-            disabled={syncing}
-            accessibilityRole="button"
-            accessibilityLabel="Prijzen verversen"
-            style={portfolioStyles.syncKnop}
-          >
-            <RefreshCw size={18} color={syncing ? colors.tekstGedimd : colors.cta} strokeWidth={1.75} />
-          </Pressable>
-          <Pressable
-            style={[portfolioStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
-            onPress={() => setFormulierZichtbaar(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Trade toevoegen"
-          >
-            <Plus size={16} color="white" strokeWidth={2} />
-            <Text style={[Type.caption, { color: 'white', fontWeight: '600' }]}>Voeg toe</Text>
-          </Pressable>
-        </View>
-      </View>
+      <ScreenHeader
+        titel="Mijn trades"
+        meta={syncing ? 'Prijzen ophalen...' : seconden !== null ? `Sync over ${seconden}s` : undefined}
+        rechts={
+          <View style={portfolioStyles.headerActies}>
+            <Pressable
+              onPress={verversPrijzen}
+              disabled={syncing}
+              accessibilityRole="button"
+              accessibilityLabel="Prijzen verversen"
+              style={portfolioStyles.syncKnop}
+            >
+              <RefreshCw size={18} color={syncing ? colors.tekstGedimd : colors.cta} strokeWidth={1.75} />
+            </Pressable>
+            <Pressable
+              style={[portfolioStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
+              onPress={() => setFormulierZichtbaar(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Trade toevoegen"
+            >
+              <Plus size={16} color="white" strokeWidth={2} />
+              <Text style={[Type.caption, { color: 'white', fontWeight: '600' }]}>Voeg toe</Text>
+            </Pressable>
+          </View>
+        }
+      />
 
       {trades.length === 0 ? (
         <View style={portfolioStyles.leeg}>
@@ -517,15 +516,6 @@ export function PortfolioScreen() {
 
 const portfolioStyles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   headerActies: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kevinhelgers.kader"
+      "bundleIdentifier": "com.kader.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kevinhelgers.kader"
+      "package": "com.kader.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

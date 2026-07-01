@@ -25,8 +25,8 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 ## 🎨 Huisstijl & Branding
 
 - [x] EM-dashes verwijderd uit alle app-teksten (`App.tsx`, `README.md`)
-- [ ] Teksten en naamgeving aangepast op basis van `docs/huisstijl-kader.md` — slogan, tone of voice
-- [ ] Kader-logo gegenereerd en in `app/assets/` geplaatst (icon.png 1024×1024, splash-icon.png, adaptive icons, favicon)
+- [x] Teksten en naamgeving aangepast op basis van `docs/huisstijl-kader.md` — slogan, tone of voice
+- [x] Kader-logo gegenereerd en in `app/assets/` geplaatst (icon.png 1024×1024, splash-icon.png, adaptive icons, favicon)
 
 ## 💡 Ideeën / wensen
 
@@ -42,7 +42,7 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
 
-- [ ] **Schuivende marktbalk (zoals Market Mirror)** — een horizontale balk van rood naar groen (HEAVY SELL → BALANCED → HEAVY BUY) met een schuifknop die de huidige Kader-score aangeeft. In één oogopslag zie je waar de markt staat. Zit al in de huisstijlkleuren, hoeft alleen gebouwd te worden op het marktscherm.
+- [x] **Schuivende marktbalk (zoals Market Mirror)** — een horizontale balk van rood naar groen (HEAVY SELL → BALANCED → HEAVY BUY) met een schuifknop die de huidige Kader-score aangeeft. In één oogopslag zie je waar de markt staat. Zit al in de huisstijlkleuren, hoeft alleen gebouwd te worden op het marktscherm.
 - [ ] **"Wat moet ik nu kopen?"** — één duidelijk scherm dat simpel zegt welke coins op dit moment slim zijn om in te stappen. Geen ruis, geen uitleg, gewoon een aanbeveling + reden in één zin.
 - [ ] **Zo makkelijk mogelijk kopen/verkopen** — vanuit de aanbeveling direct door naar de trade. Zo min mogelijk stappen tussen "ziet er goed uit" en "gekocht". Koppeling met eToro of een exchange-API is het einddoel.
 - [ ] **Short/long met leverage** — ook hefboomposities ondersteunen in de analyse en het uitvoerscherm. Niet alleen spot. Kader moet aangeven of een coin beter geschikt is voor long of short op dat moment.
@@ -100,5 +100,5 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] Alle vijf schermen gebouwd en functioneel (Markt, Kansen, Portfolio, Traders, Onboarding)
 - [x] Lokale opslag aangesloten (AsyncStorage) voor traders en posities
 - [x] Pushmeldingen ingeschakeld (`expo-notifications`)
-- [x] Branding: app hernoemd naar Kader, package-id `com.kevinhelgers.kader`, EM-dashes verwijderd
+- [x] Branding: app hernoemd naar Kader, package-id `com.kader.app`, EM-dashes verwijderd, officieel logo gegenereerd
 - [x] 9 bugs gevonden en opgelost (zie git log voor details)

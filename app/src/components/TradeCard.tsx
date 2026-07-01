@@ -7,6 +7,7 @@ import { fmtPrijs, fmtRR } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
+import { useReduceMotion } from '../theme/useReduceMotion';
 import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
@@ -33,13 +34,16 @@ function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>
 
 export function TradeCard({ trade, onGetrade }: Props) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
   const randKleur = adviesRandKleur(advies, colors);
 
   function wisselUitgeklapt() {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (!reduceMotion) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
     setUitgeklapt(v => !v);
   }
 

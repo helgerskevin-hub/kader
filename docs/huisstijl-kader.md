@@ -348,7 +348,7 @@ Eén component- en layoutsysteem, twee waardesets. De toggle wisselt alleen de k
 | Meldingen | Native push (Expo Notifications) |
 | Marktcheck-interval | Elke 10 minuten |
 
-**App-id:** `com.kevinhelgers.kader`
+**App-id:** `com.kader.app`
 
 ---
 
