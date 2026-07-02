@@ -44,6 +44,11 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [ ] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Bij het klikken op de trade in portfolio zie je in het full screen venster meer gedailteerde informatie (deels gedekt door het nieuwe coin detail-scherm, dat al status/resultaat/hold-advies toont; verder uitbreiden staat nog open)
 - [x] **Changelog in app**: Onder het settings menu een knop om de changelog bij te houden wat er allemaal veranderd is per versie. Plus bij de eerste keer opstarten van de app een pop-up window met informatie wat er nieuw is in deze versie. Direct meenemen dat er een uitgebreide changelog wordt bijgehouden in project folder als changelog.md
 - [ ] **Achtergrond informatie in app**: Nieuw scherm met meer informatie over de weergaves in de app. Hoe worden dingen berekend, wat betekenen de grafieken, marktbalke, fear index, etc. etc. etc. Compleet en grafisch weergegeven met grafische voorbeelden.
+- [ ] Kopje toevoegen met favorieten
+- [ ] Uitleg toevoegen over de Fear & Greed Index
+- [ ] Uitleg toevoegen over wat het marktsentiment inhoudt
+- [ ] Laadbalk toevoegen
+- [ ] Offline melding toevoegen
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
