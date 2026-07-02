@@ -5,6 +5,7 @@ export const SLEUTELS = {
   traders: 'traders',
   onboarding: 'onboarding_klaar',
   thema: 'thema_modus',
+  favorieten: 'favoriete_coins',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
