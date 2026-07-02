@@ -38,6 +38,8 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [ ] Favorietenlijst: vaste coins markeren zodat ze altijd bovenaan de analyse staan
 - [ ] Historisch overzicht gesloten trades met winst/verlies-statistieken (trefferpercentage, gem. R/R behaald)
 - [ ] Dark/light mode
+- [ ] **Coin detail-scherm full screen met grafieken**: Bij klikken op een coin opent een full-screen detail-pagina met veel meer informatie en grafieken (inspiratie: Market Mirror). Ook gewenst op portfolio kaart
+- [ ] **Meer informatie op Grote Kansen-scherm**: Het huidige scherm mist nog details. Voeg relevante info toe voor betere besluitvorming
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
@@ -86,7 +88,7 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
-- _(geen open bugs)_
+- [ ] **Toetsenbord bedekt invulvelden**: Bij tekstinvoer komt het toetsenbord over de invulstukken waardoor je niet kan zien wat je invult. Moet aangepast worden (bijv. scrolling, padding, of keyboard-aware layout)
 
 ## ✅ Klaar
 
