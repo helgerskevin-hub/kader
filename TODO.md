@@ -88,8 +88,6 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
-- [ ] **Toetsenbord bedekt invulvelden**: Bij tekstinvoer komt het toetsenbord over de invulstukken waardoor je niet kan zien wat je invult. Moet aangepast worden (bijv. scrolling, padding, of keyboard-aware layout)
-
 ## ✅ Klaar
 
 _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al gedaan hebben.)_
@@ -104,3 +102,4 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] Pushmeldingen ingeschakeld (`expo-notifications`)
 - [x] Branding: app hernoemd naar Kader, package-id `com.kader.app`, EM-dashes verwijderd, officieel logo gegenereerd
 - [x] 9 bugs gevonden en opgelost (zie git log voor details)
+- [x] **Toetsenbord bedekt invulvelden** (v0.0.2): op Android deed `KeyboardAvoidingView` niks binnen de modal-formulieren. Opgelost met een gedeelde hook die de toetsenbord-hoogte meet en als padding toepast op het bottom-sheet

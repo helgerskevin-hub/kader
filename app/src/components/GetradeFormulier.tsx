@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
+  Modal, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { X } from 'lucide-react-native';
@@ -12,6 +12,7 @@ import { nieuweId, PortfolioTrade } from '../state/portfolioTypes';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, shadow, spacing } from '../theme/tokens';
+import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 
 interface Props {
   zichtbaar: boolean;
@@ -38,6 +39,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
   const { voegTradeToe } = usePortfolio();
   const [form, setForm] = useState<VormData>(() => leegForm(trade));
   const [fout, setFout] = useState('');
+  const toetsenbordHoogte = useToetsenbordHoogte();
 
   useEffect(() => {
     if (zichtbaar) {
@@ -95,11 +97,11 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
 
   return (
     <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
-      <KeyboardAvoidingView
-        style={stijlen.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={[stijlen.vel, shadow.modal, { backgroundColor: colors.kaart }]}>
+      <View style={stijlen.overlay}>
+        <View style={[
+          stijlen.vel, shadow.modal,
+          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
+        ]}>
           <View style={stijlen.titelRij}>
             <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trade toevoegen</Text>
             <Pressable
@@ -112,7 +114,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {trade && coin ? (
               <View style={[stijlen.infoBlok, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
                 <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
@@ -178,7 +180,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
             </Pressable>
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

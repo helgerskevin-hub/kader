@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, Pressable, FlatList, Modal, TextInput, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, X, Users, ChevronDown, ChevronUp } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { beoordeelTrader } from '../engine/auditor';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
+import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { laadLijst, bewaarLijst, SLEUTELS } from '../storage/opslag';
@@ -242,6 +243,7 @@ function TraderFormulier({ zichtbaar, onSluiten, onOpslaan }: {
   const { colors } = useTheme();
   const [form, setForm] = useState<TraderFormData>(leegTraderForm);
   const [fout, setFout] = useState('');
+  const toetsenbordHoogte = useToetsenbordHoogte();
 
   function reset() {
     setForm(leegTraderForm);
@@ -282,11 +284,11 @@ function TraderFormulier({ zichtbaar, onSluiten, onOpslaan }: {
 
   return (
     <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
-      <KeyboardAvoidingView
-        style={traderFormStyles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={[traderFormStyles.vel, shadow.modal, { backgroundColor: colors.kaart }]}>
+      <View style={traderFormStyles.overlay}>
+        <View style={[
+          traderFormStyles.vel, shadow.modal,
+          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
+        ]}>
           <View style={traderFormStyles.titelRij}>
             <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trader beoordelen</Text>
             <Pressable
@@ -299,7 +301,7 @@ function TraderFormulier({ zichtbaar, onSluiten, onOpslaan }: {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>NAAM *</Text>
             <TextInput
               style={inputStyle}
@@ -405,7 +407,7 @@ function TraderFormulier({ zichtbaar, onSluiten, onOpslaan }: {
             </Text>
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
