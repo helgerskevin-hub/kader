@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RefreshCw } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { useMarkt } from '../state/MarktProvider';
+import { useFavorieten } from '../state/useFavorieten';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
@@ -16,18 +17,26 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { MarktBalk } from '../components/MarktBalk';
 import { OfflineMelding } from '../components/OfflineMelding';
+import { AngstHebzucht } from '../components/AngstHebzucht';
+import { haalFearGreed } from '../engine/marketData';
 
 type Progress = { current: number; total: number; symbool: string };
 
 export function MarktScreen() {
   const { colors } = useTheme();
   const { state, startAnalyse } = useMarkt();
+  const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
   const [ververst, setVerverstState] = useState(false);
+  const [fearGreed, setFearGreed] = useState<{ waarde: number; klasse: string } | null>(null);
+
+  useEffect(() => {
+    haalFearGreed().then(setFearGreed);
+  }, []);
 
   async function handleVervers() {
     setVerverstState(true);
-    await startAnalyse();
+    await Promise.all([startAnalyse(), haalFearGreed().then(setFearGreed)]);
     setVerverstState(false);
   }
 
@@ -38,6 +47,10 @@ export function MarktScreen() {
   const metaText = state.status === 'success'
     ? `${state.trades.length} coins · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
     : undefined;
+
+  const gesorteerdeTrades = state.status === 'success'
+    ? [...state.trades].sort((a, b) => Number(isFavoriet(b.symbool)) - Number(isFavoriet(a.symbool)))
+    : [];
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
@@ -72,12 +85,14 @@ export function MarktScreen() {
       )}
       {state.status === 'success' && (
         <FlatList
-          data={state.trades}
+          data={gesorteerdeTrades}
           keyExtractor={item => item.symbool}
           renderItem={({ item }) => (
             <TradeCard
               trade={item}
               onGetrade={setGetradeteTrade}
+              favoriet={isFavoriet(item.symbool)}
+              onToggleFavoriet={wisselFavoriet}
             />
           )}
           contentContainerStyle={styles.lijst}
@@ -92,6 +107,7 @@ export function MarktScreen() {
           ListHeaderComponent={
             <>
               {gemScore !== null && <MarktBalk score={gemScore} />}
+              {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
               <View style={styles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {state.trades.length} coins geanalyseerd · gesorteerd op signaalsterkte

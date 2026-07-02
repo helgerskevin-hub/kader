@@ -123,3 +123,14 @@ export async function haalLaatstePrijzen(symbolen: string[]): Promise<Record<str
   );
   return resultaat;
 }
+
+export async function haalFearGreed(): Promise<{ waarde: number; klasse: string } | null> {
+  const data = await httpGet<{ data: { value: string; value_classification: string }[] }>(
+    'https://api.alternative.me/fng/',
+  );
+  const eerste = data?.data?.[0];
+  if (!eerste) return null;
+  const waarde = parseInt(eerste.value, 10);
+  if (isNaN(waarde)) return null;
+  return { waarde, klasse: eerste.value_classification };
+}

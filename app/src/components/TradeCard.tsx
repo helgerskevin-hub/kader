@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
-import { Info, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { Info, CheckCircle, ChevronDown, ChevronUp, Star } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
@@ -15,6 +15,8 @@ import { LevelRow } from './LevelRow';
 interface Props {
   trade: Trade;
   onGetrade?: (trade: Trade) => void;
+  favoriet?: boolean;
+  onToggleFavoriet?: (symbool: string) => void;
 }
 
 type AdviesLabel = 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
@@ -32,7 +34,7 @@ function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>
   return colors.letOp;
 }
 
-export function TradeCard({ trade, onGetrade }: Props) {
+export function TradeCard({ trade, onGetrade, favoriet, onToggleFavoriet }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
@@ -52,7 +54,24 @@ export function TradeCard({ trade, onGetrade }: Props) {
       {/* Koptekst */}
       <View style={styles.kop}>
         <View style={styles.kopLinks}>
-          <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
+          <View style={styles.symboolRij}>
+            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
+            {onToggleFavoriet && (
+              <Pressable
+                onPress={() => onToggleFavoriet(trade.symbool)}
+                accessibilityRole="button"
+                accessibilityLabel={favoriet ? 'Favoriet verwijderen' : 'Favoriet maken'}
+                hitSlop={8}
+              >
+                <Star
+                  size={16}
+                  color={favoriet ? '#F59E0B' : colors.tekstGedimd}
+                  fill={favoriet ? '#F59E0B' : 'transparent'}
+                  strokeWidth={1.75}
+                />
+              </Pressable>
+            )}
+          </View>
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{info.naam}</Text>
         </View>
         <View style={styles.kopRechts}>
@@ -150,6 +169,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xs,
   },
   kopLinks: { gap: 2 },
+  symboolRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kopRechts: { alignItems: 'flex-end', gap: 6 },
   paar: {
     paddingHorizontal: spacing.base,

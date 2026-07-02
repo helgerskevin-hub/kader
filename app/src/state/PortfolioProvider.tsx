@@ -10,6 +10,7 @@ interface PortfolioContextWaarde {
   syncing: boolean;
   volgendeVerversing: Date | null;
   voegTradeToe: (trade: PortfolioTrade) => void;
+  wijzigTrade: (trade: PortfolioTrade) => void;
   sluitTrade: (id: string, status: 'gewonnen' | 'verloren') => void;
   verwijderTrade: (id: string) => void;
   verversPrijzen: () => Promise<void>;
@@ -72,6 +73,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setTrades(prev => [trade, ...prev]);
   }, []);
 
+  const wijzigTrade = useCallback((trade: PortfolioTrade) => {
+    setTrades(prev => prev.map(t => t.id === trade.id ? trade : t));
+  }, []);
+
   const sluitTrade = useCallback((id: string, status: 'gewonnen' | 'verloren') => {
     setTrades(prev => prev.map(t => t.id === id ? { ...t, status } : t));
   }, []);
@@ -83,7 +88,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   return (
     <PortfolioContext.Provider value={{
       trades, livePrijzen, geladen, syncing, volgendeVerversing,
-      voegTradeToe, sluitTrade, verwijderTrade, verversPrijzen,
+      voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     }}>
       {children}
     </PortfolioContext.Provider>

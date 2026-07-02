@@ -17,11 +17,12 @@ import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
 
 // ---------- TradeRegel ----------
-function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder }: {
+function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk }: {
   trade: PortfolioTrade;
   livePrijs: number | undefined;
   onSluitTrade: (id: string, status: 'gewonnen' | 'verloren') => void;
   onVerwijder: (id: string) => void;
+  onBewerk: (trade: PortfolioTrade) => void;
 }) {
   const { colors } = useTheme();
 
@@ -141,6 +142,14 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder }: {
               >
                 <Text style={[Type.caption, { color: colors.verlies }]}>Verloren</Text>
               </Pressable>
+              <Pressable
+                style={tradeStyles.voetKnop}
+                onPress={() => onBewerk(trade)}
+                accessibilityRole="button"
+                accessibilityLabel="Trade aanpassen"
+              >
+                <Text style={[Type.caption, { color: colors.cta }]}>Aanpassen</Text>
+              </Pressable>
             </>
           )}
           <Pressable
@@ -217,8 +226,20 @@ interface VormData {
 
 const leegForm: VormData = { symbool: '', naam: '', entryPrijs: '', stopLoss: '', takeProfit: '', notitie: '' };
 
-function TradeFormulier({ zichtbaar, onSluiten, onOpslaan }: {
+function formVanTrade(trade: PortfolioTrade): VormData {
+  return {
+    symbool: trade.symbool,
+    naam: trade.naam,
+    entryPrijs: trade.entryPrijs.toString(),
+    stopLoss: trade.stopLoss.toString(),
+    takeProfit: trade.takeProfit.toString(),
+    notitie: trade.notitie ?? '',
+  };
+}
+
+function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
   zichtbaar: boolean;
+  bestaand?: PortfolioTrade | null;
   onSluiten: () => void;
   onOpslaan: (trade: PortfolioTrade) => void;
 }) {
@@ -226,6 +247,13 @@ function TradeFormulier({ zichtbaar, onSluiten, onOpslaan }: {
   const [form, setForm] = useState<VormData>(leegForm);
   const [fout, setFout] = useState('');
   const toetsenbordHoogte = useToetsenbordHoogte();
+
+  useEffect(() => {
+    if (zichtbaar) {
+      setForm(bestaand ? formVanTrade(bestaand) : leegForm);
+      setFout('');
+    }
+  }, [zichtbaar, bestaand]);
 
   function reset() {
     setForm(leegForm);
@@ -245,16 +273,18 @@ function TradeFormulier({ zichtbaar, onSluiten, onOpslaan }: {
 
     const rr = Math.round(((tp - entry) / (entry - stop)) * 10) / 10;
     onOpslaan({
-      id: nieuweId(),
+      id: bestaand ? bestaand.id : nieuweId(),
       symbool: sym,
       naam: form.naam.trim(),
       entryPrijs: entry,
       stopLoss: stop,
       takeProfit: tp,
       rr,
-      datum: new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),
-      status: 'open',
+      datum: bestaand ? bestaand.datum : new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),
+      status: bestaand ? bestaand.status : 'open',
       notitie: form.notitie.trim() || undefined,
+      bedragUsd: bestaand?.bedragUsd,
+      aantalCoins: bestaand?.aantalCoins,
     });
     reset();
   }
@@ -273,7 +303,7 @@ function TradeFormulier({ zichtbaar, onSluiten, onOpslaan }: {
           { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
         ]}>
           <View style={formStyles.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trade bijhouden</Text>
+            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{bestaand ? 'Trade aanpassen' : 'Trade bijhouden'}</Text>
             <Pressable
               onPress={() => { reset(); onSluiten(); }}
               accessibilityLabel="Sluiten"
@@ -355,7 +385,9 @@ function TradeFormulier({ zichtbaar, onSluiten, onOpslaan }: {
               onPress={valideerEnOpslaan}
               accessibilityRole="button"
             >
-              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade toevoegen</Text>
+              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>
+                {bestaand ? 'Wijzigingen opslaan' : 'Trade toevoegen'}
+              </Text>
             </Pressable>
           </ScrollView>
         </View>
@@ -410,8 +442,9 @@ const formStyles = StyleSheet.create({
 // ---------- Scherm ----------
 export function PortfolioScreen() {
   const { colors } = useTheme();
-  const { trades, livePrijzen, voegTradeToe, sluitTrade, verwijderTrade, syncing, volgendeVerversing, verversPrijzen } = usePortfolio();
+  const { trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, syncing, volgendeVerversing, verversPrijzen } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
+  const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [seconden, setSeconden] = useState<number | null>(null);
 
   useEffect(() => {
@@ -484,6 +517,7 @@ export function PortfolioScreen() {
               livePrijs={item.status === 'open' ? livePrijzen[item.symbool] : undefined}
               onSluitTrade={sluitTrade}
               onVerwijder={verwijderTrade}
+              onBewerk={setBewerkTrade}
             />
           )}
           contentContainerStyle={portfolioStyles.lijst}
@@ -508,9 +542,14 @@ export function PortfolioScreen() {
       )}
 
       <TradeFormulier
-        zichtbaar={formulierZichtbaar}
-        onSluiten={() => setFormulierZichtbaar(false)}
-        onOpslaan={(trade) => { voegTradeToe(trade); setFormulierZichtbaar(false); }}
+        zichtbaar={formulierZichtbaar || bewerkTrade !== null}
+        bestaand={bewerkTrade}
+        onSluiten={() => { setFormulierZichtbaar(false); setBewerkTrade(null); }}
+        onOpslaan={(trade) => {
+          if (bewerkTrade) wijzigTrade(trade); else voegTradeToe(trade);
+          setFormulierZichtbaar(false);
+          setBewerkTrade(null);
+        }}
       />
     </SafeAreaView>
   );
