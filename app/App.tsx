@@ -14,7 +14,8 @@ import {
 } from '@expo-google-fonts/ibm-plex-mono';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider } from './src/theme/ThemeProvider';
+import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
+import { FoutGrens } from './src/components/FoutGrens';
 import { Tab, BottomNav } from './src/components/BottomNav';
 import { MarktScreen } from './src/screens/MarktScreen';
 import { KansenScreen } from './src/screens/KansenScreen';
@@ -27,6 +28,7 @@ import { MarktProvider } from './src/state/MarktProvider';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 
 function AppInhoud() {
+  const { colors, donkerActief } = useTheme();
   const [onboardingKlaar, setOnboardingKlaar] = useState(false);
   const [onboardingGeladen, setOnboardingGeladen] = useState(false);
   const [actieveTab, setActieveTab] = useState<Tab>('markt');
@@ -40,7 +42,7 @@ function AppInhoud() {
   }, []);
 
   if (!onboardingGeladen) {
-    return <View style={[styles.root, { backgroundColor: '#F8FAFC' }]} />;
+    return <View style={[styles.root, { backgroundColor: colors.achtergrond }]} />;
   }
 
   if (!onboardingKlaar) {
@@ -57,12 +59,14 @@ function AppInhoud() {
 
   return (
     <View style={styles.root}>
-      {actieveTab === 'markt' && <MarktScreen />}
-      {actieveTab === 'kansen' && <KansenScreen />}
-      {actieveTab === 'portfolio' && <PortfolioScreen />}
-      {actieveTab === 'traders' && <TradersScreen />}
+      <FoutGrens>
+        {actieveTab === 'markt' && <MarktScreen />}
+        {actieveTab === 'kansen' && <KansenScreen />}
+        {actieveTab === 'portfolio' && <PortfolioScreen />}
+        {actieveTab === 'traders' && <TradersScreen />}
+      </FoutGrens>
       <BottomNav actief={actieveTab} onWissel={setActieveTab} />
-      <StatusBar style="dark" />
+      <StatusBar style={donkerActief ? 'light' : 'dark'} />
     </View>
   );
 }

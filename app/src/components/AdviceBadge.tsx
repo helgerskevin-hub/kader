@@ -13,10 +13,10 @@ export function AdviceBadge({ advies }: Props) {
   const { colors } = useTheme();
 
   const config: Record<Advies, { bg: string; tekst: string; border: string }> = {
-    'HIGH CONVICTION': { bg: '#EFF6FF', tekst: colors.primair, border: colors.primair },
-    'STERK KOOP': { bg: '#F0FDF4', tekst: colors.winst, border: colors.winst },
-    KOOPZONE: { bg: '#F0FDF4', tekst: colors.winst, border: colors.winst },
-    AFWACHTEN: { bg: '#FEF3C7', tekst: colors.letOp, border: colors.letOp },
+    'HIGH CONVICTION': { bg: colors.primair + '1A', tekst: colors.primair, border: colors.primair },
+    'STERK KOOP': { bg: colors.winst + '1A', tekst: colors.winst, border: colors.winst },
+    KOOPZONE: { bg: colors.winst + '1A', tekst: colors.winst, border: colors.winst },
+    AFWACHTEN: { bg: colors.letOp + '1A', tekst: colors.letOp, border: colors.letOp },
   };
 
   const { bg, tekst, border } = config[advies] ?? config.AFWACHTEN;

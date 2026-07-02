@@ -11,7 +11,7 @@ interface Props {
 export function ScoreBadge({ score }: Props) {
   const { colors } = useTheme();
   const kleur = score >= 70 ? colors.winst : score >= 40 ? colors.letOp : colors.verlies;
-  const achtergrond = score >= 70 ? '#F0FDF4' : score >= 40 ? '#FEF3C7' : '#FEF2F2';
+  const achtergrond = kleur + '1A';
 
   return (
     <View style={[styles.badge, { backgroundColor: achtergrond, borderColor: kleur }]}>

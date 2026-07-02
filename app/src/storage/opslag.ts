@@ -4,6 +4,7 @@ export const SLEUTELS = {
   portfolio: 'portfolio_trades',
   traders: 'traders',
   onboarding: 'onboarding_klaar',
+  thema: 'thema_modus',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
@@ -36,6 +37,23 @@ export async function laadVlag(sleutel: string): Promise<boolean> {
 export async function bewaarVlag(sleutel: string, waarde: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(sleutel, waarde ? '1' : '0');
+  } catch {
+    // schrijffout stilt neerzetten
+  }
+}
+
+export async function laadTekst(sleutel: string, standaard: string): Promise<string> {
+  try {
+    const waarde = await AsyncStorage.getItem(sleutel);
+    return waarde ?? standaard;
+  } catch {
+    return standaard;
+  }
+}
+
+export async function bewaarTekst(sleutel: string, waarde: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(sleutel, waarde);
   } catch {
     // schrijffout stilt neerzetten
   }
