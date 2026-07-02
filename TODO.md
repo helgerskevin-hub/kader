@@ -43,6 +43,7 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [ ] **Meer informatie op Grote Kansen-scherm**: Het huidige scherm mist nog details. Voeg relevante info toe voor betere besluitvorming
 - [ ] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Bij het klikken op de trade in portfolio zie je in het full screen venster meer gedailteerde informatie
 - [ ] **Changelog in app**: Onder het settings menu een knop om de changelog bij te houden wat er allemaal veranderd is per versie. Plus bij de eerste keer opstarten van de app een pop-up window met informatie wat er nieuw is in deze versie. Direct meenemen dat er een uitgebreide changelog wordt bijgehouden in project folder als changelog.md
+- [ ] **Achtergrond informatie in app**: Nieuw scherm met meer informatie over de weergaves in de app. Hoe worden dingen berekend, wat betekenen de grafieken, marktbalke, fear index, etc. etc. etc. Compleet en grafisch weergegeven.
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
