@@ -64,7 +64,7 @@ function waaromKans(c: Record<string, unknown>): string[] {
   return r;
 }
 
-async function kansNiveaus(symbool: string, prijsFallback: number): Promise<Omit<Opportunity, 'symbool' | 'naam' | 'rang' | 'marktcap' | 'p24' | 'p7' | 'p30' | 'redenen'>> {
+async function kansNiveaus(symbool: string, prijsFallback: number): Promise<Omit<Opportunity, 'symbool' | 'naam' | 'rang' | 'marktcap' | 'p24' | 'p7' | 'p30' | 'redenen' | 'kansScore'>> {
   const result = await haalData(symbool);
   if (result && result.candles.length > ATR_PERIODE + 2) {
     const { candles } = result;
@@ -134,6 +134,7 @@ export async function zoekKansen(
       p7: Math.round(((c['price_change_percentage_7d_in_currency'] as number) ?? 0) * 10) / 10,
       p30: Math.round(((c['price_change_percentage_30d_in_currency'] as number) ?? 0) * 10) / 10,
       redenen: waaromKans(c),
+      kansScore: Math.round(c._score),
       ...niveaus,
     });
     if (i < kandidaten.length - 1) await delay(200);

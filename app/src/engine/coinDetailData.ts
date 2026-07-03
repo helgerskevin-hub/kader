@@ -21,6 +21,8 @@ export interface CoinDetailData {
   aantalCoins?: number;
   status?: 'open' | 'gewonnen' | 'verloren';
   notitie?: string;
+  exitPrijs?: number;
+  slotDatum?: string;
 }
 
 export function vanTrade(trade: Trade): CoinDetailData {
@@ -67,6 +69,8 @@ export function vanPortfolioTrade(trade: PortfolioTrade, livePrijs?: number): Co
     aantalCoins: trade.aantalCoins,
     status: trade.status,
     notitie: trade.notitie,
+    exitPrijs: trade.exitPrijs,
+    slotDatum: trade.slotDatum,
   };
 }
 

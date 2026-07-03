@@ -11,6 +11,8 @@ export interface PortfolioTrade {
   notitie?: string;
   bedragUsd?: number;
   aantalCoins?: number;
+  exitPrijs?: number;
+  slotDatum?: string;
 }
 
 export function nieuweId(): string {

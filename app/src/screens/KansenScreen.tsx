@@ -7,7 +7,7 @@ import { RefreshCw, ChevronDown, ChevronUp, Zap, CheckCircle } from 'lucide-reac
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
 import { useReduceMotion } from '../theme/useReduceMotion';
-import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtRR, fmtMarktcap, fmtScore } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
@@ -78,7 +78,7 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
       <View style={cardStyles.kop}>
         <View style={cardStyles.kopLinks}>
           <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{kans.naam}</Text>
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>#{kans.rang} · {kans.symbool}</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>#{kans.rang} · {kans.symbool} · {fmtMarktcap(kans.marktcap)}</Text>
         </View>
         <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(kans.prijs)}</Text>
       </View>
@@ -95,13 +95,35 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
             <Text style={[Type.prijs, { color: pctKleur(val), fontSize: 13 }]}>{fmtPct(val)}</Text>
           </View>
         ))}
-        {kans.rsi !== null && (
-          <View style={cardStyles.pctItem}>
-            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{kans.rsi}</Text>
-          </View>
-        )}
       </View>
+
+      {/* Technische rij */}
+      {(kans.rsi !== null || kans.trendOp !== null || kans.macdBullish !== null) && (
+        <View style={[cardStyles.pctRij, { paddingTop: 0 }]}>
+          {kans.rsi !== null && (
+            <View style={cardStyles.pctItem}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
+              <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{kans.rsi}</Text>
+            </View>
+          )}
+          {kans.trendOp !== null && (
+            <View style={cardStyles.pctItem}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TREND</Text>
+              <Text style={[Type.prijs, { color: kans.trendOp ? colors.winst : colors.verlies, fontSize: 13 }]}>
+                {kans.trendOp ? 'Op' : 'Neer'}
+              </Text>
+            </View>
+          )}
+          {kans.macdBullish !== null && (
+            <View style={cardStyles.pctItem}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MACD</Text>
+              <Text style={[Type.prijs, { color: kans.macdBullish ? colors.winst : colors.verlies, fontSize: 13 }]}>
+                {kans.macdBullish ? 'Bullish' : 'Bearish'}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Niveaus */}
       {kans.heeftTechnisch && (
@@ -110,7 +132,7 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
         </View>
       )}
 
-      {/* R/R + methode */}
+      {/* R/R + kansscore + methode */}
       <View style={cardStyles.rrRij}>
         {kans.heeftTechnisch && (
           <View style={cardStyles.rrItem}>
@@ -118,6 +140,10 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
             <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(kans.rr)}</Text>
           </View>
         )}
+        <View style={cardStyles.rrItem}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>KANSSCORE</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtScore(kans.kansScore)}</Text>
+        </View>
         <View style={[cardStyles.methodeBadge, { backgroundColor: colors.verhoogd }]}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{kans.methode.toUpperCase()}</Text>
         </View>
