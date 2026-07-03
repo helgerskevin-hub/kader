@@ -38,7 +38,7 @@ There is **no test suite** and no linter configured.
 - `theme/` -- tokens, typography, ThemeProvider (system/light/dark mode).
 
 ### Key tunables (`app/src/engine/analyzer.ts`)
-`STANDAARD_UNIVERSUM` (coins analysed), `ATR_STOP_MULTIPLIER` (1.5, stop distance), `REWARD_MULTIPLIER` (3.0, take-profit), `MIN_RISK_REWARD` (2.0), `HIGH_CONVICTION_SCORE` (75). Stop = `entry - 1.5xATR`, take-profit = `entry + 3xATR`, giving R/R >= 1:2; coins below the R/R threshold are filtered out. Score 0-100 rewards uptrend (EMA20>EMA50), price above EMA20, healthy RSI, bullish MACD and volume spikes.
+`STANDAARD_UNIVERSUM` (coins analysed), `SWING_PERIODE` (10, lookback for the swing-low stop), `REWARD_MULTIPLIER` (3.0, take-profit), `MIN_RISK_REWARD` (2.0), `HIGH_CONVICTION_SCORE` (75). The stop is placed just below the recent swing low (`stopAfstandStructuur`), clamped to a 0.5x-3x ATR band so it is neither noise-tight nor absurdly far; take-profit = `entry + 3xATR`. R/R = reward / stop-distance therefore **varies per coin**, and coins with R/R below `MIN_RISK_REWARD` are filtered out. Score 0-100 rewards uptrend (EMA20>EMA50), price above EMA20, healthy RSI, bullish MACD and volume spikes.
 
 ## App specifics
 

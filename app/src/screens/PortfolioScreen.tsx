@@ -20,10 +20,10 @@ import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 
 // ---------- TradeRegel ----------
-function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onOpenDetail }: {
+function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
   trade: PortfolioTrade;
   livePrijs: number | undefined;
-  onSluitTrade: (id: string, status: 'gewonnen' | 'verloren') => void;
+  onVraagSluiten: (trade: PortfolioTrade, status: 'gewonnen' | 'verloren') => void;
   onVerwijder: (id: string) => void;
   onBewerk: (trade: PortfolioTrade) => void;
   onOpenDetail: (trade: PortfolioTrade) => void;
@@ -173,7 +173,7 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
             <>
               <Pressable
                 style={tradeStyles.voetKnop}
-                onPress={() => onSluitTrade(trade.id, 'gewonnen')}
+                onPress={() => onVraagSluiten(trade, 'gewonnen')}
                 accessibilityRole="button"
                 accessibilityLabel="Gewonnen"
               >
@@ -181,7 +181,7 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
               </Pressable>
               <Pressable
                 style={tradeStyles.voetKnop}
-                onPress={() => onSluitTrade(trade.id, 'verloren')}
+                onPress={() => onVraagSluiten(trade, 'verloren')}
                 accessibilityRole="button"
                 accessibilityLabel="Verloren"
               >
@@ -477,6 +477,96 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
   );
 }
 
+// ---------- Sluit-modaal: vraagt tegen welke prijs is verkocht ----------
+function SluitTradeModal({ verzoek, onSluiten, onBevestig }: {
+  verzoek: { trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null;
+  onSluiten: () => void;
+  onBevestig: (prijs: number) => void;
+}) {
+  const { colors } = useTheme();
+  const [prijs, setPrijs] = useState('');
+  const [fout, setFout] = useState('');
+  const toetsenbordHoogte = useToetsenbordHoogte();
+
+  // Voorvullen met de planprijs: TP bij gewonnen, SL bij verloren.
+  const planPrijs = verzoek
+    ? (verzoek.status === 'gewonnen' ? verzoek.trade.takeProfit : verzoek.trade.stopLoss)
+    : 0;
+
+  useEffect(() => {
+    if (verzoek) {
+      setPrijs(planPrijs.toString());
+      setFout('');
+    }
+  }, [verzoek, planPrijs]);
+
+  function bevestig() {
+    const p = parseFloat(prijs.replace(',', '.'));
+    if (isNaN(p) || p <= 0) { setFout('Voer een geldige verkoopprijs in'); return; }
+    onBevestig(p);
+  }
+
+  const winst = verzoek?.status === 'gewonnen';
+  const inputStyle = [formStyles.input, {
+    backgroundColor: colors.verhoogd,
+    borderColor: colors.rand,
+    color: colors.tekstPrimair,
+  }];
+
+  return (
+    <Modal visible={verzoek !== null} animationType="slide" transparent onRequestClose={onSluiten}>
+      <View style={formStyles.overlay}>
+        <View style={[
+          formStyles.vel, shadow.modal,
+          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
+        ]}>
+          <View style={formStyles.titelRij}>
+            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
+              {verzoek?.trade.symbool} sluiten als {winst ? 'gewonnen' : 'verloren'}
+            </Text>
+            <Pressable
+              onPress={onSluiten}
+              accessibilityLabel="Sluiten"
+              accessibilityRole="button"
+              style={formStyles.sluitKnop}
+            >
+              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+            </Pressable>
+          </View>
+
+          <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
+            De prijs is voorgevuld met je {winst ? 'take-profit' : 'stop-loss'}. Volgde de trade het plan?
+            Bevestig dan direct. Verkocht je op een andere prijs? Pas hem aan.
+          </Text>
+
+          <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>VERKOOPPRIJS *</Text>
+          <TextInput
+            style={inputStyle}
+            value={prijs}
+            onChangeText={v => setPrijs(v)}
+            placeholder="bijv. 58000"
+            placeholderTextColor={colors.tekstGedimd}
+            keyboardType="decimal-pad"
+            autoFocus
+          />
+
+          {fout ? (
+            <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
+          ) : null}
+
+          <Pressable
+            style={[formStyles.opslaanKnop, { backgroundColor: winst ? colors.winst : colors.verlies }]}
+            onPress={bevestig}
+            accessibilityRole="button"
+          >
+            <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade sluiten</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const formStyles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -526,6 +616,7 @@ export function PortfolioScreen() {
   const { trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, syncing, volgendeVerversing, verversPrijzen } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
+  const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [seconden, setSeconden] = useState<number | null>(null);
 
@@ -598,7 +689,7 @@ export function PortfolioScreen() {
             <TradeRegel
               trade={item}
               livePrijs={item.status === 'open' ? livePrijzen[item.symbool] : undefined}
-              onSluitTrade={sluitTrade}
+              onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
               onVerwijder={verwijderTrade}
               onBewerk={setBewerkTrade}
               onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
@@ -659,6 +750,15 @@ export function PortfolioScreen() {
           if (bewerkTrade) wijzigTrade(trade); else voegTradeToe(trade);
           setFormulierZichtbaar(false);
           setBewerkTrade(null);
+        }}
+      />
+
+      <SluitTradeModal
+        verzoek={sluitVerzoek}
+        onSluiten={() => setSluitVerzoek(null)}
+        onBevestig={(prijs) => {
+          if (sluitVerzoek) sluitTrade(sluitVerzoek.trade.id, sluitVerzoek.status, prijs);
+          setSluitVerzoek(null);
         }}
       />
 

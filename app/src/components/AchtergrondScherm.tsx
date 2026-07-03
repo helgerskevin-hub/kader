@@ -130,10 +130,11 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
 
           <Sectie id="atr" titel="Stop en doel (ATR)" open={open === 'atr'} onToggle={wisselOpen}>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
-              ATR (14) meet de gemiddelde dagbeweging van een coin over de laatste 14 candles. De stop-loss ligt op
-              1,5 keer de ATR onder de entry, het doel op 3 keer de ATR erboven. Dat geeft een verhouding
-              risico/beloning van minimaal 2: bij minder dan 2 vervalt het signaal helemaal. De entry-zone ligt op
-              plus of min 0,2 keer de ATR rond de entryprijs.
+              ATR (14) meet de gemiddelde dagbeweging van een coin over de laatste 14 candles. De stop-loss ligt net
+              onder het laagste punt van de laatste tien candles (de recente steun), begrensd tussen 0,5 en 3 keer de
+              ATR zodat hij niet te krap of te ruim komt te liggen. Het doel ligt op 3 keer de ATR boven de entry.
+              De verhouding risico/beloning verschilt daardoor per coin; bij minder dan 2 vervalt het signaal helemaal.
+              De entry-zone ligt op plus of min 0,2 keer de ATR rond de entryprijs.
             </Text>
             <LevelRow stop={85} entry={100} doel={130} />
           </Sectie>
@@ -181,8 +182,9 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               Het trefferpercentage is het aandeel gesloten trades dat is gewonnen. De gemiddelde behaalde R/R is
               (exitprijs min entry) gedeeld door (entry min stop). Het totaal resultaat telt alle gesloten trades bij
-              elkaar op. Zonder handmatig ingevoerde exitprijs telt de take-profit als exit bij een gewonnen trade en
-              de stop-loss bij een verloren trade.
+              elkaar op. Bij het sluiten van een trade vraagt de app tegen welke prijs je hebt verkocht: de take-profit
+              of stop-loss zijn voorgevuld, maar je kunt de werkelijke verkoopprijs invullen zodat het behaalde
+              resultaat klopt.
             </Text>
           </Sectie>
 

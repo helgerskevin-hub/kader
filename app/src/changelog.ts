@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.0.5',
+    datum: '2026-07-03',
+    punten: [
+      'Stop-loss ligt nu net onder de recente steun (laagste van de laatste tien candles) in plaats van een vaste 1,5 keer ATR; daardoor verschilt de risico/beloning per coin en filtert de app coins met te weinig ruimte nu ook echt weg',
+      'Bij het sluiten van een trade vraagt de app tegen welke prijs je hebt verkocht: take-profit of stop-loss zijn voorgevuld, maar je kunt de werkelijke verkoopprijs invullen zodat trefferpercentage en behaald resultaat niet meer uiteenlopen',
+      'Prijzen ophalen is robuuster: een kapot of afgekapt netwerkantwoord laat de app niet meer één keer per coin de hele prijs-sync afbreken, en de noodterugval op koersdata werkt nu daadwerkelijk als de directe prijs-endpoints geblokkeerd zijn',
+      'Kleinere correcties in de score: een volumepiek wordt eerlijker gemeten (de piek-candle telt niet meer in zijn eigen gemiddelde mee) en het MACD-histogram levert alleen extra punten op als het echt stijgt',
+    ],
+  },
+  {
     versie: '0.0.4',
     datum: '2026-07-03',
     punten: [
