@@ -44,7 +44,7 @@ There is **no test suite** and no linter configured.
 
 - Market-data requests use native `fetch` (no CORS issues in React Native).
 - App id / name: `com.kader.app` / "Kader".
-- Push notifications via `expo-notifications`: every ~10 min the app checks open trades and notifies to raise take-profit (price near TP, momentum strong) or raise stop-loss / exit early (in profit but momentum flattening). Same alert repeats at most once per ~6h unless the suggested level moves >2%.
+- Push notifications via `expo-notifications`: [meldingen.ts](app/src/notifications/meldingen.ts) currently only schedules a single daily reminder. The richer trade-aware logic (periodically check open trades and notify to raise take-profit / tighten stop-loss / exit early, with a repeat-suppression window) is **not built yet** -- see TODO.md.
 - The APK is signed with the default debug key (fine for personal sideloading; Play Store would need a release keystore).
 
 ## Design context
