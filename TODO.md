@@ -69,7 +69,7 @@ _(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Ka
 - [x] **Copy trading stappen** vereenvoudigen: stappenplan in de app hoe je een signaal op eToro uitvoert
 - [x] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
 - [x] **Mogelijkheid om een gemaakte trade aan te passen in portfolio**: Knop met **aanpassen** waar je je stoploss en takeprofit kan aanpassen
-- [ ] **Achtergrond informatie in app**: Nieuw scherm met meer informatie over de weergaves in de app. Hoe worden dingen berekend, wat betekenen de grafieken, marktbalke, fear index, etc. etc. etc. Compleet en grafisch weergegeven met grafische voorbeelden.
+- [x] **Achtergrond informatie in app**: Nieuw scherm met uitleg over de weergaves in de app (Kader-score, indicatoren, ATR-stop/doel, marktbalk, Fear & Greed, kansscore, portfolio-statistieken, trader-oordeel), met echte componenten als grafisch voorbeeld. Bereikbaar via een eigen boek-icoon in de header van elk scherm (niet onder Instellingen, dat is geen instelling)
 - [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt
 - [x] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Coin-detailscherm toont nu afstand tot stop/doel voor open trades en exitprijs/slotdatum/behaald resultaat voor gesloten trades
 - [x] **Meer informatie op Grote Kansen-scherm**: kaarten tonen nu marktcap, trend, MACD en kansscore

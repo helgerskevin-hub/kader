@@ -21,6 +21,10 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 - Coin-detailscherm voor een open trade toont nu ook de afstand tot
   stop-loss en take-profit; voor een gesloten trade toont het de exitprijs,
   slotdatum en het behaalde resultaat
+- Achtergrond informatie: een boek-icoon in de header van elk scherm opent
+  uitleg over de Kader-score, indicatoren, stop/doel-berekening, marktbalk,
+  Fear & Greed, kansscore, portfolio-statistieken en het trader-oordeel, met
+  grafische voorbeelden
 
 ## 0.0.3
 

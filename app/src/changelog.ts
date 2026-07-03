@@ -18,6 +18,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Grote Kansen-kaarten tonen nu ook marktcap, trend, MACD en de kansscore waarop gesorteerd wordt',
       'Gesloten trades in Mijn Trades leggen nu de exitprijs vast en tonen het behaalde resultaat; een nieuwe statistiekenrij toont trefferpercentage, gemiddelde behaalde R/R en totaal resultaat zodra er gesloten trades zijn',
       'Coin-detailscherm voor een open trade toont nu ook de afstand tot stop-loss en take-profit; voor een gesloten trade toont het de exitprijs, slotdatum en het behaalde resultaat',
+      'Achtergrond informatie: een boek-icoon in de header van elk scherm opent uitleg over de Kader-score, indicatoren, stop/doel-berekening, marktbalk, Fear & Greed, kansscore, portfolio-statistieken en het trader-oordeel, met grafische voorbeelden',
     ],
   },
   {
