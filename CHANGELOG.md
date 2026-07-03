@@ -4,6 +4,16 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.0.4
+
+- Trade opslaan vanuit Grote Kansen: kaarten met technische niveaus hebben nu
+  een Getrade-knop, identiek aan het Marktscherm
+- Bedrag in $ en aantal coins zijn nu ook in te vullen bij het handmatig
+  toevoegen of aanpassen van een trade in Mijn Trades (aantal coins wordt
+  automatisch berekend uit bedrag en aankoopprijs)
+- Open trades in Mijn Trades hebben nu een meekleurende zijkant op basis van
+  het actuele advies, net als op het Marktscherm
+
 ## 0.0.3
 
 - Coin detail-scherm: tik op een coin op Markt, Grote Kansen of in je portfolio

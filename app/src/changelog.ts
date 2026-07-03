@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.0.4',
+    datum: '2026-07-03',
+    punten: [
+      'Trade opslaan vanuit Grote Kansen: kaarten met technische niveaus hebben nu een Getrade-knop, identiek aan het Marktscherm',
+      'Bedrag in $ en aantal coins zijn nu ook in te vullen bij het handmatig toevoegen of aanpassen van een trade in Mijn Trades (aantal coins wordt automatisch berekend uit bedrag en aankoopprijs)',
+      'Open trades in Mijn Trades hebben nu een meekleurende zijkant op basis van het actuele advies, net als op het Marktscherm',
+    ],
+  },
+  {
     versie: '0.0.3',
     datum: '2026-07-02',
     punten: [
