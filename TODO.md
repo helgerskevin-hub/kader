@@ -93,6 +93,10 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
+- [x] **geen mogelijkheid om trade op te slaan vanuit grote kansen** moet iedentiek zijn aan markt analyse kansen.
+- [x] **Geen mogelijkheid om waarde in $ of aantal gekochte coins aan te geven in je trades**
+- [x] **Trades in het portfolio venster hebben geen meekleurende zijkant zoals in Markt venster**
+
 ## ✅ Klaar
 
 _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al gedaan hebben.)_

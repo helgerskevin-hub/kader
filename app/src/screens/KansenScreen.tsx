@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, LayoutAnimation, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RefreshCw, ChevronDown, ChevronUp, Zap } from 'lucide-react-native';
+import { RefreshCw, ChevronDown, ChevronUp, Zap, CheckCircle } from 'lucide-react-native';
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
 import { useReduceMotion } from '../theme/useReduceMotion';
@@ -18,6 +18,7 @@ import { SkeletonCard } from '../components/SkeletonCard';
 import { OfflineMelding } from '../components/OfflineMelding';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanOpportunity } from '../engine/coinDetailData';
+import { GetradeFormulier } from '../components/GetradeFormulier';
 
 // ---------- State machine ----------
 type KansenState =
@@ -43,7 +44,11 @@ function reducer(state: KansenState, action: Action): KansenState {
 }
 
 // ---------- OpportunityCard ----------
-function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDetail: (kans: Opportunity) => void }) {
+function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
+  kans: Opportunity;
+  onOpenDetail: (kans: Opportunity) => void;
+  onGetrade: (kans: Opportunity) => void;
+}) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
@@ -129,7 +134,21 @@ function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDeta
       )}
 
       {/* Voet */}
-      <View style={[cardStyles.voet, { borderTopColor: colors.rand }]}>
+      <View style={[
+        cardStyles.voet,
+        { borderTopColor: colors.rand, justifyContent: kans.heeftTechnisch ? 'space-between' : 'flex-end' },
+      ]}>
+        {kans.heeftTechnisch && (
+          <Pressable
+            style={cardStyles.voetKnop}
+            onPress={() => onGetrade(kans)}
+            accessibilityRole="button"
+            accessibilityLabel="Getrade"
+          >
+            <CheckCircle size={15} color={colors.winst} strokeWidth={1.75} />
+            <Text style={[Type.caption, { color: colors.winst }]}>Getrade</Text>
+          </Pressable>
+        )}
         <Pressable
           style={cardStyles.voetKnop}
           onPress={wisselUitgeklapt}
@@ -218,6 +237,7 @@ export function KansenScreen() {
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
   const [ververst, setVerverstState] = useState(false);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
+  const [getradeteKans, setGetradeteKans] = useState<Opportunity | null>(null);
 
   const startScan = useCallback(async () => {
     dispatch({ type: 'START' });
@@ -312,7 +332,11 @@ export function KansenScreen() {
           data={state.kansen}
           keyExtractor={item => item.symbool}
           renderItem={({ item }) => (
-            <OpportunityCard kans={item} onOpenDetail={k => setDetailCoin(vanOpportunity(k))} />
+            <OpportunityCard
+              kans={item}
+              onOpenDetail={k => setDetailCoin(vanOpportunity(k))}
+              onGetrade={setGetradeteKans}
+            />
           )}
           contentContainerStyle={screenStyles.lijst}
           refreshControl={
@@ -335,6 +359,11 @@ export function KansenScreen() {
       )}
 
       <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+      <GetradeFormulier
+        zichtbaar={getradeteKans !== null}
+        trade={getradeteKans}
+        onSluiten={() => setGetradeteKans(null)}
+      />
     </SafeAreaView>
   );
 }

@@ -59,8 +59,10 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
     ? (resultaatUsd >= 0 ? colors.winst : colors.verlies)
     : colors.tekstGedimd;
 
+  const randKleur = trade.status === 'open' ? adviesKleur : statusKleur;
+
   return (
-    <View style={[tradeStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: statusKleur }]}>
+    <View style={[tradeStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }]}>
       <Pressable
         onPress={() => onOpenDetail(trade)}
         accessibilityRole="button"
@@ -230,10 +232,14 @@ interface VormData {
   entryPrijs: string;
   stopLoss: string;
   takeProfit: string;
+  bedragUsd: string;
+  aantalCoins: string;
   notitie: string;
 }
 
-const leegForm: VormData = { symbool: '', naam: '', entryPrijs: '', stopLoss: '', takeProfit: '', notitie: '' };
+const leegForm: VormData = {
+  symbool: '', naam: '', entryPrijs: '', stopLoss: '', takeProfit: '', bedragUsd: '', aantalCoins: '', notitie: '',
+};
 
 function formVanTrade(trade: PortfolioTrade): VormData {
   return {
@@ -242,6 +248,8 @@ function formVanTrade(trade: PortfolioTrade): VormData {
     entryPrijs: trade.entryPrijs.toString(),
     stopLoss: trade.stopLoss.toString(),
     takeProfit: trade.takeProfit.toString(),
+    bedragUsd: trade.bedragUsd?.toString() ?? '',
+    aantalCoins: trade.aantalCoins?.toString() ?? '',
     notitie: trade.notitie ?? '',
   };
 }
@@ -264,6 +272,14 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
     }
   }, [zichtbaar, bestaand]);
 
+  useEffect(() => {
+    const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
+    const prijs = parseFloat(form.entryPrijs.replace(',', '.'));
+    if (bedrag > 0 && prijs > 0) {
+      setForm(prev => ({ ...prev, aantalCoins: (bedrag / prijs).toFixed(6) }));
+    }
+  }, [form.bedragUsd, form.entryPrijs]);
+
   function reset() {
     setForm(leegForm);
     setFout('');
@@ -274,6 +290,8 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
     const entry = parseFloat(form.entryPrijs.replace(',', '.'));
     const stop = parseFloat(form.stopLoss.replace(',', '.'));
     const tp = parseFloat(form.takeProfit.replace(',', '.'));
+    const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
+    const aantal = parseFloat(form.aantalCoins.replace(',', '.'));
 
     if (!sym) { setFout('Voer een symbool in (bijv. BTC)'); return; }
     if (isNaN(entry) || entry <= 0) { setFout('Voer een geldige entryprijs in'); return; }
@@ -292,8 +310,8 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
       datum: bestaand ? bestaand.datum : new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),
       status: bestaand ? bestaand.status : 'open',
       notitie: form.notitie.trim() || undefined,
-      bedragUsd: bestaand?.bedragUsd,
-      aantalCoins: bestaand?.aantalCoins,
+      bedragUsd: !isNaN(bedrag) && bedrag > 0 ? bedrag : undefined,
+      aantalCoins: !isNaN(aantal) && aantal > 0 ? aantal : undefined,
     });
     reset();
   }
@@ -370,6 +388,26 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
               value={form.takeProfit}
               onChangeText={v => setForm(f => ({ ...f, takeProfit: v }))}
               placeholder="bijv. 58000"
+              placeholderTextColor={colors.tekstGedimd}
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>BEDRAG IN $ (optioneel)</Text>
+            <TextInput
+              style={inputStyle}
+              value={form.bedragUsd}
+              onChangeText={v => setForm(f => ({ ...f, bedragUsd: v }))}
+              placeholder="bijv. 500"
+              placeholderTextColor={colors.tekstGedimd}
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>AANTAL COINS (optioneel)</Text>
+            <TextInput
+              style={inputStyle}
+              value={form.aantalCoins}
+              onChangeText={v => setForm(f => ({ ...f, aantalCoins: v }))}
+              placeholder="auto-berekend"
               placeholderTextColor={colors.tekstGedimd}
               keyboardType="decimal-pad"
             />
