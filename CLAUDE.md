@@ -38,13 +38,13 @@ There is **no test suite** and no linter configured.
 - `theme/` -- tokens, typography, ThemeProvider (system/light/dark mode).
 
 ### Key tunables (`app/src/engine/analyzer.ts`)
-`STANDAARD_UNIVERSUM` (coins analysed), `ATR_STOP_MULTIPLIER` (1.5, stop distance), `REWARD_MULTIPLIER` (3.0, take-profit), `MIN_RISK_REWARD` (2.0), `HIGH_CONVICTION_SCORE` (75). Stop = `entry - 1.5xATR`, take-profit = `entry + 3xATR`, giving R/R >= 1:2; coins below the R/R threshold are filtered out. Score 0-100 rewards uptrend (EMA20>EMA50), price above EMA20, healthy RSI, bullish MACD and volume spikes.
+`STANDAARD_UNIVERSUM` (coins analysed), `SWING_PERIODE` (10, lookback for the swing-low stop), `REWARD_MULTIPLIER` (3.0, take-profit), `MIN_RISK_REWARD` (2.0), `HIGH_CONVICTION_SCORE` (75). The stop is placed just below the recent swing low (`stopAfstandStructuur`), clamped to a 0.5x-3x ATR band so it is neither noise-tight nor absurdly far; take-profit = `entry + 3xATR`. R/R = reward / stop-distance therefore **varies per coin**, and coins with R/R below `MIN_RISK_REWARD` are filtered out. Score 0-100 rewards uptrend (EMA20>EMA50), price above EMA20, healthy RSI, bullish MACD and volume spikes.
 
 ## App specifics
 
 - Market-data requests use native `fetch` (no CORS issues in React Native).
 - App id / name: `com.kader.app` / "Kader".
-- Push notifications via `expo-notifications`: every ~10 min the app checks open trades and notifies to raise take-profit (price near TP, momentum strong) or raise stop-loss / exit early (in profit but momentum flattening). Same alert repeats at most once per ~6h unless the suggested level moves >2%.
+- Push notifications via `expo-notifications`: [meldingen.ts](app/src/notifications/meldingen.ts) currently only schedules a single daily reminder. The richer trade-aware logic (periodically check open trades and notify to raise take-profit / tighten stop-loss / exit early, with a repeat-suppression window) is **not built yet** -- see TODO.md.
 - The APK is signed with the default debug key (fine for personal sideloading; Play Store would need a release keystore).
 
 ## Design context

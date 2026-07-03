@@ -13,7 +13,9 @@ export async function laadLijst<T>(sleutel: string): Promise<T[]> {
   try {
     const json = await AsyncStorage.getItem(sleutel);
     if (!json) return [];
-    return JSON.parse(json) as T[];
+    const data = JSON.parse(json);
+    // corrupte/legacy sleutel kan een niet-array bevatten; callers doen direct .map/.filter/new Set
+    return Array.isArray(data) ? data as T[] : [];
   } catch {
     return [];
   }

@@ -9,7 +9,6 @@ export const STANDAARD_UNIVERSUM = [
   'INJ', 'SUI', 'APT', 'TIA', 'RNDR', 'FET', 'SEI', 'AAVE',
 ];
 
-export const ATR_STOP_MULTIPLIER = 1.5;
 export const REWARD_MULTIPLIER = 3.0;
 export const MIN_RISK_REWARD = 2.0;
 export const HIGH_CONVICTION_SCORE = 75;
@@ -18,6 +17,21 @@ export const EMA_KORT = 20;
 export const EMA_LANG = 50;
 export const ATR_PERIODE = 14;
 export const VOLUME_GEMIDDELDE_PERIODE = 20;
+export const SWING_PERIODE = 10;
+
+// Stop-afstand op basis van de recente swing-low (support), niet een vast ATR-veelvoud.
+// Zo varieert de R/R per coin en heeft de MIN_RISK_REWARD-drempel weer betekenis.
+// ponytail: structuur-gebaseerde stop met ATR-ruisfloor (0.5x) en -cap (3x) tegen
+// candles met een absurd dichte of verre swing-low.
+export function stopAfstandStructuur(
+  candles: { low: number }[],
+  entry: number,
+  atr: number,
+): number {
+  const swingLow = Math.min(...candles.slice(-SWING_PERIODE).map(c => c.low));
+  const ruwAfstand = entry - (swingLow - 0.1 * atr); // klein buffertje onder support
+  return Math.min(Math.max(ruwAfstand, 0.5 * atr), 3 * atr);
+}
 
 export async function analyseerCoin(symbool: string): Promise<Trade | null> {
   const result = await haalData(symbool);
@@ -47,7 +61,9 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
   const totalVol = candles.reduce((s, c) => s + c.volume, 0);
   let volumeRatio = 1.0;
   if (totalVol > 0) {
-    const recent = candles.slice(-VOLUME_GEMIDDELDE_PERIODE);
+    // Middel over de vórige N candles (excl. de huidige), anders drukt de spike-candle
+    // zijn eigen gemiddelde op en wordt de ratio structureel onderschat.
+    const recent = candles.slice(-VOLUME_GEMIDDELDE_PERIODE - 1, -1);
     const volGem = recent.reduce((s, c) => s + c.volume, 0) / recent.length;
     const volNu = candles[n - 1].volume;
     volumeRatio = volGem > 0 ? volNu / volGem : 1.0;
@@ -75,7 +91,8 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
   if (macdNu > signaalNu) {
     score += 20;
     redenen.push('MACD bullish');
-    if (histNu > 0) score += 5;
+    // histNu is binnen deze tak per definitie > 0; beloon alleen een stíjgend histogram
+    if (histNu > histogram[n - 2]) score += 5;
   }
   if (volumeRatio >= 1.5) {
     score += 15;
@@ -86,9 +103,9 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
   }
   score = Math.min(score, 100);
 
-  // Trade-niveaus (ATR-gebaseerd)
+  // Trade-niveaus: stop op basis van marktstructuur (swing-low), doel ATR-gebaseerd
   const entry = prijs;
-  const risk = ATR_STOP_MULTIPLIER * atrNu;
+  const risk = stopAfstandStructuur(candles, entry, atrNu);
   const stopLoss = entry - risk;
   const takeProfit = entry + REWARD_MULTIPLIER * atrNu;
   const reward = takeProfit - entry;
@@ -144,5 +161,5 @@ export async function analyseerMarkt(options?: {
     return b.rr - a.rr;
   });
 
-  return resultaten.length >= 5 ? resultaten.slice(0, Math.max(5, topN)) : resultaten;
+  return resultaten.slice(0, topN);
 }
