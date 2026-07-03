@@ -15,6 +15,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
+import { berekenStatistieken } from '../state/statistieken';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 
@@ -59,6 +60,16 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
     ? (resultaatUsd >= 0 ? colors.winst : colors.verlies)
     : colors.tekstGedimd;
 
+  const behaaldPct = trade.exitPrijs !== undefined
+    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
+    : null;
+  const behaaldUsd = trade.exitPrijs !== undefined && heeftAantal
+    ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
+    : null;
+  const behaaldKleur = behaaldPct !== null
+    ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
+    : colors.tekstGedimd;
+
   const randKleur = trade.status === 'open' ? adviesKleur : statusKleur;
 
   return (
@@ -83,7 +94,11 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
 
       {/* Adviesveld */}
       <View style={[tradeStyles.advies, { backgroundColor: colors.verhoogd }]}>
-        <Text style={[Type.caption, { color: adviesKleur, lineHeight: 18 }]}>{advies.tekst}</Text>
+        <Text style={[Type.caption, { color: trade.status === 'open' ? adviesKleur : behaaldKleur, lineHeight: 18 }]}>
+          {trade.status === 'open'
+            ? advies.tekst
+            : `Gesloten op ${fmtPrijs(trade.exitPrijs ?? trade.entryPrijs)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
+        </Text>
       </View>
 
       {/* Niveaus */}
@@ -106,8 +121,8 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
         </View>
       </View>
 
-      {/* Live resultaat (alleen tonen als we een live prijs hebben) */}
-      {livePrijs !== undefined && (
+      {/* Live resultaat voor open trades (alleen tonen als we een live prijs hebben) */}
+      {trade.status === 'open' && livePrijs !== undefined && (
         <View style={[tradeStyles.niveaus, { paddingTop: 0 }]}>
           <View style={tradeStyles.niveau}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>LIVE</Text>
@@ -119,6 +134,25 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
               <Text style={[Type.prijs, { color: resultaatKleur, fontSize: 13 }]}>
                 {fmtPct(resultaatPct)}
                 {resultaatUsd !== null ? `  ${resultaatUsd >= 0 ? '+' : ''}$${Math.abs(resultaatUsd).toFixed(2)}` : ''}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Realized resultaat voor gesloten trades */}
+      {trade.status !== 'open' && trade.exitPrijs !== undefined && (
+        <View style={[tradeStyles.niveaus, { paddingTop: 0 }]}>
+          <View style={tradeStyles.niveau}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>EXIT</Text>
+            <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtPrijs(trade.exitPrijs)}</Text>
+          </View>
+          {behaaldPct !== null && (
+            <View style={tradeStyles.niveau}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEHAALD</Text>
+              <Text style={[Type.prijs, { color: behaaldKleur, fontSize: 13 }]}>
+                {fmtPct(behaaldPct)}
+                {behaaldUsd !== null ? `  ${behaaldUsd >= 0 ? '+' : ''}$${Math.abs(behaaldUsd).toFixed(2)}` : ''}
               </Text>
             </View>
           )}
@@ -507,6 +541,7 @@ export function PortfolioScreen() {
   const openCount = trades.filter(t => t.status === 'open').length;
   const gewonnenCount = trades.filter(t => t.status === 'gewonnen').length;
   const verlorenCount = trades.filter(t => t.status === 'verloren').length;
+  const statistieken = berekenStatistieken(trades);
 
   return (
     <SafeAreaView style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
@@ -571,20 +606,46 @@ export function PortfolioScreen() {
           )}
           contentContainerStyle={portfolioStyles.lijst}
           ListHeaderComponent={
-            <View style={portfolioStyles.stats}>
-              <View style={portfolioStyles.stat}>
-                <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{openCount}</Text>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN</Text>
+            <>
+              <View style={portfolioStyles.stats}>
+                <View style={portfolioStyles.stat}>
+                  <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{openCount}</Text>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN</Text>
+                </View>
+                <View style={portfolioStyles.stat}>
+                  <Text style={[Type.prijsGroot, { color: colors.winst }]}>{gewonnenCount}</Text>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEWONNEN</Text>
+                </View>
+                <View style={portfolioStyles.stat}>
+                  <Text style={[Type.prijsGroot, { color: colors.verlies }]}>{verlorenCount}</Text>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VERLOREN</Text>
+                </View>
               </View>
-              <View style={portfolioStyles.stat}>
-                <Text style={[Type.prijsGroot, { color: colors.winst }]}>{gewonnenCount}</Text>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEWONNEN</Text>
-              </View>
-              <View style={portfolioStyles.stat}>
-                <Text style={[Type.prijsGroot, { color: colors.verlies }]}>{verlorenCount}</Text>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VERLOREN</Text>
-              </View>
-            </View>
+              {statistieken.afgesloten > 0 && (
+                <View style={[portfolioStyles.stats, { paddingTop: 0 }]}>
+                  <View style={portfolioStyles.stat}>
+                    <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>
+                      {statistieken.trefferpercentage !== null ? `${Math.round(statistieken.trefferpercentage)}%` : '—'}
+                    </Text>
+                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TREFFERPERCENTAGE</Text>
+                  </View>
+                  <View style={portfolioStyles.stat}>
+                    <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>
+                      {statistieken.gemBehaaldeRR !== null ? fmtRR(statistieken.gemBehaaldeRR) : '—'}
+                    </Text>
+                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEM. R/R BEHAALD</Text>
+                  </View>
+                  {statistieken.totaalResultaatUsd !== null && (
+                    <View style={portfolioStyles.stat}>
+                      <Text style={[Type.prijsGroot, { color: statistieken.totaalResultaatUsd >= 0 ? colors.winst : colors.verlies }]}>
+                        {statistieken.totaalResultaatUsd >= 0 ? '+' : ''}${Math.abs(statistieken.totaalResultaatUsd).toFixed(2)}
+                      </Text>
+                      <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TOTAAL RESULTAAT</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </>
           }
           ListFooterComponent={<Disclaimer />}
         />

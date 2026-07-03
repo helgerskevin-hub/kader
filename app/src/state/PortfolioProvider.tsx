@@ -78,8 +78,13 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sluitTrade = useCallback((id: string, status: 'gewonnen' | 'verloren') => {
-    setTrades(prev => prev.map(t => t.id === id ? { ...t, status } : t));
-  }, []);
+    setTrades(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const exitPrijs = livePrijzen[t.symbool] ?? (status === 'gewonnen' ? t.takeProfit : t.stopLoss);
+      const slotDatum = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+      return { ...t, status, exitPrijs, slotDatum };
+    }));
+  }, [livePrijzen]);
 
   const verwijderTrade = useCallback((id: string) => {
     setTrades(prev => prev.filter(t => t.id !== id));

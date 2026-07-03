@@ -48,6 +48,7 @@ export interface Opportunity {
   macdBullish: boolean | null;
   methode: string;
   heeftTechnisch: boolean;
+  kansScore: number;
 }
 
 export interface ConsistentieAnalyse {

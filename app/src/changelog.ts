@@ -15,6 +15,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Trade opslaan vanuit Grote Kansen: kaarten met technische niveaus hebben nu een Getrade-knop, identiek aan het Marktscherm',
       'Bedrag in $ en aantal coins zijn nu ook in te vullen bij het handmatig toevoegen of aanpassen van een trade in Mijn Trades (aantal coins wordt automatisch berekend uit bedrag en aankoopprijs)',
       'Open trades in Mijn Trades hebben nu een meekleurende zijkant op basis van het actuele advies, net als op het Marktscherm',
+      'Grote Kansen-kaarten tonen nu ook marktcap, trend, MACD en de kansscore waarop gesorteerd wordt',
+      'Gesloten trades in Mijn Trades leggen nu de exitprijs vast en tonen het behaalde resultaat; een nieuwe statistiekenrij toont trefferpercentage, gemiddelde behaalde R/R en totaal resultaat zodra er gesloten trades zijn',
+      'Coin-detailscherm voor een open trade toont nu ook de afstand tot stop-loss en take-profit; voor een gesloten trade toont het de exitprijs, slotdatum en het behaalde resultaat',
     ],
   },
   {

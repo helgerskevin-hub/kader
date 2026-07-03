@@ -13,6 +13,14 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
   automatisch berekend uit bedrag en aankoopprijs)
 - Open trades in Mijn Trades hebben nu een meekleurende zijkant op basis van
   het actuele advies, net als op het Marktscherm
+- Grote Kansen-kaarten tonen nu ook marktcap, trend, MACD en de kansscore
+  waarop gesorteerd wordt
+- Gesloten trades in Mijn Trades leggen nu de exitprijs vast en tonen het
+  behaalde resultaat; een nieuwe statistiekenrij toont trefferpercentage,
+  gemiddelde behaalde R/R en totaal resultaat zodra er gesloten trades zijn
+- Coin-detailscherm voor een open trade toont nu ook de afstand tot
+  stop-loss en take-profit; voor een gesloten trade toont het de exitprijs,
+  slotdatum en het behaalde resultaat
 
 ## 0.0.3
 
