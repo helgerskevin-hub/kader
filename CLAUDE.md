@@ -17,7 +17,7 @@ npx expo start       # Metro bundler + dev-client
 npm run android      # bouw en installeer op aangesloten device/emulator
 ```
 
-Building the APK needs JDK 17+ (Android Studio's JBR volstaat) and the Android SDK (platform 35+). Set `JAVA_HOME` and `ANDROID_HOME` before building. Project must be on a local drive without spaces (e.g. `D:\dev\crypto-market`).
+Building the APK needs JDK 17+ (Android Studio's JBR volstaat) and the Android SDK (platform 35+). Set `JAVA_HOME` and `ANDROID_HOME` before building. Project must be on a local drive without spaces (e.g. `C:\dev`).
 
 There is **no test suite** and no linter configured.
 
@@ -29,11 +29,13 @@ There is **no test suite** and no linter configured.
 - `engine/marketData.ts` -- data-fetching layer (Binance + CoinGecko via native `fetch`).
 - `engine/indicators.ts` -- indicator maths (RSI, EMA, MACD, ATR, volume).
 - `engine/opportunities.ts` -- grote-kansen scanner.
+- `engine/coinDetailData.ts` -- data assembly for the coin-detail screen; `engine/format.ts` -- number/currency formatting; `engine/types.ts` -- shared engine types.
 - `screens/` -- five screens: MarktScreen, KansenScreen, PortfolioScreen, TradersScreen, OnboardingScreen.
-- `state/` -- MarktProvider, PortfolioProvider (React Context).
+- `components/` -- reusable UI (TradeCard, PrijsGrafiek, ScoreBadge, AdviceBadge, AngstHebzucht/Fear&Greed, FoutGrens error boundary, OfflineMelding, ChangelogSheet, InstellingenSheet) plus two full-screen views: `CoinDetailScherm.tsx` and `AchtergrondScherm.tsx` (uitleg over score en indicatoren).
+- `state/` -- MarktProvider, PortfolioProvider (React Context); `advies.ts`, `statistieken.ts` (portfolio stats), `useFavorieten.ts`, `portfolioTypes.ts`.
 - `storage/opslag.ts` -- AsyncStorage wrapper for traders and portfolio.
 - `notifications/meldingen.ts` -- push notifications via `expo-notifications`.
-- `theme/` -- tokens, typography, ThemeProvider.
+- `theme/` -- tokens, typography, ThemeProvider (system/light/dark mode).
 
 ### Key tunables (`app/src/engine/analyzer.ts`)
 `STANDAARD_UNIVERSUM` (coins analysed), `ATR_STOP_MULTIPLIER` (1.5, stop distance), `REWARD_MULTIPLIER` (3.0, take-profit), `MIN_RISK_REWARD` (2.0), `HIGH_CONVICTION_SCORE` (75). Stop = `entry - 1.5xATR`, take-profit = `entry + 3xATR`, giving R/R >= 1:2; coins below the R/R threshold are filtered out. Score 0-100 rewards uptrend (EMA20>EMA50), price above EMA20, healthy RSI, bullish MACD and volume spikes.
