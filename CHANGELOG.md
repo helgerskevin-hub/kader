@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.0.8
+
+- Tikfout in het kopje "MARKTSENTIMENT" boven de marktbalk hersteld
+- Op het tabblad Favorieten zonder favorieten verschijnt nu altijd de uitleg om
+  coins met de ster te verzamelen, ook als er een filter actief staat
+
 ## 0.0.7
 
 - Vloeiende overgangsanimatie bij het wisselen tussen Markt, Kansen,

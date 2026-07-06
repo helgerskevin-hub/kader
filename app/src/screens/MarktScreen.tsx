@@ -171,7 +171,7 @@ export function MarktScreen() {
             </>
           }
           ListEmptyComponent={
-            filter === 'favorieten' && aantalActieveFilters(marktFilters) === 0 ? (
+            filter === 'favorieten' && aantalFavorieten === 0 ? (
               <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
                 Nog geen favorieten. Tik op de ster bij een coin om die hier te verzamelen.
               </Text>

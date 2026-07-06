@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.0.8',
+    datum: '2026-07-07',
+    punten: [
+      'Tikfout in het kopje "MARKTSENTIMENT" boven de marktbalk hersteld',
+      'Op het tabblad Favorieten zonder favorieten zie je nu altijd de uitleg om coins met de ster te verzamelen, ook als er een filter actief staat',
+    ],
+  },
+  {
     versie: '0.0.7',
     datum: '2026-07-07',
     punten: [

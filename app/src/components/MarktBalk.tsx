@@ -43,7 +43,7 @@ export function MarktBalk({ score }: Props) {
     <View style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
       <View style={styles.bovenkant}>
         <View style={styles.titelRij}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MARKSENTIMENT</Text>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MARKTSENTIMENT</Text>
           <Pressable
             onPress={wisselUitgeklapt}
             accessibilityRole="button"

@@ -74,7 +74,7 @@ See `docs/github-werkwijze.md` for the full agreed workflow. Key points:
 Claude is in charge of version numbering and the changelog for this project.
 
 - **Always update the changelog when a user-facing change lands**, both `CHANGELOG.md` (repo root) and the in-app source `app/src/changelog.ts` (used by the changelog screen and the "nieuw in deze versie" popup). Keep them in sync, newest entry first, Dutch text.
-- **Claude decides the version number** (`app/app.json`, `version` field) for the next release, following the existing `0.0.x` scheme unless told otherwise.
+- **Claude decides the version number** (`app/app.json`, `version` field), following the existing `0.0.x` scheme unless told otherwise. **Bump the version number only when a release build is actually built**, not while features are still landing. Between releases, keep the version as-is and just keep the changelog up to date; assign the new number at build time.
 - **Only build and publish a release APK to GitHub when explicitly asked.** Finishing a feature or a batch of fixes does not by itself warrant a release. If work has accumulated that would make a sensible release, ask the user whether they want one, don't just make it.
 
 ## Writing and language rules
