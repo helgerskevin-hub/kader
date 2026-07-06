@@ -77,16 +77,33 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   }) : null;
   const adviesKleur = advies?.kleur === 'groen' ? colors.winst : advies?.kleur === 'rood' ? colors.verlies : colors.letOp;
 
+  const isOpen = data.status === 'open';
   const heeftAantal = typeof data.aantalCoins === 'number' && data.aantalCoins > 0;
-  const resultaatUsd = data.context === 'portfolio' && data.prijs !== undefined && heeftAantal
+
+  const resultaatUsd = data.context === 'portfolio' && isOpen && data.prijs !== undefined && heeftAantal
     ? (data.prijs - (data.entryPrijs ?? 0)) * data.aantalCoins!
     : null;
-  const resultaatPct = data.context === 'portfolio' && data.prijs !== undefined && data.entryPrijs
+  const resultaatPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.entryPrijs
     ? (data.prijs - data.entryPrijs) / data.entryPrijs * 100
     : null;
   const resultaatKleur = resultaatUsd !== null ? (resultaatUsd >= 0 ? colors.winst : colors.verlies) : colors.tekstGedimd;
 
-  const portfolioAdvies = data.context === 'portfolio'
+  const behaaldPct = data.context === 'portfolio' && !isOpen && data.exitPrijs !== undefined && data.entryPrijs
+    ? (data.exitPrijs - data.entryPrijs) / data.entryPrijs * 100
+    : null;
+  const behaaldUsd = data.context === 'portfolio' && !isOpen && data.exitPrijs !== undefined && heeftAantal
+    ? (data.exitPrijs - (data.entryPrijs ?? 0)) * data.aantalCoins!
+    : null;
+  const behaaldKleur = behaaldPct !== null ? (behaaldPct >= 0 ? colors.winst : colors.verlies) : colors.tekstGedimd;
+
+  const afstandStopPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.stopLoss !== undefined
+    ? (data.prijs - data.stopLoss) / data.prijs * 100
+    : null;
+  const afstandDoelPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.takeProfit !== undefined
+    ? (data.takeProfit - data.prijs) / data.prijs * 100
+    : null;
+
+  const portfolioAdvies = data.context === 'portfolio' && isOpen
     ? bepaalAdvies(data.entryPrijs ?? 0, data.stopLoss ?? 0, data.takeProfit ?? 0, data.prijs)
     : null;
   const portfolioAdviesKleur = portfolioAdvies?.kleur === 'winst' ? colors.winst
@@ -185,25 +202,62 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
             {data.context === 'portfolio' && (
               <View style={styles.sectie}>
                 <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Jouw positie</Text>
-                {portfolioAdvies && (
+                {isOpen && portfolioAdvies && (
                   <View style={[styles.portfolioAdvies, { backgroundColor: colors.verhoogd }]}>
                     <Text style={[Type.caption, { color: portfolioAdviesKleur, lineHeight: 18 }]}>{portfolioAdvies.tekst}</Text>
+                  </View>
+                )}
+                {!isOpen && (
+                  <View style={[styles.portfolioAdvies, { backgroundColor: colors.verhoogd }]}>
+                    <Text style={[Type.caption, { color: behaaldKleur, lineHeight: 18 }]}>
+                      {`Gesloten op ${fmtPrijs(data.exitPrijs ?? data.entryPrijs ?? 0)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
+                    </Text>
                   </View>
                 )}
                 <View style={styles.indicatorGrid}>
                   <IndicatorItem label="STATUS" waarde={statusLabel} />
                   <IndicatorItem label="INLEG" waarde={data.bedragUsd ? fmtPrijs(data.bedragUsd) : '—'} />
-                  <IndicatorItem
-                    label="RESULTAAT"
-                    waarde={resultaatPct !== null ? fmtPct(resultaatPct) : '—'}
-                    kleur={resultaatKleur}
-                  />
-                  {resultaatUsd !== null && (
-                    <IndicatorItem
-                      label="WINST/VERLIES"
-                      waarde={`${resultaatUsd >= 0 ? '+' : ''}$${Math.abs(resultaatUsd).toFixed(2)}`}
-                      kleur={resultaatKleur}
-                    />
+                  {isOpen && (
+                    <>
+                      <IndicatorItem
+                        label="RESULTAAT"
+                        waarde={resultaatPct !== null ? fmtPct(resultaatPct) : '—'}
+                        kleur={resultaatKleur}
+                      />
+                      {resultaatUsd !== null && (
+                        <IndicatorItem
+                          label="WINST/VERLIES"
+                          waarde={`${resultaatUsd >= 0 ? '+' : ''}$${Math.abs(resultaatUsd).toFixed(2)}`}
+                          kleur={resultaatKleur}
+                        />
+                      )}
+                      {afstandStopPct !== null && (
+                        <IndicatorItem label="AFSTAND STOP" waarde={fmtPct(-afstandStopPct)} kleur={colors.verlies} />
+                      )}
+                      {afstandDoelPct !== null && (
+                        <IndicatorItem label="AFSTAND DOEL" waarde={fmtPct(afstandDoelPct)} kleur={colors.winst} />
+                      )}
+                    </>
+                  )}
+                  {!isOpen && (
+                    <>
+                      {data.exitPrijs !== undefined && (
+                        <IndicatorItem label="EXITPRIJS" waarde={fmtPrijs(data.exitPrijs)} />
+                      )}
+                      {data.slotDatum && (
+                        <IndicatorItem label="SLOTDATUM" waarde={data.slotDatum} />
+                      )}
+                      {behaaldPct !== null && (
+                        <IndicatorItem label="BEHAALD" waarde={fmtPct(behaaldPct)} kleur={behaaldKleur} />
+                      )}
+                      {behaaldUsd !== null && (
+                        <IndicatorItem
+                          label="WINST/VERLIES"
+                          waarde={`${behaaldUsd >= 0 ? '+' : ''}$${Math.abs(behaaldUsd).toFixed(2)}`}
+                          kleur={behaaldKleur}
+                        />
+                      )}
+                    </>
                   )}
                 </View>
                 {data.notitie ? (

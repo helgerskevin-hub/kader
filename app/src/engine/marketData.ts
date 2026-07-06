@@ -30,7 +30,9 @@ async function httpGet<T = unknown>(url: string, params?: Record<string, string>
       fetch(fullUrl, { headers: HEADERS }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), HTTP_TIMEOUT)),
     ]) as Response;
-    if (res.ok) return res.json() as Promise<T>;
+    // await zodat een afgewezen JSON-parse (rate-limit HTML, afgekapte body) in de catch valt
+    // i.p.v. dat httpGet reject; het T | null-contract moet altijd gelden.
+    if (res.ok) return await res.json() as T;
     return null;
   } catch {
     return null;
@@ -66,6 +68,11 @@ export async function haalBinanceKlines(
   return null;
 }
 
+// ponytail: CoinGecko /ohlc geeft bij days=30 vier-uurs candles, niet dagelijks zoals de
+// Binance-tak. Dezelfde RSI/EMA/ATR-periodes draaien op beide, dus op deze fallback zijn
+// EMA50-span en ATR (en dus stop/doel) grover en niet 1-op-1 vergelijkbaar met Binance.
+// CoinGecko heeft op deze ranges geen dagelijkse granulariteit, dus dit is niet te fixen,
+// alleen te labelen ('CoinGecko (fallback)').
 export async function haalCoingeckoOhlc(symbool: string, days = 30): Promise<Candle[] | null> {
   const cgId = COINGECKO_IDS[symbool];
   if (!cgId) return null;
@@ -109,7 +116,9 @@ export async function haalLaatstePrijs(symbool: string): Promise<number | null> 
       if (!isNaN(prijs) && prijs > 0) return prijs;
     }
   }
-  const candles = await haalBinanceKlines(symbool, '1d', 2);
+  // Fallback als alle ticker-endpoints falen: laatste sluitprijs uit klines.
+  // Vraag > EMA_LANG candles, anders geeft haalBinanceKlines altijd null (gate op :61).
+  const candles = await haalBinanceKlines(symbool, '1d', 60);
   if (candles && candles.length > 0) return candles[candles.length - 1].close;
   return null;
 }

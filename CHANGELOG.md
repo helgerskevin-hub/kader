@@ -4,6 +4,46 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.0.5
+
+- Stop-loss ligt nu net onder de recente steun (laagste van de laatste tien
+  candles) in plaats van een vaste 1,5 keer ATR; daardoor verschilt de
+  risico/beloning per coin en filtert de app coins met te weinig ruimte nu ook
+  echt weg
+- Bij het sluiten van een trade vraagt de app tegen welke prijs je hebt
+  verkocht: take-profit of stop-loss zijn voorgevuld, maar je kunt de
+  werkelijke verkoopprijs invullen zodat trefferpercentage en behaald resultaat
+  niet meer uiteenlopen
+- Prijzen ophalen is robuuster: een kapot of afgekapt netwerkantwoord laat de
+  app niet meer één keer per coin de hele prijs-sync afbreken, en de
+  noodterugval op koersdata werkt nu daadwerkelijk als de directe
+  prijs-endpoints geblokkeerd zijn
+- Kleinere correcties in de score: een volumepiek wordt eerlijker gemeten (de
+  piek-candle telt niet meer in zijn eigen gemiddelde mee) en het
+  MACD-histogram levert alleen extra punten op als het echt stijgt
+
+## 0.0.4
+
+- Trade opslaan vanuit Grote Kansen: kaarten met technische niveaus hebben nu
+  een Getrade-knop, identiek aan het Marktscherm
+- Bedrag in $ en aantal coins zijn nu ook in te vullen bij het handmatig
+  toevoegen of aanpassen van een trade in Mijn Trades (aantal coins wordt
+  automatisch berekend uit bedrag en aankoopprijs)
+- Open trades in Mijn Trades hebben nu een meekleurende zijkant op basis van
+  het actuele advies, net als op het Marktscherm
+- Grote Kansen-kaarten tonen nu ook marktcap, trend, MACD en de kansscore
+  waarop gesorteerd wordt
+- Gesloten trades in Mijn Trades leggen nu de exitprijs vast en tonen het
+  behaalde resultaat; een nieuwe statistiekenrij toont trefferpercentage,
+  gemiddelde behaalde R/R en totaal resultaat zodra er gesloten trades zijn
+- Coin-detailscherm voor een open trade toont nu ook de afstand tot
+  stop-loss en take-profit; voor een gesloten trade toont het de exitprijs,
+  slotdatum en het behaalde resultaat
+- Achtergrond informatie: een boek-icoon in de header van elk scherm opent
+  uitleg over de Kader-score, indicatoren, stop/doel-berekening, marktbalk,
+  Fear & Greed, kansscore, portfolio-statistieken en het trader-oordeel, met
+  grafische voorbeelden
+
 ## 0.0.3
 
 - Coin detail-scherm: tik op een coin op Markt, Grote Kansen of in je portfolio

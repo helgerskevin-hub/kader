@@ -14,9 +14,11 @@ import { Type } from '../theme/typography';
 import { radii, shadow, spacing } from '../theme/tokens';
 import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 
+export type GetradeBron = Pick<Trade, 'symbool' | 'entry' | 'stopLoss' | 'takeProfit' | 'rr'>;
+
 interface Props {
   zichtbaar: boolean;
-  trade: Trade | null;
+  trade: GetradeBron | null;
   onSluiten: () => void;
 }
 
@@ -26,7 +28,7 @@ interface VormData {
   aantalCoins: string;
 }
 
-function leegForm(trade: Trade | null): VormData {
+function leegForm(trade: GetradeBron | null): VormData {
   return {
     bedragUsd: '',
     entryPrijs: trade ? trade.entry.toString() : '',

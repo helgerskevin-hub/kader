@@ -34,21 +34,14 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 
 - [ ] Inloggen? Zo ja, database?
 - [ ] Wens: portfolio uit eToro kunnen halen zodat je je trades niet zelf hoeft in te vullen
-- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt
 - [x] Favorietenlijst: vaste coins markeren zodat ze altijd bovenaan de analyse staan
-- [ ] Historisch overzicht gesloten trades met winst/verlies-statistieken (trefferpercentage, gem. R/R behaald)
 - [x] Dark/light mode: systeem/licht/donker via een tandwiel-icoon in de header, opgeslagen op het toestel
 - [x] Op het niet fullscreen scherm meer informatie bieden over waarom kopen.
 - [x] **Coin detail-scherm full screen met grafieken**: Bij klikken op een coin opent een full-screen detail-pagina met veel meer informatie en grafieken (inspiratie: Market Mirror). Ook gewenst op portfolio kaart, oppakken samen met meer informatie over de status idee.
-- [ ] **Meer informatie op Grote Kansen-scherm**: Het huidige scherm mist nog details. Voeg relevante info toe voor betere besluitvorming
-- [ ] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Bij het klikken op de trade in portfolio zie je in het full screen venster meer gedailteerde informatie (deels gedekt door het nieuwe coin detail-scherm, dat al status/resultaat/hold-advies toont; verder uitbreiden staat nog open)
 - [x] **Changelog in app**: Onder het settings menu een knop om de changelog bij te houden wat er allemaal veranderd is per versie. Plus bij de eerste keer opstarten van de app een pop-up window met informatie wat er nieuw is in deze versie. Direct meenemen dat er een uitgebreide changelog wordt bijgehouden in project folder als changelog.md
-- [ ] **Achtergrond informatie in app**: Nieuw scherm met meer informatie over de weergaves in de app. Hoe worden dingen berekend, wat betekenen de grafieken, marktbalke, fear index, etc. etc. etc. Compleet en grafisch weergegeven met grafische voorbeelden.
-- [ ] Kopje toevoegen met favorieten
-- [ ] Uitleg toevoegen over de Fear & Greed Index
-- [ ] Uitleg toevoegen over wat het marktsentiment inhoudt
-- [ ] Laadbalk toevoegen
-- [ ] Offline melding toevoegen
+- [x] Kopje toevoegen met favorieten: sectiekopje "Favorieten" boven de favoriet-gemarkeerde trades op het Marktscherm
+- [x] Uitleg toevoegen over de Fear & Greed Index: uitklapbare toelichting bij de Fear & Greed-kaart op het Marktscherm
+- [x] Uitleg toevoegen over wat het marktsentiment inhoudt: uitklapbare toelichting bij de marktsentimentbalk
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
@@ -79,11 +72,18 @@ _(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Ka
 - [x] **Copy trading stappen** vereenvoudigen: stappenplan in de app hoe je een signaal op eToro uitvoert
 - [x] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
 - [x] **Mogelijkheid om een gemaakte trade aan te passen in portfolio**: Knop met **aanpassen** waar je je stoploss en takeprofit kan aanpassen
+- [x] **Achtergrond informatie in app**: Nieuw scherm met uitleg over de weergaves in de app (Kader-score, indicatoren, ATR-stop/doel, marktbalk, Fear & Greed, kansscore, portfolio-statistieken, trader-oordeel), met echte componenten als grafisch voorbeeld. Bereikbaar via een eigen boek-icoon in de header van elk scherm (niet onder Instellingen, dat is geen instelling)
+- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt
+- [ ] **Trade-bewuste pushmeldingen bouwen**: nu stuurt `notifications/meldingen.ts` alleen één dagelijkse herinnering. Gewenst: periodiek (bijv. elke ~10 min) de open trades checken en een melding sturen om take-profit te verhogen (prijs dicht bij TP, momentum sterk) of stop-loss aan te trekken / eerder uit te stappen (in winst maar momentum vlakt af). Dezelfde melding hooguit eens per ~6u herhalen, tenzij het voorgestelde niveau meer dan 2% verschuift. (CLAUDE.md beschreef dit al als bestaand; is nu gecorrigeerd naar "nog te bouwen".)
+- [x] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Coin-detailscherm toont nu afstand tot stop/doel voor open trades en exitprijs/slotdatum/behaald resultaat voor gesloten trades
+- [x] **Meer informatie op Grote Kansen-scherm**: kaarten tonen nu marktcap, trend, MACD en kansscore
+- [x] **Historisch overzicht gesloten trades met winst/verlies-statistieken**: exitprijs wordt vastgelegd bij sluiten; statistiekenrij toont trefferpercentage, gem. R/R behaald en totaal resultaat
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging
 - [x] Error boundary toevoegen zodat één kapotte component niet de hele app neergooit
 - [x] Offline-modus: nette foutmelding als de telefoon geen internet heeft i.p.v. een lege pagina (Markt en Kansen delen nu één OfflineMelding-component)
+- [x] Laadbalk toevoegen: visuele voortgangsbalk tijdens het analyseren (Markt) en scannen (Grote Kansen), naast de bestaande "x/y"-tekst
 
 ### Smoke-test checklist (Kader app)
 _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
@@ -97,6 +97,10 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 ## 🐛 Bugs / dingen die kapot zijn
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
+
+- [x] **geen mogelijkheid om trade op te slaan vanuit grote kansen** moet iedentiek zijn aan markt analyse kansen.
+- [x] **Geen mogelijkheid om waarde in $ of aantal gekochte coins aan te geven in je trades**
+- [x] **Trades in het portfolio venster hebben geen meekleurende zijkant zoals in Markt venster**
 
 ## ✅ Klaar
 

@@ -11,7 +11,7 @@ interface PortfolioContextWaarde {
   volgendeVerversing: Date | null;
   voegTradeToe: (trade: PortfolioTrade) => void;
   wijzigTrade: (trade: PortfolioTrade) => void;
-  sluitTrade: (id: string, status: 'gewonnen' | 'verloren') => void;
+  sluitTrade: (id: string, status: 'gewonnen' | 'verloren', exitPrijs: number) => void;
   verwijderTrade: (id: string) => void;
   verversPrijzen: () => Promise<void>;
 }
@@ -77,8 +77,15 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setTrades(prev => prev.map(t => t.id === trade.id ? trade : t));
   }, []);
 
-  const sluitTrade = useCallback((id: string, status: 'gewonnen' | 'verloren') => {
-    setTrades(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+  // exitPrijs komt expliciet uit het sluit-modaal (voorgevuld met TP/SL, door de gebruiker
+  // te overschrijven met de werkelijke verkoopprijs), zodat trefferpercentage en behaald
+  // resultaat niet meer uiteen kunnen lopen.
+  const sluitTrade = useCallback((id: string, status: 'gewonnen' | 'verloren', exitPrijs: number) => {
+    setTrades(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const slotDatum = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+      return { ...t, status, exitPrijs, slotDatum };
+    }));
   }, []);
 
   const verwijderTrade = useCallback((id: string) => {

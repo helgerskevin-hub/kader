@@ -3,11 +3,11 @@ import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, LayoutAnimation, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RefreshCw, ChevronDown, ChevronUp, Zap } from 'lucide-react-native';
+import { RefreshCw, ChevronDown, ChevronUp, Zap, CheckCircle } from 'lucide-react-native';
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
 import { useReduceMotion } from '../theme/useReduceMotion';
-import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtRR, fmtMarktcap, fmtScore } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
@@ -19,6 +19,7 @@ import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanOpportunity } from '../engine/coinDetailData';
+import { GetradeFormulier } from '../components/GetradeFormulier';
 
 // ---------- State machine ----------
 type KansenState =
@@ -44,7 +45,11 @@ function reducer(state: KansenState, action: Action): KansenState {
 }
 
 // ---------- OpportunityCard ----------
-function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDetail: (kans: Opportunity) => void }) {
+function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
+  kans: Opportunity;
+  onOpenDetail: (kans: Opportunity) => void;
+  onGetrade: (kans: Opportunity) => void;
+}) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
@@ -74,7 +79,7 @@ function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDeta
       <View style={cardStyles.kop}>
         <View style={cardStyles.kopLinks}>
           <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{kans.naam}</Text>
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>#{kans.rang} · {kans.symbool}</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>#{kans.rang} · {kans.symbool} · {fmtMarktcap(kans.marktcap)}</Text>
         </View>
         <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(kans.prijs)}</Text>
       </View>
@@ -91,13 +96,35 @@ function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDeta
             <Text style={[Type.prijs, { color: pctKleur(val), fontSize: 13 }]}>{fmtPct(val)}</Text>
           </View>
         ))}
-        {kans.rsi !== null && (
-          <View style={cardStyles.pctItem}>
-            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{kans.rsi}</Text>
-          </View>
-        )}
       </View>
+
+      {/* Technische rij */}
+      {(kans.rsi !== null || kans.trendOp !== null || kans.macdBullish !== null) && (
+        <View style={[cardStyles.pctRij, { paddingTop: 0 }]}>
+          {kans.rsi !== null && (
+            <View style={cardStyles.pctItem}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
+              <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{kans.rsi}</Text>
+            </View>
+          )}
+          {kans.trendOp !== null && (
+            <View style={cardStyles.pctItem}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TREND</Text>
+              <Text style={[Type.prijs, { color: kans.trendOp ? colors.winst : colors.verlies, fontSize: 13 }]}>
+                {kans.trendOp ? 'Op' : 'Neer'}
+              </Text>
+            </View>
+          )}
+          {kans.macdBullish !== null && (
+            <View style={cardStyles.pctItem}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MACD</Text>
+              <Text style={[Type.prijs, { color: kans.macdBullish ? colors.winst : colors.verlies, fontSize: 13 }]}>
+                {kans.macdBullish ? 'Bullish' : 'Bearish'}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Niveaus */}
       {kans.heeftTechnisch && (
@@ -106,7 +133,7 @@ function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDeta
         </View>
       )}
 
-      {/* R/R + methode */}
+      {/* R/R + kansscore + methode */}
       <View style={cardStyles.rrRij}>
         {kans.heeftTechnisch && (
           <View style={cardStyles.rrItem}>
@@ -114,6 +141,10 @@ function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDeta
             <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(kans.rr)}</Text>
           </View>
         )}
+        <View style={cardStyles.rrItem}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>KANSSCORE</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtScore(kans.kansScore)}</Text>
+        </View>
         <View style={[cardStyles.methodeBadge, { backgroundColor: colors.verhoogd }]}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{kans.methode.toUpperCase()}</Text>
         </View>
@@ -130,7 +161,21 @@ function OpportunityCard({ kans, onOpenDetail }: { kans: Opportunity; onOpenDeta
       )}
 
       {/* Voet */}
-      <View style={[cardStyles.voet, { borderTopColor: colors.rand }]}>
+      <View style={[
+        cardStyles.voet,
+        { borderTopColor: colors.rand, justifyContent: kans.heeftTechnisch ? 'space-between' : 'flex-end' },
+      ]}>
+        {kans.heeftTechnisch && (
+          <Pressable
+            style={cardStyles.voetKnop}
+            onPress={() => onGetrade(kans)}
+            accessibilityRole="button"
+            accessibilityLabel="Getrade"
+          >
+            <CheckCircle size={15} color={colors.winst} strokeWidth={1.75} />
+            <Text style={[Type.caption, { color: colors.winst }]}>Getrade</Text>
+          </Pressable>
+        )}
         <Pressable
           style={cardStyles.voetKnop}
           onPress={wisselUitgeklapt}
@@ -219,6 +264,7 @@ export function KansenScreen() {
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
   const [ververst, setVerverstState] = useState(false);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
+  const [getradeteKans, setGetradeteKans] = useState<Opportunity | null>(null);
 
   const startScan = useCallback(async () => {
     dispatch({ type: 'START' });
@@ -314,7 +360,11 @@ export function KansenScreen() {
           data={state.kansen}
           keyExtractor={item => item.symbool}
           renderItem={({ item }) => (
-            <OpportunityCard kans={item} onOpenDetail={k => setDetailCoin(vanOpportunity(k))} />
+            <OpportunityCard
+              kans={item}
+              onOpenDetail={k => setDetailCoin(vanOpportunity(k))}
+              onGetrade={setGetradeteKans}
+            />
           )}
           contentContainerStyle={screenStyles.lijst}
           refreshControl={
@@ -337,6 +387,11 @@ export function KansenScreen() {
       )}
 
       <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+      <GetradeFormulier
+        zichtbaar={getradeteKans !== null}
+        trade={getradeteKans}
+        onSluiten={() => setGetradeteKans(null)}
+      />
     </SafeAreaView>
   );
 }

@@ -15,14 +15,15 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
+import { berekenStatistieken } from '../state/statistieken';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 
 // ---------- TradeRegel ----------
-function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onOpenDetail }: {
+function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
   trade: PortfolioTrade;
   livePrijs: number | undefined;
-  onSluitTrade: (id: string, status: 'gewonnen' | 'verloren') => void;
+  onVraagSluiten: (trade: PortfolioTrade, status: 'gewonnen' | 'verloren') => void;
   onVerwijder: (id: string) => void;
   onBewerk: (trade: PortfolioTrade) => void;
   onOpenDetail: (trade: PortfolioTrade) => void;
@@ -59,8 +60,20 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
     ? (resultaatUsd >= 0 ? colors.winst : colors.verlies)
     : colors.tekstGedimd;
 
+  const behaaldPct = trade.exitPrijs !== undefined
+    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
+    : null;
+  const behaaldUsd = trade.exitPrijs !== undefined && heeftAantal
+    ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
+    : null;
+  const behaaldKleur = behaaldPct !== null
+    ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
+    : colors.tekstGedimd;
+
+  const randKleur = trade.status === 'open' ? adviesKleur : statusKleur;
+
   return (
-    <View style={[tradeStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: statusKleur }]}>
+    <View style={[tradeStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }]}>
       <Pressable
         onPress={() => onOpenDetail(trade)}
         accessibilityRole="button"
@@ -81,7 +94,11 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
 
       {/* Adviesveld */}
       <View style={[tradeStyles.advies, { backgroundColor: colors.verhoogd }]}>
-        <Text style={[Type.caption, { color: adviesKleur, lineHeight: 18 }]}>{advies.tekst}</Text>
+        <Text style={[Type.caption, { color: trade.status === 'open' ? adviesKleur : behaaldKleur, lineHeight: 18 }]}>
+          {trade.status === 'open'
+            ? advies.tekst
+            : `Gesloten op ${fmtPrijs(trade.exitPrijs ?? trade.entryPrijs)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
+        </Text>
       </View>
 
       {/* Niveaus */}
@@ -104,8 +121,8 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
         </View>
       </View>
 
-      {/* Live resultaat (alleen tonen als we een live prijs hebben) */}
-      {livePrijs !== undefined && (
+      {/* Live resultaat voor open trades (alleen tonen als we een live prijs hebben) */}
+      {trade.status === 'open' && livePrijs !== undefined && (
         <View style={[tradeStyles.niveaus, { paddingTop: 0 }]}>
           <View style={tradeStyles.niveau}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>LIVE</Text>
@@ -117,6 +134,25 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
               <Text style={[Type.prijs, { color: resultaatKleur, fontSize: 13 }]}>
                 {fmtPct(resultaatPct)}
                 {resultaatUsd !== null ? `  ${resultaatUsd >= 0 ? '+' : ''}$${Math.abs(resultaatUsd).toFixed(2)}` : ''}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Realized resultaat voor gesloten trades */}
+      {trade.status !== 'open' && trade.exitPrijs !== undefined && (
+        <View style={[tradeStyles.niveaus, { paddingTop: 0 }]}>
+          <View style={tradeStyles.niveau}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>EXIT</Text>
+            <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtPrijs(trade.exitPrijs)}</Text>
+          </View>
+          {behaaldPct !== null && (
+            <View style={tradeStyles.niveau}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEHAALD</Text>
+              <Text style={[Type.prijs, { color: behaaldKleur, fontSize: 13 }]}>
+                {fmtPct(behaaldPct)}
+                {behaaldUsd !== null ? `  ${behaaldUsd >= 0 ? '+' : ''}$${Math.abs(behaaldUsd).toFixed(2)}` : ''}
               </Text>
             </View>
           )}
@@ -137,7 +173,7 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
             <>
               <Pressable
                 style={tradeStyles.voetKnop}
-                onPress={() => onSluitTrade(trade.id, 'gewonnen')}
+                onPress={() => onVraagSluiten(trade, 'gewonnen')}
                 accessibilityRole="button"
                 accessibilityLabel="Gewonnen"
               >
@@ -145,7 +181,7 @@ function TradeRegel({ trade, livePrijs, onSluitTrade, onVerwijder, onBewerk, onO
               </Pressable>
               <Pressable
                 style={tradeStyles.voetKnop}
-                onPress={() => onSluitTrade(trade.id, 'verloren')}
+                onPress={() => onVraagSluiten(trade, 'verloren')}
                 accessibilityRole="button"
                 accessibilityLabel="Verloren"
               >
@@ -230,10 +266,14 @@ interface VormData {
   entryPrijs: string;
   stopLoss: string;
   takeProfit: string;
+  bedragUsd: string;
+  aantalCoins: string;
   notitie: string;
 }
 
-const leegForm: VormData = { symbool: '', naam: '', entryPrijs: '', stopLoss: '', takeProfit: '', notitie: '' };
+const leegForm: VormData = {
+  symbool: '', naam: '', entryPrijs: '', stopLoss: '', takeProfit: '', bedragUsd: '', aantalCoins: '', notitie: '',
+};
 
 function formVanTrade(trade: PortfolioTrade): VormData {
   return {
@@ -242,6 +282,8 @@ function formVanTrade(trade: PortfolioTrade): VormData {
     entryPrijs: trade.entryPrijs.toString(),
     stopLoss: trade.stopLoss.toString(),
     takeProfit: trade.takeProfit.toString(),
+    bedragUsd: trade.bedragUsd?.toString() ?? '',
+    aantalCoins: trade.aantalCoins?.toString() ?? '',
     notitie: trade.notitie ?? '',
   };
 }
@@ -264,6 +306,14 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
     }
   }, [zichtbaar, bestaand]);
 
+  useEffect(() => {
+    const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
+    const prijs = parseFloat(form.entryPrijs.replace(',', '.'));
+    if (bedrag > 0 && prijs > 0) {
+      setForm(prev => ({ ...prev, aantalCoins: (bedrag / prijs).toFixed(6) }));
+    }
+  }, [form.bedragUsd, form.entryPrijs]);
+
   function reset() {
     setForm(leegForm);
     setFout('');
@@ -274,6 +324,8 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
     const entry = parseFloat(form.entryPrijs.replace(',', '.'));
     const stop = parseFloat(form.stopLoss.replace(',', '.'));
     const tp = parseFloat(form.takeProfit.replace(',', '.'));
+    const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
+    const aantal = parseFloat(form.aantalCoins.replace(',', '.'));
 
     if (!sym) { setFout('Voer een symbool in (bijv. BTC)'); return; }
     if (isNaN(entry) || entry <= 0) { setFout('Voer een geldige entryprijs in'); return; }
@@ -292,8 +344,8 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
       datum: bestaand ? bestaand.datum : new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),
       status: bestaand ? bestaand.status : 'open',
       notitie: form.notitie.trim() || undefined,
-      bedragUsd: bestaand?.bedragUsd,
-      aantalCoins: bestaand?.aantalCoins,
+      bedragUsd: !isNaN(bedrag) && bedrag > 0 ? bedrag : undefined,
+      aantalCoins: !isNaN(aantal) && aantal > 0 ? aantal : undefined,
     });
     reset();
   }
@@ -374,6 +426,26 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
               keyboardType="decimal-pad"
             />
 
+            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>BEDRAG IN $ (optioneel)</Text>
+            <TextInput
+              style={inputStyle}
+              value={form.bedragUsd}
+              onChangeText={v => setForm(f => ({ ...f, bedragUsd: v }))}
+              placeholder="bijv. 500"
+              placeholderTextColor={colors.tekstGedimd}
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>AANTAL COINS (optioneel)</Text>
+            <TextInput
+              style={inputStyle}
+              value={form.aantalCoins}
+              onChangeText={v => setForm(f => ({ ...f, aantalCoins: v }))}
+              placeholder="auto-berekend"
+              placeholderTextColor={colors.tekstGedimd}
+              keyboardType="decimal-pad"
+            />
+
             <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>NOTITIE (optioneel)</Text>
             <TextInput
               style={[inputStyle, formStyles.multilineInput]}
@@ -399,6 +471,96 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
               </Text>
             </Pressable>
           </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ---------- Sluit-modaal: vraagt tegen welke prijs is verkocht ----------
+function SluitTradeModal({ verzoek, onSluiten, onBevestig }: {
+  verzoek: { trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null;
+  onSluiten: () => void;
+  onBevestig: (prijs: number) => void;
+}) {
+  const { colors } = useTheme();
+  const [prijs, setPrijs] = useState('');
+  const [fout, setFout] = useState('');
+  const toetsenbordHoogte = useToetsenbordHoogte();
+
+  // Voorvullen met de planprijs: TP bij gewonnen, SL bij verloren.
+  const planPrijs = verzoek
+    ? (verzoek.status === 'gewonnen' ? verzoek.trade.takeProfit : verzoek.trade.stopLoss)
+    : 0;
+
+  useEffect(() => {
+    if (verzoek) {
+      setPrijs(planPrijs.toString());
+      setFout('');
+    }
+  }, [verzoek, planPrijs]);
+
+  function bevestig() {
+    const p = parseFloat(prijs.replace(',', '.'));
+    if (isNaN(p) || p <= 0) { setFout('Voer een geldige verkoopprijs in'); return; }
+    onBevestig(p);
+  }
+
+  const winst = verzoek?.status === 'gewonnen';
+  const inputStyle = [formStyles.input, {
+    backgroundColor: colors.verhoogd,
+    borderColor: colors.rand,
+    color: colors.tekstPrimair,
+  }];
+
+  return (
+    <Modal visible={verzoek !== null} animationType="slide" transparent onRequestClose={onSluiten}>
+      <View style={formStyles.overlay}>
+        <View style={[
+          formStyles.vel, shadow.modal,
+          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
+        ]}>
+          <View style={formStyles.titelRij}>
+            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
+              {verzoek?.trade.symbool} sluiten als {winst ? 'gewonnen' : 'verloren'}
+            </Text>
+            <Pressable
+              onPress={onSluiten}
+              accessibilityLabel="Sluiten"
+              accessibilityRole="button"
+              style={formStyles.sluitKnop}
+            >
+              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+            </Pressable>
+          </View>
+
+          <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
+            De prijs is voorgevuld met je {winst ? 'take-profit' : 'stop-loss'}. Volgde de trade het plan?
+            Bevestig dan direct. Verkocht je op een andere prijs? Pas hem aan.
+          </Text>
+
+          <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>VERKOOPPRIJS *</Text>
+          <TextInput
+            style={inputStyle}
+            value={prijs}
+            onChangeText={v => setPrijs(v)}
+            placeholder="bijv. 58000"
+            placeholderTextColor={colors.tekstGedimd}
+            keyboardType="decimal-pad"
+            autoFocus
+          />
+
+          {fout ? (
+            <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
+          ) : null}
+
+          <Pressable
+            style={[formStyles.opslaanKnop, { backgroundColor: winst ? colors.winst : colors.verlies }]}
+            onPress={bevestig}
+            accessibilityRole="button"
+          >
+            <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade sluiten</Text>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -454,6 +616,7 @@ export function PortfolioScreen() {
   const { trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, syncing, volgendeVerversing, verversPrijzen } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
+  const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [seconden, setSeconden] = useState<number | null>(null);
 
@@ -469,6 +632,7 @@ export function PortfolioScreen() {
   const openCount = trades.filter(t => t.status === 'open').length;
   const gewonnenCount = trades.filter(t => t.status === 'gewonnen').length;
   const verlorenCount = trades.filter(t => t.status === 'verloren').length;
+  const statistieken = berekenStatistieken(trades);
 
   return (
     <SafeAreaView style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
@@ -525,7 +689,7 @@ export function PortfolioScreen() {
             <TradeRegel
               trade={item}
               livePrijs={item.status === 'open' ? livePrijzen[item.symbool] : undefined}
-              onSluitTrade={sluitTrade}
+              onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
               onVerwijder={verwijderTrade}
               onBewerk={setBewerkTrade}
               onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
@@ -533,20 +697,46 @@ export function PortfolioScreen() {
           )}
           contentContainerStyle={portfolioStyles.lijst}
           ListHeaderComponent={
-            <View style={portfolioStyles.stats}>
-              <View style={portfolioStyles.stat}>
-                <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{openCount}</Text>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN</Text>
+            <>
+              <View style={portfolioStyles.stats}>
+                <View style={portfolioStyles.stat}>
+                  <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{openCount}</Text>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN</Text>
+                </View>
+                <View style={portfolioStyles.stat}>
+                  <Text style={[Type.prijsGroot, { color: colors.winst }]}>{gewonnenCount}</Text>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEWONNEN</Text>
+                </View>
+                <View style={portfolioStyles.stat}>
+                  <Text style={[Type.prijsGroot, { color: colors.verlies }]}>{verlorenCount}</Text>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VERLOREN</Text>
+                </View>
               </View>
-              <View style={portfolioStyles.stat}>
-                <Text style={[Type.prijsGroot, { color: colors.winst }]}>{gewonnenCount}</Text>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEWONNEN</Text>
-              </View>
-              <View style={portfolioStyles.stat}>
-                <Text style={[Type.prijsGroot, { color: colors.verlies }]}>{verlorenCount}</Text>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VERLOREN</Text>
-              </View>
-            </View>
+              {statistieken.afgesloten > 0 && (
+                <View style={[portfolioStyles.stats, { paddingTop: 0 }]}>
+                  <View style={portfolioStyles.stat}>
+                    <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>
+                      {statistieken.trefferpercentage !== null ? `${Math.round(statistieken.trefferpercentage)}%` : '—'}
+                    </Text>
+                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TREFFERPERCENTAGE</Text>
+                  </View>
+                  <View style={portfolioStyles.stat}>
+                    <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>
+                      {statistieken.gemBehaaldeRR !== null ? fmtRR(statistieken.gemBehaaldeRR) : '—'}
+                    </Text>
+                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEM. R/R BEHAALD</Text>
+                  </View>
+                  {statistieken.totaalResultaatUsd !== null && (
+                    <View style={portfolioStyles.stat}>
+                      <Text style={[Type.prijsGroot, { color: statistieken.totaalResultaatUsd >= 0 ? colors.winst : colors.verlies }]}>
+                        {statistieken.totaalResultaatUsd >= 0 ? '+' : ''}${Math.abs(statistieken.totaalResultaatUsd).toFixed(2)}
+                      </Text>
+                      <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TOTAAL RESULTAAT</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </>
           }
           ListFooterComponent={<Disclaimer />}
         />
@@ -560,6 +750,15 @@ export function PortfolioScreen() {
           if (bewerkTrade) wijzigTrade(trade); else voegTradeToe(trade);
           setFormulierZichtbaar(false);
           setBewerkTrade(null);
+        }}
+      />
+
+      <SluitTradeModal
+        verzoek={sluitVerzoek}
+        onSluiten={() => setSluitVerzoek(null)}
+        onBevestig={(prijs) => {
+          if (sluitVerzoek) sluitTrade(sluitVerzoek.trade.id, sluitVerzoek.status, prijs);
+          setSluitVerzoek(null);
         }}
       />
 

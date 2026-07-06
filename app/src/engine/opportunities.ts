@@ -1,7 +1,7 @@
 import { Opportunity } from './types';
 import { haalData, haalCoingeckoMarkten, delay } from './marketData';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
-import { ATR_STOP_MULTIPLIER, REWARD_MULTIPLIER, ATR_PERIODE, EMA_KORT, EMA_LANG, RSI_PERIODE } from './analyzer';
+import { REWARD_MULTIPLIER, ATR_PERIODE, EMA_KORT, EMA_LANG, RSI_PERIODE, stopAfstandStructuur } from './analyzer';
 
 const UITSLUITEN = new Set([
   'USDT', 'USDC', 'DAI', 'TUSD', 'FDUSD', 'USDE', 'PYUSD', 'USDD', 'BUSD',
@@ -64,9 +64,10 @@ function waaromKans(c: Record<string, unknown>): string[] {
   return r;
 }
 
-async function kansNiveaus(symbool: string, prijsFallback: number): Promise<Omit<Opportunity, 'symbool' | 'naam' | 'rang' | 'marktcap' | 'p24' | 'p7' | 'p30' | 'redenen'>> {
+async function kansNiveaus(symbool: string, prijsFallback: number): Promise<Omit<Opportunity, 'symbool' | 'naam' | 'rang' | 'marktcap' | 'p24' | 'p7' | 'p30' | 'redenen' | 'kansScore'>> {
   const result = await haalData(symbool);
-  if (result && result.candles.length > ATR_PERIODE + 2) {
+  // EMA50/MACD hebben genoeg candles nodig om te settelen (net als analyseerCoin: EMA_LANG + 5)
+  if (result && result.candles.length > EMA_LANG + 5) {
     const { candles } = result;
     const close = candles.map(c => c.close);
     const prijs = close[close.length - 1];
@@ -77,9 +78,10 @@ async function kansNiveaus(symbool: string, prijsFallback: number): Promise<Omit
     const ema50 = berekenEma(close, EMA_LANG);
     const { macdLine, signalLine } = berekenMacd(close);
     const n = close.length;
-    const stop = prijs - ATR_STOP_MULTIPLIER * atrVal;
+    const stopAfstand = stopAfstandStructuur(candles, prijs, atrVal);
+    const stop = prijs - stopAfstand;
     const tp = prijs + REWARD_MULTIPLIER * atrVal;
-    const rr = prijs > stop ? Math.round(((tp - prijs) / (prijs - stop)) * 10) / 10 : 2.0;
+    const rr = Math.round(((tp - prijs) / stopAfstand) * 10) / 10;
     return {
       prijs, entry: prijs, stopLoss: stop, takeProfit: tp, rr,
       rsi: Math.round(berekenRsi(close, RSI_PERIODE)[n - 1]),
@@ -134,6 +136,7 @@ export async function zoekKansen(
       p7: Math.round(((c['price_change_percentage_7d_in_currency'] as number) ?? 0) * 10) / 10,
       p30: Math.round(((c['price_change_percentage_30d_in_currency'] as number) ?? 0) * 10) / 10,
       redenen: waaromKans(c),
+      kansScore: Math.round(c._score),
       ...niveaus,
     });
     if (i < kandidaten.length - 1) await delay(200);
