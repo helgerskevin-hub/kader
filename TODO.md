@@ -105,6 +105,8 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [x] **Geen mogelijkheid om waarde in $ of aantal gekochte coins aan te geven in je trades**
 - [x] **Trades in het portfolio venster hebben geen meekleurende zijkant zoals in Markt venster**
 - [ ] **App-icoon is niet aangepast** (nog niet de nieuwe versie zichtbaar op het startscherm).
+- [ ] **Achtergrondinformatie moet weer een los boek-icoon in de schermheader zijn, niet in Instellingen.** In v0.0.7 is het bewust naar Instellingen verplaatst, maar het moet apart en direct bereikbaar staan (boek-icoon), zoals daarvoor. Zie `ScreenHeader.tsx` en `InstellingenSheet.tsx`.
+- [ ] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Het nieuwe scherm verschijnt eerst kort volledig zichtbaar en klapt dan naar 0 voordat het infadet (flits). Oorzaak: in `App.tsx` zet het effect de opacity pas ná de render op 0 (`schermFade.setValue(0)` in `useEffect`), dus is er één frame op volle opacity. Oplossen door de reset vóór het schilderen te doen (bijv. `useLayoutEffect`) of de Animated.View met `key={actieveTab}` vanaf 0 te laten infaden.
 - [ ] **Te beoordelen: "Wat moet ik nu kopen?"-kaart negeert de actieve filters.** De kaart blijft de best scorende coin aanraden, ook als die door een RSI/score/R-R-filter uit de lijst eronder is gefilterd. Nu gebruikt de kaart bewust alle trades (globaal advies), niet de gefilterde set. Beslissen of dat zo moet blijven of dat de kaart de filters moet respecteren. Zie `WatKopenNu` in `MarktScreen.tsx`.
 
 ## ✅ Klaar
