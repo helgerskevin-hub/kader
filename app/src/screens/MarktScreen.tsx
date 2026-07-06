@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl,
+  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl, LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RefreshCw, SlidersHorizontal } from 'lucide-react-native';
@@ -24,12 +24,14 @@ import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
+import { useReduceMotion } from '../theme/useReduceMotion';
 
 type Progress = { current: number; total: number; symbool: string };
 type Filter = 'alle' | 'favorieten';
 
 export function MarktScreen() {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const { state, startAnalyse } = useMarkt();
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
@@ -39,6 +41,22 @@ export function MarktScreen() {
   const [filter, setFilter] = useState<Filter>('alle');
   const [marktFilters, setMarktFilters] = useState<MarktFilterState>(STANDAARD_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  function soepelWisselen() {
+    if (!reduceMotion) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+  }
+
+  function wisselFilterTab(volgende: Filter) {
+    soepelWisselen();
+    setFilter(volgende);
+  }
+
+  function wijzigMarktFilters(volgende: MarktFilterState) {
+    soepelWisselen();
+    setMarktFilters(volgende);
+  }
 
   useEffect(() => {
     haalFearGreed().then(setFearGreed);
@@ -130,7 +148,7 @@ export function MarktScreen() {
               {gemScore !== null && <MarktBalk score={gemScore} />}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
               <View style={styles.tabsRij}>
-                <FilterTabs actief={filter} onWijzig={setFilter} aantalFavorieten={aantalFavorieten} />
+                <FilterTabs actief={filter} onWijzig={wisselFilterTab} aantalFavorieten={aantalFavorieten} />
                 <Pressable
                   style={[styles.filterKnop, { backgroundColor: colors.verhoogd }]}
                   onPress={() => setFiltersOpen(true)}
@@ -178,7 +196,7 @@ export function MarktScreen() {
       <MarktFilters
         zichtbaar={filtersOpen}
         waarden={marktFilters}
-        onWijzig={setMarktFilters}
+        onWijzig={wijzigMarktFilters}
         onSluiten={() => setFiltersOpen(false)}
       />
     </SafeAreaView>

@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Settings, BookOpen } from 'lucide-react-native';
+import { Settings } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
 import { InstellingenSheet } from './InstellingenSheet';
 import { KaderLogo } from './KaderLogo';
-import { AchtergrondScherm } from './AchtergrondScherm';
 
 interface Props {
   titel: string;
@@ -17,7 +16,6 @@ interface Props {
 export function ScreenHeader({ titel, meta, rechts }: Props) {
   const { colors } = useTheme();
   const [instellingenOpen, setInstellingenOpen] = useState(false);
-  const [uitlegOpen, setUitlegOpen] = useState(false);
 
   return (
     <View style={[styles.header, { borderBottomColor: colors.rand }]}>
@@ -33,14 +31,6 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
       <View style={styles.rechtsGroep}>
         {rechts ? <View style={styles.rechts}>{rechts}</View> : null}
         <Pressable
-          onPress={() => setUitlegOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Achtergrond informatie"
-          style={styles.tandwiel}
-        >
-          <BookOpen size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
-        <Pressable
           onPress={() => setInstellingenOpen(true)}
           accessibilityRole="button"
           accessibilityLabel="Instellingen"
@@ -50,7 +40,6 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
         </Pressable>
       </View>
       <InstellingenSheet zichtbaar={instellingenOpen} onSluiten={() => setInstellingenOpen(false)} />
-      <AchtergrondScherm zichtbaar={uitlegOpen} onSluiten={() => setUitlegOpen(false)} />
     </View>
   );
 }

@@ -9,7 +9,13 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 - Vloeiende overgangsanimatie bij het wisselen tussen Markt, Kansen,
   Portfolio en Traders
 - Filters op RSI (oversold/overbought), minimale score en minimale R/R op
-  het Marktscherm, naast de tabs Alle coins/Favorieten
+  het Marktscherm, naast de tabs Alle coins/Favorieten, met een vloeiende
+  overgang bij het wisselen
+- Achtergrondinformatie is verplaatst van een los boekje in de schermheader
+  naar Instellingen (boven Wijzigingen); dat lost ook een te krappe titel op
+  het Mijn Trades-scherm op
+- "Wat moet ik nu kopen?"-kaart toont nu een duidelijke "Tik voor meer
+  info"-hint rechtsonder
 
 ## 0.0.6
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
 import { fmtPrijs } from '../engine/format';
@@ -48,6 +49,10 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
         <Text style={[Type.prijs, styles.prijs]}>{fmtPrijs(kandidaat.prijs)}</Text>
       </View>
       <Text style={[Type.body, styles.reden]}>{reden}</Text>
+      <View style={styles.hintRij}>
+        <Text style={[Type.caption, styles.hintTekst]}>Tik voor meer info</Text>
+        <ChevronRight size={13} color="rgba(255,255,255,0.75)" strokeWidth={2} />
+      </View>
     </Pressable>
   );
 }
@@ -67,4 +72,13 @@ const styles = StyleSheet.create({
   naam: { color: 'rgba(255,255,255,0.75)', flex: 1 },
   prijs: { color: 'white' },
   reden: { color: 'rgba(255,255,255,0.92)' },
+  hintRij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 2,
+  },
+  hintTekst: {
+    color: 'rgba(255,255,255,0.75)',
+  },
 });
