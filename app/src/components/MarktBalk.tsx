@@ -1,8 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
+import { Info } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import { useReduceMotion } from '../theme/useReduceMotion';
 
 interface Props {
   score: number; // 0–100, gemiddeld over alle geanalyseerde coins
@@ -16,8 +18,12 @@ function sentimentLabel(score: number): string {
   return 'HEAVY SELL';
 }
 
+const UITLEG = 'Deze balk toont het gemiddelde van de Kader-score over alle geanalyseerde coins. De score (0-100) weegt trend (EMA20/EMA50), RSI, MACD en volume. Richting BUY betekent dat de meeste coins nu gunstige technische signalen tonen; richting SELL betekent terughoudendheid. Het is een gemiddelde, dus losse coins kunnen afwijken.';
+
 export function MarktBalk({ score }: Props) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const [uitgeklapt, setUitgeklapt] = useState(false);
   const positie = Math.min(Math.max(score / 100, 0), 1);
   const label = sentimentLabel(score);
 
@@ -26,10 +32,27 @@ export function MarktBalk({ score }: Props) {
     : score >= 45 ? colors.letOp
     : colors.verlies;
 
+  function wisselUitgeklapt() {
+    if (!reduceMotion) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+    setUitgeklapt(v => !v);
+  }
+
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
       <View style={styles.bovenkant}>
-        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MARKSENTIMENT</Text>
+        <View style={styles.titelRij}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MARKSENTIMENT</Text>
+          <Pressable
+            onPress={wisselUitgeklapt}
+            accessibilityRole="button"
+            accessibilityLabel={uitgeklapt ? 'Minder uitleg' : 'Wat betekent dit?'}
+            style={styles.infoKnop}
+          >
+            <Info size={14} color={colors.cta} strokeWidth={1.75} />
+          </Pressable>
+        </View>
         <View style={styles.scoreRij}>
           <Text style={[Type.overline, { color: knopKleur }]}>{label}</Text>
           <Text style={[Type.prijs, styles.scoreGetal, { color: colors.tekstGedimd }]}>
@@ -37,6 +60,9 @@ export function MarktBalk({ score }: Props) {
           </Text>
         </View>
       </View>
+      {uitgeklapt && (
+        <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>{UITLEG}</Text>
+      )}
 
       {/* Balk */}
       <View style={styles.balk}>
@@ -73,6 +99,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  titelRij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  infoKnop: {
+    minHeight: 32,
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uitleg: {
+    lineHeight: 18,
   },
   scoreRij: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
 import { InstellingenSheet } from './InstellingenSheet';
+import { KaderLogo } from './KaderLogo';
 
 interface Props {
   titel: string;
@@ -18,11 +19,14 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
 
   return (
     <View style={[styles.header, { borderBottomColor: colors.rand }]}>
-      <View style={styles.links}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{titel}</Text>
-        {meta ? (
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{meta}</Text>
-        ) : null}
+      <View style={styles.linksGroep}>
+        <KaderLogo size={26} variant="outline" />
+        <View style={styles.links}>
+          <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{titel}</Text>
+          {meta ? (
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{meta}</Text>
+          ) : null}
+        </View>
       </View>
       <View style={styles.rechtsGroep}>
         {rechts ? <View style={styles.rechts}>{rechts}</View> : null}
@@ -50,8 +54,15 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  linksGroep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 1,
+  },
   links: {
     gap: 2,
+    flexShrink: 1,
   },
   rechtsGroep: {
     flexDirection: 'row',

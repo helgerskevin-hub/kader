@@ -16,6 +16,7 @@ import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { OfflineMelding } from '../components/OfflineMelding';
+import { Laadbalk } from '../components/Laadbalk';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanOpportunity } from '../engine/coinDetailData';
 
@@ -286,6 +287,7 @@ export function KansenScreen() {
 
       {state.status === 'loading' && (
         <View style={{ flex: 1 }}>
+          {state.totaal > 0 && <Laadbalk huidig={state.gescand} totaal={state.totaal} kleur={colors.letOp} />}
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />

@@ -17,6 +17,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { MarktBalk } from '../components/MarktBalk';
 import { OfflineMelding } from '../components/OfflineMelding';
+import { Laadbalk } from '../components/Laadbalk';
 import { AngstHebzucht } from '../components/AngstHebzucht';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
@@ -54,6 +55,7 @@ export function MarktScreen() {
   const gesorteerdeTrades = state.status === 'success'
     ? [...state.trades].sort((a, b) => Number(isFavoriet(b.symbool)) - Number(isFavoriet(a.symbool)))
     : [];
+  const aantalFavorieten = gesorteerdeTrades.filter(t => isFavoriet(t.symbool)).length;
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
@@ -90,14 +92,22 @@ export function MarktScreen() {
         <FlatList
           data={gesorteerdeTrades}
           keyExtractor={item => item.symbool}
-          renderItem={({ item }) => (
-            <TradeCard
-              trade={item}
-              onGetrade={setGetradeteTrade}
-              onOpenDetail={t => setDetailCoin(vanTrade(t))}
-              favoriet={isFavoriet(item.symbool)}
-              onToggleFavoriet={wisselFavoriet}
-            />
+          renderItem={({ item, index }) => (
+            <>
+              {aantalFavorieten > 0 && index === 0 && (
+                <Text style={[Type.overline, styles.sectieKop, { color: colors.tekstGedimd }]}>FAVORIETEN</Text>
+              )}
+              {aantalFavorieten > 0 && aantalFavorieten < gesorteerdeTrades.length && index === aantalFavorieten && (
+                <Text style={[Type.overline, styles.sectieKop, { color: colors.tekstGedimd }]}>ALLE COINS</Text>
+              )}
+              <TradeCard
+                trade={item}
+                onGetrade={setGetradeteTrade}
+                onOpenDetail={t => setDetailCoin(vanTrade(t))}
+                favoriet={isFavoriet(item.symbool)}
+                onToggleFavoriet={wisselFavoriet}
+              />
+            </>
           )}
           contentContainerStyle={styles.lijst}
           refreshControl={
@@ -162,6 +172,7 @@ function LadenView({ progress }: { progress: Progress | null }) {
   const { colors } = useTheme();
   return (
     <View style={{ flex: 1 }}>
+      {progress && progress.total > 0 && <Laadbalk huidig={progress.current} totaal={progress.total} />}
       <SkeletonCard />
       <SkeletonCard />
       <SkeletonCard />
@@ -205,5 +216,10 @@ const styles = StyleSheet.create({
   lijstKop: {
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,
+  },
+  sectieKop: {
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+    letterSpacing: 0.6,
   },
 });
