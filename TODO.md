@@ -104,6 +104,7 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [x] **geen mogelijkheid om trade op te slaan vanuit grote kansen** moet iedentiek zijn aan markt analyse kansen.
 - [x] **Geen mogelijkheid om waarde in $ of aantal gekochte coins aan te geven in je trades**
 - [x] **Trades in het portfolio venster hebben geen meekleurende zijkant zoals in Markt venster**
+- [ ] **Te beoordelen: "Wat moet ik nu kopen?"-kaart negeert de actieve filters.** De kaart blijft de best scorende coin aanraden, ook als die door een RSI/score/R-R-filter uit de lijst eronder is gefilterd. Nu gebruikt de kaart bewust alle trades (globaal advies), niet de gefilterde set. Beslissen of dat zo moet blijven of dat de kaart de filters moet respecteren. Zie `WatKopenNu` in `MarktScreen.tsx`.
 
 ## ✅ Klaar
 
