@@ -4,6 +4,18 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.0.6
+
+- Nieuw Kader-logo (open kader-mark): outline-variant linksboven in elke
+  schermheader, donker-thema variant in het app-icoon, adaptive icon en de
+  splash
+- Sectiekopje "Favorieten" boven de favoriet-gemarkeerde trades op het
+  Marktscherm
+- Uitklapbare uitleg bij de Fear & Greed-index en bij de marktsentimentbalk
+  over wat de waarde betekent
+- Laadbalk tijdens het analyseren (Markt) en scannen (Grote Kansen), naast
+  de bestaande "x/y"-tekst
+
 ## 0.0.5
 
 - Stop-loss ligt nu net onder de recente steun (laagste van de laatste tien

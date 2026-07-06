@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.0.6',
+    datum: '2026-07-06',
+    punten: [
+      'Nieuw Kader-logo (open kader-mark): outline-variant linksboven in elke schermheader, donker-thema variant in het app-icoon, adaptive icon en de splash',
+      'Sectiekopje "Favorieten" boven de favoriet-gemarkeerde trades op het Marktscherm',
+      'Uitklapbare uitleg bij de Fear & Greed-index en bij de marktsentimentbalk over wat de waarde betekent',
+      'Laadbalk tijdens het analyseren (Markt) en scannen (Grote Kansen), naast de bestaande "x/y"-tekst',
+    ],
+  },
+  {
     versie: '0.0.5',
     datum: '2026-07-03',
     punten: [

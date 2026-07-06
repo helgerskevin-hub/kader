@@ -27,6 +27,7 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 - [x] EM-dashes verwijderd uit alle app-teksten (`App.tsx`, `README.md`)
 - [x] Teksten en naamgeving aangepast op basis van `docs/huisstijl-kader.md` — slogan, tone of voice
 - [x] Kader-logo gegenereerd en in `app/assets/` geplaatst (icon.png 1024×1024, splash-icon.png, adaptive icons, favicon)
+- [x] Kader-logo v2 (open kader-mark, geen gradient/trendlijn meer): outline-variant linksboven in de schermheader, donker-thema variant in app-icoon/adaptive icon/splash
 
 ## 💡 Ideeën / wensen
 
