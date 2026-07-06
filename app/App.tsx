@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Animated, Easing, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import {
@@ -28,13 +28,26 @@ import { MarktProvider } from './src/state/MarktProvider';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
 import { nieuwsteVersie } from './src/changelog';
+import { useReduceMotion } from './src/theme/useReduceMotion';
 
 function AppInhoud() {
   const { colors, donkerActief } = useTheme();
+  const reduceMotion = useReduceMotion();
   const [onboardingKlaar, setOnboardingKlaar] = useState(false);
   const [onboardingGeladen, setOnboardingGeladen] = useState(false);
   const [actieveTab, setActieveTab] = useState<Tab>('markt');
   const [nieuwInVersie, setNieuwInVersie] = useState(false);
+  const schermFade = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    schermFade.setValue(0);
+    Animated.timing(schermFade, {
+      toValue: 1,
+      duration: reduceMotion ? 0 : 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [actieveTab, reduceMotion, schermFade]);
 
   useEffect(() => {
     laadVlag(SLEUTELS.onboarding).then(klaar => {
@@ -75,12 +88,24 @@ function AppInhoud() {
 
   return (
     <View style={styles.root}>
-      <FoutGrens>
-        {actieveTab === 'markt' && <MarktScreen />}
-        {actieveTab === 'kansen' && <KansenScreen />}
-        {actieveTab === 'portfolio' && <PortfolioScreen />}
-        {actieveTab === 'traders' && <TradersScreen />}
-      </FoutGrens>
+      <Animated.View
+        style={[
+          styles.schermen,
+          {
+            opacity: schermFade,
+            transform: [{
+              translateY: schermFade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }),
+            }],
+          },
+        ]}
+      >
+        <FoutGrens>
+          {actieveTab === 'markt' && <MarktScreen />}
+          {actieveTab === 'kansen' && <KansenScreen />}
+          {actieveTab === 'portfolio' && <PortfolioScreen />}
+          {actieveTab === 'traders' && <TradersScreen />}
+        </FoutGrens>
+      </Animated.View>
       <BottomNav actief={actieveTab} onWissel={setActieveTab} />
       <StatusBar style={donkerActief ? 'light' : 'dark'} />
       <ChangelogSheet zichtbaar={nieuwInVersie} onSluiten={sluitNieuwInVersie} alleenNieuwste />
@@ -117,4 +142,5 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  schermen: { flex: 1 },
 });

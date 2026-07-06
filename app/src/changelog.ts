@@ -10,22 +10,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     versie: '0.0.7',
-    datum: '2026-07-06',
+    datum: '2026-07-07',
     punten: [
-      '"Wat moet ik nu kopen?": nieuwe kaart bovenaan het Marktscherm met de best scorende koopkans en de reden in één zin, of een neutrale melding als niets sterk genoeg scoort',
-      'Filtertabs "Alle coins" / "Favorieten" boven de tradelijst op het Marktscherm, in plaats van alleen een sectiekopje',
-      'Coin-detailscherm heeft nu ook een Getrade-knop, zodat je vanuit het detailscherm direct een trade kunt vastleggen',
-      'Laadbalk is nu vloeiend geanimeerd, toont het percentage en heeft meer ruimte voordat de skeletkaarten beginnen',
+      'Vloeiende overgangsanimatie bij het wisselen tussen Markt, Kansen, Portfolio en Traders',
+      'Filters op RSI (oversold/overbought), minimale score en minimale R/R op het Marktscherm, naast de tabs Alle coins/Favorieten',
     ],
   },
   {
     versie: '0.0.6',
-    datum: '2026-07-06',
+    datum: '2026-07-07',
     punten: [
       'Nieuw Kader-logo (open kader-mark): outline-variant linksboven in elke schermheader, donker-thema variant in het app-icoon, adaptive icon en de splash',
-      'Sectiekopje "Favorieten" boven de favoriet-gemarkeerde trades op het Marktscherm',
+      '"Wat moet ik nu kopen?": nieuwe kaart bovenaan het Marktscherm met de best scorende koopkans en de reden in één zin, of een neutrale melding als niets sterk genoeg scoort',
+      'Filtertabs "Alle coins" / "Favorieten" boven de tradelijst op het Marktscherm',
       'Uitklapbare uitleg bij de Fear & Greed-index en bij de marktsentimentbalk over wat de waarde betekent',
-      'Laadbalk tijdens het analyseren (Markt) en scannen (Grote Kansen), naast de bestaande "x/y"-tekst',
+      'Coin-detailscherm heeft nu ook een Getrade-knop, zodat je vanuit het detailscherm direct een trade kunt vastleggen',
+      'Laadbalk tijdens het analyseren (Markt) en scannen (Grote Kansen): vloeiend geanimeerd, toont het percentage en heeft meer ruimte voordat de skeletkaarten beginnen',
     ],
   },
   {

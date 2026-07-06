@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Sparkles } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
 import { fmtPrijs } from '../engine/format';
@@ -24,10 +23,7 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
   if (!kandidaat) {
     return (
       <View style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
-        <View style={styles.kopRij}>
-          <Sparkles size={15} color={colors.tekstGedimd} strokeWidth={1.75} />
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>WAT MOET IK NU KOPEN?</Text>
-        </View>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>WAT MOET IK NU KOPEN?</Text>
         <Text style={[Type.body, { color: colors.tekstGedimd }]}>
           Nu geen duidelijke koopkans. Wacht op een sterker signaal.
         </Text>
@@ -45,10 +41,7 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`Bekijk ${kandidaat.symbool}, aanbevolen koopkans: ${reden}`}
     >
-      <View style={styles.kopRij}>
-        <Sparkles size={15} color="rgba(255,255,255,0.85)" strokeWidth={1.75} />
-        <Text style={[Type.overline, styles.kopWit]}>WAT MOET IK NU KOPEN?</Text>
-      </View>
+      <Text style={[Type.overline, styles.kopWit]}>WAT MOET IK NU KOPEN?</Text>
       <View style={styles.rij}>
         <Text style={[Type.titel, styles.symbool]}>{kandidaat.symbool}</Text>
         <Text style={[Type.caption, styles.naam]} numberOfLines={1}>{naam}</Text>
@@ -68,7 +61,6 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     gap: spacing.sm,
   },
-  kopRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   kopWit: { color: 'rgba(255,255,255,0.85)' },
   rij: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   symbool: { color: 'white' },

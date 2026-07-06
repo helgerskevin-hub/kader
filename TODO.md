@@ -43,6 +43,8 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [x] Kopje toevoegen met favorieten: filtertabs "Alle coins" / "Favorieten" boven de tradelijst op het Marktscherm
 - [x] Uitleg toevoegen over de Fear & Greed Index: uitklapbare toelichting bij de Fear & Greed-kaart op het Marktscherm
 - [x] Uitleg toevoegen over wat het marktsentiment inhoudt: uitklapbare toelichting bij de marktsentimentbalk
+- [x] Smooth geanimeerde overgangen tussen de schermen: vloeiende fade/slide-transitie bij het wisselen tussen Markt, Kansen, Portfolio en Traders
+- [x] Filteren op RSI, Score en R/R op het Marktscherm: filtersheet met snelkeuzes (RSI oversold/overbought, minimale score, minimale R/R), te combineren met Alle coins/Favorieten
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_

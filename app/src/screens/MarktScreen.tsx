@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RefreshCw } from 'lucide-react-native';
+import { RefreshCw, SlidersHorizontal } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { useMarkt } from '../state/MarktProvider';
 import { useFavorieten } from '../state/useFavorieten';
@@ -20,6 +20,7 @@ import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
+import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
@@ -36,6 +37,8 @@ export function MarktScreen() {
   const [ververst, setVerverstState] = useState(false);
   const [fearGreed, setFearGreed] = useState<{ waarde: number; klasse: string } | null>(null);
   const [filter, setFilter] = useState<Filter>('alle');
+  const [marktFilters, setMarktFilters] = useState<MarktFilterState>(STANDAARD_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     haalFearGreed().then(setFearGreed);
@@ -59,9 +62,14 @@ export function MarktScreen() {
     ? [...state.trades].sort((a, b) => Number(isFavoriet(b.symbool)) - Number(isFavoriet(a.symbool)))
     : [];
   const aantalFavorieten = gesorteerdeTrades.filter(t => isFavoriet(t.symbool)).length;
-  const weergegevenTrades = filter === 'favorieten'
+  const weergegevenTrades = (filter === 'favorieten'
     ? gesorteerdeTrades.filter(t => isFavoriet(t.symbool))
-    : gesorteerdeTrades;
+    : gesorteerdeTrades
+  )
+    .filter(t => marktFilters.rsi === 'alle'
+      || (marktFilters.rsi === 'oversold' ? t.rsi < 30 : t.rsi > 70))
+    .filter(t => t.score >= marktFilters.minScore)
+    .filter(t => t.rr >= marktFilters.minRR);
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
@@ -121,7 +129,22 @@ export function MarktScreen() {
               <WatKopenNu trades={state.trades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
               {gemScore !== null && <MarktBalk score={gemScore} />}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
-              <FilterTabs actief={filter} onWijzig={setFilter} aantalFavorieten={aantalFavorieten} />
+              <View style={styles.tabsRij}>
+                <FilterTabs actief={filter} onWijzig={setFilter} aantalFavorieten={aantalFavorieten} />
+                <Pressable
+                  style={[styles.filterKnop, { backgroundColor: colors.verhoogd }]}
+                  onPress={() => setFiltersOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Filters op RSI, score en R/R"
+                >
+                  <SlidersHorizontal size={17} color={colors.tekstPrimair} strokeWidth={1.75} />
+                  {aantalActieveFilters(marktFilters) > 0 && (
+                    <View style={[styles.filterBadge, { backgroundColor: colors.cta }]}>
+                      <Text style={styles.filterBadgeTekst}>{aantalActieveFilters(marktFilters)}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              </View>
               <View style={styles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {state.trades.length} coins geanalyseerd · gesorteerd op signaalsterkte
@@ -130,9 +153,13 @@ export function MarktScreen() {
             </>
           }
           ListEmptyComponent={
-            filter === 'favorieten' ? (
+            filter === 'favorieten' && aantalActieveFilters(marktFilters) === 0 ? (
               <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
                 Nog geen favorieten. Tik op de ster bij een coin om die hier te verzamelen.
+              </Text>
+            ) : aantalActieveFilters(marktFilters) > 0 ? (
+              <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
+                Geen coins voldoen aan de gekozen filters.
               </Text>
             ) : null
           }
@@ -147,6 +174,13 @@ export function MarktScreen() {
       />
 
       <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+
+      <MarktFilters
+        zichtbaar={filtersOpen}
+        waarden={marktFilters}
+        onWijzig={setMarktFilters}
+        onSluiten={() => setFiltersOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -262,13 +296,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,
   },
-  tabsWrapper: {
+  tabsRij: {
     flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  tabsWrapper: {
+    flex: 1,
+    flexDirection: 'row',
     borderRadius: radii.knop,
     padding: 3,
     gap: 3,
+  },
+  filterKnop: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.knop,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  filterBadgeTekst: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
   },
   tab: {
     flex: 1,
