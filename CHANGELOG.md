@@ -4,6 +4,18 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.0.7
+
+- "Wat moet ik nu kopen?": nieuwe kaart bovenaan het Marktscherm met de best
+  scorende koopkans en de reden in één zin, of een neutrale melding als niets
+  sterk genoeg scoort
+- Filtertabs "Alle coins" / "Favorieten" boven de tradelijst op het
+  Marktscherm, in plaats van alleen een sectiekopje
+- Coin-detailscherm heeft nu ook een Getrade-knop, zodat je vanuit het
+  detailscherm direct een trade kunt vastleggen
+- Laadbalk is nu vloeiend geanimeerd, toont het percentage en heeft meer
+  ruimte voordat de skeletkaarten beginnen
+
 ## 0.0.6
 
 - Nieuw Kader-logo (open kader-mark): outline-variant linksboven in elke

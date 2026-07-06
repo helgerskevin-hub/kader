@@ -4,7 +4,7 @@ import {
   Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X } from 'lucide-react-native';
+import { X, CheckCircle } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
 import { haalData } from '../engine/marketData';
@@ -19,6 +19,7 @@ import { LevelRow } from './LevelRow';
 import { PrijsGrafiek } from './PrijsGrafiek';
 import { OfflineMelding } from './OfflineMelding';
 import { Disclaimer } from './Disclaimer';
+import { GetradeFormulier, GetradeBron } from './GetradeFormulier';
 
 interface Props {
   data: CoinDetailData | null;
@@ -37,6 +38,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [indicatoren, setIndicatoren] = useState<VerseIndicatoren | null>(null);
   const [foutTijd, setFoutTijd] = useState<Date>(new Date());
+  const [getradeOpen, setGetradeOpen] = useState(false);
 
   useEffect(() => {
     if (data) laadData(data.symbool);
@@ -61,6 +63,10 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
   const coinInfo = infoVoor(data.symbool);
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
+  const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
+  const getradeBron: GetradeBron | null = kanGetrade
+    ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
+    : null;
 
   const niveaus = [
     data.stopLoss !== undefined ? { waarde: data.stopLoss, kleur: colors.verlies } : null,
@@ -275,7 +281,27 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
             <Disclaimer />
           </ScrollView>
         )}
+
+        {kanGetrade && (
+          <View style={[styles.actiebalk, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
+            <Pressable
+              style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
+              onPress={() => setGetradeOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Getrade"
+            >
+              <CheckCircle size={16} color="white" strokeWidth={1.75} />
+              <Text style={[Type.body, styles.getradeTekst]}>Getrade</Text>
+            </Pressable>
+          </View>
+        )}
       </SafeAreaView>
+
+      <GetradeFormulier
+        zichtbaar={getradeOpen}
+        trade={getradeBron}
+        onSluiten={() => setGetradeOpen(false)}
+      />
     </Modal>
   );
 }
@@ -335,4 +361,18 @@ const styles = StyleSheet.create({
   },
   notitie: { marginTop: spacing.md, fontStyle: 'italic' },
   coinUitleg: { marginTop: spacing.sm, lineHeight: 22 },
+  actiebalk: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    padding: spacing.base,
+  },
+  getradeKnop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.knop,
+    minHeight: 44,
+  },
+  getradeTekst: { color: 'white', fontWeight: '600' },
 });

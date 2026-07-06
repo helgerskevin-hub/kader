@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.0.7',
+    datum: '2026-07-06',
+    punten: [
+      '"Wat moet ik nu kopen?": nieuwe kaart bovenaan het Marktscherm met de best scorende koopkans en de reden in één zin, of een neutrale melding als niets sterk genoeg scoort',
+      'Filtertabs "Alle coins" / "Favorieten" boven de tradelijst op het Marktscherm, in plaats van alleen een sectiekopje',
+      'Coin-detailscherm heeft nu ook een Getrade-knop, zodat je vanuit het detailscherm direct een trade kunt vastleggen',
+      'Laadbalk is nu vloeiend geanimeerd, toont het percentage en heeft meer ruimte voordat de skeletkaarten beginnen',
+    ],
+  },
+  {
     versie: '0.0.6',
     datum: '2026-07-06',
     punten: [

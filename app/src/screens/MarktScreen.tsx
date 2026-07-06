@@ -9,7 +9,7 @@ import { useMarkt } from '../state/MarktProvider';
 import { useFavorieten } from '../state/useFavorieten';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing } from '../theme/tokens';
+import { spacing, radii } from '../theme/tokens';
 import { TradeCard } from '../components/TradeCard';
 import { GetradeFormulier } from '../components/GetradeFormulier';
 import { Disclaimer } from '../components/Disclaimer';
@@ -19,11 +19,13 @@ import { MarktBalk } from '../components/MarktBalk';
 import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { AngstHebzucht } from '../components/AngstHebzucht';
+import { WatKopenNu } from '../components/WatKopenNu';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
 
 type Progress = { current: number; total: number; symbool: string };
+type Filter = 'alle' | 'favorieten';
 
 export function MarktScreen() {
   const { colors } = useTheme();
@@ -33,6 +35,7 @@ export function MarktScreen() {
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [ververst, setVerverstState] = useState(false);
   const [fearGreed, setFearGreed] = useState<{ waarde: number; klasse: string } | null>(null);
+  const [filter, setFilter] = useState<Filter>('alle');
 
   useEffect(() => {
     haalFearGreed().then(setFearGreed);
@@ -56,6 +59,9 @@ export function MarktScreen() {
     ? [...state.trades].sort((a, b) => Number(isFavoriet(b.symbool)) - Number(isFavoriet(a.symbool)))
     : [];
   const aantalFavorieten = gesorteerdeTrades.filter(t => isFavoriet(t.symbool)).length;
+  const weergegevenTrades = filter === 'favorieten'
+    ? gesorteerdeTrades.filter(t => isFavoriet(t.symbool))
+    : gesorteerdeTrades;
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
@@ -90,24 +96,16 @@ export function MarktScreen() {
       )}
       {state.status === 'success' && (
         <FlatList
-          data={gesorteerdeTrades}
+          data={weergegevenTrades}
           keyExtractor={item => item.symbool}
-          renderItem={({ item, index }) => (
-            <>
-              {aantalFavorieten > 0 && index === 0 && (
-                <Text style={[Type.overline, styles.sectieKop, { color: colors.tekstGedimd }]}>FAVORIETEN</Text>
-              )}
-              {aantalFavorieten > 0 && aantalFavorieten < gesorteerdeTrades.length && index === aantalFavorieten && (
-                <Text style={[Type.overline, styles.sectieKop, { color: colors.tekstGedimd }]}>ALLE COINS</Text>
-              )}
-              <TradeCard
-                trade={item}
-                onGetrade={setGetradeteTrade}
-                onOpenDetail={t => setDetailCoin(vanTrade(t))}
-                favoriet={isFavoriet(item.symbool)}
-                onToggleFavoriet={wisselFavoriet}
-              />
-            </>
+          renderItem={({ item }) => (
+            <TradeCard
+              trade={item}
+              onGetrade={setGetradeteTrade}
+              onOpenDetail={t => setDetailCoin(vanTrade(t))}
+              favoriet={isFavoriet(item.symbool)}
+              onToggleFavoriet={wisselFavoriet}
+            />
           )}
           contentContainerStyle={styles.lijst}
           refreshControl={
@@ -120,14 +118,23 @@ export function MarktScreen() {
           }
           ListHeaderComponent={
             <>
+              <WatKopenNu trades={state.trades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
               {gemScore !== null && <MarktBalk score={gemScore} />}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
+              <FilterTabs actief={filter} onWijzig={setFilter} aantalFavorieten={aantalFavorieten} />
               <View style={styles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {state.trades.length} coins geanalyseerd · gesorteerd op signaalsterkte
                 </Text>
               </View>
             </>
+          }
+          ListEmptyComponent={
+            filter === 'favorieten' ? (
+              <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
+                Nog geen favorieten. Tik op de ster bij een coin om die hier te verzamelen.
+              </Text>
+            ) : null
           }
           ListFooterComponent={<Disclaimer />}
         />
@@ -164,6 +171,44 @@ function IdleView({ onStart }: { onStart: () => void }) {
       <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base }]}>
         Data via Binance & CoinGecko · geen financieel advies
       </Text>
+    </View>
+  );
+}
+
+function FilterTabs({ actief, onWijzig, aantalFavorieten }: {
+  actief: Filter;
+  onWijzig: (filter: Filter) => void;
+  aantalFavorieten: number;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.tabsWrapper, { backgroundColor: colors.verhoogd }]}>
+      <Pressable
+        style={[styles.tab, actief === 'alle' && { backgroundColor: colors.kaart }]}
+        onPress={() => onWijzig('alle')}
+        accessibilityRole="button"
+        accessibilityLabel="Alle coins tonen"
+      >
+        <Text style={[
+          Type.caption, styles.tabTekst,
+          { color: actief === 'alle' ? colors.tekstPrimair : colors.tekstGedimd },
+        ]}>
+          Alle coins
+        </Text>
+      </Pressable>
+      <Pressable
+        style={[styles.tab, actief === 'favorieten' && { backgroundColor: colors.kaart }]}
+        onPress={() => onWijzig('favorieten')}
+        accessibilityRole="button"
+        accessibilityLabel="Alleen favorieten tonen"
+      >
+        <Text style={[
+          Type.caption, styles.tabTekst,
+          { color: actief === 'favorieten' ? colors.tekstPrimair : colors.tekstGedimd },
+        ]}>
+          Favorieten{aantalFavorieten > 0 ? ` (${aantalFavorieten})` : ''}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -217,9 +262,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,
   },
-  sectieKop: {
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
-    letterSpacing: 0.6,
+  tabsWrapper: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.md,
+    borderRadius: radii.knop,
+    padding: 3,
+    gap: 3,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: radii.veld,
+    minHeight: 40,
+  },
+  tabTekst: { fontWeight: '600' },
+  leegFavorieten: {
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    lineHeight: 22,
   },
 });

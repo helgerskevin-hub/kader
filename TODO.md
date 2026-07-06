@@ -40,7 +40,7 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [x] Op het niet fullscreen scherm meer informatie bieden over waarom kopen.
 - [x] **Coin detail-scherm full screen met grafieken**: Bij klikken op een coin opent een full-screen detail-pagina met veel meer informatie en grafieken (inspiratie: Market Mirror). Ook gewenst op portfolio kaart, oppakken samen met meer informatie over de status idee.
 - [x] **Changelog in app**: Onder het settings menu een knop om de changelog bij te houden wat er allemaal veranderd is per versie. Plus bij de eerste keer opstarten van de app een pop-up window met informatie wat er nieuw is in deze versie. Direct meenemen dat er een uitgebreide changelog wordt bijgehouden in project folder als changelog.md
-- [x] Kopje toevoegen met favorieten: sectiekopje "Favorieten" boven de favoriet-gemarkeerde trades op het Marktscherm
+- [x] Kopje toevoegen met favorieten: filtertabs "Alle coins" / "Favorieten" boven de tradelijst op het Marktscherm
 - [x] Uitleg toevoegen over de Fear & Greed Index: uitklapbare toelichting bij de Fear & Greed-kaart op het Marktscherm
 - [x] Uitleg toevoegen over wat het marktsentiment inhoudt: uitklapbare toelichting bij de marktsentimentbalk
 
@@ -48,7 +48,7 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
 
 - [x] **Schuivende marktbalk (zoals Market Mirror)** — een horizontale balk van rood naar groen (HEAVY SELL → BALANCED → HEAVY BUY) met een schuifknop die de huidige Kader-score aangeeft. In één oogopslag zie je waar de markt staat. Zit al in de huisstijlkleuren, hoeft alleen gebouwd te worden op het marktscherm.
-- [ ] **"Wat moet ik nu kopen?"** — één duidelijk scherm dat simpel zegt welke coins op dit moment slim zijn om in te stappen. Geen ruis, geen uitleg, gewoon een aanbeveling + reden in één zin.
+- [x] **"Wat moet ik nu kopen?"** — prominente kaart bovenaan het Marktscherm met de best scorende koopkans + reden in één zin, of een neutrale melding als niets sterk genoeg scoort. Tik erop voor het coin-detailscherm.
 - [ ] **Zo makkelijk mogelijk kopen/verkopen** — vanuit de aanbeveling direct door naar de trade. Zo min mogelijk stappen tussen "ziet er goed uit" en "gekocht". Koppeling met eToro of een exchange-API is het einddoel.
 - [ ] **Short/long met leverage** — ook hefboomposities ondersteunen in de analyse en het uitvoerscherm. Niet alleen spot. Kader moet aangeven of een coin beter geschikt is voor long of short op dat moment.
 - [ ] **Grote whales kopiëren (Trump, Saylor, etc.)** — toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps.
