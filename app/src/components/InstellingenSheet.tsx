@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import { X, Smartphone, Sun, Moon, FileText, BookOpen } from 'lucide-react-native';
+import { X, Smartphone, Sun, Moon, FileText } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { ChangelogSheet } from './ChangelogSheet';
-import { AchtergrondScherm } from './AchtergrondScherm';
 
 interface Props {
   zichtbaar: boolean;
@@ -21,11 +20,10 @@ const OPTIES: { modus: ThemaModus; label: string; Icon: typeof Sun }[] = [
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
   const [changelogOpen, setChangelogOpen] = useState(false);
-  const [uitlegOpen, setUitlegOpen] = useState(false);
 
   return (
     <>
-    <Modal visible={zichtbaar && !changelogOpen && !uitlegOpen} animationType="slide" transparent onRequestClose={onSluiten}>
+    <Modal visible={zichtbaar && !changelogOpen} animationType="slide" transparent onRequestClose={onSluiten}>
       <View style={styles.overlay}>
         <View style={[styles.vel, shadow.modal, { backgroundColor: colors.kaart }]}>
           <View style={styles.titelRij}>
@@ -70,15 +68,6 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
 
           <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
             <Pressable
-              onPress={() => setUitlegOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Achtergrondinformatie"
-              style={styles.menuKnop}
-            >
-              <BookOpen size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.body, { color: colors.tekstPrimair }]}>Achtergrondinformatie</Text>
-            </Pressable>
-            <Pressable
               onPress={() => setChangelogOpen(true)}
               accessibilityRole="button"
               accessibilityLabel="Wijzigingen"
@@ -93,7 +82,6 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
     </Modal>
 
     <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
-    <AchtergrondScherm zichtbaar={uitlegOpen} onSluiten={() => setUitlegOpen(false)} />
     </>
   );
 }

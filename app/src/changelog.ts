@@ -14,6 +14,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     punten: [
       'Tikfout in het kopje "MARKTSENTIMENT" boven de marktbalk hersteld',
       'Op het tabblad Favorieten zonder favorieten zie je nu altijd de uitleg om coins met de ster te verzamelen, ook als er een filter actief staat',
+      'Achtergrondinformatie staat weer als los boek-icoon in de schermheader, niet meer onder Instellingen',
+      'Schermovergang bij tabwissel flitst niet meer kort volledig zichtbaar voordat hij infadet',
     ],
   },
   {

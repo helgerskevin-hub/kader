@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { View, Animated, Easing, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -39,8 +39,11 @@ function AppInhoud() {
   const [nieuwInVersie, setNieuwInVersie] = useState(false);
   const schermFade = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     schermFade.setValue(0);
+  }, [actieveTab, schermFade]);
+
+  useEffect(() => {
     Animated.timing(schermFade, {
       toValue: 1,
       duration: reduceMotion ? 0 : 220,
