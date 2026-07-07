@@ -15,6 +15,12 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
   hij infadet
 - "Wat moet ik nu kopen?"-kaart houdt nu rekening met de actieve tab- en
   filterkeuzes op het Marktscherm in plaats van altijd alle coins te wegen
+- Portfolio importeren uit eToro: onder Instellingen (tandwiel) kun je een
+  eToro API-sleutel koppelen (alleen-lezen), en op het Mijn Trades-scherm haalt
+  de nieuwe importknop je open crypto-posities op. Bestaande geïmporteerde
+  posities worden bijgewerkt in plaats van dubbel toegevoegd; posities zonder
+  stop-loss/take-profit kun je aanvullen via het bewerk-formulier. Uitleg over
+  de koppeling staat in het boek-icoon
 
 ## 0.0.7
 

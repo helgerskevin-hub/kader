@@ -7,6 +7,8 @@ export const SLEUTELS = {
   thema: 'thema_modus',
   favorieten: 'favoriete_coins',
   changelogVersie: 'changelog_versie_gezien',
+  etoroApiKey: 'etoro_api_key',
+  etoroUserKey: 'etoro_user_key',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

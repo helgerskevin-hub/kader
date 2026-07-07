@@ -34,7 +34,7 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 
 - [ ] Inloggen? Zo ja, database?
-- [ ] Wens: portfolio uit eToro kunnen halen zodat je je trades niet zelf hoeft in te vullen
+- [x] Wens: portfolio uit eToro kunnen halen zodat je je trades niet zelf hoeft in te vullen (live API-koppeling onder Instellingen, importknop op Mijn Trades)
 - [x] Favorietenlijst: vaste coins markeren zodat ze altijd bovenaan de analyse staan
 - [x] Dark/light mode: systeem/licht/donker via een tandwiel-icoon in de header, opgeslagen op het toestel
 - [x] Op het niet fullscreen scherm meer informatie bieden over waarom kopen.
@@ -108,6 +108,7 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [x] **Achtergrondinformatie moet weer een los boek-icoon in de schermheader zijn, niet in Instellingen.** Boek-icoon teruggezet in `ScreenHeader.tsx`, weggehaald uit `InstellingenSheet.tsx`.
 - [x] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Opgelost: de opacity-reset gebeurt nu in `useLayoutEffect` (vóór het schilderen) in plaats van `useEffect`, zodat er geen frame op volle opacity meer zichtbaar is.
 - [x] **"Wat moet ik nu kopen?"-kaart negeert de actieve filters.** Opgelost: de kaart krijgt nu `weergegevenTrades` (na tab + RSI/score/R-R-filters) in plaats van alle trades. Zie `WatKopenNu` in `MarktScreen.tsx`.
+- [x] **eToro-koppeling gaf 422 "X-Request-Id header is not a valid GUID".** `haalEtoroPortfolio`/`etoroFetch` gebruikten `nieuweId()` (base36, voor trade-ID's) als request-ID. eToro eist een echt GUID. Opgelost met een losse `guid()`-helper in `app/src/engine/etoro.ts`, alleen voor de `x-request-id`-header. Tegelijk `etoroFetch` uitgebreid zodat de eToro-foutbody wordt meegestuurd i.p.v. alleen de statuscode, dat scheelde deze keer het gokwerk.
 
 ## ✅ Klaar
 

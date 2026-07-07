@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, Pressable, FlatList, Modal, TextInput, ScrollView,
-  StyleSheet,
+  StyleSheet, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, RefreshCw, X, Wallet, CheckCircle, XCircle, Clock } from 'lucide-react-native';
+import { Plus, RefreshCw, X, Wallet, CheckCircle, XCircle, Clock, Download } from 'lucide-react-native';
 import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -18,6 +18,8 @@ import { bepaalAdvies } from '../state/advies';
 import { berekenStatistieken } from '../state/statistieken';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
+import { laadTekst, SLEUTELS } from '../storage/opslag';
+import { importeerEtoroPortfolio } from '../engine/etoro';
 
 // ---------- TradeRegel ----------
 function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
@@ -105,7 +107,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
       <View style={tradeStyles.niveaus}>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.verlies }]}>STOP</Text>
-          <Text style={[Type.prijs, { color: colors.verlies, fontSize: 13 }]}>{fmtPrijs(trade.stopLoss)}</Text>
+          <Text style={[Type.prijs, { color: colors.verlies, fontSize: 13 }]}>{trade.stopLoss > 0 ? fmtPrijs(trade.stopLoss) : '—'}</Text>
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
@@ -113,11 +115,11 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.winst }]}>DOEL</Text>
-          <Text style={[Type.prijs, { color: colors.winst, fontSize: 13 }]}>{fmtPrijs(trade.takeProfit)}</Text>
+          <Text style={[Type.prijs, { color: colors.winst, fontSize: 13 }]}>{trade.takeProfit > 0 ? fmtPrijs(trade.takeProfit) : '—'}</Text>
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtRR(trade.rr)}</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{trade.rr > 0 ? fmtRR(trade.rr) : '—'}</Text>
         </View>
       </View>
 
@@ -613,12 +615,51 @@ const formStyles = StyleSheet.create({
 // ---------- Scherm ----------
 export function PortfolioScreen() {
   const { colors } = useTheme();
-  const { trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, syncing, volgendeVerversing, verversPrijzen } = usePortfolio();
+  const {
+    trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
+    importeerEtoroTrades, syncing, volgendeVerversing, verversPrijzen,
+  } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [seconden, setSeconden] = useState<number | null>(null);
+  const [etoroBezig, setEtoroBezig] = useState(false);
+
+  async function importerenUitEtoro() {
+    const [apiKey, userKey] = await Promise.all([
+      laadTekst(SLEUTELS.etoroApiKey, ''),
+      laadTekst(SLEUTELS.etoroUserKey, ''),
+    ]);
+    if (!apiKey || !userKey) {
+      Alert.alert(
+        'Nog geen eToro-koppeling',
+        'Stel je API-sleutel in via Instellingen (het tandwiel rechtsboven) voordat je kunt importeren.',
+      );
+      return;
+    }
+    setEtoroBezig(true);
+    try {
+      const { trades: etoroTrades, overgeslagen } = await importeerEtoroPortfolio({ apiKey, userKey });
+      const toegevoegd = importeerEtoroTrades(etoroTrades);
+      const bijgewerkt = etoroTrades.length - toegevoegd;
+      const delen = [`${toegevoegd} nieuw`];
+      if (bijgewerkt > 0) delen.push(`${bijgewerkt} bijgewerkt`);
+      if (overgeslagen.length > 0) delen.push(`${overgeslagen.length} overgeslagen`);
+      let bericht = delen.join(', ') + '.';
+      if (overgeslagen.length > 0) {
+        const regels = overgeslagen.map(
+          o => `- ${o.naam} (${o.reden === 'short' ? 'short, nog niet ondersteund' : 'geen crypto'})`,
+        );
+        bericht += '\n\nOvergeslagen:\n' + regels.join('\n');
+      }
+      Alert.alert('Import voltooid', bericht);
+    } catch (e) {
+      Alert.alert('Import mislukt', e instanceof Error ? e.message : 'Onbekende fout.');
+    } finally {
+      setEtoroBezig(false);
+    }
+  }
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -649,6 +690,15 @@ export function PortfolioScreen() {
               style={portfolioStyles.syncKnop}
             >
               <RefreshCw size={18} color={syncing ? colors.tekstGedimd : colors.cta} strokeWidth={1.75} />
+            </Pressable>
+            <Pressable
+              onPress={importerenUitEtoro}
+              disabled={etoroBezig}
+              accessibilityRole="button"
+              accessibilityLabel="Importeer uit eToro"
+              style={portfolioStyles.syncKnop}
+            >
+              <Download size={18} color={etoroBezig ? colors.tekstGedimd : colors.cta} strokeWidth={1.75} />
             </Pressable>
             <Pressable
               style={[portfolioStyles.toevoegenKnop, { backgroundColor: colors.cta }]}

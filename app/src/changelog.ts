@@ -17,6 +17,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Achtergrondinformatie staat weer als los boek-icoon in de schermheader, niet meer onder Instellingen',
       'Schermovergang bij tabwissel flitst niet meer kort volledig zichtbaar voordat hij infadet',
       '"Wat moet ik nu kopen?"-kaart houdt nu rekening met de actieve tab- en filterkeuzes op het Marktscherm in plaats van altijd alle coins te wegen',
+      'Portfolio importeren uit eToro: koppel een alleen-lezen API-sleutel onder Instellingen en haal je open crypto-posities op via de importknop op Mijn Trades. Uitleg staat in het boek-icoon',
     ],
   },
   {

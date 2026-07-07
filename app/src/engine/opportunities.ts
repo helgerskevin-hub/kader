@@ -10,7 +10,7 @@ const UITSLUITEN = new Set([
 ]);
 
 // Cryptos die verhandelbaar zijn op eToro (NL/EU). Controleer etoro.com voor updates.
-const ETORO_TRADABLE = new Set([
+export const ETORO_TRADABLE = new Set([
   'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
   'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',
   'ALGO', 'VET', 'HBAR', 'XTZ', 'NEAR', 'FTM', 'ICP', 'FLOW',

@@ -13,6 +13,8 @@ export interface PortfolioTrade {
   aantalCoins?: number;
   exitPrijs?: number;
   slotDatum?: string;
+  etoroPositionID?: number;
+  bron?: 'etoro' | 'handmatig';
 }
 
 export function nieuweId(): string {
