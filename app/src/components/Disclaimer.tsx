@@ -4,10 +4,13 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
 
-export function Disclaimer() {
+export function Disclaimer({ metRand = true }: { metRand?: boolean }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.container, { borderTopColor: colors.rand }]}>
+    <View style={[
+      styles.container,
+      metRand && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.rand },
+    ]}>
       <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center' }]}>
         Geen financieel advies · check altijd de live koers op eToro
       </Text>
@@ -19,6 +22,5 @@ const styles = StyleSheet.create({
   container: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

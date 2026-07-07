@@ -1,6 +1,6 @@
 import { Candle } from './types';
 
-// EWM with adjust=False — spiegelt pandas ewm(adjust=False)
+// EWM with adjust=False: spiegelt pandas ewm(adjust=False)
 // Seeded at values[0], alpha opgegeven als argument.
 function _ewm(values: number[], alpha: number): number[] {
   if (values.length === 0) return [];
@@ -12,7 +12,7 @@ function _ewm(values: number[], alpha: number): number[] {
   return out;
 }
 
-// RSI — port van bereken_rsi(close, 14)
+// RSI: port van bereken_rsi(close, 14)
 // ewm(alpha=1/period, min_periods=period, adjust=False), fillna(50)
 export function rsi(close: number[], period = 14): number[] {
   const n = close.length;
@@ -42,13 +42,13 @@ export function rsi(close: number[], period = 14): number[] {
   return result;
 }
 
-// EMA — port van bereken_ema(close, span)
+// EMA: port van bereken_ema(close, span)
 // ewm(span=N, adjust=False) => alpha = 2/(N+1)
 export function ema(close: number[], span: number): number[] {
   return _ewm(close, 2 / (span + 1));
 }
 
-// MACD — port van bereken_macd(close, 12, 26, 9)
+// MACD: port van bereken_macd(close, 12, 26, 9)
 export function macd(
   close: number[],
   fast = 12,
@@ -63,7 +63,7 @@ export function macd(
   return { macdLine, signalLine, histogram };
 }
 
-// ATR — port van bereken_atr(df, 14)
+// ATR: port van bereken_atr(df, 14)
 // TR = max(high-low, |high-prevClose|, |low-prevClose|)
 // ATR = ewm(alpha=1/period, adjust=False)
 export function atr(candles: Candle[], period = 14): number[] {

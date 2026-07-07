@@ -44,6 +44,7 @@ const SECTIES = [
   { id: 'kansscore', titel: 'Kansscore (Grote Kansen)' },
   { id: 'statistieken', titel: 'Portfolio-statistieken' },
   { id: 'oordeel', titel: 'Het trader-oordeel' },
+  { id: 'etoro', titel: 'Portfolio importeren uit eToro' },
 ] as const;
 
 type SectieId = typeof SECTIES[number]['id'];
@@ -194,6 +195,29 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
               portfoliospreiding. Vanaf 70 punten is het oordeel GROEN, vanaf 50 GEEL, daaronder ROOD. De aanbevolen
               Copy Stop Loss is afgeleid van de maximale drawdown van de trader en wordt afgerond op een veelvoud van
               5 procent.
+            </Text>
+          </Sectie>
+
+          <Sectie id="etoro" titel="Portfolio importeren uit eToro" open={open === 'etoro'} onToggle={wisselOpen}>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Kader kan je open crypto-posities rechtstreeks bij eToro ophalen via hun officiële API.
+              De koppeling is alleen-lezen: Kader kan je posities bekijken, maar nooit handelen,
+              geld verplaatsen of instellingen wijzigen. Je sleutel wordt alleen op je eigen toestel
+              bewaard.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Zo stel je hem in: log in op eToro (web) en ga naar Settings, dan Trading, dan API Key
+              Management. Maak een sleutel aan met alleen Read-rechten (geen Write) op je Real-account,
+              en bevestig met de verificatiecode op je telefoon. Plak de sleutel(s) daarna in Kader
+              onder Instellingen (het tandwiel rechtsboven), bij "eToro-koppeling". Ga daarna naar de
+              portfolio-tab en druk op "Importeer uit eToro".
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Alleen crypto-posities komen mee; aandelen en ETF's worden overgeslagen. Heb je bij een
+              positie op eToro geen stop-loss of take-profit ingesteld, dan importeert Kader die
+              positie zonder die niveaus. Je kunt ze daarna gewoon aanvullen via het bewerk-formulier.
+              Een tweede import werkt je bestaande eToro-posities bij in plaats van dat hij ze
+              dubbel toevoegt.
             </Text>
           </Sectie>
 

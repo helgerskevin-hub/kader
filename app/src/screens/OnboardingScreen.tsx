@@ -6,6 +6,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { KaderLogo } from '../components/KaderLogo';
+import { StapOvergang } from '../components/StapOvergang';
 
 interface Stap {
   Icon?: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
@@ -23,7 +24,7 @@ const STAPPEN: Stap[] = [
   {
     Icon: TrendingUp as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Hoe werkt\nde analyse?',
-    body: 'De app gebruikt RSI, voortschrijdende gemiddelden (EMA) en ATR om de markt te scannen. Coins met score ≥ 75 zijn "high conviction" — meerdere indicatoren wijzen tegelijk op een kans.',
+    body: 'De app gebruikt RSI, voortschrijdende gemiddelden (EMA) en ATR om de markt te scannen. Coins met score ≥ 75 zijn "high conviction", meerdere indicatoren wijzen tegelijk op een kans.',
   },
   {
     Icon: Target as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
@@ -38,7 +39,7 @@ const STAPPEN: Stap[] = [
   {
     Icon: Shield as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Disclaimer',
-    body: 'Deze app geeft technische signalen op basis van historische koersdata — geen financieel advies.\n\nControleer altijd de live koers op eToro vóór je een trade plaatst.',
+    body: 'Deze app geeft technische signalen op basis van historische koersdata, geen financieel advies.\n\nControleer altijd de live koers op eToro vóór je een trade plaatst.',
   },
 ];
 
@@ -98,7 +99,7 @@ export function OnboardingScreen({ onKlaar }: Props) {
       </View>
 
       {/* Inhoud */}
-      <View style={styles.inhoud}>
+      <StapOvergang stapIndex={actieveStap} style={styles.inhoud}>
         {stap.isWelkom ? (
           <>
             <View style={styles.logoContainer}>
@@ -127,7 +128,7 @@ export function OnboardingScreen({ onKlaar }: Props) {
             </Text>
           </>
         )}
-      </View>
+      </StapOvergang>
 
       {/* Navigatie */}
       <View style={styles.navigatie}>

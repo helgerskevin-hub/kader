@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kader",
     "slug": "kader",
-    "version": "0.0.8",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kader.app"
+      "package": "com.kader.app",
+      "versionCode": 9
     },
     "web": {
       "favicon": "./assets/favicon.png"

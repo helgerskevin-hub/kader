@@ -17,6 +17,10 @@ export function bepaalAdvies(
     return { tekst: 'Live prijs laden...', kleur: 'neutraal' };
   }
 
+  if (stopLoss <= 0 || takeProfit <= 0) {
+    return { tekst: 'Stel een stop-loss en take-profit in om advies te zien.', kleur: 'neutraal' };
+  }
+
   if (livePrijs <= stopLoss) {
     return { tekst: 'Stop-loss geraakt. Plan was hier uit te stappen.', kleur: 'verlies' };
   }

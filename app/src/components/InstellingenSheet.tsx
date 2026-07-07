@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import { X, Smartphone, Sun, Moon, FileText, BookOpen } from 'lucide-react-native';
+import { X, Smartphone, Sun, Moon, FileText, Link2, ChevronRight } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { ChangelogSheet } from './ChangelogSheet';
-import { AchtergrondScherm } from './AchtergrondScherm';
+import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
+import { laadTekst, SLEUTELS } from '../storage/opslag';
+import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 
 interface Props {
   zichtbaar: boolean;
@@ -21,13 +23,30 @@ const OPTIES: { modus: ThemaModus; label: string; Icon: typeof Sun }[] = [
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
   const [changelogOpen, setChangelogOpen] = useState(false);
-  const [uitlegOpen, setUitlegOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [gekoppeld, setGekoppeld] = useState(false);
+  const toetsenbordHoogte = useToetsenbordHoogte();
+
+  async function ververGekoppeld() {
+    const [a, u] = await Promise.all([
+      laadTekst(SLEUTELS.etoroApiKey, ''),
+      laadTekst(SLEUTELS.etoroUserKey, ''),
+    ]);
+    setGekoppeld(Boolean(a && u));
+  }
+
+  useEffect(() => {
+    if (zichtbaar) ververGekoppeld();
+  }, [zichtbaar]);
 
   return (
     <>
-    <Modal visible={zichtbaar && !changelogOpen && !uitlegOpen} animationType="slide" transparent onRequestClose={onSluiten}>
+    <Modal visible={zichtbaar && !changelogOpen && !wizardOpen} animationType="slide" transparent onRequestClose={onSluiten}>
       <View style={styles.overlay}>
-        <View style={[styles.vel, shadow.modal, { backgroundColor: colors.kaart }]}>
+        <View style={[
+          styles.vel, shadow.modal,
+          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
+        ]}>
           <View style={styles.titelRij}>
             <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Instellingen</Text>
             <Pressable
@@ -70,14 +89,19 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
 
           <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
             <Pressable
-              onPress={() => setUitlegOpen(true)}
+              onPress={() => setWizardOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel="Achtergrondinformatie"
+              accessibilityLabel="eToro-koppeling instellen"
               style={styles.menuKnop}
             >
-              <BookOpen size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.body, { color: colors.tekstPrimair }]}>Achtergrondinformatie</Text>
+              <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+              <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>eToro-koppeling</Text>
+              <Text style={[Type.caption, { color: gekoppeld ? colors.winst : colors.tekstGedimd }]}>
+                {gekoppeld ? 'Gekoppeld' : 'Niet ingesteld'}
+              </Text>
+              <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
             </Pressable>
+
             <Pressable
               onPress={() => setChangelogOpen(true)}
               accessibilityRole="button"
@@ -85,7 +109,8 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
               style={styles.menuKnop}
             >
               <FileText size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.body, { color: colors.tekstPrimair }]}>Wijzigingen</Text>
+              <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>Wijzigingen</Text>
+              <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
             </Pressable>
           </View>
         </View>
@@ -93,7 +118,11 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
     </Modal>
 
     <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
-    <AchtergrondScherm zichtbaar={uitlegOpen} onSluiten={() => setUitlegOpen(false)} />
+    <EtoroKoppelingWizard
+      zichtbaar={wizardOpen}
+      onSluiten={() => setWizardOpen(false)}
+      onOpgeslagen={ververGekoppeld}
+    />
     </>
   );
 }
@@ -143,4 +172,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     minHeight: 44,
   },
+  menuTekst: { flex: 1 },
 });

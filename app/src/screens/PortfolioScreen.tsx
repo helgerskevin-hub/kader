@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, Pressable, FlatList, Modal, TextInput, ScrollView,
-  StyleSheet,
+  StyleSheet, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, RefreshCw, X, Wallet, CheckCircle, XCircle, Clock } from 'lucide-react-native';
+import { Plus, X, Wallet, CheckCircle, XCircle, Clock } from 'lucide-react-native';
 import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -12,12 +12,16 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
+import { HistorieScherm } from '../components/HistorieScherm';
 import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
-import { berekenStatistieken } from '../state/statistieken';
+import { berekenPortfolioWaarde } from '../state/statistieken';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
+import { laadTekst, SLEUTELS } from '../storage/opslag';
+import { importeerEtoroPortfolio } from '../engine/etoro';
 
 // ---------- TradeRegel ----------
 function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
@@ -105,7 +109,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
       <View style={tradeStyles.niveaus}>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.verlies }]}>STOP</Text>
-          <Text style={[Type.prijs, { color: colors.verlies, fontSize: 13 }]}>{fmtPrijs(trade.stopLoss)}</Text>
+          <Text style={[Type.prijs, { color: colors.verlies, fontSize: 13 }]}>{trade.stopLoss > 0 ? fmtPrijs(trade.stopLoss) : '—'}</Text>
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
@@ -113,11 +117,11 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.winst }]}>DOEL</Text>
-          <Text style={[Type.prijs, { color: colors.winst, fontSize: 13 }]}>{fmtPrijs(trade.takeProfit)}</Text>
+          <Text style={[Type.prijs, { color: colors.winst, fontSize: 13 }]}>{trade.takeProfit > 0 ? fmtPrijs(trade.takeProfit) : '—'}</Text>
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtRR(trade.rr)}</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{trade.rr > 0 ? fmtRR(trade.rr) : '—'}</Text>
         </View>
       </View>
 
@@ -613,12 +617,52 @@ const formStyles = StyleSheet.create({
 // ---------- Scherm ----------
 export function PortfolioScreen() {
   const { colors } = useTheme();
-  const { trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, syncing, volgendeVerversing, verversPrijzen } = usePortfolio();
+  const {
+    trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
+    importeerEtoroTrades, syncing, volgendeVerversing, verversPrijzen,
+  } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [seconden, setSeconden] = useState<number | null>(null);
+  const [etoroBezig, setEtoroBezig] = useState(false);
+  const [historieOpen, setHistorieOpen] = useState(false);
+
+  async function importerenUitEtoro() {
+    const [apiKey, userKey] = await Promise.all([
+      laadTekst(SLEUTELS.etoroApiKey, ''),
+      laadTekst(SLEUTELS.etoroUserKey, ''),
+    ]);
+    if (!apiKey || !userKey) {
+      Alert.alert(
+        'Nog geen eToro-koppeling',
+        'Stel je API-sleutel in via Instellingen (het tandwiel rechtsboven) voordat je kunt importeren.',
+      );
+      return;
+    }
+    setEtoroBezig(true);
+    try {
+      const { trades: etoroTrades, overgeslagen } = await importeerEtoroPortfolio({ apiKey, userKey });
+      const toegevoegd = importeerEtoroTrades(etoroTrades);
+      const bijgewerkt = etoroTrades.length - toegevoegd;
+      const delen = [`${toegevoegd} nieuw`];
+      if (bijgewerkt > 0) delen.push(`${bijgewerkt} bijgewerkt`);
+      if (overgeslagen.length > 0) delen.push(`${overgeslagen.length} overgeslagen`);
+      let bericht = delen.join(', ') + '.';
+      if (overgeslagen.length > 0) {
+        const regels = overgeslagen.map(
+          o => `- ${o.naam} (${o.reden === 'short' ? 'short, nog niet ondersteund' : 'geen crypto'})`,
+        );
+        bericht += '\n\nOvergeslagen:\n' + regels.join('\n');
+      }
+      Alert.alert('Import voltooid', bericht);
+    } catch (e) {
+      Alert.alert('Import mislukt', e instanceof Error ? e.message : 'Onbekende fout.');
+    } finally {
+      setEtoroBezig(false);
+    }
+  }
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -629,118 +673,74 @@ export function PortfolioScreen() {
     return () => clearInterval(id);
   }, [volgendeVerversing]);
 
-  const openCount = trades.filter(t => t.status === 'open').length;
-  const gewonnenCount = trades.filter(t => t.status === 'gewonnen').length;
-  const verlorenCount = trades.filter(t => t.status === 'verloren').length;
-  const statistieken = berekenStatistieken(trades);
+  const openTrades = trades.filter(t => t.status === 'open');
+  const afgeslotenCount = trades.length - openTrades.length;
+  const waarde = berekenPortfolioWaarde(trades, livePrijzen);
 
   return (
     <SafeAreaView style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
         titel="Mijn trades"
-        meta={syncing ? 'Prijzen ophalen...' : seconden !== null ? `Sync over ${seconden}s` : undefined}
         rechts={
-          <View style={portfolioStyles.headerActies}>
-            <Pressable
-              onPress={verversPrijzen}
-              disabled={syncing}
-              accessibilityRole="button"
-              accessibilityLabel="Prijzen verversen"
-              style={portfolioStyles.syncKnop}
-            >
-              <RefreshCw size={18} color={syncing ? colors.tekstGedimd : colors.cta} strokeWidth={1.75} />
-            </Pressable>
-            <Pressable
-              style={[portfolioStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
-              onPress={() => setFormulierZichtbaar(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Trade toevoegen"
-            >
-              <Plus size={16} color="white" strokeWidth={2} />
-              <Text style={[Type.caption, { color: 'white', fontWeight: '600' }]}>Voeg toe</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={[portfolioStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
+            onPress={() => setFormulierZichtbaar(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Trade toevoegen"
+          >
+            <Plus size={16} color="white" strokeWidth={2} />
+            <Text style={[Type.caption, { color: 'white', fontWeight: '600' }]}>Voeg toe</Text>
+          </Pressable>
         }
       />
 
-      {trades.length === 0 ? (
-        <View style={portfolioStyles.leeg}>
-          <Wallet size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
-          <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
-            Geen trades bijgehouden
-          </Text>
-          <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24 }]}>
-            Voeg een trade toe vanuit het Markt-scherm of via de knop hierboven.
-          </Text>
-          <Pressable
-            style={[portfolioStyles.leegKnop, { backgroundColor: colors.cta }]}
-            onPress={() => setFormulierZichtbaar(true)}
-            accessibilityRole="button"
-          >
-            <Plus size={16} color="white" strokeWidth={2} />
-            <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Eerste trade toevoegen</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <FlatList
-          data={trades}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <TradeRegel
-              trade={item}
-              livePrijs={item.status === 'open' ? livePrijzen[item.symbool] : undefined}
-              onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
-              onVerwijder={verwijderTrade}
-              onBewerk={setBewerkTrade}
-              onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
-            />
-          )}
-          contentContainerStyle={portfolioStyles.lijst}
-          ListHeaderComponent={
-            <>
-              <View style={portfolioStyles.stats}>
-                <View style={portfolioStyles.stat}>
-                  <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{openCount}</Text>
-                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN</Text>
-                </View>
-                <View style={portfolioStyles.stat}>
-                  <Text style={[Type.prijsGroot, { color: colors.winst }]}>{gewonnenCount}</Text>
-                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEWONNEN</Text>
-                </View>
-                <View style={portfolioStyles.stat}>
-                  <Text style={[Type.prijsGroot, { color: colors.verlies }]}>{verlorenCount}</Text>
-                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VERLOREN</Text>
-                </View>
-              </View>
-              {statistieken.afgesloten > 0 && (
-                <View style={[portfolioStyles.stats, { paddingTop: 0 }]}>
-                  <View style={portfolioStyles.stat}>
-                    <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>
-                      {statistieken.trefferpercentage !== null ? `${Math.round(statistieken.trefferpercentage)}%` : '—'}
-                    </Text>
-                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TREFFERPERCENTAGE</Text>
-                  </View>
-                  <View style={portfolioStyles.stat}>
-                    <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>
-                      {statistieken.gemBehaaldeRR !== null ? fmtRR(statistieken.gemBehaaldeRR) : '—'}
-                    </Text>
-                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GEM. R/R BEHAALD</Text>
-                  </View>
-                  {statistieken.totaalResultaatUsd !== null && (
-                    <View style={portfolioStyles.stat}>
-                      <Text style={[Type.prijsGroot, { color: statistieken.totaalResultaatUsd >= 0 ? colors.winst : colors.verlies }]}>
-                        {statistieken.totaalResultaatUsd >= 0 ? '+' : ''}${Math.abs(statistieken.totaalResultaatUsd).toFixed(2)}
-                      </Text>
-                      <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TOTAAL RESULTAAT</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </>
-          }
-          ListFooterComponent={<Disclaimer />}
-        />
-      )}
+      <FlatList
+        data={openTrades}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <TradeRegel
+            trade={item}
+            livePrijs={livePrijzen[item.symbool]}
+            onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
+            onVerwijder={verwijderTrade}
+            onBewerk={setBewerkTrade}
+            onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+          />
+        )}
+        contentContainerStyle={portfolioStyles.lijst}
+        ListHeaderComponent={
+          <PortfolioStatusKaart
+            waarde={waarde}
+            syncing={syncing}
+            seconden={seconden}
+            etoroBezig={etoroBezig}
+            afgesloten={afgeslotenCount}
+            onVerversen={verversPrijzen}
+            onImporteren={importerenUitEtoro}
+            onOpenHistorie={() => setHistorieOpen(true)}
+          />
+        }
+        ListEmptyComponent={
+          <View style={portfolioStyles.leeg}>
+            <Wallet size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
+            <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
+              Geen open trades
+            </Text>
+            <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24 }]}>
+              Voeg een trade toe vanuit het Markt-scherm of via de knop rechtsboven{afgeslotenCount > 0 ? ', of bekijk je afgesloten trades in de historie' : ''}.
+            </Text>
+            <Pressable
+              style={[portfolioStyles.leegKnop, { backgroundColor: colors.cta }]}
+              onPress={() => setFormulierZichtbaar(true)}
+              accessibilityRole="button"
+            >
+              <Plus size={16} color="white" strokeWidth={2} />
+              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade toevoegen</Text>
+            </Pressable>
+          </View>
+        }
+        ListFooterComponent={<Disclaimer metRand={openTrades.length > 0} />}
+      />
 
       <TradeFormulier
         zichtbaar={formulierZichtbaar || bewerkTrade !== null}
@@ -763,23 +763,20 @@ export function PortfolioScreen() {
       />
 
       <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+
+      <HistorieScherm
+        zichtbaar={historieOpen}
+        trades={trades}
+        onSluiten={() => setHistorieOpen(false)}
+        onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+        onVerwijder={verwijderTrade}
+      />
     </SafeAreaView>
   );
 }
 
 const portfolioStyles = StyleSheet.create({
   root: { flex: 1 },
-  headerActies: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  syncKnop: {
-    minHeight: 36,
-    minWidth: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   toevoegenKnop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -806,12 +803,4 @@ const portfolioStyles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   lijst: { paddingTop: spacing.md },
-  stats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: spacing.base,
-    paddingHorizontal: spacing.base,
-    marginBottom: spacing.sm,
-  },
-  stat: { alignItems: 'center', gap: 4 },
 });

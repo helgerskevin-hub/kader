@@ -7,6 +7,9 @@ export const SLEUTELS = {
   thema: 'thema_modus',
   favorieten: 'favoriete_coins',
   changelogVersie: 'changelog_versie_gezien',
+  etoroApiKey: 'etoro_api_key',
+  etoroUserKey: 'etoro_user_key',
+  etoroSetupGevraagd: 'etoro_setup_gevraagd',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
@@ -60,5 +63,13 @@ export async function bewaarTekst(sleutel: string, waarde: string): Promise<void
     await AsyncStorage.setItem(sleutel, waarde);
   } catch {
     // schrijffout stilt neerzetten
+  }
+}
+
+export async function verwijderSleutel(sleutel: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(sleutel);
+  } catch {
+    // verwijderfout stilt neerzetten
   }
 }

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Settings } from 'lucide-react-native';
+import { Settings, BookOpen } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
 import { InstellingenSheet } from './InstellingenSheet';
+import { AchtergrondScherm } from './AchtergrondScherm';
 import { KaderLogo } from './KaderLogo';
 
 interface Props {
@@ -16,13 +17,14 @@ interface Props {
 export function ScreenHeader({ titel, meta, rechts }: Props) {
   const { colors } = useTheme();
   const [instellingenOpen, setInstellingenOpen] = useState(false);
+  const [uitlegOpen, setUitlegOpen] = useState(false);
 
   return (
     <View style={[styles.header, { borderBottomColor: colors.rand }]}>
       <View style={styles.linksGroep}>
         <KaderLogo size={26} variant="outline" />
         <View style={styles.links}>
-          <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{titel}</Text>
+          <Text style={[Type.titel, { color: colors.tekstPrimair }]} numberOfLines={1}>{titel}</Text>
           {meta ? (
             <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{meta}</Text>
           ) : null}
@@ -30,6 +32,14 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
       </View>
       <View style={styles.rechtsGroep}>
         {rechts ? <View style={styles.rechts}>{rechts}</View> : null}
+        <Pressable
+          onPress={() => setUitlegOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Achtergrondinformatie"
+          style={styles.tandwiel}
+        >
+          <BookOpen size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
         <Pressable
           onPress={() => setInstellingenOpen(true)}
           accessibilityRole="button"
@@ -40,6 +50,7 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
         </Pressable>
       </View>
       <InstellingenSheet zichtbaar={instellingenOpen} onSluiten={() => setInstellingenOpen(false)} />
+      <AchtergrondScherm zichtbaar={uitlegOpen} onSluiten={() => setUitlegOpen(false)} />
     </View>
   );
 }
@@ -68,6 +79,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    flexShrink: 0,
   },
   rechts: {
     alignItems: 'flex-end',

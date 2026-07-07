@@ -14,6 +14,7 @@ interface PortfolioContextWaarde {
   sluitTrade: (id: string, status: 'gewonnen' | 'verloren', exitPrijs: number) => void;
   verwijderTrade: (id: string) => void;
   verversPrijzen: () => Promise<void>;
+  importeerEtoroTrades: (nieuwe: PortfolioTrade[]) => number;
 }
 
 const PortfolioContext = createContext<PortfolioContextWaarde | null>(null);
@@ -83,8 +84,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const sluitTrade = useCallback((id: string, status: 'gewonnen' | 'verloren', exitPrijs: number) => {
     setTrades(prev => prev.map(t => {
       if (t.id !== id) return t;
-      const slotDatum = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
-      return { ...t, status, exitPrijs, slotDatum };
+      const nu = new Date();
+      const slotDatum = nu.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+      return { ...t, status, exitPrijs, slotDatum, slotTijd: nu.getTime() };
     }));
   }, []);
 
@@ -92,10 +94,34 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setTrades(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  // Dedupliceert op etoroPositionID: bestaande geïmporteerde trade wordt bijgewerkt (entry/bedrag/
+  // aantal/SL/TP), handmatige trades blijven onaangeroerd. Retourneert het aantal nieuw toegevoegde
+  // (berekend via tradesRef, want setTrades' updater draait niet gegarandeerd voor de return).
+  const importeerEtoroTrades = useCallback((nieuwe: PortfolioTrade[]): number => {
+    const huidig = tradesRef.current;
+    const toegevoegd = nieuwe.filter(
+      t => !huidig.some(h => h.etoroPositionID === t.etoroPositionID),
+    ).length;
+
+    setTrades(prev => {
+      const resultaat = [...prev];
+      for (const trade of nieuwe) {
+        const index = resultaat.findIndex(t => t.etoroPositionID === trade.etoroPositionID);
+        if (index >= 0) {
+          resultaat[index] = { ...trade, id: resultaat[index].id, status: resultaat[index].status };
+        } else {
+          resultaat.unshift(trade);
+        }
+      }
+      return resultaat;
+    });
+    return toegevoegd;
+  }, []);
+
   return (
     <PortfolioContext.Provider value={{
       trades, livePrijzen, geladen, syncing, volgendeVerversing,
-      voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
+      voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen, importeerEtoroTrades,
     }}>
       {children}
     </PortfolioContext.Provider>

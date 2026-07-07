@@ -34,7 +34,7 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 
 - [ ] Inloggen? Zo ja, database?
-- [ ] Wens: portfolio uit eToro kunnen halen zodat je je trades niet zelf hoeft in te vullen
+- [x] Wens: portfolio uit eToro kunnen halen zodat je je trades niet zelf hoeft in te vullen (live API-koppeling onder Instellingen, importknop op Mijn Trades)
 - [x] Favorietenlijst: vaste coins markeren zodat ze altijd bovenaan de analyse staan
 - [x] Dark/light mode: systeem/licht/donker via een tandwiel-icoon in de header, opgeslagen op het toestel
 - [x] Op het niet fullscreen scherm meer informatie bieden over waarom kopen.
@@ -104,10 +104,11 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [x] **geen mogelijkheid om trade op te slaan vanuit grote kansen** moet iedentiek zijn aan markt analyse kansen.
 - [x] **Geen mogelijkheid om waarde in $ of aantal gekochte coins aan te geven in je trades**
 - [x] **Trades in het portfolio venster hebben geen meekleurende zijkant zoals in Markt venster**
-- [ ] **App-icoon is niet aangepast** (nog niet de nieuwe versie zichtbaar op het startscherm).
-- [ ] **Achtergrondinformatie moet weer een los boek-icoon in de schermheader zijn, niet in Instellingen.** In v0.0.7 is het bewust naar Instellingen verplaatst, maar het moet apart en direct bereikbaar staan (boek-icoon), zoals daarvoor. Zie `ScreenHeader.tsx` en `InstellingenSheet.tsx`.
-- [ ] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Het nieuwe scherm verschijnt eerst kort volledig zichtbaar en klapt dan naar 0 voordat het infadet (flits). Oorzaak: in `App.tsx` zet het effect de opacity pas ná de render op 0 (`schermFade.setValue(0)` in `useEffect`), dus is er één frame op volle opacity. Oplossen door de reset vóór het schilderen te doen (bijv. `useLayoutEffect`) of de Animated.View met `key={actieveTab}` vanaf 0 te laten infaden.
-- [ ] **Te beoordelen: "Wat moet ik nu kopen?"-kaart negeert de actieve filters.** De kaart blijft de best scorende coin aanraden, ook als die door een RSI/score/R-R-filter uit de lijst eronder is gefilterd. Nu gebruikt de kaart bewust alle trades (globaal advies), niet de gefilterde set. Beslissen of dat zo moet blijven of dat de kaart de filters moet respecteren. Zie `WatKopenNu` in `MarktScreen.tsx`.
+- [x] **App-icoon is niet aangepast** (oude icoon bleef op het startscherm na een update). Echte oorzaak gevonden: de assets waren wél v2 sinds `b617fce`, maar het generatorscript `scripts/genereer-iconen.mjs` stond nog op v1 (gradient + trendlijn) en de gegenereerde Android mipmap-iconen in de (gitignore) `android/`-map waren daardoor verouderd. `npm run android` bouwt die verouderde mipmaps mee, dus het launcher-icoon veranderde niet bij een update. Opgelost: generator herschreven naar de v2-mark (effen #2563EB, witte hoekhaken, geen trendlijn, gelijk aan `KaderLogo.tsx`) en alle assets + mipmaps opnieuw gegenereerd. Bij een release ook `android.versionCode` ophogen zodat launchers het icoon zeker verversen.
+- [x] **Achtergrondinformatie moet weer een los boek-icoon in de schermheader zijn, niet in Instellingen.** Boek-icoon teruggezet in `ScreenHeader.tsx`, weggehaald uit `InstellingenSheet.tsx`.
+- [x] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Opgelost: de opacity-reset gebeurt nu in `useLayoutEffect` (vóór het schilderen) in plaats van `useEffect`, zodat er geen frame op volle opacity meer zichtbaar is.
+- [x] **"Wat moet ik nu kopen?"-kaart negeert de actieve filters.** Opgelost: de kaart krijgt nu `weergegevenTrades` (na tab + RSI/score/R-R-filters) in plaats van alle trades. Zie `WatKopenNu` in `MarktScreen.tsx`.
+- [x] **eToro-koppeling gaf 422 "X-Request-Id header is not a valid GUID".** `haalEtoroPortfolio`/`etoroFetch` gebruikten `nieuweId()` (base36, voor trade-ID's) als request-ID. eToro eist een echt GUID. Opgelost met een losse `guid()`-helper in `app/src/engine/etoro.ts`, alleen voor de `x-request-id`-header. Tegelijk `etoroFetch` uitgebreid zodat de eToro-foutbody wordt meegestuurd i.p.v. alleen de statuscode, dat scheelde deze keer het gokwerk.
 
 ## ✅ Klaar
 

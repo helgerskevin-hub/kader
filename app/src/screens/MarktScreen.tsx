@@ -144,7 +144,7 @@ export function MarktScreen() {
           }
           ListHeaderComponent={
             <>
-              <WatKopenNu trades={state.trades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
+              <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
               {gemScore !== null && <MarktBalk score={gemScore} />}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
               <View style={styles.tabsRij}>

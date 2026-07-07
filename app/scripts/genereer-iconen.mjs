@@ -1,7 +1,14 @@
 /**
- * Genereert alle Kader-app-iconen uit de officiële SVG-definitie.
+ * Genereert alle Kader-app-iconen uit de officiële v2-logodefinitie.
  * Gebruik: node scripts/genereer-iconen.mjs  (vanuit de app/-map)
  * Vereist: npm i -D @resvg/resvg-js
+ *
+ * v2-mark = open vierkant kader van 4 losse hoekhaken (geen gradient, geen trendlijn),
+ * identiek aan components/KaderLogo.tsx. Achtergrondvlak = effen #2563EB (donker-variant,
+ * gelijk aan android.adaptiveIcon.backgroundColor in app.json).
+ *
+ * Dit script schrijft zowel de Expo-assets als de Android mipmap-iconen. Draai het na
+ * elke logowijziging en bouw daarna opnieuw, zodat het launcher-icoon meekomt met een update.
  */
 
 import { Resvg } from '@resvg/resvg-js';
@@ -13,82 +20,51 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const ASSETS = resolve(__dir, '..', 'assets');
 const ANDROID_RES = resolve(__dir, '..', 'android', 'app', 'src', 'main', 'res');
 
-// ── Merkmarkeringen: vier hoeken + chart-polyline ──────────────────────────────
-function marksGroup(size) {
-  const s = size;
-  const sw  = +(s * 0.0467).toFixed(2);
-  const swp = +(s * 0.0367).toFixed(2);
-  const a   = +(s * 0.233).toFixed(2);
-  const b   = +(s * 0.767).toFixed(2);
-  const pp  = [
-    [s * 0.3, s * 0.633],
-    [s * 0.4, s * 0.517],
-    [s * 0.5, s * 0.567],
-    [s * 0.7, s * 0.333],
-  ].map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+const VLAK = '#2563EB';
 
-  return `<g stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M${a} ${+(a*1.7).toFixed(2)} L${a} ${a} L${+(a*1.7).toFixed(2)} ${a}"/>
-    <path d="M${+(b-a*0.7).toFixed(2)} ${a} L${b} ${a} L${b} ${+(a*1.7).toFixed(2)}"/>
-    <path d="M${a} ${+(b-a*0.7).toFixed(2)} L${a} ${b} L${+(a*1.7).toFixed(2)} ${b}"/>
-    <path d="M${+(b-a*0.7).toFixed(2)} ${b} L${b} ${b} L${b} ${+(b-a*0.7).toFixed(2)}"/>
-  </g>
-  <polyline points="${pp}" stroke="white" stroke-width="${swp}" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.92"/>`;
+// v2-geometrie: 4 hoekhaken in een 96×96 viewBox, identiek aan KaderLogo.tsx (HOEKEN).
+const HOEKEN = [
+  'M24 40 L24 24 L40 24',
+  'M56 24 L72 24 L72 40',
+  'M24 56 L24 72 L40 72',
+  'M56 72 L72 72 L72 56',
+];
+
+// Groep met de 4 witte hoekhaken (viewBox 0 0 96 96, stroke-breedte 6, ronde hoeken).
+function marks() {
+  return `<g stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    ${HOEKEN.map((d) => `<path d="${d}"/>`).join('\n    ')}
+  </g>`;
 }
 
 // ── SVG-templates ──────────────────────────────────────────────────────────────
 
-// Gradient afgerond vlak + merkteken (launcher-icoon)
-function gradientSvg(px, size = 60) {
-  return `<svg width="${px}" height="${px}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1E3A8A"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="${size}" height="${size}" rx="${Math.round(size * 0.267)}" fill="url(#g)"/>
-  ${marksGroup(size)}
+// Effen vlak met afgeronde hoeken + merkteken (launcher-icoon en Expo icon.png).
+function vlakSvg(px) {
+  return `<svg width="${px}" height="${px}" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <rect width="96" height="96" rx="22" fill="${VLAK}"/>
+  ${marks()}
 </svg>`;
 }
 
-// Merkteken op transparant (splash, foreground)
-function transparentSvg(px, size = 60) {
-  return `<svg width="${px}" height="${px}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-  ${marksGroup(size)}
+// Merkteken op transparant (splash, adaptive/legacy foreground, monochrome).
+function transparentSvg(px) {
+  return `<svg width="${px}" height="${px}" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  ${marks()}
 </svg>`;
 }
 
-// Gradient zonder merkteken (achtergrond)
-function gradientOnlySvg(px, size = 60) {
-  return `<svg width="${px}" height="${px}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1E3A8A"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="${size}" height="${size}" fill="url(#g)"/>
+// Effen vlak zonder merkteken, zonder afronding (adaptive background; Android knipt zelf).
+function vlakOnlySvg(px) {
+  return `<svg width="${px}" height="${px}" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <rect width="96" height="96" fill="${VLAK}"/>
 </svg>`;
 }
 
-// Adaptive foreground: merkteken binnen safe zone (centrum 72×72 van 108×108)
+// Adaptive foreground: merkteken binnen de safe zone (centrum 72×72 van 108×108).
 function adaptiveForegroundSvg(px) {
   return `<svg width="${px}" height="${px}" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
-  <g transform="translate(18,18)">${marksGroup(72)}</g>
-</svg>`;
-}
-
-// Adaptive background: gradient zonder afgeronde hoeken (Android knipt zelf)
-function adaptiveBackgroundSvg(px) {
-  return `<svg width="${px}" height="${px}" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1E3A8A"/>
-      <stop offset="100%" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-  <rect width="108" height="108" fill="url(#g)"/>
+  <g transform="translate(18,18) scale(0.75)">${marks()}</g>
 </svg>`;
 }
 
@@ -107,14 +83,14 @@ function vervangWebp(dir, namen) {
   }
 }
 
-console.log('Kader-iconen genereren...\n[Expo assets]');
+console.log('Kader-iconen genereren (v2)...\n[Expo assets]');
 
-render(gradientSvg(1024),     resolve(ASSETS, 'icon.png'));
+render(vlakSvg(1024),         resolve(ASSETS, 'icon.png'));
 render(transparentSvg(1024),  resolve(ASSETS, 'splash-icon.png'));
 render(transparentSvg(1024),  resolve(ASSETS, 'android-icon-foreground.png'));
-render(gradientOnlySvg(1024), resolve(ASSETS, 'android-icon-background.png'));
+render(vlakOnlySvg(1024),     resolve(ASSETS, 'android-icon-background.png'));
 render(transparentSvg(1024),  resolve(ASSETS, 'android-icon-monochrome.png'));
-render(gradientSvg(196),      resolve(ASSETS, 'favicon.png'));
+render(vlakSvg(196),          resolve(ASSETS, 'favicon.png'));
 
 console.log('\n[Android mipmap - launcher]');
 for (const [density, px] of [
@@ -126,8 +102,8 @@ for (const [density, px] of [
 ]) {
   const dir = resolve(ANDROID_RES, density);
   vervangWebp(dir, ['ic_launcher', 'ic_launcher_round']);
-  render(gradientSvg(px), resolve(dir, 'ic_launcher.png'));
-  render(gradientSvg(px), resolve(dir, 'ic_launcher_round.png'));
+  render(vlakSvg(px), resolve(dir, 'ic_launcher.png'));
+  render(vlakSvg(px), resolve(dir, 'ic_launcher_round.png'));
 }
 
 console.log('\n[Android mipmap - adaptive]');
@@ -141,7 +117,7 @@ for (const [density, px] of [
   const dir = resolve(ANDROID_RES, density);
   vervangWebp(dir, ['ic_launcher_foreground', 'ic_launcher_background', 'ic_launcher_monochrome']);
   render(adaptiveForegroundSvg(px), resolve(dir, 'ic_launcher_foreground.png'));
-  render(adaptiveBackgroundSvg(px), resolve(dir, 'ic_launcher_background.png'));
+  render(vlakOnlySvg(px),           resolve(dir, 'ic_launcher_background.png'));
   render(adaptiveForegroundSvg(px), resolve(dir, 'ic_launcher_monochrome.png'));
 }
 
