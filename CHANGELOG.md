@@ -13,6 +13,8 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
   niet meer onder Instellingen
 - Schermovergang bij tabwissel flitst niet meer kort volledig zichtbaar voordat
   hij infadet
+- "Wat moet ik nu kopen?"-kaart houdt nu rekening met de actieve tab- en
+  filterkeuzes op het Marktscherm in plaats van altijd alle coins te wegen
 
 ## 0.0.7
 

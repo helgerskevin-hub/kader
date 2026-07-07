@@ -107,7 +107,7 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [ ] **App-icoon is niet aangepast** (nog niet de nieuwe versie zichtbaar op het startscherm). Onderzocht: `app.json` en de assets (`icon.png`, `android-icon-*.png`) bevatten wel degelijk het nieuwe Kader-logo v2 sinds commit `b617fce`. Dit is geen codefout, Android cachet het launcher-icoon per package en toont een nieuw icoon vaak pas na een volledige verwijder + herinstalleer van de app, niet na een gewone `npm run android` over de bestaande install heen. Los te bevestigen: app verwijderen van het toestel en opnieuw installeren.
 - [x] **Achtergrondinformatie moet weer een los boek-icoon in de schermheader zijn, niet in Instellingen.** Boek-icoon teruggezet in `ScreenHeader.tsx`, weggehaald uit `InstellingenSheet.tsx`.
 - [x] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Opgelost: de opacity-reset gebeurt nu in `useLayoutEffect` (vóór het schilderen) in plaats van `useEffect`, zodat er geen frame op volle opacity meer zichtbaar is.
-- [ ] **Te beoordelen: "Wat moet ik nu kopen?"-kaart negeert de actieve filters.** De kaart blijft de best scorende coin aanraden, ook als die door een RSI/score/R-R-filter uit de lijst eronder is gefilterd. Nu gebruikt de kaart bewust alle trades (globaal advies), niet de gefilterde set. Beslissen of dat zo moet blijven of dat de kaart de filters moet respecteren. Zie `WatKopenNu` in `MarktScreen.tsx`.
+- [x] **"Wat moet ik nu kopen?"-kaart negeert de actieve filters.** Opgelost: de kaart krijgt nu `weergegevenTrades` (na tab + RSI/score/R-R-filters) in plaats van alle trades. Zie `WatKopenNu` in `MarktScreen.tsx`.
 
 ## ✅ Klaar
 
