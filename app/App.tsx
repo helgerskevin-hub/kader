@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Animated, Easing, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -44,19 +44,36 @@ function AppInhoud() {
   const [etoroPromptOpen, setEtoroPromptOpen] = useState(false);
   const [etoroSetupOpen, setEtoroSetupOpen] = useState(false);
   const schermFade = useRef(new Animated.Value(1)).current;
-
-  useLayoutEffect(() => {
-    schermFade.setValue(0);
-  }, [actieveTab, schermFade]);
+  // Welk scherm nu getoond wordt. Losgekoppeld van actieveTab zodat we de inhoud pas
+  // wisselen wanneer de opacity al op 0 staat: een echte cross-fade zonder flits.
+  const [zichtbareTab, setZichtbareTab] = useState<Tab>('markt');
 
   useEffect(() => {
+    if (zichtbareTab === actieveTab) return;
+    if (reduceMotion) {
+      setZichtbareTab(actieveTab);
+      schermFade.setValue(1);
+      return;
+    }
+    // Eerst het huidige scherm uitfaden, dan pas de inhoud wisselen en weer infaden.
+    // Zo is er nooit een frame waarin het nieuwe scherm op volle opacity verschijnt
+    // (dat veroorzaakte de flits; een useNativeDriver-setValue reset komt te laat aan).
     Animated.timing(schermFade, {
-      toValue: 1,
-      duration: reduceMotion ? 0 : 220,
-      easing: Easing.out(Easing.cubic),
+      toValue: 0,
+      duration: 110,
+      easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
-    }).start();
-  }, [actieveTab, reduceMotion, schermFade]);
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setZichtbareTab(actieveTab);
+      Animated.timing(schermFade, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [actieveTab, zichtbareTab, reduceMotion, schermFade]);
 
   useEffect(() => {
     laadVlag(SLEUTELS.onboarding).then(klaar => {
@@ -127,10 +144,10 @@ function AppInhoud() {
         ]}
       >
         <FoutGrens>
-          {actieveTab === 'markt' && <MarktScreen />}
-          {actieveTab === 'kansen' && <KansenScreen />}
-          {actieveTab === 'portfolio' && <PortfolioScreen />}
-          {actieveTab === 'traders' && <TradersScreen />}
+          {zichtbareTab === 'markt' && <MarktScreen />}
+          {zichtbareTab === 'kansen' && <KansenScreen />}
+          {zichtbareTab === 'portfolio' && <PortfolioScreen />}
+          {zichtbareTab === 'traders' && <TradersScreen />}
         </FoutGrens>
       </Animated.View>
       <BottomNav actief={actieveTab} onWissel={setActieveTab} />
