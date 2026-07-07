@@ -1,4 +1,4 @@
-// Design-tokens — Kader
+// Design-tokens voor Kader
 // Licht = default; donker beschikbaar voor latere toggle.
 
 export interface ColorTokens {

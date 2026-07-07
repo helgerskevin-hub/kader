@@ -27,7 +27,10 @@ import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
 import { MarktProvider } from './src/state/MarktProvider';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
-import { nieuwsteVersie } from './src/changelog';
+import { WelkomFeest } from './src/components/WelkomFeest';
+import { EtoroPromptSheet } from './src/components/EtoroPromptSheet';
+import { EtoroKoppelingWizard } from './src/components/EtoroKoppelingWizard';
+import { CHANGELOG, nieuwsteVersie } from './src/changelog';
 import { useReduceMotion } from './src/theme/useReduceMotion';
 
 function AppInhoud() {
@@ -37,6 +40,9 @@ function AppInhoud() {
   const [onboardingGeladen, setOnboardingGeladen] = useState(false);
   const [actieveTab, setActieveTab] = useState<Tab>('markt');
   const [nieuwInVersie, setNieuwInVersie] = useState(false);
+  const [welkomOpen, setWelkomOpen] = useState(false);
+  const [etoroPromptOpen, setEtoroPromptOpen] = useState(false);
+  const [etoroSetupOpen, setEtoroSetupOpen] = useState(false);
   const schermFade = useRef(new Animated.Value(1)).current;
 
   useLayoutEffect(() => {
@@ -64,13 +70,31 @@ function AppInhoud() {
     if (!onboardingGeladen || !onboardingKlaar) return;
     laadTekst(SLEUTELS.changelogVersie, '').then(gezien => {
       const nieuwste = nieuwsteVersie();
-      if (gezien !== nieuwste) setNieuwInVersie(true);
+      if (gezien === nieuwste) return;
+      // Mijlpaal-release: eerst het feestelijke welkomscherm, daarna pas de release-notes.
+      if (CHANGELOG[0]?.feest) setWelkomOpen(true);
+      else setNieuwInVersie(true);
     });
   }, [onboardingGeladen, onboardingKlaar]);
 
   function sluitNieuwInVersie() {
     setNieuwInVersie(false);
     bewaarTekst(SLEUTELS.changelogVersie, nieuwsteVersie());
+    verwijsNaarEtoroIndienNodig();
+  }
+
+  // Eenmalige verwijzing naar de eToro-koppeling na de release-notes, maar alleen als er
+  // nog geen sleutels zijn ingesteld en we er nog niet naar vroegen. In-app popup (huisstijl).
+  async function verwijsNaarEtoroIndienNodig() {
+    const alGevraagd = await laadVlag(SLEUTELS.etoroSetupGevraagd);
+    if (alGevraagd) return;
+    const [apiKey, userKey] = await Promise.all([
+      laadTekst(SLEUTELS.etoroApiKey, ''),
+      laadTekst(SLEUTELS.etoroUserKey, ''),
+    ]);
+    if (apiKey && userKey) return;
+    bewaarVlag(SLEUTELS.etoroSetupGevraagd, true);
+    setTimeout(() => setEtoroPromptOpen(true), 350);
   }
 
   if (!onboardingGeladen) {
@@ -111,7 +135,17 @@ function AppInhoud() {
       </Animated.View>
       <BottomNav actief={actieveTab} onWissel={setActieveTab} />
       <StatusBar style={donkerActief ? 'light' : 'dark'} />
+      <WelkomFeest
+        zichtbaar={welkomOpen}
+        onVerder={() => { setWelkomOpen(false); setNieuwInVersie(true); }}
+      />
       <ChangelogSheet zichtbaar={nieuwInVersie} onSluiten={sluitNieuwInVersie} alleenNieuwste />
+      <EtoroPromptSheet
+        zichtbaar={etoroPromptOpen}
+        onLater={() => setEtoroPromptOpen(false)}
+        onNuInstellen={() => { setEtoroPromptOpen(false); setEtoroSetupOpen(true); }}
+      />
+      <EtoroKoppelingWizard zichtbaar={etoroSetupOpen} onSluiten={() => setEtoroSetupOpen(false)} />
     </View>
   );
 }

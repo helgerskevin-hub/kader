@@ -4,23 +4,48 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.0
+
+- Portfolio importeren uit eToro: onder Instellingen kun je een eToro
+  API-sleutel koppelen (alleen-lezen), en op het Mijn Trades-scherm haalt de
+  importknop je open crypto-posities op. Bestaande geïmporteerde posities
+  worden bijgewerkt in plaats van dubbel toegevoegd; posities zonder
+  stop-loss/take-profit kun je aanvullen via het bewerk-formulier
+- eToro-koppeling instellen gaat nu via een stap-voor-stap wizard onder
+  Instellingen (uitleg, publieke sleutel, privésleutel, en testen met
+  bevestiging aan het eind) in plaats van een altijd zichtbaar invulblok
+- Tonen/verbergen-oogje zit nu bij beide sleutelvelden en is per veld te bedienen
+- eToro-koppeling kun je nu ook weer verwijderen van het toestel
+- Nieuwe portfolio-statuskaart bovenaan Mijn Trades: huidige waarde van je open
+  posities, ingelegd bedrag en ongerealiseerd resultaat (bedrag en percentage),
+  met de live-koersstatus erbij
+- Topbalk op Mijn Trades opgeschoond: de titel past weer op één regel. De
+  ververs- en eToro-importknop zijn verhuisd naar de statuskaart
+- Afgesloten trades staan nu in een apart historie-scherm (via de knop op de
+  statuskaart) met trefferpercentage, gemiddelde behaalde R/R en totaal
+  resultaat. Het hoofdscherm toont voortaan alleen je open trades
+- De portfoliowaarde en het ongerealiseerd resultaat tellen nu soepel mee
+  (count-up) bij elke koers-sync
+- Soepele slide/fade-overgangen tussen de stappen van de eToro-wizard en de
+  onboarding
+- Als eToro nog niet gekoppeld is, verwijzen we je bij de eerste start van v0.1
+  direct naar de koppeling
+- Feestelijke opening van v0.1: een welkomscherm met confetti en vallende
+  gouden bitcoins
+- "Wat moet ik nu kopen?"-kaart houdt nu rekening met de actieve tab- en
+  filterkeuzes op het Marktscherm in plaats van altijd alle coins te wegen
+- Achtergrondinformatie staat weer als los boek-icoon in de schermheader,
+  niet meer onder Instellingen
+- Schermovergang bij tabwissel flitst niet meer kort volledig zichtbaar voordat
+  hij infadet
+- App-icoon (Kader-logo v2) wordt weer correct meegebouwd, zodat het nieuwe
+  icoon ook bij een update op je startscherm verschijnt
+
 ## 0.0.8
 
 - Tikfout in het kopje "MARKTSENTIMENT" boven de marktbalk hersteld
 - Op het tabblad Favorieten zonder favorieten verschijnt nu altijd de uitleg om
   coins met de ster te verzamelen, ook als er een filter actief staat
-- Achtergrondinformatie staat weer als los boek-icoon in de schermheader,
-  niet meer onder Instellingen
-- Schermovergang bij tabwissel flitst niet meer kort volledig zichtbaar voordat
-  hij infadet
-- "Wat moet ik nu kopen?"-kaart houdt nu rekening met de actieve tab- en
-  filterkeuzes op het Marktscherm in plaats van altijd alle coins te wegen
-- Portfolio importeren uit eToro: onder Instellingen (tandwiel) kun je een
-  eToro API-sleutel koppelen (alleen-lezen), en op het Mijn Trades-scherm haalt
-  de nieuwe importknop je open crypto-posities op. Bestaande geïmporteerde
-  posities worden bijgewerkt in plaats van dubbel toegevoegd; posities zonder
-  stop-loss/take-profit kun je aanvullen via het bewerk-formulier. Uitleg over
-  de koppeling staat in het boek-icoon
 
 ## 0.0.7
 

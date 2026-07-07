@@ -84,8 +84,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const sluitTrade = useCallback((id: string, status: 'gewonnen' | 'verloren', exitPrijs: number) => {
     setTrades(prev => prev.map(t => {
       if (t.id !== id) return t;
-      const slotDatum = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
-      return { ...t, status, exitPrijs, slotDatum };
+      const nu = new Date();
+      const slotDatum = nu.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+      return { ...t, status, exitPrijs, slotDatum, slotTijd: nu.getTime() };
     }));
   }, []);
 

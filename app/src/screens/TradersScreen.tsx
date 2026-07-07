@@ -76,7 +76,7 @@ function TraderAuditCard({ opgeslagen, onVerwijder }: {
         </View>
       </Pressable>
 
-      {/* CSL-aanbeveling — altijd zichtbaar */}
+      {/* CSL-aanbeveling, altijd zichtbaar */}
       <View style={[auditStyles.cslRij, { backgroundColor: colors.verhoogd }]}>
         <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Aanbevolen Copy Stop Loss</Text>
         <Text style={[Type.prijs, { color: colors.tekstPrimair, fontWeight: '700' }]}>{audit.csl}%</Text>

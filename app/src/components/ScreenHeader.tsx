@@ -24,7 +24,7 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
       <View style={styles.linksGroep}>
         <KaderLogo size={26} variant="outline" />
         <View style={styles.links}>
-          <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{titel}</Text>
+          <Text style={[Type.titel, { color: colors.tekstPrimair }]} numberOfLines={1}>{titel}</Text>
           {meta ? (
             <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{meta}</Text>
           ) : null}
@@ -79,6 +79,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    flexShrink: 0,
   },
   rechts: {
     alignItems: 'flex-end',

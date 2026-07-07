@@ -56,10 +56,10 @@ function waaromKans(c: Record<string, unknown>): string[] {
   const r: string[] = [];
   if (p7 >= 12) r.push(`sterk momentum: +${p7.toFixed(0)}% in 7 dagen`);
   else if (p7 >= 4) r.push(`opwaarts: +${p7.toFixed(0)}% in 7 dagen`);
-  if (p30 >= 25) r.push(`+${p30.toFixed(0)}% over 30 dagen — trend intact`);
+  if (p30 >= 25) r.push(`+${p30.toFixed(0)}% over 30 dagen, trend intact`);
   if (mcap && vol / mcap >= 0.12) r.push('hoge handelsactiviteit t.o.v. marktcap (groeiende interesse)');
-  if (athChg <= -55) r.push(`${Math.abs(athChg).toFixed(0)}% onder all-time high — veel herstelruimte`);
-  if (rank >= 60) r.push(`kleinere marktcap (#${rank}) — meer ruimte om te groeien`);
+  if (athChg <= -55) r.push(`${Math.abs(athChg).toFixed(0)}% onder all-time high, veel herstelruimte`);
+  if (rank >= 60) r.push(`kleinere marktcap (#${rank}), meer ruimte om te groeien`);
   if (r.length === 0) r.push('solide combinatie van momentum, liquiditeit en marktpositie');
   return r;
 }

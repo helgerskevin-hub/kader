@@ -1,6 +1,6 @@
 import { TextStyle } from 'react-native';
 
-// Fontnamen — geladen via expo-font + @expo-google-fonts
+// Fontnamen, geladen via expo-font + @expo-google-fonts
 export const Fonts = {
   sansRegular: 'IBMPlexSans_400Regular',
   sansMedium: 'IBMPlexSans_500Medium',
@@ -56,7 +56,7 @@ export const Type = {
     letterSpacing: 0.8,
   } as TextStyle,
 
-  // IBM Plex Mono — voor prijzen, %, R/R, score
+  // IBM Plex Mono voor prijzen, %, R/R, score
   prijs: {
     fontFamily: Fonts.monoRegular,
     fontSize: 15,

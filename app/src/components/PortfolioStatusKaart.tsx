@@ -1,0 +1,200 @@
+import React from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { RefreshCw, Download, History } from 'lucide-react-native';
+import { useTheme } from '../theme/ThemeProvider';
+import { Type } from '../theme/typography';
+import { spacing, radii, shadow } from '../theme/tokens';
+import { fmtPrijs, fmtPct } from '../engine/format';
+import { PortfolioWaarde } from '../state/statistieken';
+import { AnimatedGetal } from './AnimatedGetal';
+
+const fmtResultaatBedrag = (n: number) => `${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}`;
+const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
+
+interface Props {
+  waarde: PortfolioWaarde;
+  syncing: boolean;
+  seconden: number | null;
+  etoroBezig: boolean;
+  afgesloten: number;
+  onVerversen: () => void;
+  onImporteren: () => void;
+  onOpenHistorie: () => void;
+}
+
+export function PortfolioStatusKaart({
+  waarde, syncing, seconden, etoroBezig, afgesloten,
+  onVerversen, onImporteren, onOpenHistorie,
+}: Props) {
+  const { colors } = useTheme();
+
+  const heeftWaardering = waarde.gewaardeerd > 0;
+  const resultaatKleur = waarde.ongerealiseerdUsd >= 0 ? colors.winst : colors.verlies;
+
+  const syncTekst = syncing
+    ? 'Prijzen ophalen...'
+    : seconden !== null ? `Sync over ${seconden}s` : null;
+
+  return (
+    <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
+      {/* Kop: label + acties */}
+      <View style={styles.kop}>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>PORTFOLIOWAARDE (OPEN)</Text>
+        <View style={styles.acties}>
+          <Pressable
+            onPress={onVerversen}
+            disabled={syncing}
+            accessibilityRole="button"
+            accessibilityLabel="Prijzen verversen"
+            style={styles.actieKnop}
+          >
+            {syncing
+              ? <ActivityIndicator size="small" color={colors.cta} />
+              : <RefreshCw size={18} color={colors.cta} strokeWidth={1.75} />}
+          </Pressable>
+          <Pressable
+            onPress={onImporteren}
+            disabled={etoroBezig}
+            accessibilityRole="button"
+            accessibilityLabel="Importeer uit eToro"
+            style={styles.actieKnop}
+          >
+            {etoroBezig
+              ? <ActivityIndicator size="small" color={colors.cta} />
+              : <Download size={18} color={colors.cta} strokeWidth={1.75} />}
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Grote waarde */}
+      {heeftWaardering ? (
+        <AnimatedGetal
+          waarde={waarde.huidigeWaardeUsd}
+          format={fmtPrijs}
+          style={[Type.display, { color: colors.tekstPrimair }]}
+        />
+      ) : (
+        <Text style={[Type.display, { color: colors.tekstPrimair }]}>—</Text>
+      )}
+
+      {/* Ongerealiseerd resultaat */}
+      {heeftWaardering ? (
+        <View style={[styles.resultaat, styles.resultaatRij]}>
+          <AnimatedGetal
+            waarde={waarde.ongerealiseerdUsd}
+            format={fmtResultaatBedrag}
+            style={[Type.prijs, { color: resultaatKleur }]}
+          />
+          {waarde.ongerealiseerdPct !== null && (
+            <AnimatedGetal
+              waarde={waarde.ongerealiseerdPct}
+              format={fmtResultaatPct}
+              style={[Type.prijs, { color: resultaatKleur, marginLeft: spacing.sm }]}
+            />
+          )}
+        </View>
+      ) : (
+        <Text style={[Type.caption, styles.resultaat, { color: colors.tekstGedimd }]}>
+          {waarde.openPosities === 0
+            ? 'Nog geen open posities.'
+            : 'Nog geen live koersen om je posities te waarderen.'}
+        </Text>
+      )}
+
+      {/* Detailregels */}
+      <View style={[styles.detailRij, { borderTopColor: colors.rand }]}>
+        <View style={styles.detail}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>INGELEGD</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>
+            {heeftWaardering ? fmtPrijs(waarde.ingelegdUsd) : '—'}
+          </Text>
+        </View>
+        <View style={styles.detail}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN POSITIES</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{waarde.openPosities}</Text>
+        </View>
+        {syncTekst && (
+          <View style={styles.detail}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>KOERSEN</Text>
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{syncTekst}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Melding bij posities zonder live prijs */}
+      {waarde.zonderLivePrijs > 0 && (
+        <Text style={[Type.caption, styles.melding, { color: colors.tekstGedimd }]}>
+          {waarde.zonderLivePrijs} {waarde.zonderLivePrijs === 1 ? 'positie telt' : 'posities tellen'} niet mee in de waarde (geen aantal of live koers).
+        </Text>
+      )}
+
+      {/* Historie-knop */}
+      <Pressable
+        onPress={onOpenHistorie}
+        accessibilityRole="button"
+        accessibilityLabel="Bekijk historie van afgesloten trades"
+        style={[styles.historieKnop, { borderTopColor: colors.rand }]}
+      >
+        <History size={16} color={colors.cta} strokeWidth={1.75} />
+        <Text style={[Type.caption, { color: colors.cta, fontWeight: '600' }]}>
+          Historie{afgesloten > 0 ? ` (${afgesloten} afgesloten)` : ''}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  kaart: {
+    borderRadius: radii.kaart,
+    padding: spacing.base,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.base,
+  },
+  kop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  acties: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  actieKnop: {
+    minHeight: 36,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultaat: {
+    marginTop: 2,
+  },
+  resultaatRij: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  detailRij: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    marginTop: spacing.base,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  detail: { gap: 2 },
+  melding: {
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  historieKnop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    minHeight: 44,
+  },
+});

@@ -13,6 +13,7 @@ export interface PortfolioTrade {
   aantalCoins?: number;
   exitPrijs?: number;
   slotDatum?: string;
+  slotTijd?: number;            // epoch ms bij sluiten, voor chronologische historie
   etoroPositionID?: number;
   bron?: 'etoro' | 'handmatig';
 }

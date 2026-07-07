@@ -22,7 +22,7 @@ export const COIN_INFO: Record<string, CoinInfo> = {
   APT: { naam: 'Aptos', categorie: 'Layer-1', wat: 'Layer-1 uit het oude Meta/Diem-team (Move-taal). Concurreert met Sui; speculatief.' },
   TIA: { naam: 'Celestia', categorie: 'Modulair · data-beschikbaarheid', wat: 'Pionier in \'modulaire\' blockchains die andere ketens goedkope dataruimte bieden. Trendgevoelig.' },
   RNDR: { naam: 'Render', categorie: 'AI / DePIN', wat: 'Gedecentraliseerd netwerk voor GPU-rendering; profiteert van de AI- en grafische rekenvraag.' },
-  FET: { naam: 'Artificial Superintelligence (FET)', categorie: 'AI', wat: 'Fusie van Fetch.ai, SingularityNET en Ocean — een toonaangevend AI-crypto-project. Zeer trendgevoelig.' },
+  FET: { naam: 'Artificial Superintelligence (FET)', categorie: 'AI', wat: 'Fusie van Fetch.ai, SingularityNET en Ocean, een toonaangevend AI-crypto-project. Zeer trendgevoelig.' },
   SEI: { naam: 'Sei', categorie: 'Layer-1 · trading', wat: 'Snel Layer-1 geoptimaliseerd voor handelsapps. Mid-cap, volatiel.' },
   AAVE: { naam: 'Aave', categorie: 'DeFi · lenen', wat: 'Grootste lenen-en-uitlenen-protocol in DeFi. Een \'blue chip\' van DeFi met echt gebruik.' },
 };
@@ -31,7 +31,7 @@ export function infoVoor(symbool: string): CoinInfo {
   const sym = (symbool ?? '').toUpperCase();
   if (COIN_INFO[sym]) return COIN_INFO[sym];
   if (['CASH', 'USD', 'USDT', 'USDC', 'DAI'].includes(sym)) {
-    return { naam: sym, categorie: 'Stablecoin / cash', wat: 'Stabiele waarde (≈$1). Geen koerswinst — dient als veilige buffer.' };
+    return { naam: sym, categorie: 'Stablecoin / cash', wat: 'Stabiele waarde (≈$1). Geen koerswinst, dient als veilige buffer.' };
   }
   return { naam: sym, categorie: 'Onbekend', wat: 'Geen profielinfo beschikbaar. Doe altijd je eigen onderzoek (DYOR) naar het project, het team en het nut voordat je koopt.' };
 }
@@ -55,8 +55,8 @@ export function genereerKoopadvies(opts: {
   else aandacht.push('zwak momentum (MACD bearish)');
 
   if (rsi >= 45 && rsi <= 68) plus.push(`gezonde RSI (${rsi.toFixed(0)})`);
-  else if (rsi > 72) aandacht.push(`overbought RSI (${rsi.toFixed(0)}) — verhoogde kans op terugval`);
-  else if (rsi < 35) aandacht.push(`oversold RSI (${rsi.toFixed(0)}) — mogelijk bounce, maar riskant`);
+  else if (rsi > 72) aandacht.push(`overbought RSI (${rsi.toFixed(0)}), verhoogde kans op terugval`);
+  else if (rsi < 35) aandacht.push(`oversold RSI (${rsi.toFixed(0)}), mogelijk bounce, maar riskant`);
 
   if (volumeRatio >= 1.5) plus.push(`sterke volume-spike (${volumeRatio.toFixed(1)}×)`);
   else if (volumeRatio >= 1.2) plus.push(`verhoogd volume (${volumeRatio.toFixed(1)}×)`);
@@ -68,8 +68,8 @@ export function genereerKoopadvies(opts: {
   let kleur: 'groen' | 'oranje' | 'rood';
   if (highConviction || s >= 72) { label = 'Sterke koop'; kleur = 'groen'; }
   else if (s >= 55) { label = 'Koopwaardig'; kleur = 'groen'; }
-  else if (s >= 40) { label = 'Neutraal — wacht op bevestiging'; kleur = 'oranje'; }
-  else { label = 'Zwak — nu niet kopen'; kleur = 'rood'; }
+  else if (s >= 40) { label = 'Neutraal: wacht op bevestiging'; kleur = 'oranje'; }
+  else { label = 'Zwak: nu niet kopen'; kleur = 'rood'; }
 
   let uitleg = '';
   if (plus.length) uitleg += plus.join(', ') + '. ';
