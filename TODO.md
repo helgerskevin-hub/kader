@@ -77,11 +77,14 @@ _(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Ka
 - [x] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
 - [x] **Mogelijkheid om een gemaakte trade aan te passen in portfolio**: Knop met **aanpassen** waar je je stoploss en takeprofit kan aanpassen
 - [x] **Achtergrond informatie in app**: Nieuw scherm met uitleg over de weergaves in de app (Kader-score, indicatoren, ATR-stop/doel, marktbalk, Fear & Greed, kansscore, portfolio-statistieken, trader-oordeel), met echte componenten als grafisch voorbeeld. Bereikbaar via een eigen boek-icoon in de header van elk scherm (niet onder Instellingen, dat is geen instelling)
-- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt
+- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. Achtergrond sync nodig dus.
 - [ ] **Trade-bewuste pushmeldingen bouwen**: nu stuurt `notifications/meldingen.ts` alleen één dagelijkse herinnering. Gewenst: periodiek (bijv. elke ~10 min) de open trades checken en een melding sturen om take-profit te verhogen (prijs dicht bij TP, momentum sterk) of stop-loss aan te trekken / eerder uit te stappen (in winst maar momentum vlakt af). Dezelfde melding hooguit eens per ~6u herhalen, tenzij het voorgestelde niveau meer dan 2% verschuift. (CLAUDE.md beschreef dit al als bestaand; is nu gecorrigeerd naar "nog te bouwen".)
 - [x] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Coin-detailscherm toont nu afstand tot stop/doel voor open trades en exitprijs/slotdatum/behaald resultaat voor gesloten trades
 - [x] **Meer informatie op Grote Kansen-scherm**: kaarten tonen nu marktcap, trend, MACD en kansscore
 - [x] **Historisch overzicht gesloten trades met winst/verlies-statistieken**: exitprijs wordt vastgelegd bij sluiten; statistiekenrij toont trefferpercentage, gem. R/R behaald en totaal resultaat
+- [x] **Uitbreiden van searchbase voor de coins. Nu komen er soms maar een aantal coins in. We hebben sws een max van 24. Kunnen we dit uitbreiden?** (Drie losse oorzaken gevonden: het universum was inderdaad 24 coins waarvan er 2 stil faalden op een hernoemde Binance-ticker, `topN` stond hard op 10 dus je zag nooit meer dan 10 trades ongeacht hoeveel er doorkwamen, en het R/R-filter dropt de rest. Universum uitgebreid naar de bestaande eToro-lijst (57 coins, `analyzer.ts`), dode tickers (MATIC, RNDR, FTM, MKR) opgevangen met een alias-map naar hun huidige naam (`marketData.ts`), `topN` naar 20.)
+- [x] **Versnellen van analyse indien mogelijk** (De scan wachtte 250ms tussen elke coin zonder reden, Binance staat ruim budget toe. Nu blokken van 6 coins parallel i.p.v. één voor één.)
+= [ ] **Sterker maken van het analyse algoritme. Hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?**
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging

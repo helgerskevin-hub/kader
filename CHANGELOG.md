@@ -6,6 +6,16 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## 0.1.1
 
+- De marktanalyse doorzoekt nu 57 coins in plaats van 24 (dezelfde lijst als
+  wat je op eToro kunt kopen), toont tot 20 kansen in plaats van 10, en draait
+  merkbaar sneller doordat coins nu in groepjes tegelijk worden opgehaald in
+  plaats van één voor één. Twee coins in de lijst (MATIC, RNDR) waren zonder
+  dat het opviel al een tijdje niet meer terug te vinden op de koersbron
+  omdat die daar inmiddels onder een andere naam draaien (POL, RENDER); dat
+  is nu opgelost, dus die coins doen weer mee
+- Grote Kansen-scan toont nu ook tot 20 kansen in plaats van 10, en haalt de
+  koersdata voor de kandidaten net als de marktanalyse in groepjes tegelijk
+  op in plaats van één voor één, dus de scan is merkbaar sneller klaar
 - Trades die je op eToro sluit, worden nu automatisch afgesloten in je
   portfolio, met de echte verkoopprijs en het werkelijke resultaat inclusief
   kosten. Kader leest daarvoor je eToro-handelshistorie. Dit gebeurt bij het

@@ -1,12 +1,22 @@
 import { Trade } from './types';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
-import { haalData, delay } from './marketData';
+import { haalData } from './marketData';
 
-// Configuratie
+// Coins die daadwerkelijk op eToro te kopen zijn (NL/EU). Controleer etoro.com voor updates.
+// TON heeft geen Binance USDT-paar (en geen alias), dus die staat hier niet in.
 export const STANDAARD_UNIVERSUM = [
-  'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOGE',
-  'LINK', 'DOT', 'MATIC', 'LTC', 'ATOM', 'NEAR', 'ARB', 'OP',
-  'INJ', 'SUI', 'APT', 'TIA', 'RNDR', 'FET', 'SEI', 'AAVE',
+  'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
+  'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',
+  'ALGO', 'VET', 'HBAR', 'XTZ', 'NEAR', 'FTM', 'ICP', 'FLOW',
+  'APT', 'SUI', 'INJ', 'SEI',
+  'MATIC', 'OP', 'ARB',
+  'LINK', 'UNI', 'AAVE', 'COMP', 'MKR', 'SNX', 'YFI', 'CRV', 'SUSHI',
+  '1INCH', 'ZRX', 'GRT', 'ENJ', 'MANA', 'SAND',
+  'AXS', 'CHZ', 'GALA', 'IMX',
+  'DOGE', 'SHIB', 'PEPE',
+  'FET', 'RNDR',
+  'FIL', 'THETA', 'BAT',
+  'TIA',
 ];
 
 export const REWARD_MULTIPLIER = 3.0;
@@ -133,25 +143,35 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
   };
 }
 
+// ponytail: blokken van 6 i.p.v. een worker-pool. 57 coins x weight 2 = 114 van
+// Binance' 6000/min, ruim binnen budget. Verhoog als de scan traag blijft aanvoelen.
+const GELIJKTIJDIG = 6;
+
 export async function analyseerMarkt(options?: {
   universum?: string[];
   topN?: number;
   onProgress?: (current: number, total: number, symbool: string) => void;
 }): Promise<Trade[]> {
   const universum = options?.universum ?? STANDAARD_UNIVERSUM;
-  const topN = options?.topN ?? 10;
+  const topN = options?.topN ?? 20;
   const resultaten: Trade[] = [];
+  let klaar = 0;
 
-  for (let i = 0; i < universum.length; i++) {
-    const sym = universum[i];
-    options?.onProgress?.(i + 1, universum.length, sym);
-    try {
-      const res = await analyseerCoin(sym);
-      if (res) resultaten.push(res);
-    } catch {
-      // coin overgeslagen
-    }
-    if (i < universum.length - 1) await delay(250);
+  for (let i = 0; i < universum.length; i += GELIJKTIJDIG) {
+    const blok = universum.slice(i, i + GELIJKTIJDIG);
+    const uitkomsten = await Promise.all(
+      blok.map(async sym => {
+        try {
+          const res = await analyseerCoin(sym);
+          options?.onProgress?.(++klaar, universum.length, sym);
+          return res;
+        } catch {
+          options?.onProgress?.(++klaar, universum.length, sym);
+          return null;
+        }
+      }),
+    );
+    for (const res of uitkomsten) if (res) resultaten.push(res);
   }
 
   // Sorteer: HIGH CONVICTION eerst, dan op score, dan op R/R
