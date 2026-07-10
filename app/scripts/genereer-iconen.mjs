@@ -62,12 +62,12 @@ function vlakOnlySvg(px) {
 }
 
 // Adaptive foreground: merkteken ruim binnen de safe zone. Android (en Expo's prebuild, die
-// dit als foregroundImage gebruikt) maskeert het icoon tot een cirkel; met scale 0.58 blijft
-// het merkteken flink binnen die cirkel in plaats van tegen de rand aan te lopen.
-// translate = (108 - 96*0.58) / 2 = 26.16, zodat het gecentreerd blijft.
+// dit als foregroundImage gebruikt) maskeert het icoon tot een cirkel; met scale 0.65 blijft
+// het merkteken binnen die cirkel maar iets forser dan bij 0.58.
+// translate = (108 - 96*0.65) / 2 = 22.8, zodat het gecentreerd blijft.
 function adaptiveForegroundSvg(px) {
   return `<svg width="${px}" height="${px}" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
-  <g transform="translate(26.16,26.16) scale(0.58)">${marks()}</g>
+  <g transform="translate(22.8,22.8) scale(0.65)">${marks()}</g>
 </svg>`;
 }
 
