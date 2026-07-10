@@ -12,6 +12,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.1',
+    datum: '2026-07-10',
+    punten: [
+      'De marktanalyse doorzoekt nu 57 coins in plaats van 24 (dezelfde lijst als wat je op eToro kunt kopen), toont tot 20 kansen in plaats van 10, en draait merkbaar sneller doordat coins nu in groepjes tegelijk worden opgehaald in plaats van één voor één. Twee coins (MATIC, RNDR) draaiden op de koersbron al een tijdje onder een andere naam (POL, RENDER) en misten daardoor stil; dat is nu opgelost',
+      'Grote Kansen-scan toont nu ook tot 20 kansen in plaats van 10, en haalt de koersdata voor de kandidaten net als de marktanalyse in groepjes tegelijk op in plaats van één voor één, dus de scan is merkbaar sneller klaar',
+      'Trades die je op eToro sluit, worden nu automatisch afgesloten in je portfolio, met de echte verkoopprijs en het werkelijke resultaat inclusief kosten. Gebeurt bij het openen van de app, bij het naar beneden swipen op Mijn Trades en bij de eToro-knop',
+      'Je eToro-handelshistorie van het afgelopen jaar wordt eenmalig ingelezen, zodat je Historie-scherm en de statistieken (trefferpercentage, gemiddelde R/R, totaal resultaat) meteen kloppen. Posities die Kader al kende worden niet dubbel toegevoegd',
+      'Na het instellen van de eToro-koppeling wordt er meteen gesynchroniseerd, je hoeft de app niet opnieuw te openen',
+      'Naar beneden swipen op Mijn Trades synchroniseert nu: koersen verversen, open eToro-posities bijwerken en gesloten posities afsluiten',
+      'De tabbalk onderaan valt niet langer onder de menu-, home- en terugknoppen van je toestel (viel op onder meer Samsung-toestellen)',
+      'De eToro-knop op de portfoliokaart heeft een duidelijker icoon (wolk met pijl) in plaats van het downloadsymbool',
+      'Een verlies in dollars toont nu een minteken. Eerder stond er bijvoorbeeld "$4.21" waar "−$4.21" hoorde, en verried alleen de rode kleur dat het een verlies was',
+    ],
+  },
+  {
     versie: '0.1.0',
     datum: '2026-07-07',
     feest: true,

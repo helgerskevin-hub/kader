@@ -8,6 +8,7 @@ import { ChangelogSheet } from './ChangelogSheet';
 import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
 import { laadTekst, SLEUTELS } from '../storage/opslag';
 import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
+import { usePortfolio } from '../state/PortfolioProvider';
 
 interface Props {
   zichtbaar: boolean;
@@ -22,6 +23,8 @@ const OPTIES: { modus: ThemaModus; label: string; Icon: typeof Sun }[] = [
 
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
+  // Meteen ophalen zodra de koppeling is opgeslagen, niet pas bij de volgende app-start.
+  const { synchroniseer } = usePortfolio();
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [gekoppeld, setGekoppeld] = useState(false);
@@ -121,7 +124,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
     <EtoroKoppelingWizard
       zichtbaar={wizardOpen}
       onSluiten={() => setWizardOpen(false)}
-      onOpgeslagen={ververGekoppeld}
+      onOpgeslagen={() => { ververGekoppeld(); synchroniseer(); }}
     />
     </>
   );

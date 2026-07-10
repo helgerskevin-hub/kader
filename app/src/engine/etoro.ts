@@ -153,6 +153,22 @@ export interface EtoroImportResultaat {
   overgeslagen: EtoroOvergeslagenPositie[];
 }
 
+// Gedeeld door de portfolio- en de historie-import: welk symbool hoort bij dit instrument, en
+// is het crypto? Alleen filteren op instrumentType als de herkenning is gelukt; anders (null)
+// niet gokken (zie haalCryptoTypeIds).
+function duidInstrument(
+  instrumentID: number,
+  instrumentKaart: Map<number, EtoroInstrument>,
+  cryptoTypeIds: Set<number> | null,
+): { symbool: string; naam: string; isCrypto: boolean } {
+  const instrument = instrumentKaart.get(instrumentID);
+  const symbool = symboolVan(instrument);
+  const naam = instrument?.instrumentDisplayName || symbool || `instrument ${instrumentID}`;
+  const isCrypto = !cryptoTypeIds || (instrument?.instrumentTypeID !== undefined && cryptoTypeIds.has(instrument.instrumentTypeID))
+    || ETORO_TRADABLE.has(symbool);
+  return { symbool, naam, isCrypto };
+}
+
 export async function importeerEtoroPortfolio(sleutels: EtoroSleutels): Promise<EtoroImportResultaat> {
   const portfolio = await haalEtoroPortfolio(sleutels);
   const posities = portfolio.clientPortfolio?.positions ?? [];
@@ -165,16 +181,116 @@ export async function importeerEtoroPortfolio(sleutels: EtoroSleutels): Promise<
   const overgeslagen: EtoroOvergeslagenPositie[] = [];
 
   for (const positie of posities) {
-    const instrument = instrumentKaart.get(positie.instrumentID);
-    const symbool = symboolVan(instrument);
-    const naam = instrument?.instrumentDisplayName || symbool || `instrument ${positie.instrumentID}`;
-    // Alleen filteren op instrumentType als de herkenning is gelukt; anders (null) niet gokken (zie haalCryptoTypeIds).
-    const isCrypto = !cryptoTypeIds || (instrument?.instrumentTypeID !== undefined && cryptoTypeIds.has(instrument.instrumentTypeID))
-      || ETORO_TRADABLE.has(symbool);
+    const { symbool, naam, isCrypto } = duidInstrument(positie.instrumentID, instrumentKaart, cryptoTypeIds);
 
     if (!positie.isBuy) { overgeslagen.push({ naam, reden: 'short' }); continue; }
     if (!symbool || !isCrypto) { overgeslagen.push({ naam, reden: 'geen-crypto' }); continue; }
     trades.push(naarPortfolioTrade(positie, symbool));
+  }
+
+  return { trades, overgeslagen };
+}
+
+// ---------- Gesloten posities (trade-historie) ----------
+
+// Let op: deze endpoint levert `positionId` en `instrumentId` (kleine d), terwijl
+// /trading/info/portfolio `positionID` en `instrumentID` gebruikt. We lezen beide varianten uit
+// zodat een casing-wijziging aan eToro's kant ons niet stilzwijgend de historie kost.
+interface EtoroHistorieRegel {
+  positionId?: number;
+  positionID?: number;
+  instrumentId?: number;
+  instrumentID?: number;
+  isBuy?: boolean;
+  openRate?: number;
+  closeRate?: number;
+  openTimestamp?: string;
+  closeTimestamp?: string;
+  netProfit?: number;
+  units?: number;
+  investment?: number;
+  initialInvestment?: number;
+  stopLossRate?: number;
+  takeProfitRate?: number;
+}
+
+const positieIdVan = (r: EtoroHistorieRegel) => r.positionId ?? r.positionID;
+const instrumentIdVan = (r: EtoroHistorieRegel) => r.instrumentId ?? r.instrumentID;
+
+// ponytail: vast venster van 1 jaar en één pagina van 1000. PortfolioTrade.datum is een
+// gelokaliseerde string ("15 jan 2026") en dus niet te parsen tot een scherpere ondergrens.
+// Pagineer pas als iemand meer dan 1000 trades per jaar sluit.
+const HISTORIE_VENSTER_MS = 365 * 24 * 60 * 60 * 1000;
+
+async function haalHistorieRegels(sleutels: EtoroSleutels): Promise<EtoroHistorieRegel[]> {
+  const minDate = new Date(Date.now() - HISTORIE_VENSTER_MS).toISOString().slice(0, 10);
+  const data = await etoroFetch<EtoroHistorieRegel[] | { trades?: EtoroHistorieRegel[] }>(
+    `/trading/info/trade/history?minDate=${minDate}&page=1&pageSize=1000`,
+    sleutels,
+  );
+  return Array.isArray(data) ? data : (data.trades ?? []);
+}
+
+const nlDatum = (ms: number) =>
+  new Date(ms).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+
+// netProfit is inclusief kosten en bepaalt daarom of het een winst of verlies was, niet de
+// vergelijking van closeRate met openRate.
+export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string): PortfolioTrade | null {
+  const positionID = positieIdVan(regel);
+  const slotTijd = regel.closeTimestamp ? Date.parse(regel.closeTimestamp) : NaN;
+  const openTijd = regel.openTimestamp ? Date.parse(regel.openTimestamp) : NaN;
+  if (typeof positionID !== 'number' || typeof regel.openRate !== 'number'
+    || typeof regel.closeRate !== 'number' || isNaN(slotTijd)) return null;
+
+  const stopLoss = regel.stopLossRate ?? 0;
+  const takeProfit = regel.takeProfitRate ?? 0;
+  const rr = stopLoss > 0 && takeProfit > 0 && regel.openRate > stopLoss
+    ? Math.round(((takeProfit - regel.openRate) / (regel.openRate - stopLoss)) * 10) / 10
+    : 0;
+  const netProfit = regel.netProfit ?? 0;
+
+  return {
+    id: nieuweId(),
+    symbool,
+    naam: COIN_INFO[symbool]?.naam ?? symbool,
+    entryPrijs: regel.openRate,
+    stopLoss,
+    takeProfit,
+    rr,
+    datum: nlDatum(isNaN(openTijd) ? slotTijd : openTijd),
+    status: netProfit >= 0 ? 'gewonnen' : 'verloren',
+    bedragUsd: regel.investment ?? regel.initialInvestment ?? 0,
+    aantalCoins: regel.units,
+    exitPrijs: regel.closeRate,
+    slotDatum: nlDatum(slotTijd),
+    slotTijd,
+    etoroPositionID: positionID,
+    bron: 'etoro',
+  };
+}
+
+// Alle op eToro gesloten crypto-posities uit het afgelopen jaar, als afgeronde trades.
+export async function importeerEtoroHistorie(sleutels: EtoroSleutels): Promise<EtoroImportResultaat> {
+  const regels = await haalHistorieRegels(sleutels);
+  const ids = [...new Set(regels.map(instrumentIdVan).filter((id): id is number => typeof id === 'number'))];
+  const [instrumentKaart, cryptoTypeIds] = await Promise.all([
+    haalInstrumenten(ids, sleutels),
+    haalCryptoTypeIds(sleutels),
+  ]);
+
+  const trades: PortfolioTrade[] = [];
+  const overgeslagen: EtoroOvergeslagenPositie[] = [];
+
+  for (const regel of regels) {
+    const instrumentID = instrumentIdVan(regel);
+    if (instrumentID === undefined) continue;
+    const { symbool, naam, isCrypto } = duidInstrument(instrumentID, instrumentKaart, cryptoTypeIds);
+
+    if (regel.isBuy === false) { overgeslagen.push({ naam, reden: 'short' }); continue; }
+    if (!symbool || !isCrypto) { overgeslagen.push({ naam, reden: 'geen-crypto' }); continue; }
+    const trade = naarGeslotenTrade(regel, symbool);
+    if (trade) trades.push(trade);
   }
 
   return { trades, overgeslagen };
@@ -197,6 +313,40 @@ if (require.main === module) {
   const geenSlTp = naarPortfolioTrade({ ...mock, stopLossRate: undefined, takeProfitRate: undefined }, 'BTC');
   console.assert(geenSlTp.stopLoss === 0 && geenSlTp.takeProfit === 0, 'ontbrekende SL/TP moet 0 worden');
   console.assert(geenSlTp.rr === 0, 'RR zonder SL/TP moet 0 zijn');
+
+  // Historie: gesloten trade uit een ruwe historie-regel.
+  const ruw = {
+    positionId: 123, instrumentId: 1, isBuy: true, openRate: 50000, closeRate: 65000,
+    openTimestamp: '2026-01-15T10:00:00Z', closeTimestamp: '2026-02-01T12:00:00Z',
+    netProfit: 150, units: 0.01, investment: 500, stopLossRate: 45000, takeProfitRate: 65000,
+  };
+  const gesloten = naarGeslotenTrade(ruw, 'BTC');
+  console.assert(gesloten?.etoroPositionID === 123, 'positionId (kleine d) moet gelezen worden');
+  console.assert(gesloten?.entryPrijs === 50000 && gesloten?.exitPrijs === 65000, 'openRate/closeRate moeten entry/exit worden');
+  console.assert(gesloten?.slotTijd === Date.parse('2026-02-01T12:00:00Z'), 'closeTimestamp moet epoch ms worden');
+  console.assert(gesloten?.status === 'gewonnen', 'positieve netProfit is gewonnen');
+  console.assert(gesloten?.rr === 3, `RR moet 3 zijn, was ${gesloten?.rr}`);
+  console.assert(gesloten?.aantalCoins === 0.01 && gesloten?.bedragUsd === 500, 'units/investment moeten overgenomen worden');
+  console.assert(gesloten?.bron === 'etoro', 'bron moet etoro zijn');
+
+  // netProfit wint van de prijsvergelijking: exit boven entry, maar door kosten toch verlies.
+  const kostenVerlies = naarGeslotenTrade({ ...ruw, netProfit: -2 }, 'BTC');
+  console.assert(kostenVerlies?.status === 'verloren', 'negatieve netProfit is verloren, ook als closeRate > openRate');
+
+  // Oude casing (positionID/instrumentID) moet ook werken.
+  const oudeCasing = naarGeslotenTrade(
+    { positionID: 9, instrumentID: 1, openRate: 100, closeRate: 90, closeTimestamp: '2026-02-01T12:00:00Z', netProfit: -5 },
+    'ETH',
+  );
+  console.assert(oudeCasing?.etoroPositionID === 9, 'positionID (hoofdletter D) moet ook gelezen worden');
+  console.assert(oudeCasing?.status === 'verloren', 'negatieve netProfit is verloren');
+  console.assert(oudeCasing?.rr === 0, 'RR zonder SL/TP moet 0 zijn');
+  console.assert(oudeCasing?.datum === oudeCasing?.slotDatum, 'zonder openTimestamp valt datum terug op de slotdatum');
+
+  console.assert(naarGeslotenTrade({ ...ruw, positionId: undefined }, 'BTC') === null, 'regel zonder positionId is onbruikbaar');
+  console.assert(naarGeslotenTrade({ ...ruw, closeRate: undefined }, 'BTC') === null, 'regel zonder closeRate is onbruikbaar');
+  console.assert(naarGeslotenTrade({ ...ruw, openRate: undefined }, 'BTC') === null, 'regel zonder openRate is onbruikbaar');
+  console.assert(naarGeslotenTrade({ ...ruw, closeTimestamp: 'onzin' }, 'BTC') === null, 'onparseerbare closeTimestamp is onbruikbaar');
 
   console.log('etoro.ts self-check geslaagd');
 }

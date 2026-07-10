@@ -1,14 +1,13 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { RefreshCw, Download, History } from 'lucide-react-native';
+import { RefreshCw, CloudDownload, History } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { fmtPrijs, fmtPct } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { PortfolioWaarde } from '../state/statistieken';
 import { AnimatedGetal } from './AnimatedGetal';
 
-const fmtResultaatBedrag = (n: number) => `${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}`;
 const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
 
 interface Props {
@@ -61,7 +60,7 @@ export function PortfolioStatusKaart({
           >
             {etoroBezig
               ? <ActivityIndicator size="small" color={colors.cta} />
-              : <Download size={18} color={colors.cta} strokeWidth={1.75} />}
+              : <CloudDownload size={18} color={colors.cta} strokeWidth={1.75} />}
           </Pressable>
         </View>
       </View>
@@ -82,7 +81,7 @@ export function PortfolioStatusKaart({
         <View style={[styles.resultaat, styles.resultaatRij]}>
           <AnimatedGetal
             waarde={waarde.ongerealiseerdUsd}
-            format={fmtResultaatBedrag}
+            format={fmtResultaatUsd}
             style={[Type.prijs, { color: resultaatKleur }]}
           />
           {waarde.ongerealiseerdPct !== null && (

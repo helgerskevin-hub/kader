@@ -1,7 +1,18 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
-import { laadLijst, bewaarLijst, SLEUTELS } from '../storage/opslag';
+import { laadLijst, bewaarLijst, laadTekst, SLEUTELS } from '../storage/opslag';
+import { importeerEtoroPortfolio, importeerEtoroHistorie, EtoroOvergeslagenPositie } from '../engine/etoro';
+
+export interface SyncResultaat {
+  gekoppeld: boolean;                          // false = geen eToro-sleutels ingesteld
+  toegevoegd: number;                          // nieuwe open posities
+  bijgewerkt: number;                          // bestaande open posities ververst
+  gesloten: number;                            // lokaal open, inmiddels op eToro gesloten
+  uitHistorie: number;                         // afgeronde trades die Kader nog niet kende
+  overgeslagen: EtoroOvergeslagenPositie[];
+  fout: string | null;                         // eToro-fout; prijzen zijn dan wel ververst
+}
 
 interface PortfolioContextWaarde {
   trades: PortfolioTrade[];
@@ -15,6 +26,7 @@ interface PortfolioContextWaarde {
   verwijderTrade: (id: string) => void;
   verversPrijzen: () => Promise<void>;
   importeerEtoroTrades: (nieuwe: PortfolioTrade[]) => number;
+  synchroniseer: () => Promise<SyncResultaat>;
 }
 
 const PortfolioContext = createContext<PortfolioContextWaarde | null>(null);
@@ -29,6 +41,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [volgendeVerversing, setVolgendeVerversing] = useState<Date | null>(null);
   const tradesRef = useRef(trades);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startSyncGedaan = useRef(false);
 
   useEffect(() => { tradesRef.current = trades; }, [trades]);
 
@@ -61,9 +74,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Het interval ververst alleen prijzen. Geen eToro-sync: die endpoints delen een quotum van
+  // 60 requests per 60 seconden, dat is bij een minuut-interval zo op.
   useEffect(() => {
     if (!geladen) return;
-    verversPrijzen();
     intervalRef.current = setInterval(verversPrijzen, VERVERS_INTERVAL_MS);
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);
@@ -118,10 +132,94 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     return toegevoegd;
   }, []);
 
+  // Verwerkt de op eToro gesloten posities. Twee dingen tegelijk, in één setTrades-pass zodat
+  // de tweede stap de uitkomst van de eerste ziet (tradesRef loopt een render achter):
+  //  1. Een lokale trade die Kader als open kende, wordt afgesloten. Zulke posities verdwijnen
+  //     uit /trading/info/portfolio en zouden anders eeuwig 'open' blijven staan. De lokale
+  //     stop-loss/take-profit en notitie blijven staan, alleen de uitkomst komt van eToro.
+  //  2. Een gesloten positie die Kader nooit gezien heeft, wordt als afgeronde trade toegevoegd,
+  //     zodat je historie ook met terugwerkende kracht klopt.
+  const verwerkEtoroHistorie = useCallback((gesloten: PortfolioTrade[]) => {
+    const perPositie = new Map(
+      gesloten.filter(t => t.etoroPositionID !== undefined).map(t => [t.etoroPositionID!, t]),
+    );
+    const huidig = tradesRef.current;
+    const bekend = new Set(huidig.map(t => t.etoroPositionID).filter(id => id !== undefined));
+    const afgesloten = huidig.filter(
+      t => t.bron === 'etoro' && t.status === 'open' && t.etoroPositionID !== undefined && perPositie.has(t.etoroPositionID),
+    ).length;
+    const nieuw = gesloten.filter(t => t.etoroPositionID !== undefined && !bekend.has(t.etoroPositionID));
+    if (afgesloten === 0 && nieuw.length === 0) return { afgesloten: 0, toegevoegd: 0 };
+
+    setTrades(prev => {
+      const bijgewerkt = prev.map(t => {
+        if (t.bron !== 'etoro' || t.status !== 'open' || t.etoroPositionID === undefined) return t;
+        const uitEtoro = perPositie.get(t.etoroPositionID);
+        if (!uitEtoro) return t;
+        return {
+          ...t,
+          status: uitEtoro.status,
+          exitPrijs: uitEtoro.exitPrijs,
+          slotDatum: uitEtoro.slotDatum,
+          slotTijd: uitEtoro.slotTijd,
+        };
+      });
+      const alBekend = new Set(bijgewerkt.map(t => t.etoroPositionID).filter(id => id !== undefined));
+      const echtNieuw = gesloten.filter(t => t.etoroPositionID !== undefined && !alBekend.has(t.etoroPositionID));
+      return [...echtNieuw, ...bijgewerkt];
+    });
+    return { afgesloten, toegevoegd: nieuw.length };
+  }, []);
+
+  // Volledige sync: prijzen, open eToro-posities en op eToro gesloten posities. Gedeeld door
+  // pull-to-refresh, de importknop en de eenmalige sync bij het openen van de app.
+  // eToro-fouten worden teruggegeven, niet gegooid: de prijsververs uit stap 1 blijft geldig.
+  const synchroniseer = useCallback(async (): Promise<SyncResultaat> => {
+    const leeg: SyncResultaat = { gekoppeld: false, toegevoegd: 0, bijgewerkt: 0, gesloten: 0, uitHistorie: 0, overgeslagen: [], fout: null };
+    await verversPrijzen();
+
+    const [apiKey, userKey] = await Promise.all([
+      laadTekst(SLEUTELS.etoroApiKey, ''),
+      laadTekst(SLEUTELS.etoroUserKey, ''),
+    ]);
+    if (!apiKey || !userKey) return leeg;
+
+    try {
+      const [open, historie] = await Promise.all([
+        importeerEtoroPortfolio({ apiKey, userKey }),
+        importeerEtoroHistorie({ apiKey, userKey }),
+      ]);
+      const toegevoegd = importeerEtoroTrades(open.trades);
+      const { afgesloten, toegevoegd: uitHistorie } = verwerkEtoroHistorie(historie.trades);
+      return {
+        gekoppeld: true,
+        toegevoegd,
+        uitHistorie,
+        bijgewerkt: open.trades.length - toegevoegd,
+        gesloten: afgesloten,
+        // ponytail: alleen de overgeslagen open posities melden. De historie levert elk aandeel
+        // en elke short die je ooit sloot, en die lijst wil niemand in een Alert zien.
+        overgeslagen: open.overgeslagen,
+        fout: null,
+      };
+    } catch (e) {
+      return { ...leeg, gekoppeld: true, fout: e instanceof Error ? e.message : 'Onbekende fout.' };
+    }
+  }, [verversPrijzen, importeerEtoroTrades, verwerkEtoroHistorie]);
+
+  // Eenmalig bij het openen van de app: volledige sync zodra de opgeslagen trades geladen zijn.
+  // De ref voorkomt een tweede ronde als React het effect opnieuw draait (StrictMode, remount).
+  useEffect(() => {
+    if (!geladen || startSyncGedaan.current) return;
+    startSyncGedaan.current = true;
+    synchroniseer();
+  }, [geladen, synchroniseer]);
+
   return (
     <PortfolioContext.Provider value={{
       trades, livePrijzen, geladen, syncing, volgendeVerversing,
       voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen, importeerEtoroTrades,
+      synchroniseer,
     }}>
       {children}
     </PortfolioContext.Provider>

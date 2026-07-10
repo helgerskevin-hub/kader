@@ -7,7 +7,7 @@ import { X, CheckCircle, XCircle, History } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { berekenStatistieken } from '../state/statistieken';
 
@@ -76,7 +76,7 @@ export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onV
                 <View style={[styles.totaalRij, { borderTopColor: colors.rand }]}>
                   <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TOTAAL RESULTAAT</Text>
                   <Text style={[Type.prijsGroot, { color: stats.totaalResultaatUsd >= 0 ? colors.winst : colors.verlies }]}>
-                    {stats.totaalResultaatUsd >= 0 ? '+' : '−'}${Math.abs(stats.totaalResultaatUsd).toFixed(2)}
+                    {fmtResultaatUsd(stats.totaalResultaatUsd)}
                   </Text>
                 </View>
               )}
@@ -156,7 +156,7 @@ function GeslotenKaart({ trade, onOpenDetail, onVerwijder }: {
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEHAALD</Text>
               <Text style={[Type.prijs, { color: behaaldKleur, fontSize: 13 }]}>
                 {fmtPct(behaaldPct)}
-                {behaaldUsd !== null ? `  ${behaaldUsd >= 0 ? '+' : ''}$${Math.abs(behaaldUsd).toFixed(2)}` : ''}
+                {behaaldUsd !== null ? `  ${fmtResultaatUsd(behaaldUsd)}` : ''}
               </Text>
             </View>
           )}

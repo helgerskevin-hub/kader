@@ -23,6 +23,12 @@ const EMA_LANG = 50;
 const HTTP_TIMEOUT = 15_000;
 const HEADERS = { 'Accept': 'application/json' };
 
+// eToro en CoinGecko kennen deze coins nog onder hun oude ticker; Binance niet.
+const BINANCE_ALIAS: Record<string, string> = {
+  MATIC: 'POL', RNDR: 'RENDER', FTM: 'S', MKR: 'SKY',
+};
+const pairVoor = (symbool: string) => `${BINANCE_ALIAS[symbool] ?? symbool}USDT`;
+
 async function httpGet<T = unknown>(url: string, params?: Record<string, string>): Promise<T | null> {
   try {
     const fullUrl = params ? `${url}?${new URLSearchParams(params)}` : url;
@@ -55,7 +61,7 @@ export async function haalBinanceKlines(
   interval = '1d',
   limit = 200,
 ): Promise<Candle[] | null> {
-  const pair = `${symbool}USDT`;
+  const pair = pairVoor(symbool);
   for (const base of BINANCE_BASES) {
     const data = await httpGet<unknown[][]>(`${base}/api/v3/klines`, {
       symbol: pair, interval, limit: String(limit),
@@ -108,7 +114,7 @@ export async function haalCoingeckoMarkten(perPage = 250): Promise<Record<string
 export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function haalLaatstePrijs(symbool: string): Promise<number | null> {
-  const pair = `${symbool}USDT`;
+  const pair = pairVoor(symbool);
   for (const base of BINANCE_BASES) {
     const data = await httpGet<{ price: string }>(`${base}/api/v3/ticker/price`, { symbol: pair });
     if (data && typeof data.price === 'string') {

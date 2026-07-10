@@ -45,6 +45,8 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [x] Uitleg toevoegen over wat het marktsentiment inhoudt: uitklapbare toelichting bij de marktsentimentbalk
 - [x] Smooth geanimeerde overgangen tussen de schermen: vloeiende fade/slide-transitie bij het wisselen tussen Markt, Kansen, Portfolio en Traders
 - [x] Filteren op RSI, Score en R/R op het Marktscherm: filtersheet met snelkeuzes (RSI oversold/overbought, minimale score, minimale R/R), te combineren met Alle coins/Favorieten
+- [x] Trade historie ophalen uit eToro via API en verwerken in portfolio bij sluiten trade. Met alle informatie omtrent winst/verlies zoals nu ook. Liefst automatische actie. (`importeerEtoroHistorie` leest `/trading/info/trade/history`. Twee dingen: een positie die Kader als open kende wordt automatisch afgesloten met de echte exitprijs, en gesloten posities die Kader nog niet kende worden als afgeronde trade toegevoegd, zodat de historie met terugwerkende kracht klopt. `netProfit` bepaalt gewonnen/verloren, inclusief kosten. Draait bij het openen van de app, na het opslaan van de koppeling, bij swipen op Portfolio en bij de eToro-knop.)
+- [ ] **Misschien ook iets dat bijhoudt of je achterloopt? Alsin: als er iets niet up to date is? Klein icoontje of kleur? Rode kleur van dat cloud icoontje?** Als in de sync is * aantal minuten/uur/dagen geleden. Adviseer om te synchroniseren. Misschien kan dit automatisch?
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
@@ -53,7 +55,7 @@ _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
 - [x] **"Wat moet ik nu kopen?"** — prominente kaart bovenaan het Marktscherm met de best scorende koopkans + reden in één zin, of een neutrale melding als niets sterk genoeg scoort. Tik erop voor het coin-detailscherm.
 - [ ] **Zo makkelijk mogelijk kopen/verkopen** — vanuit de aanbeveling direct door naar de trade. Zo min mogelijk stappen tussen "ziet er goed uit" en "gekocht". Koppeling met eToro of een exchange-API is het einddoel.
 - [ ] **Short/long met leverage** — ook hefboomposities ondersteunen in de analyse en het uitvoerscherm. Niet alleen spot. Kader moet aangeven of een coin beter geschikt is voor long of short op dat moment.
-- [ ] **Grote whales kopiëren (Trump, Saylor, etc.)** — toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps.
+- [ ] **Grote whales kopiëren (Trump, Saylor, etc.)** — toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps. Gebruik eToro API.
 
 ### 💡 Inspiratie van Market Mirror (concurrent)
 _(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Kader)_
@@ -76,11 +78,14 @@ _(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Ka
 - [x] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
 - [x] **Mogelijkheid om een gemaakte trade aan te passen in portfolio**: Knop met **aanpassen** waar je je stoploss en takeprofit kan aanpassen
 - [x] **Achtergrond informatie in app**: Nieuw scherm met uitleg over de weergaves in de app (Kader-score, indicatoren, ATR-stop/doel, marktbalk, Fear & Greed, kansscore, portfolio-statistieken, trader-oordeel), met echte componenten als grafisch voorbeeld. Bereikbaar via een eigen boek-icoon in de header van elk scherm (niet onder Instellingen, dat is geen instelling)
-- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt
+- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. Achtergrond sync nodig dus.
 - [ ] **Trade-bewuste pushmeldingen bouwen**: nu stuurt `notifications/meldingen.ts` alleen één dagelijkse herinnering. Gewenst: periodiek (bijv. elke ~10 min) de open trades checken en een melding sturen om take-profit te verhogen (prijs dicht bij TP, momentum sterk) of stop-loss aan te trekken / eerder uit te stappen (in winst maar momentum vlakt af). Dezelfde melding hooguit eens per ~6u herhalen, tenzij het voorgestelde niveau meer dan 2% verschuift. (CLAUDE.md beschreef dit al als bestaand; is nu gecorrigeerd naar "nog te bouwen".)
 - [x] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Coin-detailscherm toont nu afstand tot stop/doel voor open trades en exitprijs/slotdatum/behaald resultaat voor gesloten trades
 - [x] **Meer informatie op Grote Kansen-scherm**: kaarten tonen nu marktcap, trend, MACD en kansscore
 - [x] **Historisch overzicht gesloten trades met winst/verlies-statistieken**: exitprijs wordt vastgelegd bij sluiten; statistiekenrij toont trefferpercentage, gem. R/R behaald en totaal resultaat
+- [x] **Uitbreiden van searchbase voor de coins. Nu komen er soms maar een aantal coins in. We hebben sws een max van 24. Kunnen we dit uitbreiden?** (Drie losse oorzaken gevonden: het universum was inderdaad 24 coins waarvan er 2 stil faalden op een hernoemde Binance-ticker, `topN` stond hard op 10 dus je zag nooit meer dan 10 trades ongeacht hoeveel er doorkwamen, en het R/R-filter dropt de rest. Universum uitgebreid naar de bestaande eToro-lijst (57 coins, `analyzer.ts`), dode tickers (MATIC, RNDR, FTM, MKR) opgevangen met een alias-map naar hun huidige naam (`marketData.ts`), `topN` naar 20.)
+- [x] **Versnellen van analyse indien mogelijk** (De scan wachtte 250ms tussen elke coin zonder reden, Binance staat ruim budget toe. Nu blokken van 6 coins parallel i.p.v. één voor één.)
+= [ ] **Sterker maken van het analyse algoritme. Hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?**
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging
@@ -109,6 +114,11 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [x] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Eerste poging (opacity-reset in `useLayoutEffect`) werkte niet: met `useNativeDriver: true` wordt de `setValue(0)` asynchroon naar de native kant gestuurd, waardoor het nieuwe scherm alsnog één frame op volle opacity verscheen. Echt opgelost met een cross-fade in `App.tsx`: `zichtbareTab` is losgekoppeld van `actieveTab`, het scherm faded eerst uit, wisselt pas van inhoud als de opacity op 0 staat en faded dan weer in. Zo is er nooit een frame met nieuwe inhoud op volle opacity.
 - [x] **"Wat moet ik nu kopen?"-kaart negeert de actieve filters.** Opgelost: de kaart krijgt nu `weergegevenTrades` (na tab + RSI/score/R-R-filters) in plaats van alle trades. Zie `WatKopenNu` in `MarktScreen.tsx`.
 - [x] **eToro-koppeling gaf 422 "X-Request-Id header is not a valid GUID".** `haalEtoroPortfolio`/`etoroFetch` gebruikten `nieuweId()` (base36, voor trade-ID's) als request-ID. eToro eist een echt GUID. Opgelost met een losse `guid()`-helper in `app/src/engine/etoro.ts`, alleen voor de `x-request-id`-header. Tegelijk `etoroFetch` uitgebreid zodat de eToro-foutbody wordt meegestuurd i.p.v. alleen de statuscode, dat scheelde deze keer het gokwerk.
+- [x] **Tabbalk onderaan valt onder de menu/home/terug knop op sommige android devices zoals Samsung.** `BottomNav.tsx` hardcodeerde `paddingBottom: Platform.OS === 'ios' ? 24 : spacing.sm`, wat op Android te weinig is voor een zichtbare navigatiebalk. Opgelost met `useSafeAreaInsets()` uit het al aanwezige `react-native-safe-area-context`: `paddingBottom: Math.max(insets.bottom, spacing.sm)`. Dekt ook iOS' home-indicator en is 0 bij gesture-navigatie.
+- [x] **Naar beneden swipen moet syncen op portfoliopagina.** `RefreshControl` op de `FlatList` in `PortfolioScreen.tsx`, gekoppeld aan de nieuwe `synchroniseer()` uit `PortfolioProvider`: prijzen verversen, open eToro-posities bijwerken en op eToro gesloten posities afsluiten. Zonder eToro-koppeling ververst swipen alleen de prijzen, zonder foutmelding.
+- [x] **Verlies in dollars werd zonder minteken getoond.** Een verlies van $4,21 stond als `$4.21` in plaats van `−$4.21` (alleen de kleur verried het). Oorzaak: vijf plekken bouwden het bedrag zelf op met `Math.abs(...)` en zetten alleen een `+` bij winst. Opgelost met één gedeelde `fmtResultaatUsd()` in `engine/format.ts`, gebruikt door `PortfolioScreen`, `HistorieScherm`, `CoinDetailScherm` en `PortfolioStatusKaart`. Gevonden bij het testen van de eToro-historie-import.
+- [x] Geen bug maar wish: Import knop lijkt nu op downloaden. Vervangen door `CloudDownload` (wolk met pijl) in `PortfolioStatusKaart.tsx`, zodat duidelijk is dat het van eToro's server komt.
+
 
 ## ✅ Klaar
 

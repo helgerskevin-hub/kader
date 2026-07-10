@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, Pressable, FlatList, Modal, TextInput, ScrollView,
-  StyleSheet, Alert,
+  StyleSheet, Alert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, X, Wallet, CheckCircle, XCircle, Clock } from 'lucide-react-native';
-import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
@@ -21,7 +21,6 @@ import { berekenPortfolioWaarde } from '../state/statistieken';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, SLEUTELS } from '../storage/opslag';
-import { importeerEtoroPortfolio } from '../engine/etoro';
 
 // ---------- TradeRegel ----------
 function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
@@ -137,7 +136,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RESULTAAT</Text>
               <Text style={[Type.prijs, { color: resultaatKleur, fontSize: 13 }]}>
                 {fmtPct(resultaatPct)}
-                {resultaatUsd !== null ? `  ${resultaatUsd >= 0 ? '+' : ''}$${Math.abs(resultaatUsd).toFixed(2)}` : ''}
+                {resultaatUsd !== null ? `  ${fmtResultaatUsd(resultaatUsd)}` : ''}
               </Text>
             </View>
           )}
@@ -156,7 +155,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEHAALD</Text>
               <Text style={[Type.prijs, { color: behaaldKleur, fontSize: 13 }]}>
                 {fmtPct(behaaldPct)}
-                {behaaldUsd !== null ? `  ${behaaldUsd >= 0 ? '+' : ''}$${Math.abs(behaaldUsd).toFixed(2)}` : ''}
+                {behaaldUsd !== null ? `  ${fmtResultaatUsd(behaaldUsd)}` : ''}
               </Text>
             </View>
           )}
@@ -619,7 +618,7 @@ export function PortfolioScreen() {
   const { colors } = useTheme();
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
-    importeerEtoroTrades, syncing, volgendeVerversing, verversPrijzen,
+    syncing, volgendeVerversing, synchroniseer,
   } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
@@ -627,8 +626,20 @@ export function PortfolioScreen() {
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [seconden, setSeconden] = useState<number | null>(null);
   const [etoroBezig, setEtoroBezig] = useState(false);
+  const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
 
+  // Swipe omlaag: stil synchroniseren. Geen meldingen, ook niet als er geen koppeling is.
+  async function swipeSync() {
+    setVerverst(true);
+    try {
+      await synchroniseer();
+    } finally {
+      setVerverst(false);
+    }
+  }
+
+  // Knop: expliciete actie, dus wel terugkoppeling over wat er gebeurd is.
   async function importerenUitEtoro() {
     const [apiKey, userKey] = await Promise.all([
       laadTekst(SLEUTELS.etoroApiKey, ''),
@@ -643,22 +654,24 @@ export function PortfolioScreen() {
     }
     setEtoroBezig(true);
     try {
-      const { trades: etoroTrades, overgeslagen } = await importeerEtoroPortfolio({ apiKey, userKey });
-      const toegevoegd = importeerEtoroTrades(etoroTrades);
-      const bijgewerkt = etoroTrades.length - toegevoegd;
-      const delen = [`${toegevoegd} nieuw`];
-      if (bijgewerkt > 0) delen.push(`${bijgewerkt} bijgewerkt`);
-      if (overgeslagen.length > 0) delen.push(`${overgeslagen.length} overgeslagen`);
+      const uitkomst = await synchroniseer();
+      if (uitkomst.fout) {
+        Alert.alert('Import mislukt', uitkomst.fout);
+        return;
+      }
+      const delen = [`${uitkomst.toegevoegd} nieuw`];
+      if (uitkomst.bijgewerkt > 0) delen.push(`${uitkomst.bijgewerkt} bijgewerkt`);
+      if (uitkomst.gesloten > 0) delen.push(`${uitkomst.gesloten} automatisch gesloten`);
+      if (uitkomst.uitHistorie > 0) delen.push(`${uitkomst.uitHistorie} uit je eToro-historie`);
+      if (uitkomst.overgeslagen.length > 0) delen.push(`${uitkomst.overgeslagen.length} overgeslagen`);
       let bericht = delen.join(', ') + '.';
-      if (overgeslagen.length > 0) {
-        const regels = overgeslagen.map(
+      if (uitkomst.overgeslagen.length > 0) {
+        const regels = uitkomst.overgeslagen.map(
           o => `- ${o.naam} (${o.reden === 'short' ? 'short, nog niet ondersteund' : 'geen crypto'})`,
         );
         bericht += '\n\nOvergeslagen:\n' + regels.join('\n');
       }
       Alert.alert('Import voltooid', bericht);
-    } catch (e) {
-      Alert.alert('Import mislukt', e instanceof Error ? e.message : 'Onbekende fout.');
     } finally {
       setEtoroBezig(false);
     }
@@ -708,6 +721,14 @@ export function PortfolioScreen() {
           />
         )}
         contentContainerStyle={portfolioStyles.lijst}
+        refreshControl={
+          <RefreshControl
+            refreshing={ververst}
+            onRefresh={swipeSync}
+            tintColor={colors.cta}
+            colors={[colors.cta]}
+          />
+        }
         ListHeaderComponent={
           <PortfolioStatusKaart
             waarde={waarde}
@@ -715,7 +736,7 @@ export function PortfolioScreen() {
             seconden={seconden}
             etoroBezig={etoroBezig}
             afgesloten={afgeslotenCount}
-            onVerversen={verversPrijzen}
+            onVerversen={swipeSync}
             onImporteren={importerenUitEtoro}
             onOpenHistorie={() => setHistorieOpen(true)}
           />

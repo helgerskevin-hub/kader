@@ -32,9 +32,13 @@ import { EtoroPromptSheet } from './src/components/EtoroPromptSheet';
 import { EtoroKoppelingWizard } from './src/components/EtoroKoppelingWizard';
 import { CHANGELOG, nieuwsteVersie } from './src/changelog';
 import { useReduceMotion } from './src/theme/useReduceMotion';
+import { usePortfolio } from './src/state/PortfolioProvider';
 
 function AppInhoud() {
   const { colors, donkerActief } = useTheme();
+  // Zodra er sleutels zijn opgeslagen alsnog synchroniseren: de sync bij het openen van de app
+  // draaide toen nog zonder koppeling en zou anders pas na een herstart iets ophalen.
+  const { synchroniseer } = usePortfolio();
   const reduceMotion = useReduceMotion();
   const [onboardingKlaar, setOnboardingKlaar] = useState(false);
   const [onboardingGeladen, setOnboardingGeladen] = useState(false);
@@ -162,7 +166,11 @@ function AppInhoud() {
         onLater={() => setEtoroPromptOpen(false)}
         onNuInstellen={() => { setEtoroPromptOpen(false); setEtoroSetupOpen(true); }}
       />
-      <EtoroKoppelingWizard zichtbaar={etoroSetupOpen} onSluiten={() => setEtoroSetupOpen(false)} />
+      <EtoroKoppelingWizard
+        zichtbaar={etoroSetupOpen}
+        onSluiten={() => setEtoroSetupOpen(false)}
+        onOpgeslagen={synchroniseer}
+      />
     </View>
   );
 }

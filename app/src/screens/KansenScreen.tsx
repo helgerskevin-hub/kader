@@ -269,7 +269,7 @@ export function KansenScreen() {
   const startScan = useCallback(async () => {
     dispatch({ type: 'START' });
     try {
-      const kansen = await zoekKansen(10, (gescand, totaal) =>
+      const kansen = await zoekKansen(20, (gescand, totaal) =>
         dispatch({ type: 'PROGRESS', gescand, totaal }),
       );
       dispatch({ type: 'SUCCESS', kansen });

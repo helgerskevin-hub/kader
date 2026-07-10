@@ -1,7 +1,10 @@
 import { Opportunity } from './types';
-import { haalData, haalCoingeckoMarkten, delay } from './marketData';
+import { haalData, haalCoingeckoMarkten } from './marketData';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
-import { REWARD_MULTIPLIER, ATR_PERIODE, EMA_KORT, EMA_LANG, RSI_PERIODE, stopAfstandStructuur } from './analyzer';
+import {
+  REWARD_MULTIPLIER, ATR_PERIODE, EMA_KORT, EMA_LANG, RSI_PERIODE,
+  stopAfstandStructuur, STANDAARD_UNIVERSUM,
+} from './analyzer';
 
 const UITSLUITEN = new Set([
   'USDT', 'USDC', 'DAI', 'TUSD', 'FDUSD', 'USDE', 'PYUSD', 'USDD', 'BUSD',
@@ -9,20 +12,8 @@ const UITSLUITEN = new Set([
   'WEETH', 'WBETH', 'RETH', 'CBETH', 'BSC-USD', 'SOLVBTC', 'LBTC',
 ]);
 
-// Cryptos die verhandelbaar zijn op eToro (NL/EU). Controleer etoro.com voor updates.
-export const ETORO_TRADABLE = new Set([
-  'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
-  'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',
-  'ALGO', 'VET', 'HBAR', 'XTZ', 'NEAR', 'FTM', 'ICP', 'FLOW',
-  'APT', 'SUI', 'TON', 'INJ', 'SEI',
-  'MATIC', 'OP', 'ARB',
-  'LINK', 'UNI', 'AAVE', 'COMP', 'MKR', 'SNX', 'YFI', 'CRV', 'SUSHI',
-  '1INCH', 'ZRX', 'GRT', 'ENJ', 'MANA', 'SAND',
-  'AXS', 'CHZ', 'GALA', 'IMX',
-  'DOGE', 'SHIB', 'PEPE',
-  'FET', 'RNDR',
-  'FIL', 'THETA', 'BAT',
-]);
+// Cryptos die verhandelbaar zijn op eToro (NL/EU) — zelfde lijst als het marktscherm.
+export const ETORO_TRADABLE = new Set(STANDAARD_UNIVERSUM);
 
 function kansScore(c: Record<string, unknown>): number {
   const p7 = (c['price_change_percentage_7d_in_currency'] as number) ?? 0;
@@ -99,6 +90,11 @@ async function kansNiveaus(symbool: string, prijsFallback: number): Promise<Omit
   };
 }
 
+// ponytail: zelfde blokgrootte als analyzer.ts. kansNiveaus geeft altijd een
+// resultaat (candle-data of statische richtlijn), dus er wordt precies topN
+// keer gefetcht, nooit meer.
+const GELIJKTIJDIG = 6;
+
 export async function zoekKansen(
   topN = 10,
   onProgress?: (gescand: number, totaal: number) => void,
@@ -119,27 +115,32 @@ export async function zoekKansen(
   }
 
   kandidaten.sort((a, b) => b._score - a._score);
+  const top = kandidaten.slice(0, topN);
 
   const resultaten: Opportunity[] = [];
-  for (let i = 0; i < kandidaten.length; i++) {
-    if (resultaten.length >= topN) break;
-    const c = kandidaten[i];
-    const sym = ((c['symbol'] as string) ?? '').toUpperCase();
-    onProgress?.(i + 1, kandidaten.length);
-    const niveaus = await kansNiveaus(sym, c['current_price'] as number);
-    resultaten.push({
-      symbool: sym,
-      naam: (c['name'] as string) ?? sym,
-      rang: c['market_cap_rank'] as number,
-      marktcap: c['market_cap'] as number,
-      p24: Math.round(((c['price_change_percentage_24h_in_currency'] as number) ?? 0) * 10) / 10,
-      p7: Math.round(((c['price_change_percentage_7d_in_currency'] as number) ?? 0) * 10) / 10,
-      p30: Math.round(((c['price_change_percentage_30d_in_currency'] as number) ?? 0) * 10) / 10,
-      redenen: waaromKans(c),
-      kansScore: Math.round(c._score),
-      ...niveaus,
-    });
-    if (i < kandidaten.length - 1) await delay(200);
+  let gescand = 0;
+  for (let i = 0; i < top.length; i += GELIJKTIJDIG) {
+    const blok = top.slice(i, i + GELIJKTIJDIG);
+    const uitkomsten = await Promise.all(
+      blok.map(async c => {
+        const sym = ((c['symbol'] as string) ?? '').toUpperCase();
+        const niveaus = await kansNiveaus(sym, c['current_price'] as number);
+        onProgress?.(++gescand, top.length);
+        return {
+          symbool: sym,
+          naam: (c['name'] as string) ?? sym,
+          rang: c['market_cap_rank'] as number,
+          marktcap: c['market_cap'] as number,
+          p24: Math.round(((c['price_change_percentage_24h_in_currency'] as number) ?? 0) * 10) / 10,
+          p7: Math.round(((c['price_change_percentage_7d_in_currency'] as number) ?? 0) * 10) / 10,
+          p30: Math.round(((c['price_change_percentage_30d_in_currency'] as number) ?? 0) * 10) / 10,
+          redenen: waaromKans(c),
+          kansScore: Math.round(c._score),
+          ...niveaus,
+        };
+      }),
+    );
+    resultaten.push(...uitkomsten);
   }
   return resultaten;
 }
