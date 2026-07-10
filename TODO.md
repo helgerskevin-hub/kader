@@ -46,6 +46,7 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [x] Smooth geanimeerde overgangen tussen de schermen: vloeiende fade/slide-transitie bij het wisselen tussen Markt, Kansen, Portfolio en Traders
 - [x] Filteren op RSI, Score en R/R op het Marktscherm: filtersheet met snelkeuzes (RSI oversold/overbought, minimale score, minimale R/R), te combineren met Alle coins/Favorieten
 - [x] Trade historie ophalen uit eToro via API en verwerken in portfolio bij sluiten trade. Met alle informatie omtrent winst/verlies zoals nu ook. Liefst automatische actie. (`importeerEtoroHistorie` leest `/trading/info/trade/history`. Twee dingen: een positie die Kader als open kende wordt automatisch afgesloten met de echte exitprijs, en gesloten posities die Kader nog niet kende worden als afgeronde trade toegevoegd, zodat de historie met terugwerkende kracht klopt. `netProfit` bepaalt gewonnen/verloren, inclusief kosten. Draait bij het openen van de app, na het opslaan van de koppeling, bij swipen op Portfolio en bij de eToro-knop.)
+- [ ] **Misschien ook iets dat bijhoudt of je achterloopt? Alsin: als er iets niet up to date is? Klein icoontje of kleur? Rode kleur van dat cloud icoontje?** Als in de sync is * aantal minuten/uur/dagen geleden. Adviseer om te synchroniseren. Misschien kan dit automatisch?
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
