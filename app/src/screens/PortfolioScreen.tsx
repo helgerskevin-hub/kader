@@ -618,13 +618,12 @@ export function PortfolioScreen() {
   const { colors } = useTheme();
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
-    syncing, volgendeVerversing, synchroniseer,
+    syncing, laatsteSync, syncFout, synchroniseer,
   } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
-  const [seconden, setSeconden] = useState<number | null>(null);
   const [etoroBezig, setEtoroBezig] = useState(false);
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
@@ -677,15 +676,6 @@ export function PortfolioScreen() {
     }
   }
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (volgendeVerversing) {
-        setSeconden(Math.max(0, Math.round((volgendeVerversing.getTime() - Date.now()) / 1000)));
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, [volgendeVerversing]);
-
   const openTrades = trades.filter(t => t.status === 'open');
   const afgeslotenCount = trades.length - openTrades.length;
   const waarde = berekenPortfolioWaarde(trades, livePrijzen);
@@ -733,7 +723,8 @@ export function PortfolioScreen() {
           <PortfolioStatusKaart
             waarde={waarde}
             syncing={syncing}
-            seconden={seconden}
+            laatsteSync={laatsteSync}
+            syncFout={syncFout}
             etoroBezig={etoroBezig}
             afgesloten={afgeslotenCount}
             onVerversen={swipeSync}

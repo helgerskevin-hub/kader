@@ -15,8 +15,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: '0.1.2',
     datum: '2026-07-10',
     punten: [
-      'Nieuwe sync-status in de header: een cloud-icoontje dat in één oogopslag laat zien of je gegevens actueel zijn. Grijsgroen als het net is bijgewerkt, oranje als het verouderd raakt, rood als je te lang niet gesynchroniseerd hebt of de laatste poging mislukte. Tik erop voor het tijdstip van de laatste synchronisatie, een advies en een knop om meteen te verversen',
+      'Sync-status bij je portfoliowaarde: het sync-icoon boven de portfoliokaart kleurt nu mee zodat je in één oogopslag ziet of je gegevens actueel zijn. Grijsgroen = net bijgewerkt, oranje = raakt verouderd, rood = te lang niet gesynchroniseerd of de laatste poging mislukte. Eronder staat wanneer er voor het laatst is gesynchroniseerd',
       'De app ververst nu automatisch zodra je hem weer opent, zodat de koersen niet verouderd op je scherm blijven staan nadat de app op de achtergrond stond',
+      'Het app-icoon is kleiner gemaakt zodat het Kader-merkteken netjes binnen de ronde cirkel op je startscherm valt in plaats van tegen de rand aan te lopen',
       'Het opstartscherm (splash) toont weer het juiste Kader-logo op een blauwe achtergrond in plaats van het oude ontwerp',
     ],
   },

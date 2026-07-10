@@ -7,7 +7,6 @@ import { spacing } from '../theme/tokens';
 import { InstellingenSheet } from './InstellingenSheet';
 import { AchtergrondScherm } from './AchtergrondScherm';
 import { KaderLogo } from './KaderLogo';
-import { SyncStatusKnop } from './SyncStatusKnop';
 
 interface Props {
   titel: string;
@@ -33,7 +32,6 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
       </View>
       <View style={styles.rechtsGroep}>
         {rechts ? <View style={styles.rechts}>{rechts}</View> : null}
-        <SyncStatusKnop />
         <Pressable
           onPress={() => setUitlegOpen(true)}
           accessibilityRole="button"

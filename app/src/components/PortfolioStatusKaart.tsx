@@ -4,8 +4,9 @@ import { RefreshCw, CloudDownload, History } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { fmtPrijs, fmtPct, fmtResultaatUsd } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtResultaatUsd, relatieveTijd } from '../engine/format';
 import { PortfolioWaarde } from '../state/statistieken';
+import { bepaalSyncStand } from '../state/syncStatus';
 import { AnimatedGetal } from './AnimatedGetal';
 
 const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
@@ -13,7 +14,10 @@ const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
 interface Props {
   waarde: PortfolioWaarde;
   syncing: boolean;
-  seconden: number | null;
+  // Tijdstip van de laatste geslaagde sync (epoch-ms) en of de laatste poging mislukte,
+  // samen goed voor de kleurindicatie op het sync-icoon.
+  laatsteSync: number | null;
+  syncFout: boolean;
   etoroBezig: boolean;
   afgesloten: number;
   onVerversen: () => void;
@@ -22,7 +26,7 @@ interface Props {
 }
 
 export function PortfolioStatusKaart({
-  waarde, syncing, seconden, etoroBezig, afgesloten,
+  waarde, syncing, laatsteSync, syncFout, etoroBezig, afgesloten,
   onVerversen, onImporteren, onOpenHistorie,
 }: Props) {
   const { colors } = useTheme();
@@ -30,9 +34,13 @@ export function PortfolioStatusKaart({
   const heeftWaardering = waarde.gewaardeerd > 0;
   const resultaatKleur = waarde.ongerealiseerdUsd >= 0 ? colors.winst : colors.verlies;
 
-  const syncTekst = syncing
-    ? 'Prijzen ophalen...'
-    : seconden !== null ? `Sync over ${seconden}s` : null;
+  // Kleurindicatie voor het sync-icoon: grijsgroen = actueel, oranje = verouderd,
+  // rood = te oud of laatste poging mislukt, blauw = bezig.
+  const stand = bepaalSyncStand({ laatsteSync, syncFout, syncing });
+  const syncKleur = colors[stand.kleur];
+  const syncKort = syncing
+    ? 'Bijwerken...'
+    : laatsteSync ? relatieveTijd(laatsteSync) : 'Nog niet';
 
   return (
     <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
@@ -44,12 +52,12 @@ export function PortfolioStatusKaart({
             onPress={onVerversen}
             disabled={syncing}
             accessibilityRole="button"
-            accessibilityLabel="Prijzen verversen"
+            accessibilityLabel={`Synchroniseren. ${stand.wanneer}. ${stand.advies}`}
             style={styles.actieKnop}
           >
             {syncing
-              ? <ActivityIndicator size="small" color={colors.cta} />
-              : <RefreshCw size={18} color={colors.cta} strokeWidth={1.75} />}
+              ? <ActivityIndicator size="small" color={syncKleur} />
+              : <RefreshCw size={18} color={syncKleur} strokeWidth={1.75} />}
           </Pressable>
           <Pressable
             onPress={onImporteren}
@@ -112,12 +120,10 @@ export function PortfolioStatusKaart({
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN POSITIES</Text>
           <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{waarde.openPosities}</Text>
         </View>
-        {syncTekst && (
-          <View style={styles.detail}>
-            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>KOERSEN</Text>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{syncTekst}</Text>
-          </View>
-        )}
+        <View style={styles.detail}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>LAATSTE SYNC</Text>
+          <Text style={[Type.caption, { color: syncKleur, fontWeight: '600' }]}>{syncKort}</Text>
+        </View>
       </View>
 
       {/* Melding bij posities zonder live prijs */}
