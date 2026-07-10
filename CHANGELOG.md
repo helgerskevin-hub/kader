@@ -4,6 +4,18 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.2
+
+- Nieuwe sync-status in de header: een cloud-icoontje dat in één oogopslag
+  laat zien of je gegevens actueel zijn. Grijsgroen als het net is bijgewerkt,
+  oranje als het verouderd raakt, rood als je te lang niet gesynchroniseerd
+  hebt of de laatste poging mislukte. Tik erop voor het tijdstip van de laatste
+  synchronisatie, een advies en een knop om meteen te verversen
+- De app ververst nu automatisch zodra je hem weer opent, zodat de koersen niet
+  verouderd op je scherm blijven staan nadat de app op de achtergrond stond
+- Het opstartscherm (splash) toont weer het juiste Kader-logo op een blauwe
+  achtergrond in plaats van het oude ontwerp
+
 ## 0.1.1
 
 - De marktanalyse doorzoekt nu 57 coins in plaats van 24 (dezelfde lijst als

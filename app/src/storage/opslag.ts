@@ -10,6 +10,7 @@ export const SLEUTELS = {
   etoroApiKey: 'etoro_api_key',
   etoroUserKey: 'etoro_user_key',
   etoroSetupGevraagd: 'etoro_setup_gevraagd',
+  laatsteSync: 'laatste_sync_tijd',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

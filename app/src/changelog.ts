@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.2',
+    datum: '2026-07-10',
+    punten: [
+      'Nieuwe sync-status in de header: een cloud-icoontje dat in één oogopslag laat zien of je gegevens actueel zijn. Grijsgroen als het net is bijgewerkt, oranje als het verouderd raakt, rood als je te lang niet gesynchroniseerd hebt of de laatste poging mislukte. Tik erop voor het tijdstip van de laatste synchronisatie, een advies en een knop om meteen te verversen',
+      'De app ververst nu automatisch zodra je hem weer opent, zodat de koersen niet verouderd op je scherm blijven staan nadat de app op de achtergrond stond',
+      'Het opstartscherm (splash) toont weer het juiste Kader-logo op een blauwe achtergrond in plaats van het oude ontwerp',
+    ],
+  },
+  {
     versie: '0.1.1',
     datum: '2026-07-10',
     punten: [

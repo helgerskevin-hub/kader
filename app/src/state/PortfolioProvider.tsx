@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
-import { laadLijst, bewaarLijst, laadTekst, SLEUTELS } from '../storage/opslag';
+import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { importeerEtoroPortfolio, importeerEtoroHistorie, EtoroOvergeslagenPositie } from '../engine/etoro';
 
 export interface SyncResultaat {
@@ -20,6 +21,11 @@ interface PortfolioContextWaarde {
   geladen: boolean;
   syncing: boolean;
   volgendeVerversing: Date | null;
+  // Epoch-ms van de laatste geslaagde verversing, of null als er nog nooit een lukte. Blijft
+  // bewaard tussen app-starts, zodat "3 dagen geleden" ook na afsluiten klopt.
+  laatsteSync: number | null;
+  // true als de laatste poging mislukte (bijv. geen internet); stuurt de rode cloud-status aan.
+  syncFout: boolean;
   voegTradeToe: (trade: PortfolioTrade) => void;
   wijzigTrade: (trade: PortfolioTrade) => void;
   sluitTrade: (id: string, status: 'gewonnen' | 'verloren', exitPrijs: number) => void;
@@ -39,6 +45,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [livePrijzen, setLivePrijzen] = useState<Record<string, number>>({});
   const [syncing, setSyncing] = useState(false);
   const [volgendeVerversing, setVolgendeVerversing] = useState<Date | null>(null);
+  const [laatsteSync, setLaatsteSync] = useState<number | null>(null);
+  const [syncFout, setSyncFout] = useState(false);
   const tradesRef = useRef(trades);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startSyncGedaan = useRef(false);
@@ -50,17 +58,31 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       setTrades(l);
       setGeladen(true);
     });
+    laadTekst(SLEUTELS.laatsteSync, '').then(t => {
+      const ms = Number(t);
+      if (t && Number.isFinite(ms)) setLaatsteSync(ms);
+    });
   }, []);
 
   useEffect(() => {
     if (geladen) bewaarLijst(SLEUTELS.portfolio, trades);
   }, [trades, geladen]);
 
+  // Eén plek die "we zijn net bijgewerkt" vastlegt: tijdstip in state en op schijf, foutvlag uit.
+  const markeerGesynct = useCallback(() => {
+    const nu = Date.now();
+    setLaatsteSync(nu);
+    setSyncFout(false);
+    bewaarTekst(SLEUTELS.laatsteSync, String(nu));
+  }, []);
+
   const verversPrijzen = useCallback(async () => {
     const openSymbolen = tradesRef.current
       .filter(t => t.status === 'open')
       .map(t => t.symbool);
     if (openSymbolen.length === 0) {
+      // Niets op te halen betekent dat de portfolio per definitie actueel is.
+      markeerGesynct();
       setVolgendeVerversing(new Date(Date.now() + VERVERS_INTERVAL_MS));
       return;
     }
@@ -68,11 +90,16 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     try {
       const prijzen = await haalLaatstePrijzen(openSymbolen);
       setLivePrijzen(prev => ({ ...prev, ...prijzen }));
+      markeerGesynct();
+    } catch {
+      // Fout niet doorgooien: het minuut-interval en de foreground-listener roepen dit kaal aan.
+      // De rode cloud-status maakt duidelijk dat de laatste poging mislukte.
+      setSyncFout(true);
     } finally {
       setSyncing(false);
       setVolgendeVerversing(new Date(Date.now() + VERVERS_INTERVAL_MS));
     }
-  }, []);
+  }, [markeerGesynct]);
 
   // Het interval ververst alleen prijzen. Geen eToro-sync: die endpoints delen een quotum van
   // 60 requests per 60 seconden, dat is bij een minuut-interval zo op.
@@ -82,6 +109,16 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);
     };
+  }, [geladen, verversPrijzen]);
+
+  // Automatisch bijwerken zodra de app weer op de voorgrond komt: het interval staat stil terwijl
+  // de app op de achtergrond is, dus na terugkeren zijn de koersen vaak verouderd.
+  useEffect(() => {
+    if (!geladen) return;
+    const sub = AppState.addEventListener('change', (stand) => {
+      if (stand === 'active') verversPrijzen();
+    });
+    return () => sub.remove();
   }, [geladen, verversPrijzen]);
 
   const voegTradeToe = useCallback((trade: PortfolioTrade) => {
@@ -191,6 +228,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       ]);
       const toegevoegd = importeerEtoroTrades(open.trades);
       const { afgesloten, toegevoegd: uitHistorie } = verwerkEtoroHistorie(historie.trades);
+      // Volledige sync geslaagd (prijzen + eToro): tijdstip verversen naar dit moment.
+      markeerGesynct();
       return {
         gekoppeld: true,
         toegevoegd,
@@ -205,7 +244,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       return { ...leeg, gekoppeld: true, fout: e instanceof Error ? e.message : 'Onbekende fout.' };
     }
-  }, [verversPrijzen, importeerEtoroTrades, verwerkEtoroHistorie]);
+  }, [verversPrijzen, importeerEtoroTrades, verwerkEtoroHistorie, markeerGesynct]);
 
   // Eenmalig bij het openen van de app: volledige sync zodra de opgeslagen trades geladen zijn.
   // De ref voorkomt een tweede ronde als React het effect opnieuw draait (StrictMode, remount).
@@ -217,7 +256,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PortfolioContext.Provider value={{
-      trades, livePrijzen, geladen, syncing, volgendeVerversing,
+      trades, livePrijzen, geladen, syncing, volgendeVerversing, laatsteSync, syncFout,
       voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen, importeerEtoroTrades,
       synchroniseer,
     }}>
