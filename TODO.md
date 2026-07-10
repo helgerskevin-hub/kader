@@ -45,6 +45,7 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [x] Uitleg toevoegen over wat het marktsentiment inhoudt: uitklapbare toelichting bij de marktsentimentbalk
 - [x] Smooth geanimeerde overgangen tussen de schermen: vloeiende fade/slide-transitie bij het wisselen tussen Markt, Kansen, Portfolio en Traders
 - [x] Filteren op RSI, Score en R/R op het Marktscherm: filtersheet met snelkeuzes (RSI oversold/overbought, minimale score, minimale R/R), te combineren met Alle coins/Favorieten
+- [x] Trade historie ophalen uit eToro via API en verwerken in portfolio bij sluiten trade. Met alle informatie omtrent winst/verlies zoals nu ook. Liefst automatische actie. (`haalEtoroSluitingen` leest `/trading/info/trade/history`; een op eToro gesloten positie wordt automatisch afgesloten met de echte exitprijs, en `netProfit` bepaalt gewonnen/verloren inclusief fees. Draait bij het openen van de app, bij swipen op Portfolio en bij de eToro-knop.)
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
@@ -53,7 +54,7 @@ _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
 - [x] **"Wat moet ik nu kopen?"** — prominente kaart bovenaan het Marktscherm met de best scorende koopkans + reden in één zin, of een neutrale melding als niets sterk genoeg scoort. Tik erop voor het coin-detailscherm.
 - [ ] **Zo makkelijk mogelijk kopen/verkopen** — vanuit de aanbeveling direct door naar de trade. Zo min mogelijk stappen tussen "ziet er goed uit" en "gekocht". Koppeling met eToro of een exchange-API is het einddoel.
 - [ ] **Short/long met leverage** — ook hefboomposities ondersteunen in de analyse en het uitvoerscherm. Niet alleen spot. Kader moet aangeven of een coin beter geschikt is voor long of short op dat moment.
-- [ ] **Grote whales kopiëren (Trump, Saylor, etc.)** — toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps.
+- [ ] **Grote whales kopiëren (Trump, Saylor, etc.)** — toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps. Gebruik eToro API.
 
 ### 💡 Inspiratie van Market Mirror (concurrent)
 _(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Kader)_
@@ -109,6 +110,10 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [x] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Eerste poging (opacity-reset in `useLayoutEffect`) werkte niet: met `useNativeDriver: true` wordt de `setValue(0)` asynchroon naar de native kant gestuurd, waardoor het nieuwe scherm alsnog één frame op volle opacity verscheen. Echt opgelost met een cross-fade in `App.tsx`: `zichtbareTab` is losgekoppeld van `actieveTab`, het scherm faded eerst uit, wisselt pas van inhoud als de opacity op 0 staat en faded dan weer in. Zo is er nooit een frame met nieuwe inhoud op volle opacity.
 - [x] **"Wat moet ik nu kopen?"-kaart negeert de actieve filters.** Opgelost: de kaart krijgt nu `weergegevenTrades` (na tab + RSI/score/R-R-filters) in plaats van alle trades. Zie `WatKopenNu` in `MarktScreen.tsx`.
 - [x] **eToro-koppeling gaf 422 "X-Request-Id header is not a valid GUID".** `haalEtoroPortfolio`/`etoroFetch` gebruikten `nieuweId()` (base36, voor trade-ID's) als request-ID. eToro eist een echt GUID. Opgelost met een losse `guid()`-helper in `app/src/engine/etoro.ts`, alleen voor de `x-request-id`-header. Tegelijk `etoroFetch` uitgebreid zodat de eToro-foutbody wordt meegestuurd i.p.v. alleen de statuscode, dat scheelde deze keer het gokwerk.
+- [x] **Tabbalk onderaan valt onder de menu/home/terug knop op sommige android devices zoals Samsung.** `BottomNav.tsx` hardcodeerde `paddingBottom: Platform.OS === 'ios' ? 24 : spacing.sm`, wat op Android te weinig is voor een zichtbare navigatiebalk. Opgelost met `useSafeAreaInsets()` uit het al aanwezige `react-native-safe-area-context`: `paddingBottom: Math.max(insets.bottom, spacing.sm)`. Dekt ook iOS' home-indicator en is 0 bij gesture-navigatie.
+- [x] **Naar beneden swipen moet syncen op portfoliopagina.** `RefreshControl` op de `FlatList` in `PortfolioScreen.tsx`, gekoppeld aan de nieuwe `synchroniseer()` uit `PortfolioProvider`: prijzen verversen, open eToro-posities bijwerken en op eToro gesloten posities afsluiten. Zonder eToro-koppeling ververst swipen alleen de prijzen, zonder foutmelding.
+- [x] Geen bug maar wish: Import knop lijkt nu op downloaden. Vervangen door `CloudDownload` (wolk met pijl) in `PortfolioStatusKaart.tsx`, zodat duidelijk is dat het van eToro's server komt.
+
 
 ## ✅ Klaar
 

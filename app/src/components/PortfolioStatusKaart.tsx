@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { RefreshCw, Download, History } from 'lucide-react-native';
+import { RefreshCw, CloudDownload, History } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
@@ -61,7 +61,7 @@ export function PortfolioStatusKaart({
           >
             {etoroBezig
               ? <ActivityIndicator size="small" color={colors.cta} />
-              : <Download size={18} color={colors.cta} strokeWidth={1.75} />}
+              : <CloudDownload size={18} color={colors.cta} strokeWidth={1.75} />}
           </Pressable>
         </View>
       </View>

@@ -12,6 +12,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.1',
+    datum: '2026-07-10',
+    punten: [
+      'Trades die je op eToro sluit, worden nu automatisch afgesloten in je portfolio, met de echte verkoopprijs en het werkelijke resultaat inclusief kosten. Gebeurt bij het openen van de app, bij het naar beneden swipen op Mijn Trades en bij de eToro-knop',
+      'Naar beneden swipen op Mijn Trades synchroniseert nu: koersen verversen, open eToro-posities bijwerken en gesloten posities afsluiten',
+      'De tabbalk onderaan valt niet langer onder de menu-, home- en terugknoppen van je toestel (viel op onder meer Samsung-toestellen)',
+      'De eToro-knop op de portfoliokaart heeft een duidelijker icoon (wolk met pijl) in plaats van het downloadsymbool',
+    ],
+  },
+  {
     versie: '0.1.0',
     datum: '2026-07-07',
     feest: true,

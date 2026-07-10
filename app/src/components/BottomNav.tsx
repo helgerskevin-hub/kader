@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Activity, Zap, Wallet, Users } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -27,9 +28,17 @@ interface Props {
 
 export function BottomNav({ actief, onWissel }: Props) {
   const { colors } = useTheme();
+  // De inset dekt zowel iOS' home-indicator als Android's navigatiebalk (Samsung e.d.), en is 0
+  // bij gesture-navigatie. Zonder dit viel de balk onder de menu/home/terug-knoppen.
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.nav, { backgroundColor: colors.kaart, borderTopColor: colors.rand }]}>
+    <View
+      style={[
+        styles.nav,
+        { backgroundColor: colors.kaart, borderTopColor: colors.rand, paddingBottom: Math.max(insets.bottom, spacing.sm) },
+      ]}
+    >
       {TABS.map(({ id, label, Icon }) => {
         const isActief = actief === id;
         const kleur = isActief ? colors.cta : colors.tekstGedimd;
@@ -55,7 +64,6 @@ const styles = StyleSheet.create({
   nav: {
     flexDirection: 'row',
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingBottom: Platform.OS === 'ios' ? 24 : spacing.sm,
     paddingTop: spacing.sm,
   },
   item: {

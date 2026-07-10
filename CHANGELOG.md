@@ -4,6 +4,21 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.1
+
+- Trades die je op eToro sluit, worden nu automatisch afgesloten in je
+  portfolio, met de echte verkoopprijs en het werkelijke resultaat inclusief
+  kosten. Kader leest daarvoor je eToro-handelshistorie. Dit gebeurt bij het
+  openen van de app, bij het naar beneden swipen op Mijn Trades en bij de
+  eToro-knop op de portfoliokaart
+- Naar beneden swipen op Mijn Trades synchroniseert nu: koersen verversen, open
+  eToro-posities bijwerken en gesloten posities afsluiten. Zonder
+  eToro-koppeling ververst swipen alleen de koersen
+- De tabbalk onderaan valt niet langer onder de menu-, home- en terugknoppen van
+  je toestel. Dit viel op onder meer Samsung-toestellen op
+- De eToro-knop op de portfoliokaart heeft een duidelijker icoon (wolk met pijl)
+  in plaats van het downloadsymbool
+
 ## 0.1.0
 
 - Portfolio importeren uit eToro: onder Instellingen kun je een eToro

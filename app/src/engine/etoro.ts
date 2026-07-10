@@ -143,6 +143,48 @@ export function naarPortfolioTrade(positie: EtoroPositie, symbool: string): Port
   };
 }
 
+// ---------- Gesloten posities (trade-historie) ----------
+
+// Let op: deze endpoint levert `positionId` (kleine d), terwijl /trading/info/portfolio
+// `positionID` gebruikt. We lezen beide varianten uit zodat een casing-wijziging aan
+// eToro's kant ons niet stilzwijgend de historie kost.
+interface EtoroHistorieRegel {
+  positionId?: number;
+  positionID?: number;
+  closeRate?: number;
+  closeTimestamp?: string;
+  netProfit?: number;
+}
+
+export interface EtoroSluiting {
+  positionID: number;
+  exitPrijs: number;   // closeRate
+  slotTijd: number;    // closeTimestamp als epoch ms
+  netProfit: number;   // bepaalt gewonnen/verloren, inclusief fees
+}
+
+export function naarSluiting(regel: EtoroHistorieRegel): EtoroSluiting | null {
+  const positionID = regel.positionId ?? regel.positionID;
+  const slotTijd = regel.closeTimestamp ? Date.parse(regel.closeTimestamp) : NaN;
+  if (typeof positionID !== 'number' || typeof regel.closeRate !== 'number' || isNaN(slotTijd)) return null;
+  return { positionID, exitPrijs: regel.closeRate, slotTijd, netProfit: regel.netProfit ?? 0 };
+}
+
+// ponytail: vast venster van 1 jaar en één pagina van 1000. PortfolioTrade.datum is een
+// gelokaliseerde string ("15 jan 2026") en dus niet te parsen tot een scherpere ondergrens.
+// Pagineer pas als iemand meer dan 1000 trades per jaar sluit.
+const HISTORIE_VENSTER_MS = 365 * 24 * 60 * 60 * 1000;
+
+export async function haalEtoroSluitingen(sleutels: EtoroSleutels): Promise<EtoroSluiting[]> {
+  const minDate = new Date(Date.now() - HISTORIE_VENSTER_MS).toISOString().slice(0, 10);
+  const data = await etoroFetch<EtoroHistorieRegel[] | { trades?: EtoroHistorieRegel[] }>(
+    `/trading/info/trade/history?minDate=${minDate}&page=1&pageSize=1000`,
+    sleutels,
+  );
+  const lijst = Array.isArray(data) ? data : (data.trades ?? []);
+  return lijst.map(naarSluiting).filter((s): s is EtoroSluiting => s !== null);
+}
+
 export interface EtoroOvergeslagenPositie {
   naam: string;
   reden: 'short' | 'geen-crypto';
@@ -197,6 +239,24 @@ if (require.main === module) {
   const geenSlTp = naarPortfolioTrade({ ...mock, stopLossRate: undefined, takeProfitRate: undefined }, 'BTC');
   console.assert(geenSlTp.stopLoss === 0 && geenSlTp.takeProfit === 0, 'ontbrekende SL/TP moet 0 worden');
   console.assert(geenSlTp.rr === 0, 'RR zonder SL/TP moet 0 zijn');
+
+  // Historie: beide casings van positionId, en het teken van netProfit.
+  const winst = naarSluiting({ positionId: 123, closeRate: 65000, closeTimestamp: '2026-02-01T12:00:00Z', netProfit: 150 });
+  console.assert(winst?.positionID === 123, 'positionId (kleine d) moet gelezen worden');
+  console.assert(winst?.exitPrijs === 65000, 'closeRate moet exitPrijs worden');
+  console.assert(winst?.slotTijd === Date.parse('2026-02-01T12:00:00Z'), 'closeTimestamp moet epoch ms worden');
+  console.assert(winst!.netProfit >= 0, 'positieve netProfit is winst');
+
+  const oudeCasing = naarSluiting({ positionID: 9, closeRate: 100, closeTimestamp: '2026-02-01T12:00:00Z', netProfit: -5 });
+  console.assert(oudeCasing?.positionID === 9, 'positionID (hoofdletter D) moet ook gelezen worden');
+  console.assert(oudeCasing!.netProfit < 0, 'negatieve netProfit is verlies');
+
+  const zonderProfit = naarSluiting({ positionId: 1, closeRate: 100, closeTimestamp: '2026-02-01T12:00:00Z' });
+  console.assert(zonderProfit?.netProfit === 0, 'ontbrekende netProfit moet 0 worden');
+
+  console.assert(naarSluiting({ closeRate: 1, closeTimestamp: '2026-02-01T12:00:00Z' }) === null, 'regel zonder positionId is onbruikbaar');
+  console.assert(naarSluiting({ positionId: 1, closeTimestamp: '2026-02-01T12:00:00Z' }) === null, 'regel zonder closeRate is onbruikbaar');
+  console.assert(naarSluiting({ positionId: 1, closeRate: 1, closeTimestamp: 'onzin' }) === null, 'onparseerbare closeTimestamp is onbruikbaar');
 
   console.log('etoro.ts self-check geslaagd');
 }
