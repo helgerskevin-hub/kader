@@ -69,6 +69,10 @@ See `docs/github-werkwijze.md` for the full agreed workflow. Key points:
 - **Coordinate first.** Tell each other (chat/WhatsApp) what you're picking up before starting -- two Claude Code sessions working on the same files simultaneously creates hard-to-fix merge conflicts.
 - **Before starting any session:** run `git fetch origin` and check `git log --all --oneline --graph` to see what the other person may have pushed.
 
+## Plan mode
+
+When using `/plan` to design a feature or task, always end the plan with a **model and effort recommendation** before asking to proceed with execution. This helps ensure the chosen tools and reasoning depth match the complexity of the task.
+
 ## Version control & releases
 
 Claude is in charge of version numbering and the changelog for this project.
