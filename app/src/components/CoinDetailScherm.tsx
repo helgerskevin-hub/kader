@@ -9,7 +9,7 @@ import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
 import { haalData } from '../engine/marketData';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
-import { fmtPrijs, fmtRR, fmtPct } from '../engine/format';
+import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -233,7 +233,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
                       {resultaatUsd !== null && (
                         <IndicatorItem
                           label="WINST/VERLIES"
-                          waarde={`${resultaatUsd >= 0 ? '+' : ''}$${Math.abs(resultaatUsd).toFixed(2)}`}
+                          waarde={fmtResultaatUsd(resultaatUsd)}
                           kleur={resultaatKleur}
                         />
                       )}
@@ -259,7 +259,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
                       {behaaldUsd !== null && (
                         <IndicatorItem
                           label="WINST/VERLIES"
-                          waarde={`${behaaldUsd >= 0 ? '+' : ''}$${Math.abs(behaaldUsd).toFixed(2)}`}
+                          waarde={fmtResultaatUsd(behaaldUsd)}
                           kleur={behaaldKleur}
                         />
                       )}

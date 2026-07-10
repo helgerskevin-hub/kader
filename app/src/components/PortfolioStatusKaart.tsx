@@ -4,11 +4,10 @@ import { RefreshCw, CloudDownload, History } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { fmtPrijs, fmtPct } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { PortfolioWaarde } from '../state/statistieken';
 import { AnimatedGetal } from './AnimatedGetal';
 
-const fmtResultaatBedrag = (n: number) => `${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}`;
 const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
 
 interface Props {
@@ -82,7 +81,7 @@ export function PortfolioStatusKaart({
         <View style={[styles.resultaat, styles.resultaatRij]}>
           <AnimatedGetal
             waarde={waarde.ongerealiseerdUsd}
-            format={fmtResultaatBedrag}
+            format={fmtResultaatUsd}
             style={[Type.prijs, { color: resultaatKleur }]}
           />
           {waarde.ongerealiseerdPct !== null && (

@@ -13,6 +13,13 @@ export function fmtPct(p: number, decimals = 1): string {
   return `${teken}${Math.abs(p).toFixed(decimals)}%`;
 }
 
+// Resultaat in dollars, met expliciet +/− teken. Zonder het minteken leest een verlies van
+// $4,21 als een winst.
+export function fmtResultaatUsd(n: number): string {
+  const teken = n >= 0 ? '+' : '−';
+  return `${teken}$${Math.abs(n).toFixed(2)}`;
+}
+
 // R/R weergave
 export function fmtRR(rr: number): string {
   return `1 : ${rr.toFixed(1)}`;
@@ -28,4 +35,14 @@ export function fmtMarktcap(cap: number): string {
   if (cap >= 1e9) return `$${(cap / 1e9).toFixed(1)}B`;
   if (cap >= 1e6) return `$${(cap / 1e6).toFixed(0)}M`;
   return `$${cap.toFixed(0)}`;
+}
+
+// ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/format.ts`
+if (require.main === module) {
+  console.assert(fmtResultaatUsd(4.21) === '+$4.21', 'winst krijgt een plus');
+  console.assert(fmtResultaatUsd(-4.21) === '−$4.21', `verlies krijgt een minteken, was ${fmtResultaatUsd(-4.21)}`);
+  console.assert(fmtResultaatUsd(0) === '+$0.00', 'nul telt als niet-negatief');
+  console.assert(fmtPct(-16.8) === '−16.8%', 'percentage krijgt een minteken');
+
+  console.log('format.ts self-check geslaagd');
 }

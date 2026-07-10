@@ -11,6 +11,13 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
   kosten. Kader leest daarvoor je eToro-handelshistorie. Dit gebeurt bij het
   openen van de app, bij het naar beneden swipen op Mijn Trades en bij de
   eToro-knop op de portfoliokaart
+- Je eToro-handelshistorie van het afgelopen jaar wordt ingelezen, zodat je
+  Historie-scherm en de statistieken (trefferpercentage, gemiddelde behaalde
+  R/R, totaal resultaat) meteen kloppen in plaats van pas vanaf de eerste
+  trade die je via Kader sluit. Posities die Kader al kende worden niet dubbel
+  toegevoegd; shorts en niet-crypto worden overgeslagen
+- Na het instellen van de eToro-koppeling wordt er meteen gesynchroniseerd, je
+  hoeft de app niet opnieuw te openen
 - Naar beneden swipen op Mijn Trades synchroniseert nu: koersen verversen, open
   eToro-posities bijwerken en gesloten posities afsluiten. Zonder
   eToro-koppeling ververst swipen alleen de koersen
@@ -18,6 +25,10 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
   je toestel. Dit viel op onder meer Samsung-toestellen op
 - De eToro-knop op de portfoliokaart heeft een duidelijker icoon (wolk met pijl)
   in plaats van het downloadsymbool
+- Een verlies in dollars toont nu een minteken. Eerder stond er bijvoorbeeld
+  "$4.21" waar "−$4.21" hoorde, en verried alleen de rode kleur dat het om een
+  verlies ging. Speelde op Mijn Trades, in de historie en op het
+  coin-detailscherm
 
 ## 0.1.0
 

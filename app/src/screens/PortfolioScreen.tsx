@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, X, Wallet, CheckCircle, XCircle, Clock } from 'lucide-react-native';
-import { fmtPrijs, fmtPct, fmtRR } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
@@ -136,7 +136,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RESULTAAT</Text>
               <Text style={[Type.prijs, { color: resultaatKleur, fontSize: 13 }]}>
                 {fmtPct(resultaatPct)}
-                {resultaatUsd !== null ? `  ${resultaatUsd >= 0 ? '+' : ''}$${Math.abs(resultaatUsd).toFixed(2)}` : ''}
+                {resultaatUsd !== null ? `  ${fmtResultaatUsd(resultaatUsd)}` : ''}
               </Text>
             </View>
           )}
@@ -155,7 +155,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEHAALD</Text>
               <Text style={[Type.prijs, { color: behaaldKleur, fontSize: 13 }]}>
                 {fmtPct(behaaldPct)}
-                {behaaldUsd !== null ? `  ${behaaldUsd >= 0 ? '+' : ''}$${Math.abs(behaaldUsd).toFixed(2)}` : ''}
+                {behaaldUsd !== null ? `  ${fmtResultaatUsd(behaaldUsd)}` : ''}
               </Text>
             </View>
           )}
@@ -662,6 +662,7 @@ export function PortfolioScreen() {
       const delen = [`${uitkomst.toegevoegd} nieuw`];
       if (uitkomst.bijgewerkt > 0) delen.push(`${uitkomst.bijgewerkt} bijgewerkt`);
       if (uitkomst.gesloten > 0) delen.push(`${uitkomst.gesloten} automatisch gesloten`);
+      if (uitkomst.uitHistorie > 0) delen.push(`${uitkomst.uitHistorie} uit je eToro-historie`);
       if (uitkomst.overgeslagen.length > 0) delen.push(`${uitkomst.overgeslagen.length} overgeslagen`);
       let bericht = delen.join(', ') + '.';
       if (uitkomst.overgeslagen.length > 0) {
