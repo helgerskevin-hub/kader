@@ -47,6 +47,26 @@ git log --all --oneline --graph
 
 Zo zie je wat de ander eventueel al heeft gepusht. Kevins en Thoms wijzigingen kunnen ingrijpend zijn -- mapstructuur, naamswijzigingen, nieuwe bestanden.
 
+## Na elke pull: `npm install`
+
+```bash
+git pull
+cd app
+npm install
+```
+
+`app/package.json` is de boodschappenlijst van de app: welke externe bibliotheken hij nodig heeft. `app/node_modules` is de kast waar die bibliotheken echt in staan. Alleen de lijst staat in Git, de kast niet (die is veel te groot).
+
+Voegt de ander een nieuwe bibliotheek toe, dan komt die dus wel op jouw lijst maar niet in jouw kast. `npm install` leest de lijst en vult de kast bij.
+
+Sla je dit over, dan faalt de build met een melding die je niet in die richting wijst, bijvoorbeeld:
+
+```
+PluginError: Failed to resolve plugin for module "expo-splash-screen"
+```
+
+Zo'n "kan module X niet vinden" betekent bijna altijd: je hebt `npm install` nog niet gedraaid. Draai het en probeer opnieuw. Draaien terwijl er niets veranderd is, kan geen kwaad; het is dan gewoon meteen klaar.
+
 ## Als het misgaat
 
 - **Iets gebroken op een branch?** Branch weggooien en opnieuw beginnen. Main staat er nog.

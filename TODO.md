@@ -48,6 +48,8 @@ _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 - [x] **Sync-status / "loop ik achter?"**: het sync-icoon bij de portfoliowaarde (Portfolio-tab) kleurt mee zodat je ziet of de gegevens actueel zijn (grijsgroen = net bijgewerkt, oranje = verouderd, rood = te oud of laatste poging mislukt), met eronder wanneer er voor het laatst is gesynchroniseerd. Ververst ook automatisch zodra de app weer op de voorgrond komt. Tijdstip blijft bewaard tussen app-starts
 - [x] Trade historie ophalen uit eToro via API en verwerken in portfolio bij sluiten trade. Met alle informatie omtrent winst/verlies zoals nu ook. Liefst automatische actie. (`importeerEtoroHistorie` leest `/trading/info/trade/history`. Twee dingen: een positie die Kader als open kende wordt automatisch afgesloten met de echte exitprijs, en gesloten posities die Kader nog niet kende worden als afgeronde trade toegevoegd, zodat de historie met terugwerkende kracht klopt. `netProfit` bepaalt gewonnen/verloren, inclusief kosten. Draait bij het openen van de app, na het opslaan van de koppeling, bij swipen op Portfolio en bij de eToro-knop.)
 - [ ] **Misschien ook iets dat bijhoudt of je achterloopt? Alsin: als er iets niet up to date is? Klein icoontje of kleur? Rode kleur van dat cloud icoontje?** Als in de sync is * aantal minuten/uur/dagen geleden. Adviseer om te synchroniseren. Misschien kan dit automatisch?
+- [ ] **Meldingen als er een hele sterke koop is**
+- [ ] **Compact view in portfolio** Door middel van een keuze switch wisselen tussen meer info en compact. Voorbeeld is etoro zijn eigen portfolio view bijvoorbeeld. 
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
@@ -119,7 +121,13 @@ _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet w
 - [x] **Naar beneden swipen moet syncen op portfoliopagina.** `RefreshControl` op de `FlatList` in `PortfolioScreen.tsx`, gekoppeld aan de nieuwe `synchroniseer()` uit `PortfolioProvider`: prijzen verversen, open eToro-posities bijwerken en op eToro gesloten posities afsluiten. Zonder eToro-koppeling ververst swipen alleen de prijzen, zonder foutmelding.
 - [x] **Verlies in dollars werd zonder minteken getoond.** Een verlies van $4,21 stond als `$4.21` in plaats van `−$4.21` (alleen de kleur verried het). Oorzaak: vijf plekken bouwden het bedrag zelf op met `Math.abs(...)` en zetten alleen een `+` bij winst. Opgelost met één gedeelde `fmtResultaatUsd()` in `engine/format.ts`, gebruikt door `PortfolioScreen`, `HistorieScherm`, `CoinDetailScherm` en `PortfolioStatusKaart`. Gevonden bij het testen van de eToro-historie-import.
 - [x] Geen bug maar wish: Import knop lijkt nu op downloaden. Vervangen door `CloudDownload` (wolk met pijl) in `PortfolioStatusKaart.tsx`, zodat duidelijk is dat het van eToro's server komt.
-
+- [ ] **Stop-loss validatie voor eToro**: stop-loss is niet altijd in te vullen op eToro (waarde te laag/hoog). Voeg een check toe dat waarschuwt als de voorgestelde stop-loss buiten eToro's limiet valt.
+- [ ] **Terughoudender swipen op Marktscherm**: naar beneden swipen voor refresh voelt te gevoelig (raakt accidenteel aan bij scrollen). Drempelwaarde verhogen.
+- [ ] **Settings sheet via tap-outside sluiten**: Instellingensheet kan nu alleen dicht met het kruisje. Moet ook dichtgaan als je buiten de sheet tikt (standaard bottom-sheet behavior).
+- [ ] **Pushmelding-positie aanpassen**: meldingen staan te laag, worden verborgen achter de gesture buttons op telefoon. Hoger positioneren.
+- [ ] **Cloud-icoon meekleurend**: het importwolkje (CloudDownload) moet ook reageren op licht/donker thema.
+- [ ] **API import/refresh bij elke app-start**: Portfolio moet automatisch VerseSync doen zodra de app start (net als nu gebeurt bij PortfolioScreen-mount, maar dan globaal).
+- [ ] **Trade-formulier verliest ingevulde waarden**: Als je in het "Trade toevoegen"-formulier een bedrag/prijs invult, dan naar eToro schakelt om de exacte prijs te checken en terugkomt, zijn de ingevulde waarden verdwenen. De form-state wordt gereset wanneer de app naar achtergrond gaat. Waarden moeten naar AsyncStorage worden persisted terwijl het formulier open is.
 
 ## ✅ Klaar
 
