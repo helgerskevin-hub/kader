@@ -2,8 +2,10 @@ import { Trade } from './types';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
 import { haalData } from './marketData';
 
-// Coins die daadwerkelijk op eToro te kopen zijn (NL/EU). Controleer etoro.com voor updates.
-// TON heeft geen Binance USDT-paar (en geen alias), dus die staat hier niet in.
+// De coins die wij analyseren: op eToro te kopen én met een live Binance USDT-paar (eventueel via
+// een alias, zie BINANCE_ALIAS in marketData.ts). Dit is dus een deelverzameling van ETORO_TRADABLE
+// in opportunities.ts, niet dezelfde lijst: TON kun je op eToro aanhouden maar niet op Binance
+// uitlezen, dus die analyseren we niet. `node scripts/check-universum.mjs` controleert allebei.
 export const STANDAARD_UNIVERSUM = [
   'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
   'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',

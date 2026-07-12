@@ -18,6 +18,9 @@ interface Props {
   // samen goed voor de kleurindicatie op het sync-icoon.
   laatsteSync: number | null;
   syncFout: boolean;
+  // Foutmelding van de laatste eToro-sync, of null. Los van syncFout, want de koersen kunnen
+  // gewoon ververst zijn terwijl juist het ophalen van je posities mislukte.
+  etoroFout: string | null;
   etoroBezig: boolean;
   afgesloten: number;
   onVerversen: () => void;
@@ -26,7 +29,7 @@ interface Props {
 }
 
 export function PortfolioStatusKaart({
-  waarde, syncing, laatsteSync, syncFout, etoroBezig, afgesloten,
+  waarde, syncing, laatsteSync, syncFout, etoroFout, etoroBezig, afgesloten,
   onVerversen, onImporteren, onOpenHistorie,
 }: Props) {
   const { colors } = useTheme();
@@ -34,12 +37,15 @@ export function PortfolioStatusKaart({
   const heeftWaardering = waarde.gewaardeerd > 0;
   const resultaatKleur = waarde.ongerealiseerdUsd >= 0 ? colors.winst : colors.verlies;
 
-  // Kleurindicatie voor het sync-icoon: grijsgroen = actueel, oranje = verouderd,
-  // rood = te oud of laatste poging mislukt, blauw = bezig.
-  const stand = bepaalSyncStand({ laatsteSync, syncFout, syncing });
+  // Kleurindicatie voor het sync-icoon: groen = actueel, oranje = verouderd of eToro mislukt,
+  // rood = te oud of de koersen zelf mislukten, blauw = bezig.
+  const stand = bepaalSyncStand({ laatsteSync, syncFout, syncing, etoroFout });
   const syncKleur = colors[stand.kleur];
+  // Bij een eToro-fout niet "3 min geleden" tonen: de koersen zijn dan wel bij, maar je posities
+  // niet, en dat verschil moet uit de regel zelf blijken.
   const syncKort = syncing
     ? 'Bijwerken...'
+    : stand.niveau === 'etoro-fout' ? 'eToro mislukt'
     : laatsteSync ? relatieveTijd(laatsteSync) : 'Nog niet';
 
   return (

@@ -11,6 +11,9 @@ export const SLEUTELS = {
   etoroUserKey: 'etoro_user_key',
   etoroSetupGevraagd: 'etoro_setup_gevraagd',
   laatsteSync: 'laatste_sync_tijd',
+  // eToro-positie-ID's die de gebruiker uit zijn portfolio heeft verwijderd. Zonder deze lijst
+  // zet de eerstvolgende sync ze er gewoon weer in, want ontdubbelen gebeurt op positie-ID.
+  genegeerdeEtoroIds: 'genegeerde_etoro_ids',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

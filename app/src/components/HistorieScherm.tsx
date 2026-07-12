@@ -121,10 +121,20 @@ function GeslotenKaart({ trade, onOpenDetail, onVerwijder }: {
   const behaaldPct = trade.exitPrijs !== undefined
     ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
     : null;
-  const behaaldUsd = trade.exitPrijs !== undefined && heeftAantal
-    ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
-    : null;
-  const behaaldKleur = behaaldPct !== null ? (behaaldPct >= 0 ? colors.winst : colors.verlies) : colors.tekstGedimd;
+  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat. Alleen als we dat niet
+  // hebben (handmatige trade) rekenen we het bruto koersverschil uit.
+  const behaaldUsd = typeof trade.resultaatUsd === 'number'
+    ? trade.resultaatUsd
+    : trade.exitPrijs !== undefined && heeftAantal
+      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
+      : null;
+  // Kleuren op het bedrag, niet op het koersverschil: een trade kan net boven entry sluiten en na
+  // kosten toch verlies zijn, en dan hoort er geen groene +0,4% naast de rode "verloren"-badge.
+  const behaaldKleur = behaaldUsd !== null
+    ? (behaaldUsd >= 0 ? colors.winst : colors.verlies)
+    : behaaldPct !== null
+      ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
+      : colors.tekstGedimd;
 
   return (
     <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: statusKleur }]}>

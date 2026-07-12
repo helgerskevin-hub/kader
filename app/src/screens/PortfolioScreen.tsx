@@ -66,12 +66,20 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
   const behaaldPct = trade.exitPrijs !== undefined
     ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
     : null;
-  const behaaldUsd = trade.exitPrijs !== undefined && heeftAantal
-    ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
-    : null;
-  const behaaldKleur = behaaldPct !== null
-    ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
-    : colors.tekstGedimd;
+  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat. Alleen als we dat niet
+  // hebben (handmatige trade) rekenen we het bruto koersverschil uit.
+  const behaaldUsd = typeof trade.resultaatUsd === 'number'
+    ? trade.resultaatUsd
+    : trade.exitPrijs !== undefined && heeftAantal
+      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
+      : null;
+  // Kleuren op het bedrag, niet op het koersverschil. Een trade kan net boven entry sluiten en na
+  // kosten toch verlies zijn; dan hoort er geen groene +0,4% naast een rode "verloren"-badge.
+  const behaaldKleur = behaaldUsd !== null
+    ? (behaaldUsd >= 0 ? colors.winst : colors.verlies)
+    : behaaldPct !== null
+      ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
+      : colors.tekstGedimd;
 
   const randKleur = trade.status === 'open' ? adviesKleur : statusKleur;
 
@@ -618,7 +626,7 @@ export function PortfolioScreen() {
   const { colors } = useTheme();
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
-    syncing, laatsteSync, syncFout, synchroniseer,
+    syncing, laatsteSync, syncFout, etoroFout, synchroniseer,
   } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
@@ -628,8 +636,11 @@ export function PortfolioScreen() {
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
 
-  // Swipe omlaag: stil synchroniseren. Geen meldingen, ook niet als er geen koppeling is.
+  // Swipe omlaag en de verversknop: stil synchroniseren. Geen meldingen, ook niet als er geen
+  // koppeling is; een mislukte eToro-sync komt via etoroFout terug in de statuskaart.
+  // De vroege return voorkomt dat je met een paar tikken meerdere volledige syncs tegelijk afvuurt.
   async function swipeSync() {
+    if (ververst) return;
     setVerverst(true);
     try {
       await synchroniseer();
@@ -722,9 +733,12 @@ export function PortfolioScreen() {
         ListHeaderComponent={
           <PortfolioStatusKaart
             waarde={waarde}
-            syncing={syncing}
+            // Ook tijdens een swipe- of knop-sync bezig tonen: verversPrijzen zet `syncing` alleen
+            // als er open posities zijn, dus met een lege portfolio bleef de knop anders indrukbaar.
+            syncing={syncing || ververst}
             laatsteSync={laatsteSync}
             syncFout={syncFout}
+            etoroFout={etoroFout}
             etoroBezig={etoroBezig}
             afgesloten={afgeslotenCount}
             onVerversen={swipeSync}

@@ -17,6 +17,30 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
   ronde cirkel op je startscherm valt in plaats van tegen de rand aan te lopen
 - Het opstartscherm (splash) toont weer het juiste Kader-logo op een blauwe
   achtergrond in plaats van het oude ontwerp
+- Een mislukte eToro-synchronisatie wordt nu ook echt gemeld. Zolang de koersen
+  binnenkwamen, kleurde de status groen met "bijgewerkt", ook als je posities
+  helemaal niet waren opgehaald (bijvoorbeeld door een verlopen sleutel). De
+  status staat nu oranje met de reden erbij
+- Het totaalresultaat in je statistieken gebruikt voortaan het werkelijke bedrag
+  van eToro, inclusief kosten, in plaats van alleen het koersverschil. Daardoor
+  spraken je trefferpercentage en je totaalbedrag elkaar niet meer tegen
+- Trades zonder stop-loss tellen niet langer mee in je gemiddelde behaalde R/R.
+  Zonder stop-loss valt er geen R te berekenen, en die trades trokken het
+  gemiddelde naar nul zodra je eToro-historie was ingelezen
+- Een trade die net boven je instapprijs sloot maar door de kosten toch verlies
+  opleverde, liet een groen plusje zien naast een rood "verloren". Kleur en
+  bedrag tonen nu allebei het werkelijke resultaat
+- Een verwijderde eToro-trade blijft nu verwijderd. Eerder zette de
+  eerstvolgende synchronisatie hem er gewoon weer bij
+- Had je een trade zelf ingevoerd voordat je eToro koppelde, dan kwam dezelfde
+  trade via de historie een tweede keer in je overzicht. Die worden nu herkend
+  en samengevoegd
+- Net geïmporteerde eToro-posities tonen meteen hun koers en waarde, in plaats
+  van pas na een minuut
+- TON werd bij het importeren ten onrechte niet als crypto herkend en dus
+  overgeslagen
+- Synchroniseren doet minder verzoeken aan eToro, waardoor je minder snel tegen
+  de aanvraaglimiet aanloopt
 
 ## 0.1.1
 
