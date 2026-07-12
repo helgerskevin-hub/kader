@@ -17,6 +17,9 @@ export const SLEUTELS = {
   // Concept van het "Trade toevoegen"-formulier: overleeft een activity-restart door Android
   // terwijl je even naar eToro schakelt om de exacte prijs te checken.
   tradeConcept: 'trade_concept',
+  // Stop-loss-grenzen per coin, opgehaald bij eToro. Gecachet omdat het endpoint een krap eigen
+  // quotum heeft (20 per minuut) en de grenzen zelden wijzigen.
+  etoroLimieten: 'etoro_limieten',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

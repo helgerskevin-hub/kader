@@ -1,8 +1,9 @@
 import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
 import { ETORO_TRADABLE } from './opportunities';
 import { COIN_INFO } from './coinInfo';
+import { EtoroEligibility, StopLossLimiet, kiesLimiet } from './etoroLimieten';
 
-const BASIS_URL = 'https://public-api.etoro.com/api/v1';
+const BASIS_URL = 'https://public-api.etoro.com/api';
 const HTTP_TIMEOUT = 15_000;
 
 // eToro valideert X-Request-Id als een echt GUID; nieuweId() (base36) volstaat niet.
@@ -49,14 +50,26 @@ interface EtoroInstrument {
   instrumentTypeID?: number;
 }
 
-async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels): Promise<T> {
+interface FetchOpties {
+  // De meeste endpoints zitten op v1; eligibility bestaat alleen als v2.
+  versie?: 'v1' | 'v2';
+  // Een body aanwezig = POST. Zonder body blijft het een GET, zodat de bestaande aanroepen
+  // ongewijzigd blijven werken.
+  body?: unknown;
+}
+
+async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: FetchOpties = {}): Promise<T> {
+  const { versie = 'v1', body } = opties;
   const res = await Promise.race([
-    fetch(`${BASIS_URL}${pad}`, {
+    fetch(`${BASIS_URL}/${versie}${pad}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      body: body === undefined ? undefined : JSON.stringify(body),
       headers: {
         'x-api-key': sleutels.apiKey,
         'x-user-key': sleutels.userKey,
         'x-request-id': guid(),
         'Accept': 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
     }),
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), HTTP_TIMEOUT)),
@@ -75,6 +88,40 @@ async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels): Promise<T> {
 // zijn; wij gaan uit van een Real + Read-sleutel.
 export async function haalEtoroPortfolio(sleutels: EtoroSleutels): Promise<EtoroPortfolioRespons> {
   return etoroFetch<EtoroPortfolioRespons>('/trading/info/portfolio', sleutels);
+}
+
+// ---------- Stop-loss-limieten ----------
+
+interface EligibilityRespons {
+  eligibilities?: EtoroEligibility[];
+  notFoundSymbols?: string[];
+}
+
+// eToro staat maximaal 100 symbolen per aanroep toe, en dit endpoint heeft een eigen quotum van
+// 20 requests per 60 seconden. Daarom in één keer alles opvragen en een dag cachen (zie
+// state/useStopLossLimiet.ts); de limieten veranderen zelden.
+const MAX_SYMBOLEN = 100;
+
+// Geeft per symbool de stop-loss-grenzen die eToro hanteert. Symbolen die eToro niet kent komen
+// terug in notFoundSymbols en staan dus simpelweg niet in de kaart: geen limiet, geen waarschuwing.
+export async function haalStopLossLimieten(
+  symbolen: string[],
+  sleutels: EtoroSleutels,
+): Promise<Record<string, StopLossLimiet>> {
+  const uniek = [...new Set(symbolen.map(s => s.toUpperCase()))].slice(0, MAX_SYMBOLEN);
+  if (uniek.length === 0) return {};
+
+  const data = await etoroFetch<EligibilityRespons>('/trading/info/eligibility', sleutels, {
+    versie: 'v2',
+    body: { symbols: uniek, currency: 'USD' },
+  });
+
+  const kaart: Record<string, StopLossLimiet> = {};
+  for (const item of data.eligibilities ?? []) {
+    const limiet = kiesLimiet(item);
+    if (limiet) kaart[limiet.symbool] = limiet;
+  }
+  return kaart;
 }
 
 async function haalInstrumenten(ids: number[], sleutels: EtoroSleutels): Promise<Map<number, EtoroInstrument>> {

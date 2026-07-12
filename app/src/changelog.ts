@@ -20,6 +20,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Naar beneden swipen op het Marktscherm liet je hele lijst verdwijnen voor een laadscherm. Ververst nu op de achtergrond terwijl je lijst gewoon zichtbaar blijft, met dezelfde verbetering op het Grote Kansen-scherm',
       'Instellingen, Wijzigingen, filters, de eToro-koppelvraag en alle formulieren sluiten nu ook als je buiten het venster tikt, niet alleen met het kruisje. Ze houden ook rekening met de gesturebalk onderaan, zodat de onderste knop niet meer verstopt zit',
       'Het "Trade toevoegen"-formulier onthoudt nu wat je hebt ingevuld als je tussendoor naar eToro schakelt om de prijs te checken en terugkomt',
+      'eToro accepteert niet elke stop-loss: ligt die te dicht op of te ver van je aankoopprijs, dan weigert eToro de order. Het Getrade-formulier waarschuwt nu vooraf, met de echte grenzen die eToro voor die coin hanteert. Zonder eToro-koppeling zie je geen waarschuwing',
     ],
   },
   {

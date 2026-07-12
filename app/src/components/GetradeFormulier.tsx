@@ -7,7 +7,9 @@ import { X } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
+import { valideerStopLoss } from '../engine/etoroLimieten';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { nieuweId, PortfolioTrade } from '../state/portfolioTypes';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -96,6 +98,15 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
 
   const coin = trade ? infoVoor(trade.symbool) : null;
 
+  // Kader rekent zijn eigen stop uit, maar eToro accepteert niet elke afstand. Meten we tegen de
+  // aankoopprijs die je hier invult, want die wijkt af van de entry uit de analyse zodra de koers
+  // is doorgelopen. Zonder eToro-koppeling of bij een API-fout blijft de limiet null en zeggen we
+  // niets: liever geen waarschuwing dan een verzonnen grens.
+  const stopLimiet = useStopLossLimiet(trade?.symbool);
+  const stopWaarschuwing = trade
+    ? valideerStopLoss(parseFloat(form.entryPrijs.replace(',', '.')), trade.stopLoss, stopLimiet)
+    : null;
+
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
       <View style={stijlen.titelRij}>
@@ -130,6 +141,12 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
                 <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(trade.rr)}</Text>
               </View>
             </View>
+          </View>
+        ) : null}
+
+        {stopWaarschuwing ? (
+          <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
+            <Text style={[Type.caption, { color: colors.letOp }]}>{stopWaarschuwing}</Text>
           </View>
         ) : null}
 
@@ -202,6 +219,12 @@ const stijlen = StyleSheet.create({
     gap: spacing.base,
   },
   infoVeld: { flex: 1 },
+  waarschuwing: {
+    borderWidth: 1,
+    borderRadius: radii.veld,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
   label: { marginTop: spacing.md, marginBottom: spacing.xs },
   input: {
     borderWidth: 1,

@@ -22,6 +22,10 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
   niet meer verstopt zit
 - Het "Trade toevoegen"-formulier onthoudt nu wat je hebt ingevuld als je
   tussendoor naar eToro schakelt om de prijs te checken en terugkomt
+- eToro accepteert niet elke stop-loss: ligt die te dicht op of te ver van je
+  aankoopprijs, dan weigert eToro de order. Het Getrade-formulier waarschuwt nu
+  vooraf, met de echte grenzen die eToro voor die coin hanteert. Zonder
+  eToro-koppeling zie je geen waarschuwing
 
 ## 0.1.2
 
