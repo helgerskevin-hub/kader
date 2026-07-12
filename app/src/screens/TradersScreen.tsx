@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, Pressable, FlatList, Modal, TextInput, ScrollView,
+  View, Text, Pressable, FlatList, TextInput, ScrollView,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import { beoordeelTrader } from '../engine/auditor';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
+import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { laadLijst, bewaarLijst, SLEUTELS } from '../storage/opslag';
@@ -243,7 +243,6 @@ function TraderFormulier({ zichtbaar, onSluiten, onOpslaan }: {
   const { colors } = useTheme();
   const [form, setForm] = useState<TraderFormData>(leegTraderForm);
   const [fout, setFout] = useState('');
-  const toetsenbordHoogte = useToetsenbordHoogte();
 
   function reset() {
     setForm(leegTraderForm);
@@ -283,146 +282,130 @@ function TraderFormulier({ zichtbaar, onSluiten, onOpslaan }: {
   }];
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
-      <View style={traderFormStyles.overlay}>
-        <View style={[
-          traderFormStyles.vel, shadow.modal,
-          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
-        ]}>
-          <View style={traderFormStyles.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trader beoordelen</Text>
-            <Pressable
-              onPress={() => { reset(); onSluiten(); }}
-              style={traderFormStyles.sluitKnop}
-              accessibilityLabel="Sluiten"
-              accessibilityRole="button"
-            >
-              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>NAAM *</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.naam}
-              onChangeText={v => setForm(f => ({ ...f, naam: v }))}
-              placeholder="eToro-gebruikersnaam"
-              placeholderTextColor={colors.tekstGedimd}
-              autoCapitalize="words"
-            />
-
-            <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
-              RISICOSCORE (eToro, 1 = laag, 7 = hoog) *
-            </Text>
-            <View style={traderFormStyles.riskRij}>
-              {['1', '2', '3', '4', '5', '6', '7'].map(v => (
-                <Pressable
-                  key={v}
-                  style={[
-                    traderFormStyles.riskKnop,
-                    {
-                      backgroundColor: form.riskScore === v ? colors.cta : colors.verhoogd,
-                      borderColor: form.riskScore === v ? colors.cta : colors.rand,
-                    },
-                  ]}
-                  onPress={() => setForm(f => ({ ...f, riskScore: v }))}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: form.riskScore === v }}
-                  accessibilityLabel={`Risicoscore ${v}`}
-                >
-                  <Text style={[Type.caption, {
-                    color: form.riskScore === v ? 'white' : colors.tekstGedimd,
-                    fontWeight: '600',
-                  }]}>
-                    {v}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>MAX DRAWDOWN % *</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.maxDrawdown}
-              onChangeText={v => setForm(f => ({ ...f, maxDrawdown: v }))}
-              placeholder="bijv. 32.5"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
-              JAARRENDEMENT % (optioneel)
-            </Text>
-            <TextInput
-              style={inputStyle}
-              value={form.jaarrendement}
-              onChangeText={v => setForm(f => ({ ...f, jaarrendement: v }))}
-              placeholder="bijv. 85.2"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
-              MAANDRENDEMENTEN % (komma-gescheiden, optioneel)
-            </Text>
-            <TextInput
-              style={[inputStyle, traderFormStyles.multilineInput]}
-              value={form.maandrendementen}
-              onChangeText={v => setForm(f => ({ ...f, maandrendementen: v }))}
-              placeholder="bijv. 3.2, -1.5, 4.1, 8.3, -2.0"
-              placeholderTextColor={colors.tekstGedimd}
-              multiline
-            />
-
-            <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
-              PORTFOLIO (optioneel, bijv. BTC=40 ETH=30 SOL=30)
-            </Text>
-            <TextInput
-              style={[inputStyle, traderFormStyles.multilineInput]}
-              value={form.portfolio}
-              onChangeText={v => setForm(f => ({ ...f, portfolio: v }))}
-              placeholder="BTC=40 ETH=25 SOL=20 DOGE=15"
-              placeholderTextColor={colors.tekstGedimd}
-              multiline
-              autoCapitalize="characters"
-            />
-
-            {fout ? (
-              <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
-            ) : null}
-
-            <Pressable
-              style={[traderFormStyles.opslaanKnop, { backgroundColor: colors.cta }]}
-              onPress={valideerEnOpslaan}
-              accessibilityRole="button"
-            >
-              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Beoordelen</Text>
-            </Pressable>
-
-            <Text style={[Type.caption, {
-              color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.md,
-            }]}>
-              Oordeel is gebaseerd op de ingevoerde statistieken
-            </Text>
-          </ScrollView>
-        </View>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={() => { reset(); onSluiten(); }} velStijl={traderFormStyles.vel}>
+      <View style={traderFormStyles.titelRij}>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trader beoordelen</Text>
+        <Pressable
+          onPress={() => { reset(); onSluiten(); }}
+          style={traderFormStyles.sluitKnop}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+        >
+          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>NAAM *</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.naam}
+          onChangeText={v => setForm(f => ({ ...f, naam: v }))}
+          placeholder="eToro-gebruikersnaam"
+          placeholderTextColor={colors.tekstGedimd}
+          autoCapitalize="words"
+        />
+
+        <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
+          RISICOSCORE (eToro, 1 = laag, 7 = hoog) *
+        </Text>
+        <View style={traderFormStyles.riskRij}>
+          {['1', '2', '3', '4', '5', '6', '7'].map(v => (
+            <Pressable
+              key={v}
+              style={[
+                traderFormStyles.riskKnop,
+                {
+                  backgroundColor: form.riskScore === v ? colors.cta : colors.verhoogd,
+                  borderColor: form.riskScore === v ? colors.cta : colors.rand,
+                },
+              ]}
+              onPress={() => setForm(f => ({ ...f, riskScore: v }))}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: form.riskScore === v }}
+              accessibilityLabel={`Risicoscore ${v}`}
+            >
+              <Text style={[Type.caption, {
+                color: form.riskScore === v ? 'white' : colors.tekstGedimd,
+                fontWeight: '600',
+              }]}>
+                {v}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>MAX DRAWDOWN % *</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.maxDrawdown}
+          onChangeText={v => setForm(f => ({ ...f, maxDrawdown: v }))}
+          placeholder="bijv. 32.5"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
+          JAARRENDEMENT % (optioneel)
+        </Text>
+        <TextInput
+          style={inputStyle}
+          value={form.jaarrendement}
+          onChangeText={v => setForm(f => ({ ...f, jaarrendement: v }))}
+          placeholder="bijv. 85.2"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
+          MAANDRENDEMENTEN % (komma-gescheiden, optioneel)
+        </Text>
+        <TextInput
+          style={[inputStyle, traderFormStyles.multilineInput]}
+          value={form.maandrendementen}
+          onChangeText={v => setForm(f => ({ ...f, maandrendementen: v }))}
+          placeholder="bijv. 3.2, -1.5, 4.1, 8.3, -2.0"
+          placeholderTextColor={colors.tekstGedimd}
+          multiline
+        />
+
+        <Text style={[Type.overline, traderFormStyles.label, { color: colors.tekstGedimd }]}>
+          PORTFOLIO (optioneel, bijv. BTC=40 ETH=30 SOL=30)
+        </Text>
+        <TextInput
+          style={[inputStyle, traderFormStyles.multilineInput]}
+          value={form.portfolio}
+          onChangeText={v => setForm(f => ({ ...f, portfolio: v }))}
+          placeholder="BTC=40 ETH=25 SOL=20 DOGE=15"
+          placeholderTextColor={colors.tekstGedimd}
+          multiline
+          autoCapitalize="characters"
+        />
+
+        {fout ? (
+          <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
+        ) : null}
+
+        <Pressable
+          style={[traderFormStyles.opslaanKnop, { backgroundColor: colors.cta }]}
+          onPress={valideerEnOpslaan}
+          accessibilityRole="button"
+        >
+          <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Beoordelen</Text>
+        </Pressable>
+
+        <Text style={[Type.caption, {
+          color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.md,
+        }]}>
+          Oordeel is gebaseerd op de ingevoerde statistieken
+        </Text>
+      </ScrollView>
+    </BottomSheet>
   );
 }
 
 const traderFormStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.5)',
-    justifyContent: 'flex-end',
-  },
   vel: {
-    borderTopLeftRadius: radii.kaart,
-    borderTopRightRadius: radii.kaart,
-    padding: spacing.base,
-    paddingBottom: spacing.xl,
     maxHeight: '90%',
   },
   titelRij: {

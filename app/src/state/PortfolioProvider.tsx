@@ -40,6 +40,10 @@ interface PortfolioContextWaarde {
 const PortfolioContext = createContext<PortfolioContextWaarde | null>(null);
 
 const VERVERS_INTERVAL_MS = 60_000;
+// Bij terugkeer uit de achtergrond niet elke keer een volledige eToro-sync doen: dat quotum is
+// maar 60 requests per 60 seconden. Binnen dit venster na de laatste geslaagde sync volstaat een
+// prijs-ververs; daarbuiten halen we ook de eToro-posities en -historie opnieuw op.
+const HERSYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<PortfolioTrade[]>([]);
@@ -52,6 +56,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const tradesRef = useRef(trades);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startSyncGedaan = useRef(false);
+  // Voor de cooldown-check in de foreground-listener: synchroon uit te lezen, in tegenstelling
+  // tot de laatsteSync-state die pas na een render bijgewerkt is.
+  const laatsteSyncRef = useRef<number | null>(null);
   // Verwijderde eToro-posities. In een ref én in state: de sync-functies lezen 'm synchroon uit
   // (ref), maar hij moet ook van schijf komen bij het opstarten.
   const genegeerdeIdsRef = useRef<Set<number>>(new Set());
@@ -65,7 +72,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     });
     laadTekst(SLEUTELS.laatsteSync, '').then(t => {
       const ms = Number(t);
-      if (t && Number.isFinite(ms)) setLaatsteSync(ms);
+      if (t && Number.isFinite(ms)) {
+        setLaatsteSync(ms);
+        laatsteSyncRef.current = ms;
+      }
     });
     laadLijst<number>(SLEUTELS.genegeerdeEtoroIds).then(ids => {
       genegeerdeIdsRef.current = new Set(ids.filter(id => typeof id === 'number'));
@@ -80,6 +90,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const markeerGesynct = useCallback(() => {
     const nu = Date.now();
     setLaatsteSync(nu);
+    laatsteSyncRef.current = nu;
     setSyncFout(false);
     bewaarTekst(SLEUTELS.laatsteSync, String(nu));
   }, []);
@@ -121,16 +132,6 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);
     };
-  }, [geladen, verversPrijzen]);
-
-  // Automatisch bijwerken zodra de app weer op de voorgrond komt: het interval staat stil terwijl
-  // de app op de achtergrond is, dus na terugkeren zijn de koersen vaak verouderd.
-  useEffect(() => {
-    if (!geladen) return;
-    const sub = AppState.addEventListener('change', (stand) => {
-      if (stand === 'active') verversPrijzen();
-    });
-    return () => sub.remove();
   }, [geladen, verversPrijzen]);
 
   const voegTradeToe = useCallback((trade: PortfolioTrade) => {
@@ -349,6 +350,20 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       return { ...leeg, gekoppeld: true, fout: bericht };
     }
   }, [verversPrijzen, importeerEtoroTrades, verwerkEtoroHistorie, markeerGesynct]);
+
+  // Automatisch bijwerken zodra de app weer op de voorgrond komt: het interval staat stil terwijl
+  // de app op de achtergrond is. Buiten de cooldown ook eToro-posities/-historie meenemen, anders
+  // klopt je portfolio wel qua koers maar niet qua posities na een dag afwezigheid.
+  useEffect(() => {
+    if (!geladen) return;
+    const sub = AppState.addEventListener('change', (stand) => {
+      if (stand !== 'active') return;
+      const nu = Date.now();
+      const buitenCooldown = laatsteSyncRef.current === null || nu - laatsteSyncRef.current > HERSYNC_COOLDOWN_MS;
+      if (buitenCooldown) synchroniseer(); else verversPrijzen();
+    });
+    return () => sub.remove();
+  }, [geladen, verversPrijzen, synchroniseer]);
 
   // Eenmalig bij het openen van de app: volledige sync zodra de opgeslagen trades geladen zijn.
   // De ref voorkomt een tweede ronde als React het effect opnieuw draait (StrictMode, remount).

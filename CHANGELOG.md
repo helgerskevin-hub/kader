@@ -4,6 +4,25 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.3
+
+- Het import-wolkje bij je portfoliowaarde kleurt nu mee met de sync-status
+  (groen/oranje/rood), net als het ernaast staande verversicoon, in plaats van
+  altijd blauw te blijven. Eronder staat nu ook een adviesregel zodra de
+  gegevens niet meer actueel zijn
+- De app synchroniseert nu ook je eToro-posities en -historie zodra je
+  terugkeert uit de achtergrond (niet alleen de koersen), met een korte pauze
+  tussen synchronisaties zodat eToro's aanvraaglimiet niet te snel vol loopt
+- Naar beneden swipen op het Marktscherm liet je hele lijst verdwijnen voor een
+  laadscherm. Ververst nu op de achtergrond terwijl je lijst gewoon zichtbaar
+  blijft, met dezelfde verbetering op het Grote Kansen-scherm
+- Instellingen, Wijzigingen, filters, de eToro-koppelvraag en alle formulieren
+  sluiten nu ook als je buiten het venster tikt, niet alleen met het kruisje.
+  Ze houden ook rekening met de gesturebalk onderaan, zodat de onderste knop
+  niet meer verstopt zit
+- Het "Trade toevoegen"-formulier onthoudt nu wat je hebt ingevuld als je
+  tussendoor naar eToro schakelt om de prijs te checken en terugkomt
+
 ## 0.1.2
 
 - Sync-status bij je portfoliowaarde: het sync-icoon boven de portfoliokaart

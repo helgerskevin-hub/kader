@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { X, Smartphone, Sun, Moon, FileText, Link2, ChevronRight } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing, radii, shadow } from '../theme/tokens';
+import { spacing, radii } from '../theme/tokens';
+import { BottomSheet } from './BottomSheet';
 import { ChangelogSheet } from './ChangelogSheet';
 import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
 import { laadTekst, SLEUTELS } from '../storage/opslag';
-import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 import { usePortfolio } from '../state/PortfolioProvider';
 
 interface Props {
@@ -28,7 +28,6 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [gekoppeld, setGekoppeld] = useState(false);
-  const toetsenbordHoogte = useToetsenbordHoogte();
 
   async function ververGekoppeld() {
     const [a, u] = await Promise.all([
@@ -44,81 +43,74 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
 
   return (
     <>
-    <Modal visible={zichtbaar && !changelogOpen && !wizardOpen} animationType="slide" transparent onRequestClose={onSluiten}>
-      <View style={styles.overlay}>
-        <View style={[
-          styles.vel, shadow.modal,
-          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
-        ]}>
-          <View style={styles.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Instellingen</Text>
-            <Pressable
-              onPress={onSluiten}
-              accessibilityLabel="Sluiten"
-              accessibilityRole="button"
-              style={styles.sluitKnop}
-            >
-              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-
-          <Text style={[Type.overline, styles.label, { color: colors.tekstGedimd }]}>WEERGAVE</Text>
-          <View style={styles.opties}>
-            {OPTIES.map(({ modus: optieModus, label, Icon }) => {
-              const actief = modus === optieModus;
-              return (
-                <Pressable
-                  key={optieModus}
-                  onPress={() => setModus(optieModus)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: actief }}
-                  accessibilityLabel={label}
-                  style={[
-                    styles.optie,
-                    {
-                      backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                      borderColor: actief ? colors.cta : colors.rand,
-                    },
-                  ]}
-                >
-                  <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-                  <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
-            <Pressable
-              onPress={() => setWizardOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="eToro-koppeling instellen"
-              style={styles.menuKnop}
-            >
-              <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>eToro-koppeling</Text>
-              <Text style={[Type.caption, { color: gekoppeld ? colors.winst : colors.tekstGedimd }]}>
-                {gekoppeld ? 'Gekoppeld' : 'Niet ingesteld'}
-              </Text>
-              <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-
-            <Pressable
-              onPress={() => setChangelogOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Wijzigingen"
-              style={styles.menuKnop}
-            >
-              <FileText size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>Wijzigingen</Text>
-              <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-        </View>
+    <BottomSheet zichtbaar={zichtbaar && !changelogOpen && !wizardOpen} onSluiten={onSluiten}>
+      <View style={styles.titelRij}>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Instellingen</Text>
+        <Pressable
+          onPress={onSluiten}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+          style={styles.sluitKnop}
+        >
+          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <Text style={[Type.overline, styles.label, { color: colors.tekstGedimd }]}>WEERGAVE</Text>
+      <View style={styles.opties}>
+        {OPTIES.map(({ modus: optieModus, label, Icon }) => {
+          const actief = modus === optieModus;
+          return (
+            <Pressable
+              key={optieModus}
+              onPress={() => setModus(optieModus)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: actief }}
+              accessibilityLabel={label}
+              style={[
+                styles.optie,
+                {
+                  backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
+                  borderColor: actief ? colors.cta : colors.rand,
+                },
+              ]}
+            >
+              <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
+              <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
+        <Pressable
+          onPress={() => setWizardOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="eToro-koppeling instellen"
+          style={styles.menuKnop}
+        >
+          <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+          <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>eToro-koppeling</Text>
+          <Text style={[Type.caption, { color: gekoppeld ? colors.winst : colors.tekstGedimd }]}>
+            {gekoppeld ? 'Gekoppeld' : 'Niet ingesteld'}
+          </Text>
+          <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => setChangelogOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Wijzigingen"
+          style={styles.menuKnop}
+        >
+          <FileText size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+          <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>Wijzigingen</Text>
+          <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
+      </View>
+    </BottomSheet>
 
     <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
     <EtoroKoppelingWizard
@@ -131,17 +123,6 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.5)',
-    justifyContent: 'flex-end',
-  },
-  vel: {
-    borderTopLeftRadius: radii.kaart,
-    borderTopRightRadius: radii.kaart,
-    padding: spacing.base,
-    paddingBottom: spacing.xl,
-  },
   titelRij: {
     flexDirection: 'row',
     justifyContent: 'space-between',

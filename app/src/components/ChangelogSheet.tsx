@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing, radii, shadow } from '../theme/tokens';
+import { spacing, radii } from '../theme/tokens';
+import { BottomSheet } from './BottomSheet';
 import { CHANGELOG } from '../changelog';
 
 interface Props {
@@ -19,61 +20,48 @@ export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) 
   const titel = alleenNieuwste ? `Nieuw in v${CHANGELOG[0]?.versie}` : 'Wijzigingen';
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
-      <View style={styles.overlay}>
-        <View style={[styles.vel, shadow.modal, { backgroundColor: colors.kaart }]}>
-          <View style={styles.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{titel}</Text>
-            <Pressable
-              onPress={onSluiten}
-              accessibilityLabel="Sluiten"
-              accessibilityRole="button"
-              style={styles.sluitKnop}
-            >
-              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
-            {entries.map(entry => (
-              <View key={entry.versie} style={styles.entry}>
-                <View style={styles.entryKop}>
-                  <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>v{entry.versie}</Text>
-                  <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{entry.datum}</Text>
-                </View>
-                {entry.punten.map((punt, i) => (
-                  <Text key={i} style={[Type.caption, styles.punt, { color: colors.tekstGedimd }]}>• {punt}</Text>
-                ))}
-              </View>
-            ))}
-          </ScrollView>
-
-          {alleenNieuwste && (
-            <Pressable
-              style={[styles.begrepenKnop, { backgroundColor: colors.cta }]}
-              onPress={onSluiten}
-              accessibilityRole="button"
-            >
-              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Begrepen</Text>
-            </Pressable>
-          )}
-        </View>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={styles.vel}>
+      <View style={styles.titelRij}>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{titel}</Text>
+        <Pressable
+          onPress={onSluiten}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+          style={styles.sluitKnop}
+        >
+          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+        {entries.map(entry => (
+          <View key={entry.versie} style={styles.entry}>
+            <View style={styles.entryKop}>
+              <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>v{entry.versie}</Text>
+              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{entry.datum}</Text>
+            </View>
+            {entry.punten.map((punt, i) => (
+              <Text key={i} style={[Type.caption, styles.punt, { color: colors.tekstGedimd }]}>• {punt}</Text>
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+
+      {alleenNieuwste && (
+        <Pressable
+          style={[styles.begrepenKnop, { backgroundColor: colors.cta }]}
+          onPress={onSluiten}
+          accessibilityRole="button"
+        >
+          <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Begrepen</Text>
+        </Pressable>
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.5)',
-    justifyContent: 'flex-end',
-  },
   vel: {
-    borderTopLeftRadius: radii.kaart,
-    borderTopRightRadius: radii.kaart,
-    padding: spacing.base,
-    paddingBottom: spacing.xl,
     maxHeight: '80%',
   },
   titelRij: {

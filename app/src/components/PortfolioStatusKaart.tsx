@@ -74,7 +74,7 @@ export function PortfolioStatusKaart({
           >
             {etoroBezig
               ? <ActivityIndicator size="small" color={colors.cta} />
-              : <CloudDownload size={18} color={colors.cta} strokeWidth={1.75} />}
+              : <CloudDownload size={18} color={syncKleur} strokeWidth={1.75} />}
           </Pressable>
         </View>
       </View>
@@ -131,6 +131,13 @@ export function PortfolioStatusKaart({
           <Text style={[Type.caption, { color: syncKleur, fontWeight: '600' }]}>{syncKort}</Text>
         </View>
       </View>
+
+      {/* Advies om te synchroniseren zodra de data niet meer vers is */}
+      {stand.niveau !== 'vers' && stand.niveau !== 'bezig' && (
+        <Text style={[Type.caption, styles.melding, { color: syncKleur }]}>
+          {stand.advies}
+        </Text>
+      )}
 
       {/* Melding bij posities zonder live prijs */}
       {waarde.zonderLivePrijs > 0 && (

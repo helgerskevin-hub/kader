@@ -266,21 +266,25 @@ export function KansenScreen() {
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [getradeteKans, setGetradeteKans] = useState<Opportunity | null>(null);
 
-  const startScan = useCallback(async () => {
-    dispatch({ type: 'START' });
+  // stil = true (pull-to-refresh): de bestaande lijst blijft zichtbaar terwijl er ververst wordt,
+  // in plaats van naar het laadscherm te springen. Mislukt de stille refresh, dan blijft de oude
+  // lijst gewoon staan i.p.v. plaats te maken voor een foutscherm.
+  const startScan = useCallback(async (stil = false) => {
+    if (!stil) dispatch({ type: 'START' });
     try {
-      const kansen = await zoekKansen(20, (gescand, totaal) =>
-        dispatch({ type: 'PROGRESS', gescand, totaal }),
-      );
+      const kansen = await zoekKansen(20, (gescand, totaal) => {
+        if (!stil) dispatch({ type: 'PROGRESS', gescand, totaal });
+      });
       dispatch({ type: 'SUCCESS', kansen });
     } catch (e) {
-      dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
+      if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
     }
   }, []);
 
   async function handleVervers() {
+    if (ververst) return;
     setVerverstState(true);
-    await startScan();
+    await startScan(true);
     setVerverstState(false);
   }
 
@@ -318,7 +322,7 @@ export function KansenScreen() {
           </Text>
           <Pressable
             style={[screenStyles.ctaKnop, { backgroundColor: colors.letOp }]}
-            onPress={startScan}
+            onPress={() => startScan()}
             accessibilityRole="button"
             accessibilityLabel="Start scan"
           >
@@ -351,7 +355,7 @@ export function KansenScreen() {
           beschrijving="CoinGecko of Binance is niet bereikbaar. Controleer je verbinding."
           melding={state.melding}
           lastAttempt={state.lastAttempt}
-          onRetry={startScan}
+          onRetry={() => startScan()}
         />
       )}
 

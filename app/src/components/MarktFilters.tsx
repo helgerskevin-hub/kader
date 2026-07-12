@@ -1,9 +1,10 @@
 import React from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing, radii, shadow } from '../theme/tokens';
+import { spacing, radii } from '../theme/tokens';
+import { BottomSheet } from './BottomSheet';
 
 export type RsiFilter = 'alle' | 'oversold' | 'overbought';
 
@@ -48,51 +49,47 @@ export function MarktFilters({ zichtbaar, waarden, onWijzig, onSluiten }: Props)
   const { colors } = useTheme();
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
-      <View style={styles.overlay}>
-        <View style={[styles.vel, shadow.modal, { backgroundColor: colors.kaart }]}>
-          <View style={styles.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Filters</Text>
-            <Pressable
-              onPress={onSluiten}
-              accessibilityLabel="Sluiten"
-              accessibilityRole="button"
-              style={styles.sluitKnop}
-            >
-              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-
-          <FilterRij
-            titel="RSI"
-            opties={RSI_OPTIES}
-            actief={waarden.rsi}
-            onKies={rsi => onWijzig({ ...waarden, rsi })}
-          />
-          <FilterRij
-            titel="SCORE"
-            opties={SCORE_OPTIES}
-            actief={waarden.minScore}
-            onKies={minScore => onWijzig({ ...waarden, minScore })}
-          />
-          <FilterRij
-            titel="R/R"
-            opties={RR_OPTIES}
-            actief={waarden.minRR}
-            onKies={minRR => onWijzig({ ...waarden, minRR })}
-          />
-
-          <Pressable
-            style={styles.wisKnop}
-            onPress={() => onWijzig(STANDAARD_FILTERS)}
-            accessibilityRole="button"
-            accessibilityLabel="Filters wissen"
-          >
-            <Text style={[Type.body, { color: colors.cta, fontWeight: '600' }]}>Filters wissen</Text>
-          </Pressable>
-        </View>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten}>
+      <View style={styles.titelRij}>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Filters</Text>
+        <Pressable
+          onPress={onSluiten}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+          style={styles.sluitKnop}
+        >
+          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <FilterRij
+        titel="RSI"
+        opties={RSI_OPTIES}
+        actief={waarden.rsi}
+        onKies={rsi => onWijzig({ ...waarden, rsi })}
+      />
+      <FilterRij
+        titel="SCORE"
+        opties={SCORE_OPTIES}
+        actief={waarden.minScore}
+        onKies={minScore => onWijzig({ ...waarden, minScore })}
+      />
+      <FilterRij
+        titel="R/R"
+        opties={RR_OPTIES}
+        actief={waarden.minRR}
+        onKies={minRR => onWijzig({ ...waarden, minRR })}
+      />
+
+      <Pressable
+        style={styles.wisKnop}
+        onPress={() => onWijzig(STANDAARD_FILTERS)}
+        accessibilityRole="button"
+        accessibilityLabel="Filters wissen"
+      >
+        <Text style={[Type.body, { color: colors.cta, fontWeight: '600' }]}>Filters wissen</Text>
+      </Pressable>
+    </BottomSheet>
   );
 }
 
@@ -132,17 +129,6 @@ function FilterRij<T extends string | number>({ titel, opties, actief, onKies }:
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.5)',
-    justifyContent: 'flex-end',
-  },
-  vel: {
-    borderTopLeftRadius: radii.kaart,
-    borderTopRightRadius: radii.kaart,
-    padding: spacing.base,
-    paddingBottom: spacing.xl,
-  },
   titelRij: {
     flexDirection: 'row',
     justifyContent: 'space-between',
