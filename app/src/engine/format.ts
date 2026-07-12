@@ -30,6 +30,19 @@ export function fmtScore(score: number): string {
   return Math.round(score).toString();
 }
 
+// Relatieve tijd sinds een tijdstip, kort en in het Nederlands: "zojuist", "3 min geleden",
+// "2 uur geleden", "4 dagen geleden". Gebruikt voor de sync-status in de header.
+export function relatieveTijd(sinds: number, nu: number = Date.now()): string {
+  const seconden = Math.max(0, Math.round((nu - sinds) / 1000));
+  if (seconden < 45) return 'zojuist';
+  const minuten = Math.round(seconden / 60);
+  if (minuten < 60) return `${minuten} min geleden`;
+  const uren = Math.round(minuten / 60);
+  if (uren < 24) return uren === 1 ? '1 uur geleden' : `${uren} uur geleden`;
+  const dagen = Math.round(uren / 24);
+  return dagen === 1 ? '1 dag geleden' : `${dagen} dagen geleden`;
+}
+
 // Marktcap (miljarden / miljoenen)
 export function fmtMarktcap(cap: number): string {
   if (cap >= 1e9) return `$${(cap / 1e9).toFixed(1)}B`;

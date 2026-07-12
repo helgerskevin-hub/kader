@@ -12,6 +12,37 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.3',
+    datum: '2026-07-12',
+    punten: [
+      'Het import-wolkje bij je portfoliowaarde kleurt nu mee met de sync-status (groen/oranje/rood), net als het ernaast staande verversicoon, in plaats van altijd blauw te blijven. Eronder staat nu ook een adviesregel zodra de gegevens niet meer actueel zijn',
+      'De app synchroniseert nu ook je eToro-posities en -historie zodra je terugkeert uit de achtergrond (niet alleen de koersen), met een korte pauze tussen synchronisaties zodat eToro\'s aanvraaglimiet niet te snel vol loopt',
+      'Naar beneden swipen op het Marktscherm liet je hele lijst verdwijnen voor een laadscherm. Ververst nu op de achtergrond terwijl je lijst gewoon zichtbaar blijft, met dezelfde verbetering op het Grote Kansen-scherm',
+      'Instellingen, Wijzigingen, filters, de eToro-koppelvraag en alle formulieren sluiten nu ook als je buiten het venster tikt, niet alleen met het kruisje. Ze houden ook rekening met de gesturebalk onderaan, zodat de onderste knop niet meer verstopt zit',
+      'Het "Trade toevoegen"-formulier onthoudt nu wat je hebt ingevuld als je tussendoor naar eToro schakelt om de prijs te checken en terugkomt',
+      'eToro accepteert niet elke stop-loss: ligt die te dicht op of te ver van je aankoopprijs, dan weigert eToro de order. Het Getrade-formulier waarschuwt nu vooraf, met de echte grenzen die eToro voor die coin hanteert. Zonder eToro-koppeling zie je geen waarschuwing',
+    ],
+  },
+  {
+    versie: '0.1.2',
+    datum: '2026-07-10',
+    punten: [
+      'Sync-status bij je portfoliowaarde: het sync-icoon boven de portfoliokaart kleurt nu mee zodat je in één oogopslag ziet of je gegevens actueel zijn. Grijsgroen = net bijgewerkt, oranje = raakt verouderd, rood = te lang niet gesynchroniseerd of de laatste poging mislukte. Eronder staat wanneer er voor het laatst is gesynchroniseerd',
+      'De app ververst nu automatisch zodra je hem weer opent, zodat de koersen niet verouderd op je scherm blijven staan nadat de app op de achtergrond stond',
+      'Het app-icoon is kleiner gemaakt zodat het Kader-merkteken netjes binnen de ronde cirkel op je startscherm valt in plaats van tegen de rand aan te lopen',
+      'Het opstartscherm (splash) toont weer het juiste Kader-logo op een blauwe achtergrond in plaats van het oude ontwerp',
+      'Een mislukte eToro-synchronisatie wordt nu ook echt gemeld. Zolang de koersen binnenkwamen kleurde de status groen met "bijgewerkt", ook als je posities helemaal niet waren opgehaald (bijvoorbeeld door een verlopen sleutel). De status staat nu oranje met de reden erbij',
+      'Het totaalresultaat in je statistieken gebruikt voortaan het werkelijke bedrag van eToro, inclusief kosten, in plaats van alleen het koersverschil. Daardoor spraken je trefferpercentage en je totaalbedrag elkaar niet meer tegen',
+      'Trades zonder stop-loss tellen niet langer mee in je gemiddelde behaalde R/R. Zonder stop-loss valt er geen R te berekenen, en die trades trokken het gemiddelde naar nul zodra je eToro-historie was ingelezen',
+      'Een trade die net boven je instapprijs sloot maar door de kosten toch verlies opleverde, liet een groen plusje zien naast een rood "verloren". Kleur en bedrag tonen nu allebei het werkelijke resultaat',
+      'Een verwijderde eToro-trade blijft nu verwijderd. Eerder zette de eerstvolgende synchronisatie hem er gewoon weer bij',
+      'Had je een trade zelf ingevoerd voordat je eToro koppelde, dan kwam dezelfde trade via de historie een tweede keer in je overzicht. Die worden nu herkend en samengevoegd',
+      'Net geïmporteerde eToro-posities tonen meteen hun koers en waarde, in plaats van pas na een minuut',
+      'TON werd bij het importeren ten onrechte niet als crypto herkend en dus overgeslagen',
+      'Synchroniseren doet minder verzoeken aan eToro, waardoor je minder snel tegen de aanvraaglimiet aanloopt',
+    ],
+  },
+  {
     versie: '0.1.1',
     datum: '2026-07-10',
     punten: [

@@ -3,7 +3,7 @@ import { haalData, haalCoingeckoMarkten } from './marketData';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
 import {
   REWARD_MULTIPLIER, ATR_PERIODE, EMA_KORT, EMA_LANG, RSI_PERIODE,
-  stopAfstandStructuur, STANDAARD_UNIVERSUM,
+  stopAfstandStructuur,
 } from './analyzer';
 
 const UITSLUITEN = new Set([
@@ -12,8 +12,29 @@ const UITSLUITEN = new Set([
   'WEETH', 'WBETH', 'RETH', 'CBETH', 'BSC-USD', 'SOLVBTC', 'LBTC',
 ]);
 
-// Cryptos die verhandelbaar zijn op eToro (NL/EU) — zelfde lijst als het marktscherm.
-export const ETORO_TRADABLE = new Set(STANDAARD_UNIVERSUM);
+// Cryptos die verhandelbaar zijn op eToro (NL/EU). Controleer etoro.com voor updates.
+//
+// Dit is bewust een andere lijst dan STANDAARD_UNIVERSUM in analyzer.ts. Die twee beantwoorden
+// verschillende vragen: hier staat "wat mag je op eToro aanhouden", daar staat "wat kunnen wij op
+// Binance analyseren". TON hoort hier wel en daar niet (geen Binance-USDT-paar). Knoop ze niet
+// weer aan elkaar: etoro.ts gebruikt deze set om bij een import te bepalen of een positie crypto
+// is, en dan zou een TON-positie stilzwijgend als "geen crypto" worden overgeslagen.
+// STANDAARD_UNIVERSUM moet een deelverzameling van deze lijst zijn; scripts/check-universum.mjs
+// bewaakt dat.
+export const ETORO_TRADABLE = new Set([
+  'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
+  'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',
+  'ALGO', 'VET', 'HBAR', 'XTZ', 'NEAR', 'FTM', 'ICP', 'FLOW',
+  'APT', 'SUI', 'TON', 'INJ', 'SEI',
+  'MATIC', 'OP', 'ARB',
+  'LINK', 'UNI', 'AAVE', 'COMP', 'MKR', 'SNX', 'YFI', 'CRV', 'SUSHI',
+  '1INCH', 'ZRX', 'GRT', 'ENJ', 'MANA', 'SAND',
+  'AXS', 'CHZ', 'GALA', 'IMX',
+  'DOGE', 'SHIB', 'PEPE',
+  'FET', 'RNDR',
+  'FIL', 'THETA', 'BAT',
+  'TIA',
+]);
 
 function kansScore(c: Record<string, unknown>): number {
   const p7 = (c['price_change_percentage_7d_in_currency'] as number) ?? 0;

@@ -61,10 +61,13 @@ function vlakOnlySvg(px) {
 </svg>`;
 }
 
-// Adaptive foreground: merkteken binnen de safe zone (centrum 72×72 van 108×108).
+// Adaptive foreground: merkteken ruim binnen de safe zone. Android (en Expo's prebuild, die
+// dit als foregroundImage gebruikt) maskeert het icoon tot een cirkel; met scale 0.65 blijft
+// het merkteken binnen die cirkel maar iets forser dan bij 0.58.
+// translate = (108 - 96*0.65) / 2 = 22.8, zodat het gecentreerd blijft.
 function adaptiveForegroundSvg(px) {
   return `<svg width="${px}" height="${px}" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
-  <g transform="translate(18,18) scale(0.75)">${marks()}</g>
+  <g transform="translate(22.8,22.8) scale(0.65)">${marks()}</g>
 </svg>`;
 }
 
@@ -85,11 +88,13 @@ function vervangWebp(dir, namen) {
 
 console.log('Kader-iconen genereren (v2)...\n[Expo assets]');
 
-render(vlakSvg(1024),         resolve(ASSETS, 'icon.png'));
-render(transparentSvg(1024),  resolve(ASSETS, 'splash-icon.png'));
-render(transparentSvg(1024),  resolve(ASSETS, 'android-icon-foreground.png'));
-render(vlakOnlySvg(1024),     resolve(ASSETS, 'android-icon-background.png'));
-render(transparentSvg(1024),  resolve(ASSETS, 'android-icon-monochrome.png'));
+render(vlakSvg(1024),               resolve(ASSETS, 'icon.png'));
+render(transparentSvg(1024),        resolve(ASSETS, 'splash-icon.png'));
+// Foreground + monochrome met ingebakken safe-zone-padding: Expo's prebuild maakt hier de
+// adaptive launcher-iconen van, dus de padding moet in de bron zitten, niet alleen in de mipmaps.
+render(adaptiveForegroundSvg(1024), resolve(ASSETS, 'android-icon-foreground.png'));
+render(vlakOnlySvg(1024),           resolve(ASSETS, 'android-icon-background.png'));
+render(adaptiveForegroundSvg(1024), resolve(ASSETS, 'android-icon-monochrome.png'));
 render(vlakSvg(196),          resolve(ASSETS, 'favicon.png'));
 
 console.log('\n[Android mipmap - launcher]');

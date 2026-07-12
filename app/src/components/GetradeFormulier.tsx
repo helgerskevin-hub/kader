@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Modal, Pressable, ScrollView,
+  Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
+import { valideerStopLoss } from '../engine/etoroLimieten';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { nieuweId, PortfolioTrade } from '../state/portfolioTypes';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { radii, shadow, spacing } from '../theme/tokens';
-import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
+import { radii, spacing } from '../theme/tokens';
+import { BottomSheet } from './BottomSheet';
 
 export type GetradeBron = Pick<Trade, 'symbool' | 'entry' | 'stopLoss' | 'takeProfit' | 'rr'>;
 
@@ -41,7 +43,6 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
   const { voegTradeToe } = usePortfolio();
   const [form, setForm] = useState<VormData>(() => leegForm(trade));
   const [fout, setFout] = useState('');
-  const toetsenbordHoogte = useToetsenbordHoogte();
 
   useEffect(() => {
     if (zichtbaar) {
@@ -97,107 +98,106 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
 
   const coin = trade ? infoVoor(trade.symbool) : null;
 
+  // Kader rekent zijn eigen stop uit, maar eToro accepteert niet elke afstand. Meten we tegen de
+  // aankoopprijs die je hier invult, want die wijkt af van de entry uit de analyse zodra de koers
+  // is doorgelopen. Zonder eToro-koppeling of bij een API-fout blijft de limiet null en zeggen we
+  // niets: liever geen waarschuwing dan een verzonnen grens.
+  const stopLimiet = useStopLossLimiet(trade?.symbool);
+  const stopWaarschuwing = trade
+    ? valideerStopLoss(parseFloat(form.entryPrijs.replace(',', '.')), trade.stopLoss, stopLimiet)
+    : null;
+
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
-      <View style={stijlen.overlay}>
-        <View style={[
-          stijlen.vel, shadow.modal,
-          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
-        ]}>
-          <View style={stijlen.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trade toevoegen</Text>
-            <Pressable
-              onPress={onSluiten}
-              accessibilityLabel="Sluiten"
-              accessibilityRole="button"
-              style={stijlen.sluitKnop}
-            >
-              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {trade && coin ? (
-              <View style={[stijlen.infoBlok, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
-                <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
-                  {trade.symbool} <Text style={[Type.body, { color: colors.tekstGedimd }]}>{coin.naam}</Text>
-                </Text>
-                <View style={stijlen.infoRij}>
-                  <View style={stijlen.infoVeld}>
-                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>STOP</Text>
-                    <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(trade.stopLoss)}</Text>
-                  </View>
-                  <View style={stijlen.infoVeld}>
-                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
-                    <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(trade.takeProfit)}</Text>
-                  </View>
-                  <View style={stijlen.infoVeld}>
-                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-                    <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(trade.rr)}</Text>
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
-            <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>BEDRAG IN $</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.bedragUsd}
-              onChangeText={v => setForm(prev => ({ ...prev, bedragUsd: v }))}
-              placeholder="bijv. 500"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>AANKOOPPRIJS</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.entryPrijs}
-              onChangeText={v => setForm(prev => ({ ...prev, entryPrijs: v }))}
-              placeholder="bijv. 45000"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>AANTAL COINS</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.aantalCoins}
-              onChangeText={v => setForm(prev => ({ ...prev, aantalCoins: v }))}
-              placeholder="auto-berekend"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            {fout ? (
-              <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
-            ) : null}
-
-            <Pressable
-              style={[stijlen.opslaanKnop, { backgroundColor: colors.cta }]}
-              onPress={valideerEnOpslaan}
-              accessibilityRole="button"
-            >
-              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade opslaan</Text>
-            </Pressable>
-          </ScrollView>
-        </View>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
+      <View style={stijlen.titelRij}>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trade toevoegen</Text>
+        <Pressable
+          onPress={onSluiten}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+          style={stijlen.sluitKnop}
+        >
+          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {trade && coin ? (
+          <View style={[stijlen.infoBlok, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
+            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
+              {trade.symbool} <Text style={[Type.body, { color: colors.tekstGedimd }]}>{coin.naam}</Text>
+            </Text>
+            <View style={stijlen.infoRij}>
+              <View style={stijlen.infoVeld}>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>STOP</Text>
+                <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(trade.stopLoss)}</Text>
+              </View>
+              <View style={stijlen.infoVeld}>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
+                <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(trade.takeProfit)}</Text>
+              </View>
+              <View style={stijlen.infoVeld}>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
+                <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(trade.rr)}</Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {stopWaarschuwing ? (
+          <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
+            <Text style={[Type.caption, { color: colors.letOp }]}>{stopWaarschuwing}</Text>
+          </View>
+        ) : null}
+
+        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>BEDRAG IN $</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.bedragUsd}
+          onChangeText={v => setForm(prev => ({ ...prev, bedragUsd: v }))}
+          placeholder="bijv. 500"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>AANKOOPPRIJS</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.entryPrijs}
+          onChangeText={v => setForm(prev => ({ ...prev, entryPrijs: v }))}
+          placeholder="bijv. 45000"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>AANTAL COINS</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.aantalCoins}
+          onChangeText={v => setForm(prev => ({ ...prev, aantalCoins: v }))}
+          placeholder="auto-berekend"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        {fout ? (
+          <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
+        ) : null}
+
+        <Pressable
+          style={[stijlen.opslaanKnop, { backgroundColor: colors.cta }]}
+          onPress={valideerEnOpslaan}
+          accessibilityRole="button"
+        >
+          <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade opslaan</Text>
+        </Pressable>
+      </ScrollView>
+    </BottomSheet>
   );
 }
 
 const stijlen = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.5)',
-    justifyContent: 'flex-end',
-  },
   vel: {
-    borderTopLeftRadius: radii.kaart,
-    borderTopRightRadius: radii.kaart,
-    padding: spacing.base,
-    paddingBottom: spacing.xl,
     maxHeight: '90%',
   },
   titelRij: {
@@ -219,6 +219,12 @@ const stijlen = StyleSheet.create({
     gap: spacing.base,
   },
   infoVeld: { flex: 1 },
+  waarschuwing: {
+    borderWidth: 1,
+    borderRadius: radii.veld,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
   label: { marginTop: spacing.md, marginBottom: spacing.xs },
   input: {
     borderWidth: 1,

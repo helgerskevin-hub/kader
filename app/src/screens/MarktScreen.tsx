@@ -63,8 +63,9 @@ export function MarktScreen() {
   }, []);
 
   async function handleVervers() {
+    if (ververst) return;
     setVerverstState(true);
-    await Promise.all([startAnalyse(), haalFearGreed().then(setFearGreed)]);
+    await Promise.all([startAnalyse(true), haalFearGreed().then(setFearGreed)]);
     setVerverstState(false);
   }
 
@@ -109,7 +110,7 @@ export function MarktScreen() {
       />
 
       {/* Inhoud per state */}
-      {state.status === 'idle' && <IdleView onStart={startAnalyse} />}
+      {state.status === 'idle' && <IdleView onStart={() => startAnalyse()} />}
       {state.status === 'loading' && <LadenView progress={state.progress} />}
       {state.status === 'error' && (
         <OfflineMelding
@@ -117,7 +118,7 @@ export function MarktScreen() {
           beschrijving="Binance en CoinGecko zijn nu niet bereikbaar. Controleer je verbinding en probeer opnieuw."
           melding={state.melding}
           lastAttempt={state.lastAttempt}
-          onRetry={startAnalyse}
+          onRetry={() => startAnalyse()}
         />
       )}
       {state.status === 'success' && (

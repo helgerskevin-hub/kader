@@ -28,7 +28,10 @@ function reducer(state: MarktState, action: Action): MarktState {
 
 interface MarktContextWaarde {
   state: MarktState;
-  startAnalyse: () => void;
+  // stil = true (pull-to-refresh): de bestaande lijst blijft zichtbaar terwijl er ververst wordt,
+  // in plaats van naar het laadscherm te springen. Mislukt een stille refresh, dan blijft de oude
+  // lijst gewoon staan i.p.v. plaats te maken voor een foutscherm.
+  startAnalyse: (stil?: boolean) => void;
 }
 
 const MarktContext = createContext<MarktContextWaarde | null>(null);
@@ -36,16 +39,17 @@ const MarktContext = createContext<MarktContextWaarde | null>(null);
 export function MarktProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
 
-  const startAnalyse = useCallback(async () => {
-    dispatch({ type: 'START' });
+  const startAnalyse = useCallback(async (stil = false) => {
+    if (!stil) dispatch({ type: 'START' });
     try {
       const trades = await analyseerMarkt({
-        onProgress: (current, total, symbool) =>
-          dispatch({ type: 'PROGRESS', progress: { current, total, symbool } }),
+        onProgress: (current, total, symbool) => {
+          if (!stil) dispatch({ type: 'PROGRESS', progress: { current, total, symbool } });
+        },
       });
       dispatch({ type: 'SUCCESS', trades });
     } catch (e) {
-      dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
+      if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
     }
   }, []);
 

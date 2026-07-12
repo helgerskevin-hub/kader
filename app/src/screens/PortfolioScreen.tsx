@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, Modal, TextInput, ScrollView,
+  View, Text, Pressable, FlatList, TextInput, ScrollView,
   StyleSheet, Alert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
+import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
@@ -20,7 +20,7 @@ import { bepaalAdvies } from '../state/advies';
 import { berekenPortfolioWaarde } from '../state/statistieken';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
-import { laadTekst, SLEUTELS } from '../storage/opslag';
+import { laadTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
 
 // ---------- TradeRegel ----------
 function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
@@ -66,12 +66,20 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
   const behaaldPct = trade.exitPrijs !== undefined
     ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
     : null;
-  const behaaldUsd = trade.exitPrijs !== undefined && heeftAantal
-    ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
-    : null;
-  const behaaldKleur = behaaldPct !== null
-    ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
-    : colors.tekstGedimd;
+  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat. Alleen als we dat niet
+  // hebben (handmatige trade) rekenen we het bruto koersverschil uit.
+  const behaaldUsd = typeof trade.resultaatUsd === 'number'
+    ? trade.resultaatUsd
+    : trade.exitPrijs !== undefined && heeftAantal
+      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
+      : null;
+  // Kleuren op het bedrag, niet op het koersverschil. Een trade kan net boven entry sluiten en na
+  // kosten toch verlies zijn; dan hoort er geen groene +0,4% naast een rode "verloren"-badge.
+  const behaaldKleur = behaaldUsd !== null
+    ? (behaaldUsd >= 0 ? colors.winst : colors.verlies)
+    : behaaldPct !== null
+      ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
+      : colors.tekstGedimd;
 
   const randKleur = trade.status === 'open' ? adviesKleur : statusKleur;
 
@@ -300,14 +308,29 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
   const { colors } = useTheme();
   const [form, setForm] = useState<VormData>(leegForm);
   const [fout, setFout] = useState('');
-  const toetsenbordHoogte = useToetsenbordHoogte();
 
+  // Bij een nieuwe trade eerst een eventueel bewaard concept proberen: als je tussendoor naar
+  // eToro schakelde om de prijs te checken en terugkomt, staan je ingevulde waarden er nog.
   useEffect(() => {
-    if (zichtbaar) {
-      setForm(bestaand ? formVanTrade(bestaand) : leegForm);
-      setFout('');
+    if (!zichtbaar) return;
+    setFout('');
+    if (bestaand) {
+      setForm(formVanTrade(bestaand));
+      return;
     }
+    let actief = true;
+    laadObject<VormData>(SLEUTELS.tradeConcept).then(concept => {
+      if (actief) setForm(concept ?? leegForm);
+    });
+    return () => { actief = false; };
   }, [zichtbaar, bestaand]);
+
+  // Concept wegschrijven terwijl het formulier open staat, alleen voor een nieuwe trade: bewerken
+  // van een bestaande trade vult zich uit die trade zelf, daar hoeft geen concept voor bewaard.
+  useEffect(() => {
+    if (!zichtbaar || bestaand) return;
+    bewaarObject(SLEUTELS.tradeConcept, form);
+  }, [form, zichtbaar, bestaand]);
 
   useEffect(() => {
     const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
@@ -320,6 +343,7 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
   function reset() {
     setForm(leegForm);
     setFout('');
+    if (!bestaand) verwijderSleutel(SLEUTELS.tradeConcept);
   }
 
   function valideerEnOpslaan() {
@@ -360,123 +384,116 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
   }];
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
-      <View style={formStyles.overlay}>
-        <View style={[
-          formStyles.vel, shadow.modal,
-          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
-        ]}>
-          <View style={formStyles.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{bestaand ? 'Trade aanpassen' : 'Trade bijhouden'}</Text>
-            <Pressable
-              onPress={() => { reset(); onSluiten(); }}
-              accessibilityLabel="Sluiten"
-              accessibilityRole="button"
-              style={formStyles.sluitKnop}
-            >
-              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>SYMBOOL *</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.symbool}
-              onChangeText={v => setForm(f => ({ ...f, symbool: v }))}
-              placeholder="bijv. BTC"
-              placeholderTextColor={colors.tekstGedimd}
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
-
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>NAAM (optioneel)</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.naam}
-              onChangeText={v => setForm(f => ({ ...f, naam: v }))}
-              placeholder="bijv. Bitcoin"
-              placeholderTextColor={colors.tekstGedimd}
-            />
-
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>ENTRYPRIJS *</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.entryPrijs}
-              onChangeText={v => setForm(f => ({ ...f, entryPrijs: v }))}
-              placeholder="bijv. 45000"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>STOP-LOSS *</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.stopLoss}
-              onChangeText={v => setForm(f => ({ ...f, stopLoss: v }))}
-              placeholder="bijv. 40000"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>TAKE-PROFIT *</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.takeProfit}
-              onChangeText={v => setForm(f => ({ ...f, takeProfit: v }))}
-              placeholder="bijv. 58000"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>BEDRAG IN $ (optioneel)</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.bedragUsd}
-              onChangeText={v => setForm(f => ({ ...f, bedragUsd: v }))}
-              placeholder="bijv. 500"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>AANTAL COINS (optioneel)</Text>
-            <TextInput
-              style={inputStyle}
-              value={form.aantalCoins}
-              onChangeText={v => setForm(f => ({ ...f, aantalCoins: v }))}
-              placeholder="auto-berekend"
-              placeholderTextColor={colors.tekstGedimd}
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>NOTITIE (optioneel)</Text>
-            <TextInput
-              style={[inputStyle, formStyles.multilineInput]}
-              value={form.notitie}
-              onChangeText={v => setForm(f => ({ ...f, notitie: v }))}
-              placeholder="bijv. breakout boven weerstand"
-              placeholderTextColor={colors.tekstGedimd}
-              multiline
-              numberOfLines={2}
-            />
-
-            {fout ? (
-              <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
-            ) : null}
-
-            <Pressable
-              style={[formStyles.opslaanKnop, { backgroundColor: colors.cta }]}
-              onPress={valideerEnOpslaan}
-              accessibilityRole="button"
-            >
-              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>
-                {bestaand ? 'Wijzigingen opslaan' : 'Trade toevoegen'}
-              </Text>
-            </Pressable>
-          </ScrollView>
-        </View>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={() => { reset(); onSluiten(); }} velStijl={formStyles.vel}>
+      <View style={formStyles.titelRij}>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{bestaand ? 'Trade aanpassen' : 'Trade bijhouden'}</Text>
+        <Pressable
+          onPress={() => { reset(); onSluiten(); }}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+          style={formStyles.sluitKnop}
+        >
+          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>SYMBOOL *</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.symbool}
+          onChangeText={v => setForm(f => ({ ...f, symbool: v }))}
+          placeholder="bijv. BTC"
+          placeholderTextColor={colors.tekstGedimd}
+          autoCapitalize="characters"
+          autoCorrect={false}
+        />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>NAAM (optioneel)</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.naam}
+          onChangeText={v => setForm(f => ({ ...f, naam: v }))}
+          placeholder="bijv. Bitcoin"
+          placeholderTextColor={colors.tekstGedimd}
+        />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>ENTRYPRIJS *</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.entryPrijs}
+          onChangeText={v => setForm(f => ({ ...f, entryPrijs: v }))}
+          placeholder="bijv. 45000"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>STOP-LOSS *</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.stopLoss}
+          onChangeText={v => setForm(f => ({ ...f, stopLoss: v }))}
+          placeholder="bijv. 40000"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>TAKE-PROFIT *</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.takeProfit}
+          onChangeText={v => setForm(f => ({ ...f, takeProfit: v }))}
+          placeholder="bijv. 58000"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>BEDRAG IN $ (optioneel)</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.bedragUsd}
+          onChangeText={v => setForm(f => ({ ...f, bedragUsd: v }))}
+          placeholder="bijv. 500"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>AANTAL COINS (optioneel)</Text>
+        <TextInput
+          style={inputStyle}
+          value={form.aantalCoins}
+          onChangeText={v => setForm(f => ({ ...f, aantalCoins: v }))}
+          placeholder="auto-berekend"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>NOTITIE (optioneel)</Text>
+        <TextInput
+          style={[inputStyle, formStyles.multilineInput]}
+          value={form.notitie}
+          onChangeText={v => setForm(f => ({ ...f, notitie: v }))}
+          placeholder="bijv. breakout boven weerstand"
+          placeholderTextColor={colors.tekstGedimd}
+          multiline
+          numberOfLines={2}
+        />
+
+        {fout ? (
+          <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
+        ) : null}
+
+        <Pressable
+          style={[formStyles.opslaanKnop, { backgroundColor: colors.cta }]}
+          onPress={valideerEnOpslaan}
+          accessibilityRole="button"
+        >
+          <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>
+            {bestaand ? 'Wijzigingen opslaan' : 'Trade toevoegen'}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </BottomSheet>
   );
 }
 
@@ -489,7 +506,6 @@ function SluitTradeModal({ verzoek, onSluiten, onBevestig }: {
   const { colors } = useTheme();
   const [prijs, setPrijs] = useState('');
   const [fout, setFout] = useState('');
-  const toetsenbordHoogte = useToetsenbordHoogte();
 
   // Voorvullen met de planprijs: TP bij gewonnen, SL bij verloren.
   const planPrijs = verzoek
@@ -517,70 +533,54 @@ function SluitTradeModal({ verzoek, onSluiten, onBevestig }: {
   }];
 
   return (
-    <Modal visible={verzoek !== null} animationType="slide" transparent onRequestClose={onSluiten}>
-      <View style={formStyles.overlay}>
-        <View style={[
-          formStyles.vel, shadow.modal,
-          { backgroundColor: colors.kaart, paddingBottom: Math.max(spacing.xl, toetsenbordHoogte) },
-        ]}>
-          <View style={formStyles.titelRij}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
-              {verzoek?.trade.symbool} sluiten als {winst ? 'gewonnen' : 'verloren'}
-            </Text>
-            <Pressable
-              onPress={onSluiten}
-              accessibilityLabel="Sluiten"
-              accessibilityRole="button"
-              style={formStyles.sluitKnop}
-            >
-              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          </View>
-
-          <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
-            De prijs is voorgevuld met je {winst ? 'take-profit' : 'stop-loss'}. Volgde de trade het plan?
-            Bevestig dan direct. Verkocht je op een andere prijs? Pas hem aan.
-          </Text>
-
-          <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>VERKOOPPRIJS *</Text>
-          <TextInput
-            style={inputStyle}
-            value={prijs}
-            onChangeText={v => setPrijs(v)}
-            placeholder="bijv. 58000"
-            placeholderTextColor={colors.tekstGedimd}
-            keyboardType="decimal-pad"
-            autoFocus
-          />
-
-          {fout ? (
-            <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
-          ) : null}
-
-          <Pressable
-            style={[formStyles.opslaanKnop, { backgroundColor: winst ? colors.winst : colors.verlies }]}
-            onPress={bevestig}
-            accessibilityRole="button"
-          >
-            <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade sluiten</Text>
-          </Pressable>
-        </View>
+    <BottomSheet zichtbaar={verzoek !== null} onSluiten={onSluiten} velStijl={formStyles.vel}>
+      <View style={formStyles.titelRij}>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
+          {verzoek?.trade.symbool} sluiten als {winst ? 'gewonnen' : 'verloren'}
+        </Text>
+        <Pressable
+          onPress={onSluiten}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+          style={formStyles.sluitKnop}
+        >
+          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
+        De prijs is voorgevuld met je {winst ? 'take-profit' : 'stop-loss'}. Volgde de trade het plan?
+        Bevestig dan direct. Verkocht je op een andere prijs? Pas hem aan.
+      </Text>
+
+      <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>VERKOOPPRIJS *</Text>
+      <TextInput
+        style={inputStyle}
+        value={prijs}
+        onChangeText={v => setPrijs(v)}
+        placeholder="bijv. 58000"
+        placeholderTextColor={colors.tekstGedimd}
+        keyboardType="decimal-pad"
+        autoFocus
+      />
+
+      {fout ? (
+        <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
+      ) : null}
+
+      <Pressable
+        style={[formStyles.opslaanKnop, { backgroundColor: winst ? colors.winst : colors.verlies }]}
+        onPress={bevestig}
+        accessibilityRole="button"
+      >
+        <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade sluiten</Text>
+      </Pressable>
+    </BottomSheet>
   );
 }
 
 const formStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.5)',
-    justifyContent: 'flex-end',
-  },
   vel: {
-    borderTopLeftRadius: radii.kaart,
-    borderTopRightRadius: radii.kaart,
-    padding: spacing.base,
-    paddingBottom: spacing.xl,
     maxHeight: '90%',
   },
   titelRij: {
@@ -618,19 +618,21 @@ export function PortfolioScreen() {
   const { colors } = useTheme();
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
-    syncing, volgendeVerversing, synchroniseer,
+    syncing, laatsteSync, syncFout, etoroFout, synchroniseer,
   } = usePortfolio();
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
-  const [seconden, setSeconden] = useState<number | null>(null);
   const [etoroBezig, setEtoroBezig] = useState(false);
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
 
-  // Swipe omlaag: stil synchroniseren. Geen meldingen, ook niet als er geen koppeling is.
+  // Swipe omlaag en de verversknop: stil synchroniseren. Geen meldingen, ook niet als er geen
+  // koppeling is; een mislukte eToro-sync komt via etoroFout terug in de statuskaart.
+  // De vroege return voorkomt dat je met een paar tikken meerdere volledige syncs tegelijk afvuurt.
   async function swipeSync() {
+    if (ververst) return;
     setVerverst(true);
     try {
       await synchroniseer();
@@ -676,15 +678,6 @@ export function PortfolioScreen() {
       setEtoroBezig(false);
     }
   }
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (volgendeVerversing) {
-        setSeconden(Math.max(0, Math.round((volgendeVerversing.getTime() - Date.now()) / 1000)));
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, [volgendeVerversing]);
 
   const openTrades = trades.filter(t => t.status === 'open');
   const afgeslotenCount = trades.length - openTrades.length;
@@ -732,8 +725,12 @@ export function PortfolioScreen() {
         ListHeaderComponent={
           <PortfolioStatusKaart
             waarde={waarde}
-            syncing={syncing}
-            seconden={seconden}
+            // Ook tijdens een swipe- of knop-sync bezig tonen: verversPrijzen zet `syncing` alleen
+            // als er open posities zijn, dus met een lege portfolio bleef de knop anders indrukbaar.
+            syncing={syncing || ververst}
+            laatsteSync={laatsteSync}
+            syncFout={syncFout}
+            etoroFout={etoroFout}
             etoroBezig={etoroBezig}
             afgesloten={afgeslotenCount}
             onVerversen={swipeSync}

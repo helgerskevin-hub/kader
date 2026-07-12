@@ -14,6 +14,11 @@ export interface PortfolioTrade {
   exitPrijs?: number;
   slotDatum?: string;
   slotTijd?: number;            // epoch ms bij sluiten, voor chronologische historie
+  // Werkelijk gerealiseerd resultaat in dollars, inclusief kosten (eToro's netProfit). Alleen
+  // gevuld voor trades die uit eToro komen; bij handmatige trades kennen we de kosten niet en
+  // rekent statistieken.ts het bruto koersverschil uit. Zonder dit veld zou het totaalresultaat
+  // altijd bruto zijn terwijl het trefferpercentage netto is, en die twee spreken elkaar tegen.
+  resultaatUsd?: number;
   etoroPositionID?: number;
   bron?: 'etoro' | 'handmatig';
 }

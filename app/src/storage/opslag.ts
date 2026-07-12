@@ -10,6 +10,16 @@ export const SLEUTELS = {
   etoroApiKey: 'etoro_api_key',
   etoroUserKey: 'etoro_user_key',
   etoroSetupGevraagd: 'etoro_setup_gevraagd',
+  laatsteSync: 'laatste_sync_tijd',
+  // eToro-positie-ID's die de gebruiker uit zijn portfolio heeft verwijderd. Zonder deze lijst
+  // zet de eerstvolgende sync ze er gewoon weer in, want ontdubbelen gebeurt op positie-ID.
+  genegeerdeEtoroIds: 'genegeerde_etoro_ids',
+  // Concept van het "Trade toevoegen"-formulier: overleeft een activity-restart door Android
+  // terwijl je even naar eToro schakelt om de exacte prijs te checken.
+  tradeConcept: 'trade_concept',
+  // Stop-loss-grenzen per coin, opgehaald bij eToro. Gecachet omdat het endpoint een krap eigen
+  // quotum heeft (20 per minuut) en de grenzen zelden wijzigen.
+  etoroLimieten: 'etoro_limieten',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
@@ -63,6 +73,23 @@ export async function bewaarTekst(sleutel: string, waarde: string): Promise<void
     await AsyncStorage.setItem(sleutel, waarde);
   } catch {
     // schrijffout stilt neerzetten
+  }
+}
+
+export async function laadObject<T>(sleutel: string): Promise<T | null> {
+  try {
+    const json = await AsyncStorage.getItem(sleutel);
+    return json ? JSON.parse(json) as T : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function bewaarObject<T>(sleutel: string, waarde: T): Promise<void> {
+  try {
+    await AsyncStorage.setItem(sleutel, JSON.stringify(waarde));
+  } catch {
+    // schrijffout stilt neerzetten; data blijft in memory
   }
 }
 
