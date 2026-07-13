@@ -35,6 +35,12 @@ const UIT = join(HIER, '..', '..', 'data', 'backtest');
 // swing-tool met een doel op 3x ATR.
 const MAX_BARS = 30;
 
+// De app haalt per coin 200 candles op (limit=200 in marketData.ts) en ziet dus nooit meer dan
+// dat. De backtest moet de engine precies zo veel geschiedenis voeren, anders meten we een
+// engine die in het echt niet bestaat. Scheelt bovendien enorm veel rekenwerk: zonder venster
+// groeit het werk kwadratisch met de lengte van de historie.
+const VENSTER = 200;
+
 type Simulatie = {
   symbool: string;
   datum: string;
@@ -152,6 +158,25 @@ for (const [dag, t] of Object.entries(bovenEma50)) {
   if (t.totaal >= 20) breedtePerDag[dag] = t.boven / t.totaal;
 }
 
+// BTC boven zijn EMA50: een snellere trendmeter dan de EMA200, die in 2025 drie kwartalen te
+// laat kwam. Sneller betekent ook vaker vals alarm, dus we meten of het per saldo helpt.
+const btcBovenEma50: Record<string, boolean> = {};
+const btcEma50 = ema(btcCandles.map(c => c.close), 50);
+for (let i = 50; i < btcCandles.length; i++) {
+  btcBovenEma50[datumVan(btcCandles[i].tijd)] = btcCandles[i].close > btcEma50[i];
+}
+
+// Stijgt de marktbreedte t.o.v. 20 dagen geleden? Het niveau van de breedte zei niets, maar de
+// richting ervan is een ander signaal: een markt die opdroogt terwijl de koersen nog hoog staan,
+// is precies het patroon van een top.
+const breedteDagen = Object.keys(breedtePerDag).sort();
+const breedteStijgend: Record<string, boolean> = {};
+for (let i = 20; i < breedteDagen.length; i++) {
+  const nu = breedtePerDag[breedteDagen[i]];
+  const toen = breedtePerDag[breedteDagen[i - 20]];
+  breedteStijgend[breedteDagen[i]] = nu > toen;
+}
+
 // --- meting A: elke bar, elke coin ------------------------------------------------------
 
 console.log(`Backtest over ${coins.length} coins, max houdduur ${MAX_BARS} dagen.\n`);
@@ -164,8 +189,18 @@ const strategie: Simulatie[] = [];
 // blijft van de engine, alleen het beheer van de trade varieert.
 type Signaal = {
   i: number; datum: string; entry: number; stop: number; atr: number;
-  score: number; hc: boolean; koop: boolean; breedte: number | null;
+  score: number; hc: boolean; koop: boolean; rrOk: boolean; breedte: number | null;
 };
+
+// Alles wat de markt op een gegeven dag over zichzelf zei. Een poort mag hier alleen uit putten,
+// nooit uit de toekomst.
+const marktOp = (datum: string) => ({
+  riskOn: btcRiskOnPerDag[datum],           // BTC boven EMA200
+  btc50: btcBovenEma50[datum],              // BTC boven EMA50
+  breedte: breedtePerDag[datum],            // deel van het universum boven EMA50
+  breedteStijgt: breedteStijgend[datum],    // breedte hoger dan 20 dagen geleden
+  fng: fng[datum],                          // Fear & Greed
+});
 const signalenPerCoin: Record<string, Signaal[]> = {};
 
 for (const symbool of coins) {
@@ -177,7 +212,8 @@ for (const symbool of coins) {
 
   for (let i = MIN_CANDLES - 1; i < candles.length - 1; i++) {
     // minRR: 0 zet de R/R-filter uit, zodat we óók de afgewezen signalen kunnen meten.
-    const t: Trade | null = scoorCandles(symbool, candles.slice(0, i + 1), 'binance', { minRR: 0 });
+    const venster = candles.slice(Math.max(0, i - VENSTER + 1), i + 1);
+    const t: Trade | null = scoorCandles(symbool, venster, 'binance', { minRR: 0 });
     if (!t) continue;
 
     const uitkomst = simuleer(candles, i, t.entry, t.stopLoss, t.takeProfit);
@@ -187,6 +223,7 @@ for (const symbool of coins) {
     signalenPerCoin[symbool].push({
       i, datum, entry: t.entry, stop: t.stopLoss, atr: t.atr,
       score: t.score, hc: t.highConviction, koop: t.signaal === 'KOOP',
+      rrOk: t.rr >= MIN_RISK_REWARD - 1e-9,
       breedte: breedtePerDag[datum] ?? null,
     });
     const sim: Simulatie = {
@@ -339,150 +376,28 @@ const bhMediaan = bh[Math.floor(bh.length / 2)];
 console.log(`\n  Marktcontext: mediane buy & hold over de hele periode: ${bhMediaan.toFixed(0)}%`);
 console.log(`  (${bh.filter(x => x > 0).length}/${bh.length} coins stonden hoger dan aan het begin)`);
 
-// --- meting C: kandidaat-varianten ------------------------------------------------------
+// --- gereedschap voor de poort-analyses -------------------------------------------------
 //
-// Dezelfde simulaties, maar telkens met een andere instapregel, en steeds met de geen-overlap-
-// regel zodat het een echte strategie is en niet een wolk overlappende signalen. Zo zien we in
-// één tabel wat een wijziging aan de instapregel zou hebben opgeleverd, zonder ook maar iets aan
-// de engine te veranderen.
-//
-// Let op: dit zijn regels die we ná het zien van de data bedenken, dus ze zijn per definitie
-// vleiend voor zichzelf. Daarom staat de periode-splitsing eronder: een variant die alleen in
-// de eerste helft werkt, werkt niet.
+// Vanaf hier draait alles om één vraag: Kader blijft long-only, dus kunnen we een vijandige
+// markt op tijd herkennen en dan gewoon zwijgen? Met negen jaar historie zitten er drie
+// bearmarkten in de data (2018, 2022, 2025-26), dus een poort moet zich nu op drie omslagen
+// bewijzen in plaats van op één.
 
-// De geen-overlap-regel opnieuw toepassen op een deelverzameling. Simulaties staan al op
-// coin-en-datumvolgorde, dus we kunnen ze gewoon aflopen.
-function alsStrategie(rijen: Simulatie[]): Simulatie[] {
-  const uit: Simulatie[] = [];
-  const bezet: Record<string, number> = {};
-  for (const s of rijen) {
-    const dag = Date.parse(s.datum) / 86400000;
-    if (bezet[s.symbool] !== undefined && dag <= bezet[s.symbool]) continue;
-    uit.push(s);
-    bezet[s.symbool] = dag + s.bars;
-  }
-  return uit;
-}
+const jaarVan = (datum: string) => datum.slice(0, 4);
+const jaren = [...new Set(alle.map(s => jaarVan(s.datum)))].sort();
 
-const breed = (s: Simulatie, drempel: number) => s.breedte !== null && s.breedte >= drempel;
-const nietHebzucht = (s: Simulatie) => s.fng === null || s.fng <= 75;
+const gem = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
 
-const varianten: [string, (s: Simulatie) => boolean][] = [
-  ['app nu (KOOP + R/R)', s => s.signaal === 'KOOP' && s.doorRrFilter],
-  ['KOOP, geen R/R-filter', s => s.signaal === 'KOOP'],
-  ['score 75+, geen filter', s => s.score >= 75],
-  ['high conviction', s => s.highConviction],
-  ['high conv. + niet hebzucht', s => s.highConviction && nietHebzucht(s)],
-  // De breedte-poort: alleen kopen als de altmarkt zelf meedoet.
-  ['KOOP + breedte >= 40%', s => s.signaal === 'KOOP' && breed(s, 0.4)],
-  ['score 75+ + breedte >= 40%', s => s.score >= 75 && breed(s, 0.4)],
-  ['high conv. + breedte >= 30%', s => s.highConviction && breed(s, 0.3)],
-  ['high conv. + breedte >= 40%', s => s.highConviction && breed(s, 0.4)],
-  ['high conv. + breedte >= 50%', s => s.highConviction && breed(s, 0.5)],
-  ['high conv. + breedte + F&G', s => s.highConviction && breed(s, 0.4) && nietHebzucht(s)],
-];
-
-// Grens tussen de eerste twee jaar en het laatste jaar. Een variant die alleen vóór deze datum
-// werkt, is aan de data aangepast en niet aan de markt.
-const alleDatums = alle.map(s => s.datum).sort();
-const grens = alleDatums[Math.floor(alleDatums.length * 0.66)];
-
-console.log('\n' + '='.repeat(72));
-console.log('METING C: kandidaat-instapregels, als echte strategie (geen overlap)');
-console.log('='.repeat(72));
-console.log(`\nPeriode-splitsing op ${grens}: eerste deel om ideeen op te doen, laatste deel om ze te toetsen.\n`);
-console.log('  ' + 'variant'.padEnd(28) + 'n'.padStart(6) + 'treffer%'.padStart(10) + 'gem R'.padStart(9) + '  |' + 'n'.padStart(6) + 'gem R'.padStart(9) + '   ' + 'n'.padStart(6) + 'gem R'.padStart(9));
-console.log('  ' + ' '.repeat(28) + '     hele periode        |     eerste deel        laatste deel');
-console.log('  ' + '-'.repeat(88));
-
-for (const [naam, f] of varianten) {
-  const set = alsStrategie(alle.filter(f));
-  const vroeg = set.filter(s => s.datum < grens);
-  const laat = set.filter(s => s.datum >= grens);
-  const a = stat(set), v = stat(vroeg), l = stat(laat);
-  console.log(
-    '  ' + naam.padEnd(28) +
-    String(a.n).padStart(6) + a.treffer.toFixed(1).padStart(10) + a.gemR.toFixed(3).padStart(9) + '  |' +
-    String(v.n).padStart(6) + v.gemR.toFixed(3).padStart(9) + '   ' +
-    String(l.n).padStart(6) + l.gemR.toFixed(3).padStart(9),
-  );
-}
-
-// --- meting D: hoe beheren we de trade? -------------------------------------------------
-//
-// De instap blijft precies zoals de engine hem doet (dezelfde entry, dezelfde swing-low-stop).
-// We variëren alleen het doel (nu vast op 3x ATR) en hoe lang we een trade laten lopen (nu 30
-// dagen). Als een trendvolger in een schokkerige markt zijn winst steeds ziet wegsmelten voor
-// hij zijn doel haalt, dan is dát het probleem, en niet het instapmoment.
-
-console.log('\n' + '='.repeat(72));
-console.log('METING D: zelfde instap, ander doel en andere houdtijd');
-console.log('='.repeat(72));
-
-function sweep(naam: string, kiest: (s: Signaal) => boolean) {
-  console.log(`\nInstapregel: ${naam}`);
-  console.log('  ' + 'doel'.padEnd(10) + 'houd'.padStart(6) + 'n'.padStart(7) + 'treffer%'.padStart(10) + 'gem R'.padStart(9) + 'eerste deel'.padStart(13) + 'laatste deel'.padStart(14));
-  console.log('  ' + '-'.repeat(69));
-
-  for (const maxBars of [10, 20, 30]) {
-    for (const k of [1.0, 1.5, 2.0, 3.0]) {
-      const rs: { r: number; datum: string }[] = [];
-
-      for (const symbool of coins) {
-        const candles = laadCandles(symbool);
-        let bezetTot = -1;
-        for (const s of signalenPerCoin[symbool] ?? []) {
-          if (!kiest(s) || s.i <= bezetTot) continue;
-          const doel = s.entry + k * s.atr;
-          const u = simuleer(candles, s.i, s.entry, s.stop, doel, maxBars);
-          if (!u) continue;
-          rs.push({ r: u.r, datum: s.datum });
-          bezetTot = s.i + u.bars;
-        }
-      }
-
-      if (rs.length === 0) continue;
-      const gem = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
-      const alleR = rs.map(x => x.r);
-      const vroeg = rs.filter(x => x.datum < grens).map(x => x.r);
-      const laat = rs.filter(x => x.datum >= grens).map(x => x.r);
-      const treffer = (alleR.filter(r => r > 0).length / alleR.length) * 100;
-
-      console.log(
-        '  ' + `${k.toFixed(1)}x ATR`.padEnd(10) +
-        `${maxBars}d`.padStart(6) +
-        String(rs.length).padStart(7) +
-        treffer.toFixed(1).padStart(10) +
-        gem(alleR).toFixed(3).padStart(9) +
-        (vroeg.length ? gem(vroeg).toFixed(3) : '-').padStart(13) +
-        (laat.length ? gem(laat).toFixed(3) : '-').padStart(14),
-      );
-    }
-  }
-}
-
-sweep('high conviction', s => s.hc);
-sweep('KOOP (score >= 55), geen R/R-filter', s => s.koop);
-
-// --- meting E: werkt de score ook als short? --------------------------------------------
-//
-// De app is long-only en verloor anderhalf jaar lang geld, in een markt waarin de mediane coin
-// 71% zakte. De vraag die dat oproept: zit er in dezelfde score ook een bruikbaar shortsignaal?
-// Een score die zowel de stijgers als de dalers herkent, is een veel sterker instrument dan een
-// score die alleen maar "koop" kan zeggen.
-//
-// Gespiegelde mechaniek: stop boven de recente swing high, doel k x ATR onder de entry.
-// R = (entry - exit) / risico, dus een dalende koers levert een positieve R op.
-
+// Gespiegelde niveaus voor een short: stop boven de recente swing high, doel eronder.
 const SWING = 10;
 
 function shortNiveaus(candles: Candle[], i: number, atr: number) {
   const entry = candles[i].close;
   let swingHigh = -Infinity;
   for (let j = Math.max(0, i - SWING + 1); j <= i; j++) swingHigh = Math.max(swingHigh, candles[j].high);
-  const ruw = (swingHigh + 0.1 * atr) - entry;
+  const ruw = swingHigh + 0.1 * atr - entry;
   const risico = Math.min(Math.max(ruw, 0.5 * atr), 3 * atr);
-  return { entry, stop: entry + risico, risico };
+  return { entry, stop: entry + risico };
 }
 
 function simuleerShort(
@@ -497,132 +412,131 @@ function simuleerShort(
     const c = candles[j];
     if (c.open >= stop) return { r: (entry - c.open) / risico, bars: j - i };
     if (c.open <= doel) return { r: (entry - c.open) / risico, bars: j - i };
-    // Weer conservatief: raakt de candle allebei, dan nemen we het verlies.
+    // Weer conservatief: raakt de candle stop en doel allebei, dan nemen we het verlies.
     if (c.high >= stop) return { r: (entry - stop) / risico, bars: j - i };
     if (c.low <= doel) return { r: (entry - doel) / risico, bars: j - i };
   }
   return { r: (entry - candles[eind].close) / risico, bars: eind - i };
 }
 
-console.log('\n' + '='.repeat(72));
-console.log('METING E: dezelfde score, maar dan als short (doel 2x ATR omlaag, 20 dagen)');
-console.log('='.repeat(72));
-console.log('\nEen lage score zou een slechte coin moeten aanwijzen. Levert short gaan op die coins geld op?\n');
-console.log('  ' + 'scorebucket'.padEnd(20) + 'n'.padStart(7) + 'treffer%'.padStart(10) + 'gem R'.padStart(9) + 'eerste deel'.padStart(13) + 'laatste deel'.padStart(14));
-console.log('  ' + '-'.repeat(73));
-
-const shortBuckets: [string, (score: number) => boolean][] = [
-  ['score 0-25', s => s < 25],
-  ['score 25-40', s => s >= 25 && s < 40],
-  ['score 40-55', s => s >= 40 && s < 55],
-  ['score 55-75', s => s >= 55 && s < 75],
-  ['score 75+', s => s >= 75],
-];
-
-for (const [naam, past] of shortBuckets) {
-  const rs: { r: number; datum: string }[] = [];
+// Draait een instapregel als echte strategie: geen overlappende trades per coin, doel en
+// houdtijd instelbaar. Retourneert het resultaat van elke trade met zijn datum.
+function draai(
+  kiest: (s: Signaal) => boolean,
+  opties: { doelAtr?: number; maxBars?: number; short?: boolean } = {},
+): { r: number; datum: string }[] {
+  const doelAtr = opties.doelAtr ?? 3.0;
+  const maxBars = opties.maxBars ?? MAX_BARS;
+  const uit: { r: number; datum: string }[] = [];
 
   for (const symbool of coins) {
     const candles = laadCandles(symbool);
     let bezetTot = -1;
     for (const s of signalenPerCoin[symbool] ?? []) {
-      if (!past(s.score) || s.i <= bezetTot) continue;
-      const n = shortNiveaus(candles, s.i, s.atr);
-      const doel = n.entry - 2.0 * s.atr;
-      const u = simuleerShort(candles, s.i, n.entry, n.stop, doel, 20);
+      if (s.i <= bezetTot || !kiest(s)) continue;
+
+      const u = opties.short
+        ? (() => {
+            const n = shortNiveaus(candles, s.i, s.atr);
+            return simuleerShort(candles, s.i, n.entry, n.stop, n.entry - doelAtr * s.atr, maxBars);
+          })()
+        : simuleer(candles, s.i, s.entry, s.stop, s.entry + doelAtr * s.atr, maxBars);
+
       if (!u) continue;
-      rs.push({ r: u.r, datum: s.datum });
+      uit.push({ r: u.r, datum: s.datum });
       bezetTot = s.i + u.bars;
     }
   }
-
-  if (rs.length === 0) continue;
-  const gem = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
-  const alleR = rs.map(x => x.r);
-  const vroeg = rs.filter(x => x.datum < grens).map(x => x.r);
-  const laat = rs.filter(x => x.datum >= grens).map(x => x.r);
-  console.log(
-    '  ' + naam.padEnd(20) +
-    String(rs.length).padStart(7) +
-    ((alleR.filter(r => r > 0).length / alleR.length) * 100).toFixed(1).padStart(10) +
-    gem(alleR).toFixed(3).padStart(9) +
-    (vroeg.length ? gem(vroeg).toFixed(3) : '-').padStart(13) +
-    (laat.length ? gem(laat).toFixed(3) : '-').padStart(14),
-  );
+  return uit;
 }
 
-// --- meting F: een tool die van richting kan wisselen ------------------------------------
-//
-// De beslissende vraag. Longs verdienden in de bull en verloren in de bear; shorts precies
-// andersom. Kader kent maar één richting en heeft dus per definitie de helft van de tijd
-// ongelijk. Wat als de BTC-trend bepaalt welke kant we op kijken?
-//
-// Belangrijk: de poort gebruikt alleen data van vóór de instap (BTC-close t.o.v. zijn EMA200 op
-// die dag), dus dit is een regel die je in het echt ook had kunnen volgen.
+// Eén regel van de jaartabel: totaal plus de uitkomst per jaar.
+function jaarRegel(naam: string, trades: { r: number; datum: string }[]) {
+  const alleR = trades.map(t => t.r);
+  const treffer = alleR.length ? (alleR.filter(r => r > 0).length / alleR.length) * 100 : 0;
+  let regel =
+    naam.padEnd(30) +
+    String(alleR.length).padStart(6) +
+    (alleR.length ? treffer.toFixed(0) : '-').padStart(5) +
+    (alleR.length ? gem(alleR).toFixed(3) : '-').padStart(8) +
+    ' |';
+  for (const jaar of jaren) {
+    const rs = trades.filter(t => jaarVan(t.datum) === jaar).map(t => t.r);
+    regel += (rs.length >= 10 ? gem(rs).toFixed(2) : '.').padStart(7);
+  }
+  console.log('  ' + regel);
+}
+
+function jaarKop(titel: string) {
+  console.log(`\n${titel}`);
+  let kop = 'regel'.padEnd(30) + 'n'.padStart(6) + 'tr%'.padStart(5) + 'gem R'.padStart(8) + ' |';
+  for (const jaar of jaren) kop += jaar.slice(2).padStart(7);
+  console.log('  ' + kop);
+  console.log('  ' + '-'.repeat(kop.length));
+}
+
+// --- meting C: hoe ziet de cyclus eruit? ------------------------------------------------
 
 console.log('\n' + '='.repeat(72));
-console.log('METING F: richting bepalen met de BTC-trend (long boven EMA200, short eronder)');
+console.log('METING C: het huidige algoritme, per jaar');
 console.log('='.repeat(72));
-console.log('\n  ' + 'strategie'.padEnd(34) + 'n'.padStart(6) + 'treffer%'.padStart(10) + 'gem R'.padStart(9) + 'eerste deel'.padStart(13) + 'laatste deel'.padStart(14));
-console.log('  ' + '-'.repeat(86));
+console.log('\nPer jaar de gemiddelde R. Een jaar met minder dan 10 trades toont een punt.');
 
-// Long-doel op 2x ATR, short-doel op 2x ATR, allebei 20 dagen: één set regels, geen
-// per-richting gefrutsel aan de knoppen.
-function draaiRichting(naam: string, longKiest: (s: Signaal) => boolean, shortKiest: (s: Signaal) => boolean, gebruikPoort: boolean) {
-  const rs: { r: number; datum: string }[] = [];
+jaarKop('Long, doel 3x ATR, 30 dagen:');
+jaarRegel('alle bars (willekeurig)', draai(() => true));
+jaarRegel('KOOP + R/R-filter (app nu)', draai(s => s.koop && s.rrOk));
+jaarRegel('KOOP, geen R/R-filter', draai(s => s.koop));
+jaarRegel('score 75+', draai(s => s.score >= 75));
+jaarRegel('high conviction', draai(s => s.hc));
 
-  for (const symbool of coins) {
-    const candles = laadCandles(symbool);
-    let bezetTot = -1;
-    for (const s of signalenPerCoin[symbool] ?? []) {
-      if (s.i <= bezetTot) continue;
-      const riskOn = btcRiskOnPerDag[s.datum];
-      if (riskOn === undefined) continue;
+// --- meting D: welke poort houdt ons uit een bearmarkt? ---------------------------------
 
-      // Zonder poort: alleen long, wat de app nu doet.
-      const magLong = gebruikPoort ? riskOn : true;
-      const magShort = gebruikPoort ? !riskOn : false;
+console.log('\n' + '='.repeat(72));
+console.log('METING D: long-only poorten. Welke sluit de slechte jaren zonder de goede te slopen?');
+console.log('='.repeat(72));
+console.log('\nBasis is telkens high conviction. Een poort is pas iets waard als hij de rode jaren');
+console.log('dempt en de groene jaren grotendeels intact laat.');
 
-      if (magLong && longKiest(s)) {
-        const u = simuleer(candles, s.i, s.entry, s.stop, s.entry + 2.0 * s.atr, 20);
-        if (!u) continue;
-        rs.push({ r: u.r, datum: s.datum });
-        bezetTot = s.i + u.bars;
-      } else if (magShort && shortKiest(s)) {
-        const n = shortNiveaus(candles, s.i, s.atr);
-        const u = simuleerShort(candles, s.i, n.entry, n.stop, n.entry - 2.0 * s.atr, 20);
-        if (!u) continue;
-        rs.push({ r: u.r, datum: s.datum });
-        bezetTot = s.i + u.bars;
-      }
-    }
+const M = (s: Signaal) => marktOp(s.datum);
+
+jaarKop('High conviction, met poort:');
+jaarRegel('geen poort', draai(s => s.hc));
+jaarRegel('BTC boven EMA200', draai(s => s.hc && M(s).riskOn === true));
+jaarRegel('BTC boven EMA50', draai(s => s.hc && M(s).btc50 === true));
+jaarRegel('BTC boven EMA50 en EMA200', draai(s => s.hc && M(s).btc50 === true && M(s).riskOn === true));
+jaarRegel('breedte >= 40%', draai(s => s.hc && (M(s).breedte ?? 0) >= 0.4));
+jaarRegel('breedte stijgt', draai(s => s.hc && M(s).breedteStijgt === true));
+jaarRegel('breedte >= 40% en stijgt', draai(s => s.hc && (M(s).breedte ?? 0) >= 0.4 && M(s).breedteStijgt === true));
+jaarRegel('geen hebzucht (F&G <= 75)', draai(s => s.hc && (M(s).fng ?? 50) <= 75));
+jaarRegel('BTC EMA50 + breedte stijgt', draai(s => s.hc && M(s).btc50 === true && M(s).breedteStijgt === true));
+
+// --- meting E: doel en houdtijd ---------------------------------------------------------
+
+console.log('\n' + '='.repeat(72));
+console.log('METING E: doel en houdtijd, over negen jaar');
+console.log('='.repeat(72));
+
+jaarKop('High conviction, geen poort:');
+for (const maxBars of [10, 20, 30]) {
+  for (const k of [1.5, 2.0, 3.0]) {
+    jaarRegel(`doel ${k.toFixed(1)}x ATR, ${maxBars} dagen`, draai(s => s.hc, { doelAtr: k, maxBars }));
   }
-
-  if (rs.length === 0) return;
-  const gem = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
-  const alleR = rs.map(x => x.r);
-  const vroeg = rs.filter(x => x.datum < grens).map(x => x.r);
-  const laat = rs.filter(x => x.datum >= grens).map(x => x.r);
-  console.log(
-    '  ' + naam.padEnd(34) +
-    String(rs.length).padStart(6) +
-    ((alleR.filter(r => r > 0).length / alleR.length) * 100).toFixed(1).padStart(10) +
-    gem(alleR).toFixed(3).padStart(9) +
-    (vroeg.length ? gem(vroeg).toFixed(3) : '-').padStart(13) +
-    (laat.length ? gem(laat).toFixed(3) : '-').padStart(14),
-  );
 }
 
-// De zwakste coins shorten: precies het spiegelbeeld van wat de app long doet.
-const zwak = (s: Signaal) => s.score < 40;
+// --- meting F: shorts, alleen ter informatie --------------------------------------------
+//
+// Shorts staan voorlopig geparkeerd (te veel afhankelijkheden op eToro), maar met negen jaar
+// data is het wel het vastleggen waard of ze consistent werken in bearmarkten of dat 2025-26
+// toeval was.
 
-draaiRichting('alleen long, high conv. (nu)', s => s.hc, () => false, false);
-// Niets doen zodra BTC onder zijn EMA200 zakt: de goedkoopste ingreep, geen shorts nodig.
-// De long-tak van de poort, zonder de short-tak.
-draaiRichting('long, maar alleen als BTC risk-on', s => s.hc && (btcRiskOnPerDag[s.datum] === true), () => false, false);
-draaiRichting('long/short, high conv. + zwak', s => s.hc, zwak, true);
-draaiRichting('long/short, KOOP + zwak', s => s.koop, zwak, true);
+console.log('\n' + '='.repeat(72));
+console.log('METING F: shorts op de zwakste coins (geparkeerd, alleen ter informatie)');
+console.log('='.repeat(72));
 
+jaarKop('Short, doel 2x ATR, 20 dagen:');
+jaarRegel('score < 40', draai(s => s.score < 40, { doelAtr: 2.0, maxBars: 20, short: true }));
+jaarRegel('score < 40, BTC onder EMA200', draai(s => s.score < 40 && M(s).riskOn === false, { doelAtr: 2.0, maxBars: 20, short: true }));
+jaarRegel('score < 25, BTC onder EMA200', draai(s => s.score < 25 && M(s).riskOn === false, { doelAtr: 2.0, maxBars: 20, short: true }));
 // --- wegschrijven -----------------------------------------------------------------------
 
 mkdirSync(UIT, { recursive: true });
