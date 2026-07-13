@@ -1,4 +1,4 @@
-import { Trade } from './types';
+import { Candle, Trade } from './types';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
 import { haalData } from './marketData';
 
@@ -45,11 +45,25 @@ export function stopAfstandStructuur(
   return Math.min(Math.max(ruwAfstand, 0.5 * atr), 3 * atr);
 }
 
-export async function analyseerCoin(symbool: string): Promise<Trade | null> {
-  const result = await haalData(symbool);
-  if (!result || result.candles.length < EMA_LANG + 5) return null;
+// Minimaal aantal candles voordat EMA50 en consorten iets betekenen.
+export const MIN_CANDLES = EMA_LANG + 5;
 
-  const { candles, bron } = result;
+// De scoring zelf, zonder netwerk. `candles` is de historie tot en met de candle die
+// beoordeeld wordt; alles wat later komt bestaat voor deze functie niet. De backtest
+// schuift daardoor gewoon een venster op (candles.slice(0, i + 1)) en kan per constructie
+// niet in de toekomst kijken.
+export function scoorCandles(
+  symbool: string,
+  candles: Candle[],
+  bron: Trade['bron'],
+  // De backtest zet de R/R-filter uit (minRR: 0) om te kunnen meten wat die filter ons kost:
+  // presteren de afgewezen signalen beter of slechter dan de toegelaten? De app gebruikt de
+  // default en gedraagt zich dus precies als voorheen.
+  opties?: { minRR?: number },
+): Trade | null {
+  if (candles.length < MIN_CANDLES) return null;
+  const minRR = opties?.minRR ?? MIN_RISK_REWARD;
+
   const close = candles.map(c => c.close);
   const prijs = close[close.length - 1];
 
@@ -126,7 +140,7 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
   const entryLaag = entry - 0.2 * atrNu;
   const entryHoog = entry + 0.2 * atrNu;
 
-  if (rr < MIN_RISK_REWARD - 1e-9) return null;
+  if (rr < minRR - 1e-9) return null;
 
   const signaalTekst: 'KOOP' | 'WATCH' = score >= 55 ? 'KOOP' : 'WATCH';
   const highConviction =
@@ -143,6 +157,12 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
     volumeRatio, score, redenen,
     signaal: signaalTekst, highConviction,
   };
+}
+
+export async function analyseerCoin(symbool: string): Promise<Trade | null> {
+  const result = await haalData(symbool);
+  if (!result) return null;
+  return scoorCandles(symbool, result.candles, result.bron);
 }
 
 // ponytail: blokken van 6 i.p.v. een worker-pool. 57 coins x weight 2 = 114 van

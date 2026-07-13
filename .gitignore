@@ -10,6 +10,10 @@ app/android/app/build/
 app/android/.gradle/
 app/*.apk
 
+# Backtest: gedownloade marktdata en runresultaten. Te groot voor git en altijd opnieuw
+# op te halen met `node scripts/haal-historie.mjs`.
+data/
+
 # Python cache (van skill-scripts)
 __pycache__/
 *.pyc
