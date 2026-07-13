@@ -4,7 +4,7 @@ import {
   StyleSheet, Alert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, X, Wallet, CheckCircle, XCircle, Clock } from 'lucide-react-native';
+import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3 } from 'lucide-react-native';
 import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -14,10 +14,13 @@ import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
 import { HistorieScherm } from '../components/HistorieScherm';
+import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
+import { TradeActiesSheet } from '../components/TradeActiesSheet';
 import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
 import { berekenPortfolioWaarde } from '../state/statistieken';
+import { useWeergave, Weergave } from '../state/useWeergave';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
@@ -613,6 +616,52 @@ const formStyles = StyleSheet.create({
   },
 });
 
+// ---------- Weergaveschakelaar (uitgebreid/compact) ----------
+function WeergaveSchakelaar({ actief, onWijzig }: {
+  actief: Weergave;
+  onWijzig: (weergave: Weergave) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={[weergaveStyles.wrapper, { backgroundColor: colors.verhoogd }]}>
+      <Pressable
+        style={[weergaveStyles.knop, actief === 'uitgebreid' && { backgroundColor: colors.kaart }]}
+        onPress={() => onWijzig('uitgebreid')}
+        accessibilityRole="button"
+        accessibilityLabel="Uitgebreide weergave"
+        hitSlop={4}
+      >
+        <LayoutList size={17} color={actief === 'uitgebreid' ? colors.tekstPrimair : colors.tekstGedimd} strokeWidth={1.75} />
+      </Pressable>
+      <Pressable
+        style={[weergaveStyles.knop, actief === 'compact' && { backgroundColor: colors.kaart }]}
+        onPress={() => onWijzig('compact')}
+        accessibilityRole="button"
+        accessibilityLabel="Compacte weergave"
+        hitSlop={4}
+      >
+        <Rows3 size={17} color={actief === 'compact' ? colors.tekstPrimair : colors.tekstGedimd} strokeWidth={1.75} />
+      </Pressable>
+    </View>
+  );
+}
+
+const weergaveStyles = StyleSheet.create({
+  wrapper: {
+    flexDirection: 'row',
+    borderRadius: radii.knop,
+    padding: 2,
+    gap: 2,
+  },
+  knop: {
+    width: 44,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.knop - 2,
+  },
+});
+
 // ---------- Scherm ----------
 export function PortfolioScreen() {
   const { colors } = useTheme();
@@ -627,6 +676,8 @@ export function PortfolioScreen() {
   const [etoroBezig, setEtoroBezig] = useState(false);
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
+  const [actiesVoor, setActiesVoor] = useState<PortfolioTrade | null>(null);
+  const { weergave, setWeergave } = useWeergave();
 
   // Swipe omlaag en de verversknop: stil synchroniseren. Geen meldingen, ook niet als er geen
   // koppeling is; een mislukte eToro-sync komt via etoroFout terug in de statuskaart.
@@ -684,7 +735,7 @@ export function PortfolioScreen() {
   const waarde = berekenPortfolioWaarde(trades, livePrijzen);
 
   return (
-    <SafeAreaView style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
         titel="Mijn trades"
         rechts={
@@ -704,14 +755,23 @@ export function PortfolioScreen() {
         data={openTrades}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <TradeRegel
-            trade={item}
-            livePrijs={livePrijzen[item.symbool]}
-            onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
-            onVerwijder={verwijderTrade}
-            onBewerk={setBewerkTrade}
-            onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
-          />
+          weergave === 'compact' ? (
+            <CompacteTradeRegel
+              trade={item}
+              livePrijs={livePrijzen[item.symbool]}
+              onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+              onOpenActies={setActiesVoor}
+            />
+          ) : (
+            <TradeRegel
+              trade={item}
+              livePrijs={livePrijzen[item.symbool]}
+              onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
+              onVerwijder={verwijderTrade}
+              onBewerk={setBewerkTrade}
+              onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+            />
+          )
         )}
         contentContainerStyle={portfolioStyles.lijst}
         refreshControl={
@@ -723,20 +783,30 @@ export function PortfolioScreen() {
           />
         }
         ListHeaderComponent={
-          <PortfolioStatusKaart
-            waarde={waarde}
-            // Ook tijdens een swipe- of knop-sync bezig tonen: verversPrijzen zet `syncing` alleen
-            // als er open posities zijn, dus met een lege portfolio bleef de knop anders indrukbaar.
-            syncing={syncing || ververst}
-            laatsteSync={laatsteSync}
-            syncFout={syncFout}
-            etoroFout={etoroFout}
-            etoroBezig={etoroBezig}
-            afgesloten={afgeslotenCount}
-            onVerversen={swipeSync}
-            onImporteren={importerenUitEtoro}
-            onOpenHistorie={() => setHistorieOpen(true)}
-          />
+          <>
+            <PortfolioStatusKaart
+              waarde={waarde}
+              // Ook tijdens een swipe- of knop-sync bezig tonen: verversPrijzen zet `syncing` alleen
+              // als er open posities zijn, dus met een lege portfolio bleef de knop anders indrukbaar.
+              syncing={syncing || ververst}
+              laatsteSync={laatsteSync}
+              syncFout={syncFout}
+              etoroFout={etoroFout}
+              etoroBezig={etoroBezig}
+              afgesloten={afgeslotenCount}
+              onVerversen={swipeSync}
+              onImporteren={importerenUitEtoro}
+              onOpenHistorie={() => setHistorieOpen(true)}
+            />
+            {openTrades.length > 0 && (
+              <View style={portfolioStyles.weergaveRij}>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                  {openTrades.length} {openTrades.length === 1 ? 'OPEN TRADE' : 'OPEN TRADES'}
+                </Text>
+                <WeergaveSchakelaar actief={weergave} onWijzig={setWeergave} />
+              </View>
+            )}
+          </>
         }
         ListEmptyComponent={
           <View style={portfolioStyles.leeg}>
@@ -782,6 +852,15 @@ export function PortfolioScreen() {
 
       <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
 
+      <TradeActiesSheet
+        trade={actiesVoor}
+        onSluiten={() => setActiesVoor(null)}
+        onGewonnen={t => setSluitVerzoek({ trade: t, status: 'gewonnen' })}
+        onVerloren={t => setSluitVerzoek({ trade: t, status: 'verloren' })}
+        onAanpassen={setBewerkTrade}
+        onVerwijderen={t => verwijderTrade(t.id)}
+      />
+
       <HistorieScherm
         zichtbaar={historieOpen}
         trades={trades}
@@ -820,5 +899,12 @@ const portfolioStyles = StyleSheet.create({
     minHeight: 44,
     marginTop: spacing.lg,
   },
-  lijst: { paddingTop: spacing.md },
+  lijst: { paddingTop: spacing.md, paddingBottom: spacing.md },
+  weergaveRij: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+  },
 });

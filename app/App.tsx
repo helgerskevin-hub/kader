@@ -47,37 +47,53 @@ function AppInhoud() {
   const [welkomOpen, setWelkomOpen] = useState(false);
   const [etoroPromptOpen, setEtoroPromptOpen] = useState(false);
   const [etoroSetupOpen, setEtoroSetupOpen] = useState(false);
-  const schermFade = useRef(new Animated.Value(1)).current;
-  // Welk scherm nu getoond wordt. Losgekoppeld van actieveTab zodat we de inhoud pas
-  // wisselen wanneer de opacity al op 0 staat: een echte cross-fade zonder flits.
-  const [zichtbareTab, setZichtbareTab] = useState<Tab>('markt');
+  // Elk scherm dat ooit bezocht is blijft gemount (state/scrollpositie/filters blijven behouden)
+  // en krijgt een eigen opacity-waarde. Bij een tabwissel faden we het nieuwe scherm over het
+  // vorige heen in plaats van eerst uit te faden: zo is er nooit een leeg frame en dus geen flits.
+  const [bezochteTabs, setBezochteTabs] = useState<Tab[]>(['markt']);
+  const fadeWaarden = useRef<Record<Tab, Animated.Value>>({
+    markt: new Animated.Value(1),
+    kansen: new Animated.Value(0),
+    portfolio: new Animated.Value(0),
+    traders: new Animated.Value(0),
+  }).current;
+  const vorigeTabRef = useRef<Tab>('markt');
+  // Het scherm dat nog zichtbaar moet blijven onder de nieuwe tab tot de fade-in klaar is.
+  const [overgangTab, setOvergangTab] = useState<Tab | null>(null);
+  const overgangTabRef = useRef<Tab | null>(null);
+  function zetOvergangTab(tab: Tab | null) {
+    overgangTabRef.current = tab;
+    setOvergangTab(tab);
+  }
 
   useEffect(() => {
-    if (zichtbareTab === actieveTab) return;
+    const vorige = vorigeTabRef.current;
+    if (vorige === actieveTab) return;
+    vorigeTabRef.current = actieveTab;
+    setBezochteTabs(prev => (prev.includes(actieveTab) ? prev : [...prev, actieveTab]));
+
     if (reduceMotion) {
-      setZichtbareTab(actieveTab);
-      schermFade.setValue(1);
+      fadeWaarden[vorige].setValue(0);
+      fadeWaarden[actieveTab].setValue(1);
+      zetOvergangTab(null);
       return;
     }
-    // Eerst het huidige scherm uitfaden, dan pas de inhoud wisselen en weer infaden.
-    // Zo is er nooit een frame waarin het nieuwe scherm op volle opacity verschijnt
-    // (dat veroorzaakte de flits; een useNativeDriver-setValue reset komt te laat aan).
-    Animated.timing(schermFade, {
-      toValue: 0,
-      duration: 110,
-      easing: Easing.in(Easing.cubic),
+
+    zetOvergangTab(vorige);
+    fadeWaarden[actieveTab].setValue(0);
+    Animated.timing(fadeWaarden[actieveTab], {
+      toValue: 1,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (!finished) return;
-      setZichtbareTab(actieveTab);
-      Animated.timing(schermFade, {
-        toValue: 1,
-        duration: 180,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
+      fadeWaarden[vorige].setValue(0);
+      // Alleen opruimen als er niet ondertussen alweer een nieuwere wissel is gestart,
+      // anders verbergen we per ongeluk het scherm van die nieuwere overgang.
+      if (overgangTabRef.current === vorige) zetOvergangTab(null);
     });
-  }, [actieveTab, zichtbareTab, reduceMotion, schermFade]);
+  }, [actieveTab, reduceMotion, fadeWaarden]);
 
   useEffect(() => {
     laadVlag(SLEUTELS.onboarding).then(klaar => {
@@ -135,25 +151,32 @@ function AppInhoud() {
   }
 
   return (
-    <View style={styles.root}>
-      <Animated.View
-        style={[
-          styles.schermen,
-          {
-            opacity: schermFade,
-            transform: [{
-              translateY: schermFade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }),
-            }],
-          },
-        ]}
-      >
-        <FoutGrens>
-          {zichtbareTab === 'markt' && <MarktScreen />}
-          {zichtbareTab === 'kansen' && <KansenScreen />}
-          {zichtbareTab === 'portfolio' && <PortfolioScreen />}
-          {zichtbareTab === 'traders' && <TradersScreen />}
-        </FoutGrens>
-      </Animated.View>
+    <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
+      <View style={styles.schermen}>
+        {bezochteTabs.map(tab => {
+          const isActief = tab === actieveTab;
+          const isOvergang = tab === overgangTab;
+          const zichtbaar = isActief || isOvergang;
+          return (
+            <Animated.View
+              key={tab}
+              pointerEvents={isActief ? 'auto' : 'none'}
+              style={[
+                StyleSheet.absoluteFill,
+                { opacity: fadeWaarden[tab], zIndex: isActief ? 2 : 1 },
+                !zichtbaar && styles.verborgen,
+              ]}
+            >
+              <FoutGrens>
+                {tab === 'markt' && <MarktScreen />}
+                {tab === 'kansen' && <KansenScreen />}
+                {tab === 'portfolio' && <PortfolioScreen />}
+                {tab === 'traders' && <TradersScreen />}
+              </FoutGrens>
+            </Animated.View>
+          );
+        })}
+      </View>
       <BottomNav actief={actieveTab} onWissel={setActieveTab} />
       <StatusBar style={donkerActief ? 'light' : 'dark'} />
       <WelkomFeest
@@ -205,4 +228,5 @@ export default function App() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   schermen: { flex: 1 },
+  verborgen: { display: 'none' },
 });

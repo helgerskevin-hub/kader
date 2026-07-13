@@ -4,6 +4,25 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.5
+
+- Onderste tradekaart op het Portfolio-scherm werd afgekapt boven een lege
+  grijze strook (bij 3-knops-navigatie op Android). De ruimte onder de
+  tabbalk werd dubbel opgeteld; nu klopt de ruimte weer op alle vier de
+  tabbladen
+- De overgang tussen tabbladen kon knipperen op sommige toestellen (met name
+  Samsung, 120 Hz). Schermen blijven nu gemount na een eerste bezoek en faden
+  over elkaar heen in plaats van eerst helemaal te verdwijnen, dus geen leeg
+  frame meer. Als bonus onthouden Grote Kansen en de Markt-filters nu ook hun
+  stand bij het wisselen van tabblad
+- Compacte weergave toegevoegd op het Portfolio-scherm: een schakelaar boven
+  de tradelijst wisselt tussen de bestaande uitgebreide kaarten en compacte
+  regels, zodat je in één oogopslag meer open trades ziet. Elke compacte
+  regel toont het symbool, een kort advies, de live prijs, het resultaat en
+  een dunne balk die laat zien waar de koers tussen stop en doel staat.
+  Acties (Gewonnen/Verloren/Aanpassen/Verwijderen) zijn bereikbaar via een
+  kebab-menu per regel. De gekozen weergave wordt onthouden
+
 ## 0.1.4
 
 - De app kon niet meer bijgewerkt worden over een bestaande installatie heen

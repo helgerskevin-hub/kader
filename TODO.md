@@ -27,7 +27,6 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 
 - [ ] Inloggen? Zo ja, database?
-- [ ] **Compact view in portfolio**: keuze-switch tussen meer info en compact, zoals eToro's eigen portfolio-view.
 
 ### 🎯 Kevins kernvisie voor Kader
 _(Wat de app uiteindelijk moet zijn, de rode draad achter alle keuzes)_
@@ -76,12 +75,13 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
-- [ ] **Pushmelding-positie aanpassen**: meldingen staan te laag, worden verborgen achter de gesture buttons op telefoon. Hoger positioneren. (Kevin: kun je even preciezer aangeven welke melding je bedoelt, het liefst met een screenshot? In de code is er geen eigen in-app toast of banner: `notifications/meldingen.ts` gebruikt alleen OS-pushmeldingen via `expo-notifications`, en die verschijnen op Android altijd bovenaan, niet te verplaatsen vanuit de app. Wat wel bij "te laag, verborgen achter de gesture buttons" past zijn de bottom-sheets (Instellingen, formulieren e.d.): die hadden inderdaad geen ruimte voor de Android-gesturebalk en zijn nu gefixt. Als je toch de systeemmelding bedoelt: die kunnen we niet herpositioneren, alleen het kanaal/de urgentie aanpassen.)
-Reactie Kevin: Zie "balk over kaarten.jpeg" in de bugs folder
-
 ## ✅ Klaar
 
 _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al gedaan hebben.)_
+
+### Bugfixes
+- [x] **Balk over kaarten**: onderste tradekaart werd afgekapt boven een dode grijze strook (zie "balk over kaarten.jpeg"). Oorzaak: de tab-schermen (Markt, Kansen, Portfolio, Traders) pasten via `SafeAreaView` de bottom-inset toe binnen het scherm, en `BottomNav` deed dat er nogmaals onder overheen. Inset wordt nu alleen nog door `BottomNav` toegepast; de schermen zelf padden alleen top/left/right.
+- [x] **Tabwisseling-animatie hapert op S25 Ultra**: de cross-fade was in werkelijkheid fade-out → scherm wisselen (unmount/mount) → fade-in, met de dure mount van een FlatList-scherm precies in het gat waarin alles onzichtbaar was, plus een root-container zonder achtergrondkleur (liet het venster erdoorheen schijnen). Nu blijft elk bezocht tabscherm gemount en faden we het nieuwe scherm over het vorige heen in (opacity-only), zodat er nooit een leeg frame is. Bonus: scan-resultaten en filters per tab blijven nu ook behouden bij het wisselen.
 
 ### eToro-koppeling
 - [x] Portfolio uit eToro halen: live API-koppeling onder Instellingen, importknop op Mijn Trades
@@ -107,6 +107,7 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] Naar beneden swipen op Marktpagina was te gevoelig: refresh gebeurt nu op de achtergrond zonder de lijst te legen, met een herhaal-blokkade
 
 ### Portfolio & trades
+- [x] **Compact view in portfolio**: keuze-switch tussen meer info en compact, zoals eToro's eigen portfolio-view. Compacte regel toont symbool, kort advies, live prijs, resultaat en een dunne stop-doel-balk; acties (Gewonnen/Verloren/Aanpassen/Verwijderen) via een kebab-menu.
 - [x] Live prijs-polling op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden
 - [x] Portfoliosamenvatting: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
 - [x] Mogelijkheid om een gemaakte trade aan te passen: stop-loss en take-profit wijzigen, R/R herberekend

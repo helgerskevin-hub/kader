@@ -91,7 +91,7 @@ export function MarktScreen() {
     .filter(t => t.rr >= marktFilters.minRR);
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
         titel="Markt"
         meta={metaText}
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   ctaTekst: { color: 'white', fontWeight: '600' },
-  lijst: { paddingTop: spacing.md },
+  lijst: { paddingTop: spacing.md, paddingBottom: spacing.md },
   lijstKop: {
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,
