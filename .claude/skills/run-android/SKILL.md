@@ -8,6 +8,14 @@ project-specific driver script — the app is driven directly with ADB
 shell commands against a running emulator. Package: `com.kader.app`,
 main activity: `com.kader.app.MainActivity`.
 
+**This skill is for the emulator/dev-client only. For a release APK
+that gets uploaded to GitHub, use the `release-apk` skill instead** —
+`expo run:android` below skips prebuild whenever `android/` already
+exists, so the native `versionCode` silently falls behind `app.json`
+after a version bump. That drift is exactly what broke installability
+of a real release once (see `release-apk`'s SKILL.md for the story);
+never build a release APK with the commands in this file.
+
 ## Prerequisites
 
 - An Android emulator already running (check with

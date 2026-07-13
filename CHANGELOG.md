@@ -4,6 +4,16 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.4
+
+- De app kon niet meer bijgewerkt worden over een bestaande installatie heen
+  ("App niet geïnstalleerd"). Dat lag niet aan de app zelf, maar aan een
+  verkeerd versienummer in de build: sinds versie 0.1.0 was de native build
+  niet meer opnieuw gegenereerd, waardoor eerdere releases in werkelijkheid
+  een lager versienummer bevatten dan wat er al op sommige telefoons stond.
+  Vanaf nu installeert de update gewoon over de vorige versie heen, met
+  behoud van je portfolio
+
 ## 0.1.3
 
 - Het import-wolkje bij je portfoliowaarde kleurt nu mee met de sync-status

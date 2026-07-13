@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.4',
+    datum: '2026-07-13',
+    punten: [
+      'De app kon niet meer bijgewerkt worden over een bestaande installatie heen ("App niet geïnstalleerd"). Dat lag niet aan de app zelf, maar aan een verkeerd versienummer in de build: sinds versie 0.1.0 was de native build niet meer opnieuw gegenereerd, waardoor eerdere releases in werkelijkheid een lager versienummer bevatten dan wat er al op sommige telefoons stond. Vanaf nu installeert de update gewoon over de vorige versie heen, met behoud van je portfolio',
+    ],
+  },
+  {
     versie: '0.1.3',
     datum: '2026-07-12',
     punten: [
