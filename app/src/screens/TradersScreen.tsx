@@ -478,7 +478,7 @@ export function TradersScreen() {
   }
 
   return (
-    <SafeAreaView style={[tradersStyles.root, { backgroundColor: colors.achtergrond }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[tradersStyles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
         titel="eToro-traders"
         rechts={
@@ -572,7 +572,7 @@ const tradersStyles = StyleSheet.create({
     minHeight: 44,
     marginTop: spacing.lg,
   },
-  lijst: { paddingTop: spacing.md },
+  lijst: { paddingTop: spacing.md, paddingBottom: spacing.md },
   lijstKop: {
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,
