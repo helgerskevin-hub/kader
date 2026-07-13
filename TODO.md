@@ -77,6 +77,7 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
 - [ ] **Pushmelding-positie aanpassen**: meldingen staan te laag, worden verborgen achter de gesture buttons op telefoon. Hoger positioneren. (Kevin: kun je even preciezer aangeven welke melding je bedoelt, het liefst met een screenshot? In de code is er geen eigen in-app toast of banner: `notifications/meldingen.ts` gebruikt alleen OS-pushmeldingen via `expo-notifications`, en die verschijnen op Android altijd bovenaan, niet te verplaatsen vanuit de app. Wat wel bij "te laag, verborgen achter de gesture buttons" past zijn de bottom-sheets (Instellingen, formulieren e.d.): die hadden inderdaad geen ruimte voor de Android-gesturebalk en zijn nu gefixt. Als je toch de systeemmelding bedoelt: die kunnen we niet herpositioneren, alleen het kanaal/de urgentie aanpassen.)
+Reactie Kevin: Zie "balk over kaarten.jpeg" in de bugs folder
 
 ## ✅ Klaar
 
