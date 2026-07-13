@@ -20,6 +20,8 @@ export const SLEUTELS = {
   // Stop-loss-grenzen per coin, opgehaald bij eToro. Gecachet omdat het endpoint een krap eigen
   // quotum heeft (20 per minuut) en de grenzen zelden wijzigen.
   etoroLimieten: 'etoro_limieten',
+  // Gekozen weergave op het Portfolio-scherm: 'uitgebreid' of 'compact'.
+  portfolioWeergave: 'portfolio_weergave',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
