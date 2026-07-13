@@ -24,12 +24,12 @@ const STAPPEN: Stap[] = [
   {
     Icon: TrendingUp as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Hoe werkt\nde analyse?',
-    body: 'De app gebruikt RSI, voortschrijdende gemiddelden (EMA) en ATR om de markt te scannen. Coins met score ≥ 75 zijn "high conviction", meerdere indicatoren wijzen tegelijk op een kans.',
+    body: 'De app scant de markt met RSI, voortschrijdende gemiddelden (EMA) en ATR. Coins met score ≥ 75 zijn "high conviction", meerdere indicatoren wijzen tegelijk op een kans. Werkt het marktklimaat niet mee, dan toont Kader bewust geen koopsignalen, ook niet bij een hoge score.',
   },
   {
     Icon: Target as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Stop, entry\nen doel',
-    body: 'Bij elk signaal zie je drie niveaus:\n\n· Stop-loss: maximaal verlies (1,5× ATR)\n· Entry: instapprijs\n· Doel: take-profit (3× ATR)\n\nDe risk/reward is altijd minimaal 1:2.',
+    body: 'Bij elk signaal zie je drie niveaus:\n\n· Stop-loss: net onder de recente steun, begrensd tussen 0,5 en 3 keer de ATR\n· Entry: instapprijs\n· Doel: take-profit (3× ATR)\n\nDe risk/reward is altijd minimaal 1:2.',
   },
   {
     Icon: Users as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,

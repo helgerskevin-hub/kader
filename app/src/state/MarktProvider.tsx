@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useReducer } from 'react';
 import { Trade } from '../engine/types';
 import { analyseerMarkt } from '../engine/analyzer';
+import { Marktklimaat } from '../engine/marktklimaat';
 
 type Progress = { current: number; total: number; symbool: string };
 
@@ -8,19 +9,19 @@ export type MarktState =
   | { status: 'idle' }
   | { status: 'loading'; progress: Progress | null }
   | { status: 'error'; melding: string; lastAttempt: Date }
-  | { status: 'success'; trades: Trade[]; lastUpdate: Date };
+  | { status: 'success'; trades: Trade[]; klimaat: Marktklimaat | null; lastUpdate: Date };
 
 type Action =
   | { type: 'START' }
   | { type: 'PROGRESS'; progress: Progress }
-  | { type: 'SUCCESS'; trades: Trade[] }
+  | { type: 'SUCCESS'; trades: Trade[]; klimaat: Marktklimaat | null }
   | { type: 'FOUT'; melding: string };
 
 function reducer(state: MarktState, action: Action): MarktState {
   switch (action.type) {
     case 'START': return { status: 'loading', progress: null };
     case 'PROGRESS': return { status: 'loading', progress: action.progress };
-    case 'SUCCESS': return { status: 'success', trades: action.trades, lastUpdate: new Date() };
+    case 'SUCCESS': return { status: 'success', trades: action.trades, klimaat: action.klimaat, lastUpdate: new Date() };
     case 'FOUT': return { status: 'error', melding: action.melding, lastAttempt: new Date() };
     default: return state;
   }
@@ -42,12 +43,12 @@ export function MarktProvider({ children }: { children: React.ReactNode }) {
   const startAnalyse = useCallback(async (stil = false) => {
     if (!stil) dispatch({ type: 'START' });
     try {
-      const trades = await analyseerMarkt({
+      const { trades, klimaat } = await analyseerMarkt({
         onProgress: (current, total, symbool) => {
           if (!stil) dispatch({ type: 'PROGRESS', progress: { current, total, symbool } });
         },
       });
-      dispatch({ type: 'SUCCESS', trades });
+      dispatch({ type: 'SUCCESS', trades, klimaat });
     } catch (e) {
       if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
     }

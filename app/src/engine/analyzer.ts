@@ -1,6 +1,8 @@
 import { Candle, Trade } from './types';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
 import { haalData } from './marketData';
+import { bepaalKlimaat, poortOpen, Marktklimaat } from './marktklimaat';
+import { HIGH_CONVICTION_SCORE, HIGH_CONVICTION_VOLUME_MIN, DREMPEL_KOOP } from './drempels';
 
 // De coins die wij analyseren: op eToro te kopen én met een live Binance USDT-paar (eventueel via
 // een alias, zie BINANCE_ALIAS in marketData.ts). Dit is dus een deelverzameling van ETORO_TRADABLE
@@ -23,7 +25,6 @@ export const STANDAARD_UNIVERSUM = [
 
 export const REWARD_MULTIPLIER = 3.0;
 export const MIN_RISK_REWARD = 2.0;
-export const HIGH_CONVICTION_SCORE = 75;
 export const RSI_PERIODE = 14;
 export const EMA_KORT = 20;
 export const EMA_LANG = 50;
@@ -142,12 +143,12 @@ export function scoorCandles(
 
   if (rr < minRR - 1e-9) return null;
 
-  const signaalTekst: 'KOOP' | 'WATCH' = score >= 55 ? 'KOOP' : 'WATCH';
+  const signaalTekst: 'KOOP' | 'WATCH' = score >= DREMPEL_KOOP ? 'KOOP' : 'WATCH';
   const highConviction =
     score >= HIGH_CONVICTION_SCORE &&
     ema20Nu > ema50Nu &&
     macdNu > signaalNu &&
-    volumeRatio >= 1.3;
+    volumeRatio >= HIGH_CONVICTION_VOLUME_MIN;
 
   return {
     symbool, bron, prijs, entry, entryLaag, entryHoog,
@@ -169,39 +170,62 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
 // Binance' 6000/min, ruim binnen budget. Verhoog als de scan traag blijft aanvoelen.
 const GELIJKTIJDIG = 6;
 
+export interface MarktUitkomst {
+  trades: Trade[];
+  klimaat: Marktklimaat | null;
+}
+
 export async function analyseerMarkt(options?: {
   universum?: string[];
   topN?: number;
   onProgress?: (current: number, total: number, symbool: string) => void;
-}): Promise<Trade[]> {
+}): Promise<MarktUitkomst> {
   const universum = options?.universum ?? STANDAARD_UNIVERSUM;
   const topN = options?.topN ?? 20;
-  const resultaten: Trade[] = [];
+  const opgehaald: { symbool: string; candles: Candle[]; bron: string }[] = [];
   let klaar = 0;
 
+  // Data ophalen en scoren in twee losse stappen, zodat we de candles van élke coin (ook wie
+  // straks geen KOOP-signaal haalt) kunnen hergebruiken voor de marktbreedte hieronder, zonder
+  // een tweede ronde requests.
   for (let i = 0; i < universum.length; i += GELIJKTIJDIG) {
     const blok = universum.slice(i, i + GELIJKTIJDIG);
     const uitkomsten = await Promise.all(
       blok.map(async sym => {
         try {
-          const res = await analyseerCoin(sym);
+          const result = await haalData(sym);
           options?.onProgress?.(++klaar, universum.length, sym);
-          return res;
+          return result ? { symbool: sym, candles: result.candles, bron: result.bron } : null;
         } catch {
           options?.onProgress?.(++klaar, universum.length, sym);
           return null;
         }
       }),
     );
-    for (const res of uitkomsten) if (res) resultaten.push(res);
+    for (const res of uitkomsten) if (res) opgehaald.push(res);
   }
 
+  const resultaten: Trade[] = [];
+  for (const { symbool, candles, bron } of opgehaald) {
+    const trade = scoorCandles(symbool, candles, bron);
+    if (trade) resultaten.push(trade);
+  }
+
+  const btc = opgehaald.find(o => o.symbool === 'BTC');
+  const klimaat = btc ? bepaalKlimaat(btc.candles, opgehaald.map(o => o.candles)) : null;
+
+  // De poort: bij een ongunstig of gemengd klimaat wordt geen enkel signaal nog als KOOP getoond.
+  // De score en de onderbouwing blijven gewoon zichtbaar, alleen het koopsignaal zelf zwijgt.
+  const gefilterd = poortOpen(klimaat)
+    ? resultaten
+    : resultaten.map(t => (t.signaal === 'KOOP' ? { ...t, signaal: 'WATCH' as const, highConviction: false } : t));
+
   // Sorteer: HIGH CONVICTION eerst, dan op score, dan op R/R
-  resultaten.sort((a, b) => {
+  gefilterd.sort((a, b) => {
     if (a.highConviction !== b.highConviction) return a.highConviction ? -1 : 1;
     if (b.score !== a.score) return b.score - a.score;
     return b.rr - a.rr;
   });
 
-  return resultaten.slice(0, topN);
+  return { trades: gefilterd.slice(0, topN), klimaat };
 }

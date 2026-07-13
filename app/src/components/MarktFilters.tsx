@@ -5,6 +5,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
+import { DREMPEL_KOOP, DREMPEL_HOOG } from '../engine/drempels';
 
 export type RsiFilter = 'alle' | 'oversold' | 'overbought';
 
@@ -35,8 +36,8 @@ const RSI_OPTIES: { key: RsiFilter; label: string }[] = [
 
 const SCORE_OPTIES: { key: number; label: string }[] = [
   { key: 0, label: 'Alle' },
-  { key: 50, label: '50+' },
-  { key: 70, label: '70+' },
+  { key: DREMPEL_KOOP, label: `${DREMPEL_KOOP}+` },
+  { key: DREMPEL_HOOG, label: `${DREMPEL_HOOG}+` },
 ];
 
 const RR_OPTIES: { key: number; label: string }[] = [

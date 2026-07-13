@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii } from '../theme/tokens';
+import { DREMPEL_BADGE_GOED, DREMPEL_BADGE_MATIG } from '../engine/drempels';
 
 interface Props {
   score: number;
@@ -10,7 +11,7 @@ interface Props {
 
 export function ScoreBadge({ score }: Props) {
   const { colors } = useTheme();
-  const kleur = score >= 70 ? colors.winst : score >= 40 ? colors.letOp : colors.verlies;
+  const kleur = score >= DREMPEL_BADGE_GOED ? colors.winst : score >= DREMPEL_BADGE_MATIG ? colors.letOp : colors.verlies;
   const achtergrond = kleur + '1A';
 
   return (

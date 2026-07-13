@@ -1,4 +1,5 @@
 import { CoinInfo, KoopAdvies } from './types';
+import { DREMPEL_KOOP, DREMPEL_STERK_KOOP, DREMPEL_BADGE_MATIG, HIGH_CONVICTION_VOLUME_MIN } from './drempels';
 
 export const COIN_INFO: Record<string, CoinInfo> = {
   BTC: { naam: 'Bitcoin', categorie: 'Large-cap · digitaal goud', wat: 'De eerste en grootste cryptomunt; schaars (max 21M) en wordt gezien als waardeopslag. De minst risicovolle crypto, maar ook de traagste groeier.' },
@@ -62,13 +63,13 @@ export function genereerKoopadvies(opts: {
   else if (volumeRatio >= 1.2) plus.push(`verhoogd volume (${volumeRatio.toFixed(1)}×)`);
 
   const s = score != null ? score :
-    (trendOp ? 25 : 0) + (macdBullish ? 20 : 0) + (rsi >= 45 && rsi <= 68 ? 20 : 0) + (volumeRatio >= 1.3 ? 15 : 0);
+    (trendOp ? 25 : 0) + (macdBullish ? 20 : 0) + (rsi >= 45 && rsi <= 68 ? 20 : 0) + (volumeRatio >= HIGH_CONVICTION_VOLUME_MIN ? 15 : 0);
 
   let label: string;
   let kleur: 'groen' | 'oranje' | 'rood';
-  if (highConviction || s >= 72) { label = 'Sterke koop'; kleur = 'groen'; }
-  else if (s >= 55) { label = 'Koopwaardig'; kleur = 'groen'; }
-  else if (s >= 40) { label = 'Neutraal: wacht op bevestiging'; kleur = 'oranje'; }
+  if (highConviction || s >= DREMPEL_STERK_KOOP) { label = 'Sterke koop'; kleur = 'groen'; }
+  else if (s >= DREMPEL_KOOP) { label = 'Koopwaardig'; kleur = 'groen'; }
+  else if (s >= DREMPEL_BADGE_MATIG) { label = 'Neutraal: wacht op bevestiging'; kleur = 'oranje'; }
   else { label = 'Zwak: nu niet kopen'; kleur = 'rood'; }
 
   let uitleg = '';

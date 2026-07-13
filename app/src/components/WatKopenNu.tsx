@@ -13,12 +13,12 @@ interface Props {
   onOpenDetail: (trade: Trade) => void;
 }
 
-const MIN_SCORE = 60;
-
 export function WatKopenNu({ trades, onOpenDetail }: Props) {
   const { colors } = useTheme();
+  // Alleen high conviction: gemeten +0,16 R gemiddeld, de sterkste bucket uit de backtest.
+  // Een lagere score kan hier ook nog KOOP zijn, maar is niet sterk genoeg voor dit uitgelichte advies.
   const kandidaat = [...trades]
-    .filter(t => t.signaal === 'KOOP' && t.score >= MIN_SCORE)
+    .filter(t => t.signaal === 'KOOP' && t.highConviction)
     .sort((a, b) => b.score - a.score)[0];
 
   if (!kandidaat) {
