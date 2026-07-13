@@ -14,6 +14,7 @@ import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
 import { MarktBalk } from './MarktBalk';
+import { Marktklimaat } from '../engine/marktklimaat';
 import { AngstHebzucht } from './AngstHebzucht';
 import { PrijsGrafiek } from './PrijsGrafiek';
 import { Disclaimer } from './Disclaimer';
@@ -33,13 +34,17 @@ const DEMO_CANDLES: Candle[] = Array.from({ length: 40 }, (_, i) => {
   return { open: close - 0.5, high: close + 1, low: close - 1, close, volume: 1000, tijd: Date.now() - (40 - i) * 864e5 };
 });
 
+const DEMO_KLIMAAT: Marktklimaat = {
+  klimaat: 'ongunstig', btcBovenEma50: false, breedte: 0.28, breedteStijgend: false,
+};
+
 const SECTIES = [
   { id: 'score', titel: 'De Kader-score' },
   { id: 'advies', titel: 'Advieslabels' },
   { id: 'grafiek', titel: 'De prijsgrafiek' },
   { id: 'atr', titel: 'Stop en doel (ATR)' },
   { id: 'indicatoren', titel: 'De indicatoren' },
-  { id: 'marktbalk', titel: 'De marktbalk' },
+  { id: 'marktklimaat', titel: 'Het marktklimaat' },
   { id: 'feargreed', titel: 'Fear & Greed' },
   { id: 'kansscore', titel: 'Kansscore (Grote Kansen)' },
   { id: 'statistieken', titel: 'Portfolio-statistieken' },
@@ -103,7 +108,8 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               AFWACHTEN betekent geen koopsignaal. KOOPZONE betekent score 55 of hoger. STERK KOOP betekent score 72
               of hoger. HIGH CONVICTION is de sterkste combinatie: score 75 of hoger, samen met een stijgende trend,
-              een bullish MACD en een volume van minstens 1,3 keer het gemiddelde.
+              een bullish MACD en een volume van minstens 1,3 keer het gemiddelde. Werkt het marktklimaat niet mee
+              (zie hieronder), dan valt elk koopsignaal terug op AFWACHTEN, ongeacht de score.
             </Text>
             <View style={styles.badgeRij}>
               <AdviceBadge advies="AFWACHTEN" />
@@ -150,12 +156,16 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             </Text>
           </Sectie>
 
-          <Sectie id="marktbalk" titel="De marktbalk" open={open === 'marktbalk'} onToggle={wisselOpen}>
+          <Sectie id="marktklimaat" titel="Het marktklimaat" open={open === 'marktklimaat'} onToggle={wisselOpen}>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
-              De marktbalk toont de gemiddelde Kader-score van alle gevolgde coins in één oogopslag. Onder 30 is dat
-              HEAVY SELL, onder 45 SELL, onder 55 BALANCED, onder 70 BUY, en vanaf 70 HEAVY BUY.
+              Het marktklimaat kijkt naar twee dingen: staat Bitcoin boven zijn eigen 50-daags gemiddelde, en stijgt
+              het aandeel coins in het universum dat boven zijn eigen 50-daags gemiddelde staat (de marktbreedte)?
+              Zijn beide gunstig, dan is het klimaat GUNSTIG. Zijn beide ongunstig, dan is het ONGUNSTIG, anders
+              GEMENGD. Uit een negen jaar durende meting over de historie bleek dat koopsignalen in een ongunstig
+              klimaat (zoals 2018, 2022 en begin 2026) gemiddeld geld verloren, ook als de score hoog was. Daarom
+              toont Kader in dat klimaat geen enkel KOOP-signaal meer, hoe sterk een coin er los van staat ook uitziet.
             </Text>
-            <MarktBalk score={62} />
+            <MarktBalk klimaat={DEMO_KLIMAAT} />
           </Sectie>
 
           <Sectie id="feargreed" titel="Fear & Greed" open={open === 'feargreed'} onToggle={wisselOpen}>

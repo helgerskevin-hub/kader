@@ -12,6 +12,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.6',
+    datum: '2026-07-13',
+    punten: [
+      'Marktsentiment op het Marktscherm vervangen door het marktklimaat: in plaats van het gemiddelde van de al berekende scores kijkt Kader nu naar BTC ten opzichte van zijn eigen 50-daags gemiddelde en naar de richting van de marktbreedte. Bij een ongunstig klimaat toont de balk een expliciete waarschuwing',
+      'Poort op de koopsignalen: staat het marktklimaat niet gunstig, dan toont Kader geen enkel KOOP-signaal meer, ongeacht de score. Uit een meting over negen jaar historie bleek dat koopsignalen in zo\'n klimaat (2018, 2022, begin 2026) gemiddeld geld verloren. Sommige dagen toont de app daardoor bewust niets',
+      '"Wat moet ik nu kopen" toont voortaan alleen nog high conviction-kansen in plaats van elke coin vanaf score 60',
+      'Alle score-drempels staan nu op één plek in de code met de gemeten resultaten erbij. De achtergrondinformatie en de onboarding zijn bijgewerkt op een paar plekken die niet meer klopten',
+    ],
+  },
+  {
     versie: '0.1.5',
     datum: '2026-07-13',
     punten: [

@@ -11,6 +11,7 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
+import { DREMPEL_STERK_KOOP } from '../engine/drempels';
 
 interface Props {
   trade: Trade;
@@ -24,9 +25,8 @@ type AdviesLabel = 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
 
 function adviesLabel(trade: Trade): AdviesLabel {
   if (trade.highConviction) return 'HIGH CONVICTION';
-  if (trade.score >= 72) return 'STERK KOOP';
-  if (trade.signaal === 'KOOP') return 'KOOPZONE';
-  return 'AFWACHTEN';
+  if (trade.signaal !== 'KOOP') return 'AFWACHTEN';
+  return trade.score >= DREMPEL_STERK_KOOP ? 'STERK KOOP' : 'KOOPZONE';
 }
 
 function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>['colors']): string {

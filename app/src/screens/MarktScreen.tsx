@@ -69,10 +69,6 @@ export function MarktScreen() {
     setVerverstState(false);
   }
 
-  const gemScore = state.status === 'success' && state.trades.length > 0
-    ? state.trades.reduce((s, t) => s + t.score, 0) / state.trades.length
-    : null;
-
   const metaText = state.status === 'success'
     ? `${state.trades.length} coins · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
     : undefined;
@@ -146,7 +142,7 @@ export function MarktScreen() {
           ListHeaderComponent={
             <>
               <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
-              {gemScore !== null && <MarktBalk score={gemScore} />}
+              {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
               <View style={styles.tabsRij}>
                 <FilterTabs actief={filter} onWijzig={wisselFilterTab} aantalFavorieten={aantalFavorieten} />

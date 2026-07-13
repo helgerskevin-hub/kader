@@ -4,6 +4,25 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.6
+
+- Marktsentiment op het Marktscherm vervangen door het marktklimaat: in plaats van het gemiddelde
+  van de al berekende scores (die alleen de coins toont die de top 20 haalden) kijkt Kader nu naar
+  BTC ten opzichte van zijn eigen 50-daags gemiddelde en naar de richting van de marktbreedte (het
+  aandeel van het hele universum boven zijn eigen 50-daags gemiddelde). Bij een ongunstig klimaat
+  toont de balk een expliciete waarschuwing
+- Poort op de koopsignalen: staat het marktklimaat niet gunstig, dan toont Kader geen enkel
+  KOOP-signaal meer, ongeacht de score. Uit een meting over negen jaar historie bleek dat
+  koopsignalen in zo'n klimaat (2018, 2022, begin 2026) gemiddeld geld verloren. Sommige dagen
+  toont de app daardoor bewust niets
+- "Wat moet ik nu kopen" toont voortaan alleen nog high conviction-kansen (score 75+ met een
+  stijgende trend, bullish MACD en verhoogd volume) in plaats van elke coin vanaf score 60. Dat is
+  de sterkste bucket uit de meting hierboven
+- Alle score-drempels (KOOP, sterk koop, high conviction) staan nu op één plek in de code met de
+  gemeten resultaten erbij, in plaats van negen keer los gekopieerd. De achtergrondinformatie en de
+  onboarding zijn bijgewerkt; de onboarding beschreef de stop-loss nog als een vast ATR-veelvoud,
+  terwijl die al sinds een eerdere versie op de recente steun is gebaseerd
+
 ## 0.1.5
 
 - Onderste tradekaart op het Portfolio-scherm werd afgekapt boven een lege
