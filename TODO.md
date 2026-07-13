@@ -13,7 +13,7 @@ Dit is gewoon een tekstbestand. Elke taak is een regel die begint met `- [ ]`.
 Afvinken doe je door de spatie tussen de blokhaken te vervangen door een `x`.
 Op GitHub en in veel editors zie je dan een echt aanvinkbaar vakje. ✅
 
-Voeg gerust nieuwe taken toe onderaan de juiste sectie. Geen verkeerde manier — typ
+Voeg gerust nieuwe taken toe onderaan de juiste sectie. Geen verkeerde manier, typ
 gewoon een nieuwe regel die begint met `- [ ]`.
 
 ---
@@ -22,84 +22,46 @@ gewoon een nieuwe regel die begint met `- [ ]`.
 
 _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzicht houden.)_
 
-## 🎨 Huisstijl & Branding
-
-- [x] EM-dashes verwijderd uit alle app-teksten (`App.tsx`, `README.md`)
-- [x] Teksten en naamgeving aangepast op basis van `docs/huisstijl-kader.md` — slogan, tone of voice
-- [x] Kader-logo gegenereerd en in `app/assets/` geplaatst (icon.png 1024×1024, splash-icon.png, adaptive icons, favicon)
-- [x] Kader-logo v2 (open kader-mark, geen gradient/trendlijn meer): outline-variant linksboven in de schermheader, donker-thema variant in app-icoon/adaptive icon/splash
-
 ## 💡 Ideeën / wensen
 
 _(Dingen die je leuk of handig zou vinden, nog niet ingepland.)_
 
 - [ ] Inloggen? Zo ja, database?
-- [x] Wens: portfolio uit eToro kunnen halen zodat je je trades niet zelf hoeft in te vullen (live API-koppeling onder Instellingen, importknop op Mijn Trades)
-- [x] Favorietenlijst: vaste coins markeren zodat ze altijd bovenaan de analyse staan
-- [x] Dark/light mode: systeem/licht/donker via een tandwiel-icoon in de header, opgeslagen op het toestel
-- [x] Op het niet fullscreen scherm meer informatie bieden over waarom kopen.
-- [x] **Coin detail-scherm full screen met grafieken**: Bij klikken op een coin opent een full-screen detail-pagina met veel meer informatie en grafieken (inspiratie: Market Mirror). Ook gewenst op portfolio kaart, oppakken samen met meer informatie over de status idee.
-- [x] **Changelog in app**: Onder het settings menu een knop om de changelog bij te houden wat er allemaal veranderd is per versie. Plus bij de eerste keer opstarten van de app een pop-up window met informatie wat er nieuw is in deze versie. Direct meenemen dat er een uitgebreide changelog wordt bijgehouden in project folder als changelog.md
-- [x] Kopje toevoegen met favorieten: filtertabs "Alle coins" / "Favorieten" boven de tradelijst op het Marktscherm
-- [x] Uitleg toevoegen over de Fear & Greed Index: uitklapbare toelichting bij de Fear & Greed-kaart op het Marktscherm
-- [x] Uitleg toevoegen over wat het marktsentiment inhoudt: uitklapbare toelichting bij de marktsentimentbalk
-- [x] Smooth geanimeerde overgangen tussen de schermen: vloeiende fade/slide-transitie bij het wisselen tussen Markt, Kansen, Portfolio en Traders
-- [x] Filteren op RSI, Score en R/R op het Marktscherm: filtersheet met snelkeuzes (RSI oversold/overbought, minimale score, minimale R/R), te combineren met Alle coins/Favorieten
-- [x] **Sync-status / "loop ik achter?"**: het sync-icoon bij de portfoliowaarde (Portfolio-tab) kleurt mee zodat je ziet of de gegevens actueel zijn (grijsgroen = net bijgewerkt, oranje = verouderd, rood = te oud of laatste poging mislukt), met eronder wanneer er voor het laatst is gesynchroniseerd. Ververst ook automatisch zodra de app weer op de voorgrond komt. Tijdstip blijft bewaard tussen app-starts
-- [x] Trade historie ophalen uit eToro via API en verwerken in portfolio bij sluiten trade. Met alle informatie omtrent winst/verlies zoals nu ook. Liefst automatische actie. (`importeerEtoroHistorie` leest `/trading/info/trade/history`. Twee dingen: een positie die Kader als open kende wordt automatisch afgesloten met de echte exitprijs, en gesloten posities die Kader nog niet kende worden als afgeronde trade toegevoegd, zodat de historie met terugwerkende kracht klopt. `netProfit` bepaalt gewonnen/verloren, inclusief kosten. Draait bij het openen van de app, na het opslaan van de koppeling, bij swipen op Portfolio en bij de eToro-knop.)
-- [x] **Misschien ook iets dat bijhoudt of je achterloopt? Alsin: als er iets niet up to date is? Klein icoontje of kleur? Rode kleur van dat cloud icoontje?** Als in de sync is * aantal minuten/uur/dagen geleden. Adviseer om te synchroniseren. Misschien kan dit automatisch? (Het import-wolkje kleurt nu mee met dezelfde groen/oranje/rood-status als het ververs-icoon, met een adviesregel eronder zodra het niet meer vers is. De app synchroniseert ook automatisch bij terugkeer uit de achtergrond, niet alleen de koersen maar buiten een korte cooldown ook de eToro-posities.)
-- [ ] **Meldingen als er een hele sterke koop is**
-- [ ] **Compact view in portfolio** Door middel van een keuze switch wisselen tussen meer info en compact. Voorbeeld is etoro zijn eigen portfolio view bijvoorbeeld. 
+- [ ] **Compact view in portfolio**: keuze-switch tussen meer info en compact, zoals eToro's eigen portfolio-view.
 
 ### 🎯 Kevins kernvisie voor Kader
-_(Wat de app uiteindelijk moet zijn — de rode draad achter alle keuzes)_
+_(Wat de app uiteindelijk moet zijn, de rode draad achter alle keuzes)_
 
-- [x] **Schuivende marktbalk (zoals Market Mirror)** — een horizontale balk van rood naar groen (HEAVY SELL → BALANCED → HEAVY BUY) met een schuifknop die de huidige Kader-score aangeeft. In één oogopslag zie je waar de markt staat. Zit al in de huisstijlkleuren, hoeft alleen gebouwd te worden op het marktscherm.
-- [x] **"Wat moet ik nu kopen?"** — prominente kaart bovenaan het Marktscherm met de best scorende koopkans + reden in één zin, of een neutrale melding als niets sterk genoeg scoort. Tik erop voor het coin-detailscherm.
-- [ ] **Zo makkelijk mogelijk kopen/verkopen** — vanuit de aanbeveling direct door naar de trade. Zo min mogelijk stappen tussen "ziet er goed uit" en "gekocht". Koppeling met eToro of een exchange-API is het einddoel.
-- [ ] **Short/long met leverage** — ook hefboomposities ondersteunen in de analyse en het uitvoerscherm. Niet alleen spot. Kader moet aangeven of een coin beter geschikt is voor long of short op dat moment.
-- [ ] **Grote whales kopiëren (Trump, Saylor, etc.)** — toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps. Gebruik eToro API.
+- [ ] **Zo makkelijk mogelijk kopen/verkopen**: vanuit de aanbeveling direct door naar de trade, zo min mogelijk stappen tussen "ziet er goed uit" en "gekocht". Koppeling met eToro of een exchange-API is het einddoel.
+- [ ] **Short/long met leverage**: ook hefboomposities ondersteunen in de analyse en het uitvoerscherm, niet alleen spot. Kader moet aangeven of een coin beter geschikt is voor long of short op dat moment.
+- [ ] **Grote whales kopiëren (Trump, Saylor, etc.)**: toon wat bekende grote spelers op dit moment kopen of houden, en maak het met één tik mogelijk om hetzelfde te doen. Niet alleen informatief, maar direct uitvoerbaar. Dit is het onderscheidende idee van Kader t.o.v. andere apps. Gebruik eToro API.
 
 ### 💡 Inspiratie van Market Mirror (concurrent)
-_(Gevonden op marketmirror.com — functies die het overwegen waard zijn voor Kader)_
+_(Gevonden op marketmirror.com, functies die het overwegen waard zijn voor Kader)_
 
-- [ ] **Liquidatiekaart**: visualiseer waar de grote liquidatieniveaus liggen (longs vs. shorts) — geeft aan waar cascade-bewegingen kunnen starten. Nuttig als extra context bij een kans-signaal. Databron: Coinglass API (gratis tier beschikbaar).
-- [ ] **Marktpulsscore uitbreiden**: Market Mirror weegt 8 live-inputs in één score (whale-activiteit, liquidaties, funding rates, Fear & Greed, ETF-flows, crowd-consensus). Kader heeft al een eigen score (0–100) — die kunnen we verrijken met funding rate en Fear & Greed als extra inputs.
-- [ ] **ETF-flow tracking**: toon of er netto geld in- of uitstroomt bij BTC/ETH ETF's (bijv. BlackRock IBIT). Sterke institutionele instroom = bullish signaal. Databron: bijv. The Block of Farside Investors (scrapeable).
-- [x] **Fear & Greed Index**: prominenter tonen op het marktscherm als extra context naast de Kader-score. API van Alternative.me is gratis.
+- [ ] **Liquidatiekaart**: visualiseer waar de grote liquidatieniveaus liggen (longs vs. shorts), geeft aan waar cascade-bewegingen kunnen starten. Nuttig als extra context bij een kans-signaal. Databron: Coinglass API (gratis tier beschikbaar).
+- [ ] **Marktpulsscore uitbreiden**: Market Mirror weegt 8 live-inputs in één score (whale-activiteit, liquidaties, funding rates, Fear & Greed, ETF-flows, crowd-consensus). Kader heeft al een eigen score (0-100), die kunnen we verrijken met funding rate en Fear & Greed als extra inputs.
+- [ ] **ETF-flow tracking**: toon of er netto geld in- of uitstroomt bij BTC/ETH ETF's (bijv. BlackRock IBIT). Sterke institutionele instroom is een bullish signaal. Databron: bijv. The Block of Farside Investors (scrapeable).
 - [ ] **Whale-wallettracking**: volg bekende grote wallets (bijv. Michael Saylor, exchange cold wallets) en toon wat ze kopen/verkopen. Nuttig als bevestiging bij een signaal. Databron: Etherscan / blockchain.info API.
-- [ ] **Social sentimentscore per coin**: aggregeer sentiment van X/Twitter en Reddit tot één score per coin. Geeft aan of retail bullish of bearish is — handig als contra-indicator. Mogelijke API: LunarCrush.
+- [ ] **Social sentimentscore per coin**: aggregeer sentiment van X/Twitter en Reddit tot één score per coin. Geeft aan of retail bullish of bearish is, handig als contra-indicator. Mogelijke API: LunarCrush.
 - [ ] **Pushmelding bij grote whale-trade**: stuur een notificatie als een bekende wallet of exchange een grote positie opent in een coin die je volgt. Market Mirror doet dit live ("Whale opened $112K ETH LONG").
 - [ ] **Freemium-model als referentie**: Market Mirror rekent gratis / $9,99 / $29,99 per maand. Als Kader ooit betaald wordt, is dit een realistische bandbreedte voor crypto-apps.
+
+## 🔔 Meldingen
+
+_(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
+
+- [ ] **Meldingen als er een hele sterke koop is**
+- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. Achtergrond sync nodig dus.
+- [ ] **Trade-bewuste pushmeldingen bouwen**: nu stuurt `notifications/meldingen.ts` alleen één dagelijkse herinnering. Gewenst: periodiek (bijv. elke ~10 min) de open trades checken en een melding sturen om take-profit te verhogen (prijs dicht bij TP, momentum sterk) of stop-loss aan te trekken / eerder uit te stappen (in winst maar momentum vlakt af). Dezelfde melding hooguit eens per ~6u herhalen, tenzij het voorgestelde niveau meer dan 2% verschuift.
 
 ## 🛠️ Te doen
 
 ### Functioneel / inhoud
-- [x] **Live prijs-polling** op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden
-- [x] **eToro API** onderzoeken: kunnen we tradable coins automatisch ophalen zodat de Grote Kansen-scan alleen beschikbare coins toont? (opgelost via statische _ETORO_TRADABLE-set)
-- [x] **Copy trading stappen** vereenvoudigen: stappenplan in de app hoe je een signaal op eToro uitvoert
-- [x] **Portfoliosamenvatting**: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
-- [x] **Mogelijkheid om een gemaakte trade aan te passen in portfolio**: Knop met **aanpassen** waar je je stoploss en takeprofit kan aanpassen
-- [x] **Achtergrond informatie in app**: Nieuw scherm met uitleg over de weergaves in de app (Kader-score, indicatoren, ATR-stop/doel, marktbalk, Fear & Greed, kansscore, portfolio-statistieken, trader-oordeel), met echte componenten als grafisch voorbeeld. Bereikbaar via een eigen boek-icoon in de header van elk scherm (niet onder Instellingen, dat is geen instelling)
-- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. Achtergrond sync nodig dus.
-- [ ] **Trade-bewuste pushmeldingen bouwen**: nu stuurt `notifications/meldingen.ts` alleen één dagelijkse herinnering. Gewenst: periodiek (bijv. elke ~10 min) de open trades checken en een melding sturen om take-profit te verhogen (prijs dicht bij TP, momentum sterk) of stop-loss aan te trekken / eerder uit te stappen (in winst maar momentum vlakt af). Dezelfde melding hooguit eens per ~6u herhalen, tenzij het voorgestelde niveau meer dan 2% verschuift. (CLAUDE.md beschreef dit al als bestaand; is nu gecorrigeerd naar "nog te bouwen".)
-- [ ] **Meldingen komen te laag in beeld**: pushmeldingen verschijnen net achter de gesture-/systeemknoppen onderaan de telefoon, waardoor ze deels verstopt zijn. Positie ophogen zodat ze vrij van de systeembalk staan.
-- [ ] **Importwolkje moet ook meekleuren**: het import-/sync-wolkicoon moet dezelfde kleurstatus volgen als de sync-status (actueel/verouderd/te oud), net als de rest van de sync-indicatie.
-- [ ] **API-refresh bij elke app-start**: bij het openen van de app altijd een verse API-refresh doen zodat de marktdata en portfolio meteen actueel zijn.
-- [ ] **Naar beneden swipen op Marktpagina is te gevoelig**: de pull-to-refresh/sync-swipe op het Marktscherm triggert te snel. Drempel minder gevoelig maken zodat je niet per ongeluk synct bij normaal scrollen.
-- [ ] **Instellingen sluiten door ernaast te tikken**: als je het instellingenscherm (of andere sheets) opent, moet je het kunnen sluiten door buiten het venster te tikken, niet alleen via een knop.
-- [x] **Meer informatie over de status van de trade met onderbouwing op vast houden/verkopen in je portfolio**: Coin-detailscherm toont nu afstand tot stop/doel voor open trades en exitprijs/slotdatum/behaald resultaat voor gesloten trades
-- [x] **Meer informatie op Grote Kansen-scherm**: kaarten tonen nu marktcap, trend, MACD en kansscore
-- [x] **Historisch overzicht gesloten trades met winst/verlies-statistieken**: exitprijs wordt vastgelegd bij sluiten; statistiekenrij toont trefferpercentage, gem. R/R behaald en totaal resultaat
-- [x] **Uitbreiden van searchbase voor de coins. Nu komen er soms maar een aantal coins in. We hebben sws een max van 24. Kunnen we dit uitbreiden?** (Drie losse oorzaken gevonden: het universum was inderdaad 24 coins waarvan er 2 stil faalden op een hernoemde Binance-ticker, `topN` stond hard op 10 dus je zag nooit meer dan 10 trades ongeacht hoeveel er doorkwamen, en het R/R-filter dropt de rest. Universum uitgebreid naar de bestaande eToro-lijst (57 coins, `analyzer.ts`), dode tickers (MATIC, RNDR, FTM, MKR) opgevangen met een alias-map naar hun huidige naam (`marketData.ts`), `topN` naar 20.)
-- [x] **Versnellen van analyse indien mogelijk** (De scan wachtte 250ms tussen elke coin zonder reden, Binance staat ruim budget toe. Nu blokken van 6 coins parallel i.p.v. één voor één.)
-= [ ] **Sterker maken van het analyse algoritme. Hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?**
+- [ ] **Sterker maken van het analyse algoritme**: hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging
-- [x] Error boundary toevoegen zodat één kapotte component niet de hele app neergooit
-- [x] Offline-modus: nette foutmelding als de telefoon geen internet heeft i.p.v. een lege pagina (Markt en Kansen delen nu één OfflineMelding-component)
-- [x] Laadbalk toevoegen: visuele voortgangsbalk tijdens het analyseren (Markt) en scannen (Grote Kansen), naast de bestaande "x/y"-tekst
 
 ### Smoke-test checklist (Kader app)
 _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
@@ -114,38 +76,74 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
-- [x] **geen mogelijkheid om trade op te slaan vanuit grote kansen** moet iedentiek zijn aan markt analyse kansen.
-- [x] **Geen mogelijkheid om waarde in $ of aantal gekochte coins aan te geven in je trades**
-- [x] **Trades in het portfolio venster hebben geen meekleurende zijkant zoals in Markt venster**
-- [x] **App-icoon is niet aangepast** (oude icoon bleef op het startscherm na een update). Echte oorzaak gevonden: de assets waren wél v2 sinds `b617fce`, maar het generatorscript `scripts/genereer-iconen.mjs` stond nog op v1 (gradient + trendlijn) en de gegenereerde Android mipmap-iconen in de (gitignore) `android/`-map waren daardoor verouderd. `npm run android` bouwt die verouderde mipmaps mee, dus het launcher-icoon veranderde niet bij een update. Opgelost: generator herschreven naar de v2-mark (effen #2563EB, witte hoekhaken, geen trendlijn, gelijk aan `KaderLogo.tsx`) en alle assets + mipmaps opnieuw gegenereerd. Bij een release ook `android.versionCode` ophogen zodat launchers het icoon zeker verversen.
-- [x] **Achtergrondinformatie moet weer een los boek-icoon in de schermheader zijn, niet in Instellingen.** Boek-icoon teruggezet in `ScreenHeader.tsx`, weggehaald uit `InstellingenSheet.tsx`.
-- [x] **Schermovergang flitst i.p.v. vloeiend te faden bij tabwissel.** Eerste poging (opacity-reset in `useLayoutEffect`) werkte niet: met `useNativeDriver: true` wordt de `setValue(0)` asynchroon naar de native kant gestuurd, waardoor het nieuwe scherm alsnog één frame op volle opacity verscheen. Echt opgelost met een cross-fade in `App.tsx`: `zichtbareTab` is losgekoppeld van `actieveTab`, het scherm faded eerst uit, wisselt pas van inhoud als de opacity op 0 staat en faded dan weer in. Zo is er nooit een frame met nieuwe inhoud op volle opacity.
-- [x] **"Wat moet ik nu kopen?"-kaart negeert de actieve filters.** Opgelost: de kaart krijgt nu `weergegevenTrades` (na tab + RSI/score/R-R-filters) in plaats van alle trades. Zie `WatKopenNu` in `MarktScreen.tsx`.
-- [x] **eToro-koppeling gaf 422 "X-Request-Id header is not a valid GUID".** `haalEtoroPortfolio`/`etoroFetch` gebruikten `nieuweId()` (base36, voor trade-ID's) als request-ID. eToro eist een echt GUID. Opgelost met een losse `guid()`-helper in `app/src/engine/etoro.ts`, alleen voor de `x-request-id`-header. Tegelijk `etoroFetch` uitgebreid zodat de eToro-foutbody wordt meegestuurd i.p.v. alleen de statuscode, dat scheelde deze keer het gokwerk.
-- [x] **Tabbalk onderaan valt onder de menu/home/terug knop op sommige android devices zoals Samsung.** `BottomNav.tsx` hardcodeerde `paddingBottom: Platform.OS === 'ios' ? 24 : spacing.sm`, wat op Android te weinig is voor een zichtbare navigatiebalk. Opgelost met `useSafeAreaInsets()` uit het al aanwezige `react-native-safe-area-context`: `paddingBottom: Math.max(insets.bottom, spacing.sm)`. Dekt ook iOS' home-indicator en is 0 bij gesture-navigatie.
-- [x] **Naar beneden swipen moet syncen op portfoliopagina.** `RefreshControl` op de `FlatList` in `PortfolioScreen.tsx`, gekoppeld aan de nieuwe `synchroniseer()` uit `PortfolioProvider`: prijzen verversen, open eToro-posities bijwerken en op eToro gesloten posities afsluiten. Zonder eToro-koppeling ververst swipen alleen de prijzen, zonder foutmelding.
-- [x] **Verlies in dollars werd zonder minteken getoond.** Een verlies van $4,21 stond als `$4.21` in plaats van `−$4.21` (alleen de kleur verried het). Oorzaak: vijf plekken bouwden het bedrag zelf op met `Math.abs(...)` en zetten alleen een `+` bij winst. Opgelost met één gedeelde `fmtResultaatUsd()` in `engine/format.ts`, gebruikt door `PortfolioScreen`, `HistorieScherm`, `CoinDetailScherm` en `PortfolioStatusKaart`. Gevonden bij het testen van de eToro-historie-import.
-- [x] Geen bug maar wish: Import knop lijkt nu op downloaden. Vervangen door `CloudDownload` (wolk met pijl) in `PortfolioStatusKaart.tsx`, zodat duidelijk is dat het van eToro's server komt.
-- [x] **Stop-loss validatie voor eToro**: stop-loss is niet altijd in te vullen op eToro (waarde te laag/hoog). Voeg een check toe dat waarschuwt als de voorgestelde stop-loss buiten eToro's limiet valt. (Gebouwd tegen de echte limieten: `POST /api/v2/trading/info/eligibility` geeft per coin `minStopLossPercentage`/`maxStopLossPercentage`/`allowEditStopLoss`. `etoroFetch` kan nu ook v2 en POST; `engine/etoroLimieten.ts` bevat het uitpluizen van de respons en `valideerStopLoss()` met een self-check; `state/useStopLossLimiet.ts` cachet de limieten een dag in AsyncStorage, want dat endpoint heeft een eigen quotum van 20 requests per minuut. Het Getrade-formulier toont de waarschuwing in oranje. Zonder eToro-koppeling of bij een API-fout: geen waarschuwing, want een verzonnen grens is erger dan geen grens.)
-- [x] **Terughoudender swipen op Marktscherm**: naar beneden swipen voor refresh voelt te gevoelig (raakt accidenteel aan bij scrollen). Drempelwaarde verhogen. (De echte hoofdoorzaak was groter dan gevoeligheid: een refresh zette de status op `loading`, waardoor de hele lijst verdween voor een laadscherm. Ververst nu op de achtergrond met de lijst gewoon zichtbaar, plus een herhaal-blokkade zodat een dubbele swipe niet twee analyses tegelijk start. Zelfde fix op Grote Kansen.)
-- [x] **Settings sheet via tap-outside sluiten**: Instellingensheet kan nu alleen dicht met het kruisje. Moet ook dichtgaan als je buiten de sheet tikt (standaard bottom-sheet behavior). (Alle acht bottom-sheets in de app deelden dezelfde Modal-zonder-backdrop-tik. Vervangen door één gedeelde `BottomSheet`-component met een sluitende achtergrond-Pressable, hergebruikt in Instellingen, Wijzigingen, filters, eToro-koppelvraag, Getrade-formulier, trade-formulieren en trader-formulier.)
-- [ ] **Pushmelding-positie aanpassen**: meldingen staan te laag, worden verborgen achter de gesture buttons op telefoon. Hoger positioneren. (Kevin: kun je even preciezer aangeven welke melding je bedoelt, het liefst met een screenshot? In de code is er geen eigen in-app toast of banner: `notifications/meldingen.ts` gebruikt alleen OS-pushmeldingen via `expo-notifications`, en die verschijnen op Android altijd bovenaan, niet te verplaatsen vanuit de app. Wat wél bij "te laag, verborgen achter de gesture buttons" past zijn de bottom-sheets (Instellingen, formulieren e.d.): die hadden inderdaad geen ruimte voor de Android-gesturebalk en zijn nu gefixt (zie de tap-outside-bug hierboven). Als je toch de systeemmelding bedoelt: die kunnen we niet herpositioneren, alleen het kanaal/de urgentie aanpassen.)
-- [x] **Cloud-icoon meekleurend**: het importwolkje (CloudDownload) moet ook reageren op licht/donker thema. (Verduidelijkt: bedoeld was dat het wolkje meekleurt met de sync-status net als het ververs-icoon ernaast, niet licht/donker thema. Wolkje gebruikt nu dezelfde groen/oranje/rood-kleur, met een adviesregel eronder zodra de data niet meer vers is.)
-- [x] **API import/refresh bij elke app-start**: Portfolio moet automatisch VerseSync doen zodra de app start (net als nu gebeurt bij PortfolioScreen-mount, maar dan globaal). (Bestond al globaal via `PortfolioProvider`, maar de foreground-listener deed alleen een prijs-ververs. Roept nu buiten een cooldown van 5 minuten ook de volledige sync aan, zodat je eToro-posities kloppen na een dag afwezigheid.)
-- [x] **Trade-formulier verliest ingevulde waarden**: Als je in het "Trade toevoegen"-formulier een bedrag/prijs invult, dan naar eToro schakelt om de exacte prijs te checken en terugkomt, zijn de ingevulde waarden verdwenen. De form-state wordt gereset wanneer de app naar achtergrond gaat. Waarden moeten naar AsyncStorage worden persisted terwijl het formulier open is. (Concept wordt nu weggeschreven terwijl het formulier open staat en geladen bij het openen, met nieuwe `laadObject`/`bewaarObject`-helpers in `opslag.ts`. Wordt gewist bij opslaan of expliciet annuleren.)
+- [ ] **Pushmelding-positie aanpassen**: meldingen staan te laag, worden verborgen achter de gesture buttons op telefoon. Hoger positioneren. (Kevin: kun je even preciezer aangeven welke melding je bedoelt, het liefst met een screenshot? In de code is er geen eigen in-app toast of banner: `notifications/meldingen.ts` gebruikt alleen OS-pushmeldingen via `expo-notifications`, en die verschijnen op Android altijd bovenaan, niet te verplaatsen vanuit de app. Wat wel bij "te laag, verborgen achter de gesture buttons" past zijn de bottom-sheets (Instellingen, formulieren e.d.): die hadden inderdaad geen ruimte voor de Android-gesturebalk en zijn nu gefixt. Als je toch de systeemmelding bedoelt: die kunnen we niet herpositioneren, alleen het kanaal/de urgentie aanpassen.)
 
 ## ✅ Klaar
 
 _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al gedaan hebben.)_
 
+### eToro-koppeling
+- [x] Portfolio uit eToro halen: live API-koppeling onder Instellingen, importknop op Mijn Trades
+- [x] Trade-historie ophalen uit eToro en verwerken in portfolio bij sluiten trade (open posities automatisch afgesloten met echte exitprijs, historische gesloten posities met terugwerkende kracht toegevoegd)
+- [x] Sync-status / "loop ik achter?": sync-icoon en importwolkje kleuren mee (grijsgroen/oranje/rood), tijdstip laatste sync zichtbaar en bewaard tussen app-starts, automatische sync bij terugkeer uit de achtergrond
+- [x] eToro API onderzocht voor tradable coins: opgelost via statische `_ETORO_TRADABLE`-set
+- [x] Copy trading stappen vereenvoudigd: stappenplan in de app hoe je een signaal op eToro uitvoert
+- [x] Stop-loss validatie voor eToro: waarschuwt als de voorgestelde stop-loss buiten eToro's limiet valt, gebouwd tegen het eligibility-endpoint (`engine/etoroLimieten.ts`, `state/useStopLossLimiet.ts`)
+- [x] eToro-koppeling gaf 422 "X-Request-Id header is not a valid GUID": opgelost met een echte GUID-helper in `engine/etoro.ts`
+- [x] Importwolkje meekleuren met sync-status (was los van de rest van de sync-indicatie)
+- [x] API-refresh bij elke app-start: portfolio doet nu ook buiten cooldown een volledige sync bij terugkeer uit de achtergrond
+- [x] Trade-formulier verliest ingevulde waarden bij wisselen naar eToro-app: concept wordt nu bewaard in AsyncStorage terwijl het formulier open staat
+
+### Marktscherm & filters
+- [x] Favorietenlijst: vaste coins markeren zodat ze altijd bovenaan de analyse staan, met filtertabs "Alle coins" / "Favorieten"
+- [x] Filteren op RSI, Score en R/R op het Marktscherm: filtersheet met snelkeuzes, te combineren met Alle coins/Favorieten
+- [x] Uitleg toevoegen over de Fear & Greed Index en het marktsentiment: uitklapbare toelichting op het Marktscherm
+- [x] Schuivende marktbalk (zoals Market Mirror): schuifknop van HEAVY SELL naar HEAVY BUY op basis van de Kader-score
+- [x] "Wat moet ik nu kopen?": kaart bovenaan het Marktscherm met de best scorende koopkans, houdt rekening met actieve tab- en filterkeuzes
+- [x] Fear & Greed Index (Alternative.me) prominenter tonen naast de Kader-score
+- [x] Uitbreiden van de coin-searchbase: universum naar de eToro-lijst (57 coins), dode tickers opgevangen met een alias-map, `topN` naar 20
+- [x] Versnellen van de analyse: coins worden nu in blokken van 6 parallel opgehaald i.p.v. één voor één
+- [x] Naar beneden swipen op Marktpagina was te gevoelig: refresh gebeurt nu op de achtergrond zonder de lijst te legen, met een herhaal-blokkade
+
+### Portfolio & trades
+- [x] Live prijs-polling op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden
+- [x] Portfoliosamenvatting: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
+- [x] Mogelijkheid om een gemaakte trade aan te passen: stop-loss en take-profit wijzigen, R/R herberekend
+- [x] Coin detail-scherm full screen met grafieken: koersgrafiek, entry/stop/take-profit-lijnen, indicatoren, onderbouwing van het advies
+- [x] Meer informatie over de status van de trade: afstand tot stop/doel voor open trades, exitprijs/slotdatum/resultaat voor gesloten trades
+- [x] Meer informatie op Grote Kansen-scherm: kaarten tonen marktcap, trend, MACD en kansscore
+- [x] Historisch overzicht gesloten trades met winst/verlies-statistieken (trefferpercentage, gem. R/R, totaal resultaat)
+- [x] Geen mogelijkheid om trade op te slaan vanuit Grote Kansen: nu identiek aan Markt
+- [x] Geen mogelijkheid om waarde in $ of aantal gekochte coins aan te geven in je trades
+- [x] Trades in het portfolio venster hadden geen meekleurende zijkant zoals in Markt venster
+- [x] Verlies in dollars werd zonder minteken getoond: één gedeelde `fmtResultaatUsd()` in `engine/format.ts`
+- [x] Import-knop leek op downloaden: vervangen door `CloudDownload` (wolk met pijl)
+- [x] Instellingen en andere sheets sluiten nu ook door ernaast te tikken, niet alleen via het kruisje (gedeelde `BottomSheet`-component)
+
+### Huisstijl, navigatie & algemeen
+- [x] Dark/light mode: systeem/licht/donker via een tandwiel-icoon in de header, opgeslagen op het toestel
+- [x] Changelog in app: knop onder Instellingen, plus een pop-up bij eerste start na een update, met `changelog.ts` als bron
+- [x] Achtergrond informatie in app: uitleg-scherm bereikbaar via een los boek-icoon in de schermheader (niet onder Instellingen)
+- [x] Smooth geanimeerde overgangen tussen de schermen: cross-fade in `App.tsx` i.p.v. een flits bij tabwissel
+- [x] Tabbalk onderaan viel onder de menu/home/terug-knop op sommige Android-devices: opgelost met `useSafeAreaInsets()`
+- [x] EM-dashes verwijderd uit alle app-teksten
+- [x] Teksten en naamgeving aangepast op basis van `docs/huisstijl-kader.md`
+- [x] Kader-logo gegenereerd en in `app/assets/` geplaatst, later vervangen door logo v2 (open kader-mark, geen gradient/trendlijn)
+- [x] App-icoon werd niet aangepast na een update: generatorscript stond nog op v1, nu herschreven naar v2 en alle assets/mipmaps opnieuw gegenereerd
+
+### Kwaliteit & stabiliteit
+- [x] Error boundary toevoegen zodat één kapotte component niet de hele app neergooit
+- [x] Offline-modus: nette foutmelding als de telefoon geen internet heeft i.p.v. een lege pagina
+- [x] Laadbalk toevoegen: visuele voortgangsbalk tijdens het analyseren en scannen
+
+### Vroege opzet
 - [x] TODO-lijst aangemaakt 🎉
-- [x] Techniekkeuze native app onderzocht → **React Native + Expo**
-- [x] Kale Expo-app gebouwd en via ADB geverifieerd op emulator. Project staat in `app/`, gebouwd vanuit `D:\dev\crypto-market`.
+- [x] Techniekkeuze native app onderzocht, React Native + Expo
+- [x] Kale Expo-app gebouwd en via ADB geverifieerd op emulator
 - [x] Analyse-engine geport naar TypeScript (`app/src/engine/`)
 - [x] Navigatiestructuur opgezet: tab-navigatie met Markt, Grote Kansen, Mijn Trades, Traders
-- [x] Alle vijf schermen gebouwd en functioneel (Markt, Kansen, Portfolio, Traders, Onboarding)
+- [x] Alle vijf schermen gebouwd en functioneel
 - [x] Lokale opslag aangesloten (AsyncStorage) voor traders en posities
 - [x] Pushmeldingen ingeschakeld (`expo-notifications`)
-- [x] Branding: app hernoemd naar Kader, package-id `com.kader.app`, EM-dashes verwijderd, officieel logo gegenereerd
-- [x] 9 bugs gevonden en opgelost (zie git log voor details)
-- [x] **Toetsenbord bedekt invulvelden** (v0.0.2): op Android deed `KeyboardAvoidingView` niks binnen de modal-formulieren. Opgelost met een gedeelde hook die de toetsenbord-hoogte meet en als padding toepast op het bottom-sheet
+- [x] Branding: app hernoemd naar Kader, package-id `com.kader.app`
+- [x] Toetsenbord bedekte invulvelden (v0.0.2): gedeelde hook meet toetsenbord-hoogte en past die toe als padding
