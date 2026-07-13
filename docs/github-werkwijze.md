@@ -67,6 +67,27 @@ PluginError: Failed to resolve plugin for module "expo-splash-screen"
 
 Zo'n "kan module X niet vinden" betekent bijna altijd: je hebt `npm install` nog niet gedraaid. Draai het en probeer opnieuw. Draaien terwijl er niets veranderd is, kan geen kwaad; het is dan gewoon meteen klaar.
 
+## Een release bouwen
+
+Bouw een release-APK **altijd** met `npm run release:apk` (vanuit `app/`), nooit
+rechtstreeks met `gradlew assembleRelease` of `expo run:android`. De map
+`app/android/` staat niet in Git en wordt alleen opnieuw aangemaakt door
+`expo prebuild`. Een directe Gradle-build hergebruikt gewoon wat er al staat,
+waardoor het versienummer in de build stil achterloopt op `app.json` zodra je
+de versie ophoogt zonder opnieuw te prebuilden.
+
+Dat is precies wat er in juli 2026 misging: releases 0.1.1 en 0.1.3 bevatten
+in werkelijkheid een lager versienummer dan wat er al op de telefoon stond,
+waardoor Android de installatie weigerde met "App niet geïnstalleerd". Het leek
+op een signing-probleem, maar dat was het niet: alle Kader-APK's zijn met
+dezelfde sleutel ondertekend.
+
+`npm run release:apk` (script: `app/scripts/bouw-release.mjs`, ook beschreven
+in de `release-apk`-skill) voorkomt dit doordat het na de build controleert of
+het versienummer in de APK matcht met `app.json`, en of de handtekening nog
+steeds de bekende debug-key is. Klopt een van beide niet, dan stopt het script
+met een foutmelding in plaats van een kapotte APK op te leveren.
+
 ## Als het misgaat
 
 - **Iets gebroken op een branch?** Branch weggooien en opnieuw beginnen. Main staat er nog.
