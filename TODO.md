@@ -75,6 +75,8 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
+- [ ] **Tab-wisseling knippert ipv animeert**: refresh-rate-afhankelijk — op 120Hz (Thom S25 Ultra) opgelost, op 60Hz (Kevin) knippert het nog steeds. Permanente structurele oplossing nodig die beide refresh rates ondersteunt.
+
 ## ✅ Klaar
 
 _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al gedaan hebben.)_
