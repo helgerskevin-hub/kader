@@ -24,6 +24,9 @@ import { TradersScreen } from './src/screens/TradersScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { laadVlag, bewaarVlag, laadTekst, bewaarTekst, SLEUTELS } from './src/storage/opslag';
 import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
+// Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
+// de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
+import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
 import { MarktProvider } from './src/state/MarktProvider';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
@@ -99,7 +102,10 @@ function AppInhoud() {
     laadVlag(SLEUTELS.onboarding).then(klaar => {
       setOnboardingKlaar(klaar);
       setOnboardingGeladen(true);
-      if (klaar) stelDagelijkseMeldingIn();
+      if (klaar) {
+        stelDagelijkseMeldingIn();
+        registreerAchtergrondtaak();
+      }
     });
   }, []);
 
@@ -145,6 +151,7 @@ function AppInhoud() {
           setOnboardingKlaar(true);
           bewaarVlag(SLEUTELS.onboarding, true);
           stelDagelijkseMeldingIn();
+          registreerAchtergrondtaak();
         }}
       />
     );

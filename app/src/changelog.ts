@@ -12,6 +12,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.7',
+    datum: '2026-07-16',
+    punten: [
+      'Trade-bewuste meldingen: Kader checkt nu periodiek je open trades en stuurt alleen een melding als er iets te doen valt. Je doel komt in zicht terwijl het momentum nog sterk is (met een voorstel om je doel te verhogen), of je staat in winst terwijl het momentum afvlakt (met een voorstel om je stop aan te trekken en die winst vast te zetten)',
+      'Melding bij een heel sterk koopsignaal: alleen voor high conviction-kansen in coins die je nog niet in je portfolio hebt. De marktklimaat-poort geldt ook hier, dus in een ongunstig klimaat blijft het stil',
+      'Deze checks lopen ook door als de app dicht is. Android bepaalt zelf wanneer, met een ondergrens van een kwartier, dus een melding kan iets later komen dan het moment zelf. Zolang de app open staat wordt er elke vijf minuten gekeken',
+      'Dezelfde melding komt hooguit eens per zes uur terug, tenzij het voorgestelde niveau meer dan 2% verschuift',
+    ],
+  },
+  {
     versie: '0.1.6',
     datum: '2026-07-13',
     punten: [

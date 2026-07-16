@@ -4,6 +4,7 @@ import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { importeerEtoroAlles, EtoroOvergeslagenPositie } from '../engine/etoro';
+import { checkOpenTrades } from '../notifications/tradeChecks';
 
 export interface SyncResultaat {
   gekoppeld: boolean;                          // false = geen eToro-sleutels ingesteld
@@ -44,6 +45,10 @@ const VERVERS_INTERVAL_MS = 60_000;
 // maar 60 requests per 60 seconden. Binnen dit venster na de laatste geslaagde sync volstaat een
 // prijs-ververs; daarbuiten halen we ook de eToro-posities en -historie opnieuw op.
 const HERSYNC_COOLDOWN_MS = 5 * 60 * 1000;
+// De trade-check haalt per open trade verse candles op, veel zwaarder dan een prijs-ververs. Niet
+// bij elke minuut-tik dus. De achtergrondtaak dekt de momenten dat de app dicht is; dit is puur om
+// een melding niet een kwartier te laten wachten terwijl je in de app zit te kijken.
+const TRADE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<PortfolioTrade[]>([]);
@@ -59,6 +64,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // Voor de cooldown-check in de foreground-listener: synchroon uit te lezen, in tegenstelling
   // tot de laatsteSync-state die pas na een render bijgewerkt is.
   const laatsteSyncRef = useRef<number | null>(null);
+  // Wanneer de trade-check voor het laatst draaide. Start op 0, zodat de eerste minuut-tik na het
+  // openen van de app 'm meteen een keer doet.
+  const laatsteTradeCheckRef = useRef(0);
   // Verwijderde eToro-posities. In een ref én in state: de sync-functies lezen 'm synchroon uit
   // (ref), maar hij moet ook van schijf komen bij het opstarten.
   const genegeerdeIdsRef = useRef<Set<number>>(new Set());
@@ -128,7 +136,16 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     if (!geladen) return;
     // Expliciet zonder argumenten aanroepen: verversPrijzen heeft een optionele parameter en
     // setInterval zou daar anders zijn eigen argumenten in kunnen duwen.
-    intervalRef.current = setInterval(() => verversPrijzen(), VERVERS_INTERVAL_MS);
+    intervalRef.current = setInterval(() => {
+      verversPrijzen();
+      const nu = Date.now();
+      if (nu - laatsteTradeCheckRef.current < TRADE_CHECK_INTERVAL_MS) return;
+      laatsteTradeCheckRef.current = nu;
+      // tradesRef i.p.v. een storage-lees: de check draait hier binnen de React-tree en de lijst
+      // in het geheugen is per definitie de verste. Fouten stilhouden, net als bij verversPrijzen:
+      // dit is een achtergrondklusje, geen actie van de gebruiker.
+      checkOpenTrades({ trades: tradesRef.current }).catch(() => {});
+    }, VERVERS_INTERVAL_MS);
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);
     };

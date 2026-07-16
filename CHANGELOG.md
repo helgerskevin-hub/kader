@@ -4,6 +4,25 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.7
+
+Nog niet uitgebracht. Het versienummer in `app/app.json` wordt pas bij de release-build gezet.
+
+- Trade-bewuste meldingen: Kader checkt nu periodiek je open trades en stuurt alleen een melding als
+  er iets te doen valt. Twee gevallen: je doel komt in zicht terwijl het momentum nog sterk is (met
+  een voorstel om je doel te verhogen), of je staat in winst terwijl het momentum afvlakt (met een
+  voorstel om je stop aan te trekken en die winst vast te zetten). Het voorgestelde doel is hetzelfde
+  ATR-doel dat de analyse zelf gebruikt; de voorgestelde stop is break-even of een ATR onder de
+  koers, welke van die twee het hoogst uitkomt
+- Melding bij een heel sterk koopsignaal: alleen voor high conviction-kansen (de sterkste bucket uit
+  de backtest) in coins die je nog niet in je portfolio hebt. De marktklimaat-poort geldt ook hier,
+  dus in een ongunstig klimaat blijft het stil, net als op het Marktscherm
+- Deze checks lopen ook door als de app dicht is. Android bepaalt zelf wanneer, met een ondergrens
+  van een kwartier, dus een melding kan iets later komen dan het moment zelf. Zolang de app open
+  staat wordt er elke vijf minuten gekeken
+- Dezelfde melding komt hooguit eens per zes uur terug, tenzij het voorgestelde niveau meer dan 2%
+  verschuift. Zo blijft een trade die dagenlang tegen zijn doel aan schurkt niet doormelden
+
 ## 0.1.6
 
 - Marktsentiment op het Marktscherm vervangen door het marktklimaat: in plaats van het gemiddelde
