@@ -22,6 +22,9 @@ Nog niet uitgebracht. Het versienummer in `app/app.json` wordt pas bij de releas
   staat wordt er elke vijf minuten gekeken
 - Dezelfde melding komt hooguit eens per zes uur terug, tenzij het voorgestelde niveau meer dan 2%
   verschuift. Zo blijft een trade die dagenlang tegen zijn doel aan schurkt niet doormelden
+- Overgang tussen tabbladen flitst niet meer op 60Hz-toestellen: er zat nog één leeg beeldje tussen
+  het oude en het nieuwe scherm. Ook worden de schermen die je niet bekijkt niet langer opnieuw
+  getekend als de koersen op de achtergrond ververst worden
 
 ## 0.1.6
 

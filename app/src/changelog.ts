@@ -19,6 +19,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Melding bij een heel sterk koopsignaal: alleen voor high conviction-kansen in coins die je nog niet in je portfolio hebt. De marktklimaat-poort geldt ook hier, dus in een ongunstig klimaat blijft het stil',
       'Deze checks lopen ook door als de app dicht is. Android bepaalt zelf wanneer, met een ondergrens van een kwartier, dus een melding kan iets later komen dan het moment zelf. Zolang de app open staat wordt er elke vijf minuten gekeken',
       'Dezelfde melding komt hooguit eens per zes uur terug, tenzij het voorgestelde niveau meer dan 2% verschuift',
+      'Overgang tussen tabbladen flitst niet meer op 60Hz-toestellen: er zat nog één leeg beeldje tussen het oude en het nieuwe scherm. Ook worden de schermen die je niet bekijkt niet langer opnieuw getekend als de koersen op de achtergrond ververst worden',
     ],
   },
   {

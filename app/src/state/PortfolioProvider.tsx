@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
@@ -390,12 +390,20 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     synchroniseer();
   }, [geladen, synchroniseer]);
 
+  // Zonder memo is dit elke render een vers object, en abonneert elke consument (ook AppInhoud,
+  // die alleen synchroniseer gebruikt) zich daardoor op elke wijziging, inclusief de 60s-prijzenpoll.
+  const waarde = useMemo<PortfolioContextWaarde>(() => ({
+    trades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
+    synchroniseer,
+  }), [
+    trades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
+    synchroniseer,
+  ]);
+
   return (
-    <PortfolioContext.Provider value={{
-      trades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
-      voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
-      synchroniseer,
-    }}>
+    <PortfolioContext.Provider value={waarde}>
       {children}
     </PortfolioContext.Provider>
   );
