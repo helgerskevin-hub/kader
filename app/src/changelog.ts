@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.8',
+    datum: '2026-07-16',
+    punten: [
+      'Notificatiewaslijst bij het openen van de app opgelost: trade-meldingen hadden geen totaalplafond, dus als meerdere open trades tegelijk een trigger raakten (typisch na een tijdje afwezigheid) kwamen ze allemaal los binnen. Nu worden meerdere meldingen in één ronde gebundeld tot één melding, met een maximum van drie per ronde',
+    ],
+  },
+  {
     versie: '0.1.7',
     datum: '2026-07-16',
     punten: [

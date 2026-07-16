@@ -35,6 +35,12 @@ const STERKE_KOOP_SCAN_VENSTER_MS = 60 * 60 * 1000;
 // marktdag tien meldingen tegelijk opleveren en dat leest niemand.
 const MAX_KOOP_MELDINGEN = 3;
 
+// Maximaal dit aantal signalen per ronde communiceren, over trade-triggers en koopsignalen heen
+// samen. Zonder deze grens leverde bijvoorbeeld tien open trades die allemaal tegelijk een trigger
+// raakten (typisch na een tijdje afwezigheid, als de voorgrond-poll voor het eerst weer draait) een
+// hele waslijst meldingen op. De rest wacht gewoon tot de volgende ronde.
+const MAX_TOTAAL_MELDINGEN = 3;
+
 function sleutelVoor(id: string, trigger: TriggerType): string {
   return `${id}:${trigger}`;
 }
@@ -174,14 +180,30 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
     // Een mislukte marktscan is geen reden om de trade-meldingen hierboven te laten vallen.
   }
 
+  const teVersturen = kandidaten.filter(m => magSturen(state, m.sleutel, m.niveau, nu));
+  const beperkt = teVersturen.slice(0, MAX_TOTAAL_MELDINGEN);
+
   let verstuurd = 0;
   const bijgewerkt: SuppressieState = { ...state };
-  for (const melding of kandidaten) {
-    if (!magSturen(state, melding.sleutel, melding.niveau, nu)) continue;
+  if (beperkt.length === 1) {
+    const [melding] = beperkt;
     const gelukt = await stuurTradeMelding(melding.titel, melding.tekst);
-    if (!gelukt) break; // geen permissie: de rest proberen heeft ook geen zin
-    bijgewerkt[melding.sleutel] = { tijd: nu, niveau: melding.niveau };
-    verstuurd += 1;
+    if (gelukt) {
+      bijgewerkt[melding.sleutel] = { tijd: nu, niveau: melding.niveau };
+      verstuurd = 1;
+    }
+  } else if (beperkt.length > 1) {
+    // Eén gebundelde melding in plaats van een stapel losse: dat voorkomt de waslijst en blijft
+    // ook zonder native Android-groepering (expo-notifications biedt geen groupKey-optie) rustig.
+    const titel = `Kader heeft ${beperkt.length} updates voor je`;
+    const tekst = `${beperkt.map(m => m.titel).join(', ')}. Open de app voor details.`;
+    const gelukt = await stuurTradeMelding(titel, tekst);
+    if (gelukt) {
+      for (const melding of beperkt) {
+        bijgewerkt[melding.sleutel] = { tijd: nu, niveau: melding.niveau };
+      }
+      verstuurd = beperkt.length;
+    }
   }
 
   const levend = new Set(
