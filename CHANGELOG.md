@@ -4,6 +4,13 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.8
+
+- Notificatiewaslijst bij het openen van de app opgelost: trade-meldingen hadden geen totaalplafond,
+  dus als meerdere open trades tegelijk een trigger raakten (typisch na een tijdje afwezigheid, als
+  de voorgrond-poll voor het eerst weer draait) kwamen ze allemaal los binnen. Nu worden meerdere
+  meldingen in één ronde gebundeld tot één melding, met een maximum van drie per ronde
+
 ## 0.1.7
 
 - Trade-bewuste meldingen: Kader checkt nu periodiek je open trades en stuurt alleen een melding als
