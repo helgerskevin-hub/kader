@@ -50,9 +50,9 @@ _(Gevonden op marketmirror.com, functies die het overwegen waard zijn voor Kader
 
 _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
 
-- [ ] **Meldingen als er een hele sterke koop is**
-- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. Achtergrond sync nodig dus.
-- [ ] **Trade-bewuste pushmeldingen bouwen**: nu stuurt `notifications/meldingen.ts` alleen één dagelijkse herinnering. Gewenst: periodiek (bijv. elke ~10 min) de open trades checken en een melding sturen om take-profit te verhogen (prijs dicht bij TP, momentum sterk) of stop-loss aan te trekken / eerder uit te stappen (in winst maar momentum vlakt af). Dezelfde melding hooguit eens per ~6u herhalen, tenzij het voorgestelde niveau meer dan 2% verschuift.
+- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. De achtergrond-sync hiervoor staat er nu (`notifications/achtergrondtaak.ts`), dus dit is nog een kwestie van een prijs per coin kunnen instellen en die in `tradeChecks.ts` meenemen.
+- [ ] Meldingen aan/uit kunnen zetten in Instellingen: nu staan de trade-meldingen altijd aan zodra je meldingen toestaat. `stopAchtergrondtaak()` in `notifications/achtergrondtaak.ts` bestaat al, er is alleen nog geen knop die 'm aanroept.
+- [ ] Shorts in de meldingen: `PortfolioTrade` heeft geen richting-veld, dus de trade-checks gaan uit van long (stop onder entry, doel erboven) en slaan de rest over.
 
 ## 🛠️ Te doen
 
@@ -75,9 +75,16 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
+- [ ] **Flikkering van animaties op bepaalde devices**: Kevin heeft last van flikkering op zijn OnePlus 13R, zelfs op 60Hz. Op Thom's Samsung S25 Ultra (120Hz) leek dit opgelost, maar de oorzaak zat dieper: de zichtbaarheids-state voor de cross-fade werd in een `useEffect` gezet, dus React tekende altijd eerst één leeg beeldje (oude scherm al verborgen, nieuwe scherm nog niet gemount) voordat de fade begon. Op 120Hz is dat beeldje ~8ms en amper te zien, op 60Hz ~16ms en wel. Gefixt in 0.1.7 door de zichtbaarheid in dezelfde render als de tabwissel te zetten, plus de vier tabschermen memoized zodat de 60s-prijzenpoll ze niet meer onnodig hertekent tijdens een fade. Wacht op Kevins bevestiging op de OnePlus 13R voordat dit item dicht mag.
+
 ## ✅ Klaar
 
 _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al gedaan hebben.)_
+
+### Meldingen
+- [x] **Trade-bewuste pushmeldingen bouwen**: `notifications/tradeChecks.ts` checkt de open trades op verse candles en meldt twee dingen: doel in zicht met sterk momentum (voorstel om TP te verhogen naar het verse ATR-doel) en in winst terwijl het momentum afvlakt (voorstel om de stop naar break-even of een ATR onder de koers te trekken). Herhaal-suppressie van zes uur per trade + trigger, doorbroken als het voorgestelde niveau meer dan 2% verschuift.
+- [x] **Meldingen als er een hele sterke koop is**: high conviction-kansen in coins die je nog niet hebt, hooguit drie per ronde, scan hooguit eens per uur. Leunt op `analyseerMarkt()` en erft daarmee de marktklimaat-poort.
+- [x] Achtergrond-sync: `expo-background-task` + `expo-task-manager`, taak in `notifications/achtergrondtaak.ts`. Draait ook als de app dicht is (Android-ondergrens een kwartier, systeem kiest het moment); de prijs-poll in `PortfolioProvider` doet dezelfde check elke vijf minuten zolang de app open staat.
 
 ### Bugfixes
 - [x] **Balk over kaarten**: onderste tradekaart werd afgekapt boven een dode grijze strook (zie "balk over kaarten.jpeg"). Oorzaak: de tab-schermen (Markt, Kansen, Portfolio, Traders) pasten via `SafeAreaView` de bottom-inset toe binnen het scherm, en `BottomNav` deed dat er nogmaals onder overheen. Inset wordt nu alleen nog door `BottomNav` toegepast; de schermen zelf padden alleen top/left/right.

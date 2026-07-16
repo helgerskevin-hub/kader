@@ -39,7 +39,8 @@
             "backgroundColor": "#1E3A8A"
           }
         }
-      ]
+      ],
+      "expo-background-task"
     ]
   }
 }

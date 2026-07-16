@@ -9,6 +9,13 @@ export interface Advies {
   kleur: AdviesKleur;
 }
 
+// Vanaf welke koers een trade "bijna op doel" staat: de laatste 10% van de weg tussen entry en
+// take-profit. Geëxporteerd omdat de trade-meldingen dezelfde grens gebruiken; twee kopieën zouden
+// stilletjes uiteen kunnen lopen.
+export function drempelBijnaOpDoel(entryPrijs: number, takeProfit: number): number {
+  return takeProfit - (takeProfit - entryPrijs) * 0.1;
+}
+
 export function bepaalAdvies(
   entryPrijs: number,
   stopLoss: number,
@@ -35,7 +42,7 @@ export function bepaalAdvies(
     return { tekst: 'Doel bereikt. Overweeg (deels) winst te nemen.', kort: 'Doel bereikt', kleur: 'winst' };
   }
 
-  const drempelNaarDoel = takeProfit - (takeProfit - entryPrijs) * 0.1;
+  const drempelNaarDoel = drempelBijnaOpDoel(entryPrijs, takeProfit);
   if (livePrijs > drempelNaarDoel) {
     return { tekst: 'Bijna op doel. Houd vast of zet een trailing stop.', kort: 'Bijna op doel', kleur: 'letOp' };
   }
