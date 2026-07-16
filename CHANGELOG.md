@@ -6,8 +6,6 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## 0.1.7
 
-Nog niet uitgebracht. Het versienummer in `app/app.json` wordt pas bij de release-build gezet.
-
 - Trade-bewuste meldingen: Kader checkt nu periodiek je open trades en stuurt alleen een melding als
   er iets te doen valt. Twee gevallen: je doel komt in zicht terwijl het momentum nog sterk is (met
   een voorstel om je doel te verhogen), of je staat in winst terwijl het momentum afvlakt (met een
