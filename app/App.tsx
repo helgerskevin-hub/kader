@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { View, Animated, Easing, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -24,6 +24,9 @@ import { TradersScreen } from './src/screens/TradersScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { laadVlag, bewaarVlag, laadTekst, bewaarTekst, SLEUTELS } from './src/storage/opslag';
 import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
+// Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
+// de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
+import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
 import { MarktProvider } from './src/state/MarktProvider';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
@@ -33,6 +36,13 @@ import { EtoroKoppelingWizard } from './src/components/EtoroKoppelingWizard';
 import { CHANGELOG, nieuwsteVersie } from './src/changelog';
 import { useReduceMotion } from './src/theme/useReduceMotion';
 import { usePortfolio } from './src/state/PortfolioProvider';
+
+// Geen props, dus React.memo houdt deze schermen volledig stil als AppInhoud hertekent door
+// bijvoorbeeld de prijzen-poll in PortfolioProvider (elke 60s), ook tijdens de cross-fade.
+const MarktScherm = React.memo(MarktScreen);
+const KansenScherm = React.memo(KansenScreen);
+const PortfolioScherm = React.memo(PortfolioScreen);
+const TradersScherm = React.memo(TradersScreen);
 
 function AppInhoud() {
   const { colors, donkerActief } = useTheme();
@@ -57,49 +67,57 @@ function AppInhoud() {
     portfolio: new Animated.Value(0),
     traders: new Animated.Value(0),
   }).current;
-  const vorigeTabRef = useRef<Tab>('markt');
   // Het scherm dat nog zichtbaar moet blijven onder de nieuwe tab tot de fade-in klaar is.
   const [overgangTab, setOvergangTab] = useState<Tab | null>(null);
-  const overgangTabRef = useRef<Tab | null>(null);
-  function zetOvergangTab(tab: Tab | null) {
-    overgangTabRef.current = tab;
-    setOvergangTab(tab);
+  // De fade zelf start in een layout-effect, na deze render maar vóór de paint. wisselRef geeft
+  // dat effect door welke wissel er nog moet starten (of null als reduceMotion 'm al afhandelde).
+  const wisselRef = useRef<{ van: Tab; naar: Tab } | null>(null);
+
+  function wisselTab(tab: Tab) {
+    const vorige = actieveTab;
+    if (tab === vorige) return;
+
+    // Een afgebroken fade kan een opacity op een tussenwaarde hebben laten staan; hard
+    // terugzetten vóór de render die dit scherm toont, anders doemt het even vol op.
+    fadeWaarden[tab].stopAnimation();
+    fadeWaarden[tab].setValue(reduceMotion ? 1 : 0);
+    fadeWaarden[vorige].stopAnimation();
+    fadeWaarden[vorige].setValue(1);
+
+    // Alles wat de zichtbaarheid bepaalt in één gebatchte update: zo bestaat er geen frame
+    // waarin het oude scherm al verborgen is en het nieuwe nog niet gemount.
+    setBezochteTabs(prev => (prev.includes(tab) ? prev : [...prev, tab]));
+    setOvergangTab(reduceMotion ? null : vorige);
+    setActieveTab(tab);
+
+    wisselRef.current = reduceMotion ? null : { van: vorige, naar: tab };
   }
 
-  useEffect(() => {
-    const vorige = vorigeTabRef.current;
-    if (vorige === actieveTab) return;
-    vorigeTabRef.current = actieveTab;
-    setBezochteTabs(prev => (prev.includes(actieveTab) ? prev : [...prev, actieveTab]));
-
-    if (reduceMotion) {
-      fadeWaarden[vorige].setValue(0);
-      fadeWaarden[actieveTab].setValue(1);
-      zetOvergangTab(null);
-      return;
-    }
-
-    zetOvergangTab(vorige);
-    fadeWaarden[actieveTab].setValue(0);
-    Animated.timing(fadeWaarden[actieveTab], {
+  useLayoutEffect(() => {
+    const wissel = wisselRef.current;
+    if (!wissel) return;
+    wisselRef.current = null;
+    Animated.timing(fadeWaarden[wissel.naar], {
       toValue: 1,
       duration: 180,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (!finished) return;
-      fadeWaarden[vorige].setValue(0);
       // Alleen opruimen als er niet ondertussen alweer een nieuwere wissel is gestart,
       // anders verbergen we per ongeluk het scherm van die nieuwere overgang.
-      if (overgangTabRef.current === vorige) zetOvergangTab(null);
+      setOvergangTab(huidig => (huidig === wissel.van ? null : huidig));
     });
-  }, [actieveTab, reduceMotion, fadeWaarden]);
+  }, [actieveTab, fadeWaarden]);
 
   useEffect(() => {
     laadVlag(SLEUTELS.onboarding).then(klaar => {
       setOnboardingKlaar(klaar);
       setOnboardingGeladen(true);
-      if (klaar) stelDagelijkseMeldingIn();
+      if (klaar) {
+        stelDagelijkseMeldingIn();
+        registreerAchtergrondtaak();
+      }
     });
   }, []);
 
@@ -145,6 +163,7 @@ function AppInhoud() {
           setOnboardingKlaar(true);
           bewaarVlag(SLEUTELS.onboarding, true);
           stelDagelijkseMeldingIn();
+          registreerAchtergrondtaak();
         }}
       />
     );
@@ -168,16 +187,16 @@ function AppInhoud() {
               ]}
             >
               <FoutGrens>
-                {tab === 'markt' && <MarktScreen />}
-                {tab === 'kansen' && <KansenScreen />}
-                {tab === 'portfolio' && <PortfolioScreen />}
-                {tab === 'traders' && <TradersScreen />}
+                {tab === 'markt' && <MarktScherm />}
+                {tab === 'kansen' && <KansenScherm />}
+                {tab === 'portfolio' && <PortfolioScherm />}
+                {tab === 'traders' && <TradersScherm />}
               </FoutGrens>
             </Animated.View>
           );
         })}
       </View>
-      <BottomNav actief={actieveTab} onWissel={setActieveTab} />
+      <BottomNav actief={actieveTab} onWissel={wisselTab} />
       <StatusBar style={donkerActief ? 'light' : 'dark'} />
       <WelkomFeest
         zichtbaar={welkomOpen}
