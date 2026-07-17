@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.9',
+    datum: '2026-07-17',
+    punten: [
+      'Meldingenbom bij het openen van de app opgelost. Het plafond van drie meldingen per ronde uit 0.1.8 knipte de lijst wel af, maar gooide de rest niet weg: die kwam vijf minuten later alsnog binnen, met exact dezelfde titel. Zo kreeg je alsnog een stapel meldingen die op duplicaten leken. Alle signalen van een ronde gaan nu in één melding en Kader stuurt er hooguit één per uur',
+      'Een nieuwe trade-melding vervangt de vorige in je meldingsbalk in plaats van erbovenop te stapelen. Draaide de achtergrondcheck \'s nachts een paar keer, dan stond er \'s ochtends een rij klaar; nu staat er altijd hooguit één',
+      'Dezelfde melding komt weer echt hooguit eens per zes uur terug. De uitzondering "tenzij het voorgestelde niveau meer dan 2% verschuift" is vervallen: dat niveau volgt de live koers, en omdat crypto routineus 2% per uur beweegt herlaadde die uitzondering zichzelf op koersruis in plaats van op nieuws',
+    ],
+  },
+  {
     versie: '0.1.8',
     datum: '2026-07-16',
     punten: [
