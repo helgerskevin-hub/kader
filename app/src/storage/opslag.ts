@@ -22,10 +22,13 @@ export const SLEUTELS = {
   etoroLimieten: 'etoro_limieten',
   // Gekozen weergave op het Portfolio-scherm: 'uitgebreid' of 'compact'.
   portfolioWeergave: 'portfolio_weergave',
-  // Wanneer welke trade-melding voor het laatst verstuurd is, en op welk voorgesteld niveau.
-  // Zonder dit zou elke check dezelfde melding opnieuw sturen. Gedeeld door de voorgrond-check
-  // en de achtergrondtaak, zodat die twee elkaar niet dubbelen.
+  // Wanneer welke trade-melding voor het laatst verstuurd is. Zonder dit zou elke check dezelfde
+  // melding opnieuw sturen. Gedeeld door de voorgrond-check en de achtergrondtaak, zodat die twee
+  // elkaar niet dubbelen.
   meldingSuppressie: 'melding_suppressie',
+  // Tijdstip van de laatst verstuurde trade-melding. Eén globale rem over alle triggers heen: de
+  // suppressie hierboven voorkomt herhaling van dezelfde melding, dit voorkomt een stapel losse.
+  laatsteMelding: 'laatste_melding_tijd',
   // Tijdstip van de laatste volledige sterke-koop-scan. Die scant het hele universum en is dus
   // te duur om bij elke check opnieuw te doen.
   laatsteSterkeKoopScan: 'laatste_sterke_koop_scan',

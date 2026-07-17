@@ -4,6 +4,24 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.9
+
+- Meldingenbom bij het openen van de app opgelost. Het plafond van drie meldingen per ronde uit
+  0.1.8 knipte de kandidatenlijst wel af, maar gooide de rest niet weg: kandidaat vier en verder
+  waren de volgende ronde nog steeds niet gesuppresseerd en kwamen vijf minuten later alsnog binnen,
+  met exact dezelfde gebundelde titel. Dat waren de meldingen die op duplicaten leken. Alle signalen
+  van een ronde gaan nu in één melding en er gaat er hooguit één per uur uit
+- Een nieuwe trade-melding vervangt de vorige in de meldingsbalk (vaste notificatie-identifier) in
+  plaats van erbovenop te stapelen. Draaide de achtergrondcheck 's nachts een paar keer, dan stond
+  er 's ochtends een rij klaar; nu staat er altijd hooguit één
+- Dezelfde melding komt weer echt hooguit eens per zes uur terug. De uitzondering "tenzij het
+  voorgestelde niveau meer dan 2% verschuift" is vervallen: dat niveau is afgeleid van de live koers
+  (doel = koers + 3xATR, stop = koers - ATR) en crypto beweegt routineus 2% per uur, dus de
+  suppressie herlaadde zichzelf op koersruis in plaats van op nieuws
+- De uurrem wordt gecheckt voordat er koersdata opgehaald wordt, dus een ronde die toch niets mag
+  sturen kost geen netwerkverkeer meer. Dat sluit meteen de kans dat de voorgrondcheck en de
+  achtergrondtaak elkaar overlappen en dezelfde melding dubbel sturen
+
 ## 0.1.8
 
 - Notificatiewaslijst bij het openen van de app opgelost: trade-meldingen hadden geen totaalplafond,

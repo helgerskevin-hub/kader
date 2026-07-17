@@ -14,6 +14,12 @@ Notifications.setNotificationHandler({
 // via cancelAllScheduledNotificationsAsync, en dat wist ook alles wat de trade-meldingen plannen.
 const DAGELIJKSE_ID = 'dagelijkse-herinnering';
 
+// Vaste identifier voor de trade-meldingen. Expo mapt de identifier op de Android-notificatietag,
+// dus een nieuwe melding vervangt de vorige in de balk in plaats van erbovenop te stapelen. Zonder
+// dit stond er na een nacht achtergrondtaken een stapel klaar bij het openen van de app. De melding
+// verwijst voor details toch naar de app, dus een overschreven oudere kost geen informatie.
+const TRADE_MELDING_ID = 'trade-melding';
+
 const KANAAL_DAGELIJKS = 'dagelijks';
 const KANAAL_TRADES = 'trades';
 
@@ -76,6 +82,7 @@ export async function stuurTradeMelding(titel: string, tekst: string): Promise<b
   if (!await zorgVoorPermissie()) return false;
   await zorgVoorTradeKanaal();
   await Notifications.scheduleNotificationAsync({
+    identifier: TRADE_MELDING_ID,
     content: {
       title: titel,
       body: `${tekst} ${DISCLAIMER}`,
