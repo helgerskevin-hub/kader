@@ -10,8 +10,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Vaste identifier voor de dagelijkse herinnering. Zonder deze zouden we 'm alleen kwijt kunnen
-// via cancelAllScheduledNotificationsAsync, en dat wist ook alles wat de trade-meldingen plannen.
+// Vaste identifier voor de dagelijkse herinnering, voor determinisme bij het inplannen.
 const DAGELIJKSE_ID = 'dagelijkse-herinnering';
 
 // Vaste identifier voor de trade-meldingen. Expo mapt de identifier op de Android-notificatietag,
@@ -38,11 +37,16 @@ export async function stelDagelijkseMeldingIn(uur = 9, minuut = 0): Promise<bool
     });
   }
 
+  // Wist ook een dagelijkse melding die een oudere app-versie ooit onder een andere identifier
+  // insplande: die werd door cancelScheduledNotificationAsync(DAGELIJKSE_ID) nooit geraakt en bleef
+  // elke ochtend naast de nieuwe afgaan. Trade-meldingen bezorgen direct (zie stuurTradeMelding) en
+  // staan dus nooit in de wachtrij, dit raakt ze niet.
+  // ponytail: cancelAll werkt zolang de dagelijkse herinnering de enige herhalende melding is; komt
+  // er een tweede bij, dan enumereren via getAllScheduledNotificationsAsync en gericht filteren.
+  await Notifications.cancelAllScheduledNotificationsAsync();
+
   if (!await zorgVoorPermissie()) return false;
 
-  await Notifications.cancelScheduledNotificationAsync(DAGELIJKSE_ID).catch(() => {
-    // Nog niet ingepland bij een eerste start: geen fout, gewoon doorgaan.
-  });
   await Notifications.scheduleNotificationAsync({
     identifier: DAGELIJKSE_ID,
     content: {
