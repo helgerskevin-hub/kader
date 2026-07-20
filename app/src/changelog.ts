@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.10',
+    datum: '2026-07-20',
+    punten: [
+      'Dagelijkse analyse-herinnering kwam elke ochtend twee keer binnen. Oorzaak: een dagelijkse melding die een oudere app-versie ooit onder een andere identifier insplande werd bij het opruimen nooit geraakt en bleef naast de nieuwe afgaan. Bij het opstarten worden nu alle ingeplande meldingen gewist voordat de herinnering opnieuw wordt ingepland',
+      'De uurrem voor trade-meldingen wordt nu geclaimd vóórdat het werk begint in plaats van pas na het versturen, zodat een overlap tussen de voorgrondcheck en de achtergrondtaak dezelfde melding niet meer dubbel kan sturen',
+      'Meldingen zijn nu terug te lezen in de app: het belletje in de header toont een teller en opent een overzicht met titel, uitleg en tijdstip, ook als de melding zelf al uit de notificatiebalk is verdwenen',
+    ],
+  },
+  {
     versie: '0.1.9',
     datum: '2026-07-17',
     punten: [

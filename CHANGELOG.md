@@ -4,6 +4,20 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.10
+
+- Dagelijkse analyse-herinnering kwam elke ochtend twee keer binnen. Oorzaak: een dagelijkse melding
+  die een oudere app-versie ooit onder een andere identifier insplande werd bij het opruimen nooit
+  geraakt en bleef naast de nieuwe afgaan. Bij het opstarten worden nu alle ingeplande meldingen
+  gewist voordat de herinnering opnieuw wordt ingepland
+- De uurrem voor trade-meldingen wordt nu geclaimd vóórdat het werk begint, in plaats van pas na het
+  versturen. Zo kan een overlap tussen de voorgrondcheck en de achtergrondtaak dezelfde melding niet
+  meer dubbel sturen. Een ronde zonder iets te melden geeft de rem meteen weer terug, zodat een
+  echte melding niet onnodig tot bijna een uur later hoeft te wachten
+- Meldingen zijn nu terug te lezen in de app: het belletje in de header toont een teller en opent een
+  overzicht met titel, uitleg en tijdstip, ook als de melding zelf al uit de notificatiebalk is
+  verdwenen of nooit doorkwam terwijl het toestel vergrendeld was
+
 ## 0.1.9
 
 - Meldingenbom bij het openen van de app opgelost. Het plafond van drie meldingen per ronde uit

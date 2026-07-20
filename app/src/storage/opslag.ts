@@ -32,6 +32,12 @@ export const SLEUTELS = {
   // Tijdstip van de laatste volledige sterke-koop-scan. Die scant het hele universum en is dus
   // te duur om bij elke check opnieuw te doen.
   laatsteSterkeKoopScan: 'laatste_sterke_koop_scan',
+  // Log van verstuurde trade-meldingen (titel, tekst, tijdstip), nieuwste eerst, max 50. Terug te
+  // lezen via het belletje in de header, ook als de melding zelf al uit de notificatiebalk is.
+  meldingLog: 'melding_log',
+  // Tijdstip waarop de gebruiker het meldingenlog voor het laatst geopend heeft, voor de ongelezen-
+  // teller op het belletje.
+  meldingenGezienTijd: 'meldingen_gezien_tijd',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

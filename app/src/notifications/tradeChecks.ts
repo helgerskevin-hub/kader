@@ -1,6 +1,6 @@
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { drempelBijnaOpDoel } from '../state/advies';
-import { laadLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
+import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { haalData } from '../engine/marketData';
 import { scoorCandles, analyseerMarkt } from '../engine/analyzer';
 import { macd } from '../engine/indicators';
@@ -87,6 +87,24 @@ interface Melding {
   sleutel: string;
   titel: string;
   tekst: string;
+}
+
+export interface MeldingLogEntry {
+  tijd: number;
+  titel: string;
+  tekst: string;
+}
+
+const MAX_LOG_ENTRIES = 50;
+
+// Bewaart verstuurde meldingen lokaal, zodat een melding die uit de notificatiebalk is verdwenen
+// (of nooit doorkwam terwijl de telefoon vergrendeld was) terug te lezen is in de app. De dagelijkse
+// 09:00-herinnering loopt hier niet doorheen: die levert het OS zelf af zonder dat er app-code
+// draait, en heeft toch geen trade-context om te loggen.
+async function loggeMeldingen(meldingen: Melding[], nu: number): Promise<void> {
+  const bestaand = await laadLijst<MeldingLogEntry>(SLEUTELS.meldingLog);
+  const nieuw = meldingen.map(m => ({ tijd: nu, titel: m.titel, tekst: m.tekst }));
+  await bewaarLijst(SLEUTELS.meldingLog, [...nieuw, ...bestaand].slice(0, MAX_LOG_ENTRIES));
 }
 
 // Beoordeelt één open trade op verse candles. Retourneert de meldingen die op grond van de markt
@@ -179,10 +197,13 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   const nu = Date.now();
 
   // De rem staat bewust vóór alles: binnen het uur mag er toch niets gestuurd worden, dus dan
-  // hoeven we ook geen candles of marktscan op te halen. Dit is meteen wat de voorgrond-poll en de
-  // achtergrondtaak uit elkaar houdt als ze elkaar overlappen: de tweede valt hier af, nog voor hij
-  // de suppressie-state kan lezen die de eerste zo gaat overschrijven.
-  if (nu - await laadTijdstip(SLEUTELS.laatsteMelding) < MELDING_COOLDOWN_MS) return 0;
+  // hoeven we ook geen candles of marktscan op te halen.
+  const laatsteMelding = await laadTijdstip(SLEUTELS.laatsteMelding);
+  if (nu - laatsteMelding < MELDING_COOLDOWN_MS) return 0;
+  // Claimen vóór het werk, niet erna: anders kunnen de voorgrond-poll en de achtergrondtaak elkaar
+  // overlappen en allebei de gate hierboven passeren voordat de een klaar is met versturen. Blijkt
+  // er niets te versturen, dan zetten we de claim aan het eind terug (zie verstuurd === 0 hieronder).
+  await bewaarTekst(SLEUTELS.laatsteMelding, String(nu));
 
   const alle = opties?.trades ?? await laadLijst<PortfolioTrade>(SLEUTELS.portfolio);
   const open = alle.filter(t => t.status === 'open');
@@ -224,9 +245,16 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
       : `${teVersturen.map(m => m.titel).join(', ')}. Open de app voor details.`;
     if (await stuurTradeMelding(titel, tekst)) {
       for (const melding of teVersturen) bijgewerkt[melding.sleutel] = nu;
-      await bewaarTekst(SLEUTELS.laatsteMelding, String(nu));
       verstuurd = teVersturen.length;
+      await loggeMeldingen(teVersturen, nu);
     }
+  }
+
+  // Niets verstuurd (geen kandidaten of het versturen mislukte): de claim hierboven was voorbarig,
+  // teruggezet zodat een lege ronde het uur niet opbrandt en een echte melding niet tot 55 minuten
+  // later hoeft te wachten op de volgende voorgrond-poll.
+  if (verstuurd === 0) {
+    await bewaarTekst(SLEUTELS.laatsteMelding, String(laatsteMelding));
   }
 
   const levend = new Set(
