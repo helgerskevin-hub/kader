@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.11',
+    datum: '2026-07-22',
+    punten: [
+      'Belletje, boek en tandwiel in de header zijn samengevoegd tot één kebab-menu (drie puntjes) om de balk minder vol te maken. Een rood bolletje op het icoon geeft aan dat er ongelezen meldingen zijn; het aantal staat op de "Meldingen"-regel in het uitklapmenu zelf',
+    ],
+  },
+  {
     versie: '0.1.10',
     datum: '2026-07-20',
     punten: [

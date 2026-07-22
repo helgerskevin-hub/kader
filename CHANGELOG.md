@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.11
+
+- Belletje, boek en tandwiel in de header zijn samengevoegd tot één kebab-menu (drie puntjes) om de
+  balk minder vol te maken. Een rood bolletje op het icoon geeft aan dat er ongelezen meldingen zijn;
+  het aantal staat op de "Meldingen"-regel in het uitklapmenu zelf
+
 ## 0.1.10
 
 - Dagelijkse analyse-herinnering kwam elke ochtend twee keer binnen. Oorzaak: een dagelijkse melding
