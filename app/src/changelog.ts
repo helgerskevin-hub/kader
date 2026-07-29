@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.12',
+    datum: '2026-07-29',
+    punten: [
+      'Sheets en pop-ups openen nu met een fadende donkere achtergrond in plaats van een donker vlak dat van onderaf mee omhoog schoof. Het witte vel komt daar rustig overheen op. Geldt voor alle sheets in de app, en respecteert nu ook de systeeminstelling voor verminderde beweging',
+    ],
+  },
+  {
     versie: '0.1.11',
     datum: '2026-07-22',
     punten: [

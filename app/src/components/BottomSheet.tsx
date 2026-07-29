@@ -1,9 +1,16 @@
-import React from 'react';
-import { View, Pressable, StyleSheet, Modal, ViewStyle, StyleProp } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Modal, ViewStyle, StyleProp } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 import { radii, shadow, spacing } from '../theme/tokens';
 import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
+import { useReduceMotion } from '../theme/useReduceMotion';
+
+// Het vel is zelf de geanimeerde component, niet een wrapper eromheen. Vijf sheets zetten een
+// maxHeight in procenten op hun velStijl, en een percentage rekent tegen de hoogte van de ouder:
+// met een tussenliggende wrapper zonder eigen hoogte valt die maxHeight weg en groeit een lange
+// sheet voorbij het scherm.
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface Props {
   zichtbaar: boolean;
@@ -20,24 +27,56 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
   const { colors } = useTheme();
   const toetsenbordHoogte = useToetsenbordHoogte();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(24)).current;
+
+  useEffect(() => {
+    if (!zichtbaar) {
+      opacity.setValue(0);
+      translateY.setValue(24);
+      return;
+    }
+    if (reduceMotion) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [zichtbaar, reduceMotion, opacity, translateY]);
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" transparent onRequestClose={onSluiten}>
+    <Modal visible={zichtbaar} animationType="fade" transparent onRequestClose={onSluiten}>
       <Pressable style={styles.overlay} onPress={onSluiten} accessibilityLabel="Sluiten">
-        <Pressable
+        <AnimatedPressable
           style={[
             styles.vel,
             shadow.modal,
             {
               backgroundColor: colors.kaart,
               paddingBottom: Math.max(spacing.xl, toetsenbordHoogte, insets.bottom),
+              opacity,
+              transform: [{ translateY }],
             },
             velStijl,
           ]}
           onPress={() => {}}
         >
           {children}
-        </Pressable>
+        </AnimatedPressable>
       </Pressable>
     </Modal>
   );

@@ -4,6 +4,13 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.12
+
+- Sheets en pop-ups openen nu met een fadende donkere achtergrond in plaats van een donker vlak dat
+  van onderaf mee omhoog schoof. Het witte vel komt daar rustig overheen op. Geldt voor alle sheets
+  in de app (instellingen, meldingen, filters, trade toevoegen, wijzigingen en de formulieren), en
+  respecteert nu ook de systeeminstelling voor verminderde beweging
+
 ## 0.1.11
 
 - Belletje, boek en tandwiel in de header zijn samengevoegd tot één kebab-menu (drie puntjes) om de
