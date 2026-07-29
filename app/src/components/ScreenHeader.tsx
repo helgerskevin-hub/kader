@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Settings, BookOpen, Bell } from 'lucide-react-native';
+import { MoreVertical } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
 import { InstellingenSheet } from './InstellingenSheet';
 import { AchtergrondScherm } from './AchtergrondScherm';
 import { MeldingenSheet } from './MeldingenSheet';
+import { SysteemMenu, MenuAnker } from './SysteemMenu';
 import { KaderLogo } from './KaderLogo';
 import { laadLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { MeldingLogEntry } from '../notifications/tradeChecks';
@@ -26,8 +27,11 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
   const [instellingenOpen, setInstellingenOpen] = useState(false);
   const [uitlegOpen, setUitlegOpen] = useState(false);
   const [meldingenOpen, setMeldingenOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [anker, setAnker] = useState<MenuAnker | null>(null);
   const [meldingenLog, setMeldingenLog] = useState<MeldingLogEntry[]>([]);
   const [ongelezen, setOngelezen] = useState(0);
+  const kebabRef = useRef<View>(null);
 
   const ververs = useCallback(async () => {
     const [log, gezien] = await Promise.all([
@@ -51,6 +55,13 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
     bewaarTekst(SLEUTELS.meldingenGezienTijd, String(Date.now()));
   }
 
+  function openMenu() {
+    kebabRef.current?.measureInWindow((x, y, breedte, hoogte) => {
+      setAnker({ x, y, breedte, hoogte });
+      setMenuOpen(true);
+    });
+  }
+
   return (
     <View style={[styles.header, { borderBottomColor: colors.rand }]}>
       <View style={styles.linksGroep}>
@@ -65,35 +76,27 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
       <View style={styles.rechtsGroep}>
         {rechts ? <View style={styles.rechts}>{rechts}</View> : null}
         <Pressable
-          onPress={openMeldingen}
+          ref={kebabRef}
+          onPress={openMenu}
           accessibilityRole="button"
-          accessibilityLabel={ongelezen > 0 ? `Meldingen, ${ongelezen} ongelezen` : 'Meldingen'}
+          accessibilityLabel={ongelezen > 0 ? `Menu, ${ongelezen} ongelezen meldingen` : 'Menu'}
           style={styles.tandwiel}
         >
-          <Bell size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+          <MoreVertical size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
           {ongelezen > 0 && (
-            <View style={[styles.badge, { backgroundColor: colors.cta, borderColor: colors.kaart }]}>
-              <Text style={styles.badgeTekst}>{ongelezen > 9 ? '9+' : ongelezen}</Text>
-            </View>
+            <View style={[styles.stip, { backgroundColor: colors.cta, borderColor: colors.kaart }]} />
           )}
         </Pressable>
-        <Pressable
-          onPress={() => setUitlegOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Achtergrondinformatie"
-          style={styles.tandwiel}
-        >
-          <BookOpen size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
-        <Pressable
-          onPress={() => setInstellingenOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Instellingen"
-          style={styles.tandwiel}
-        >
-          <Settings size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
       </View>
+      <SysteemMenu
+        zichtbaar={menuOpen}
+        onSluiten={() => setMenuOpen(false)}
+        anker={anker}
+        ongelezen={ongelezen}
+        onMeldingen={openMeldingen}
+        onAchtergrond={() => setUitlegOpen(true)}
+        onInstellingen={() => setInstellingenOpen(true)}
+      />
       <InstellingenSheet zichtbaar={instellingenOpen} onSluiten={() => setInstellingenOpen(false)} />
       <AchtergrondScherm zichtbaar={uitlegOpen} onSluiten={() => setUitlegOpen(false)} />
       <MeldingenSheet zichtbaar={meldingenOpen} onSluiten={() => setMeldingenOpen(false)} log={meldingenLog} />
@@ -136,22 +139,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badge: {
+  stip: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
+    top: 6,
+    right: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
     borderWidth: 1.5,
-  },
-  badgeTekst: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: '700',
-    lineHeight: 12,
   },
 });

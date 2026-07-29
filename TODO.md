@@ -57,7 +57,8 @@ _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
 ## 🛠️ Te doen
 
 ### Functioneel / inhoud
-
+- [ ] **Sterker maken van het analyse algoritme**: hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?
+- [ ] **Bronfilter op Portfolio**: dropdown menu om posities te filteren op bron (eToro, gekoppelde apps, handmatig toegevoegd) en per positie duidelijk aangeven waar de gegevens vandaan komen.
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging
@@ -76,6 +77,8 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
 - [x] **Flikkering van animaties op bepaalde devices**: Kevin heeft last van flikkering op zijn OnePlus 13R, zelfs op 60Hz. Op Thom's Samsung S25 Ultra (120Hz) leek dit opgelost, maar de oorzaak zat dieper: de zichtbaarheids-state voor de cross-fade werd in een `useEffect` gezet, dus React tekende altijd eerst één leeg beeldje (oude scherm al verborgen, nieuwe scherm nog niet gemount) voordat de fade begon. Op 120Hz is dat beeldje ~8ms en amper te zien, op 60Hz ~16ms en wel. Gefixt in 0.1.7 door de zichtbaarheid in dezelfde render als de tabwissel te zetten, plus de vier tabschermen memoized zodat de 60s-prijzenpoll ze niet meer onnodig hertekent tijdens een fade. Bevestigd op OnePlus 13R.
+- [ ] **Tegenstrijdige stop-loss op trade-toevoegen scherm**: op het trade-toevoegen scherm wordt een stop-loss voorgesteld, terwijl er tegelijk een uitleg staat dat die waarde niet op eToro in te vullen is. Dat spreekt zichzelf tegen: als het niet kan, waarom stel je het dan voor? De waarde bijstellen naar iets dat wel kan, of de suggestie weglaten. (Hangt samen met de al gebouwde eToro-stop-loss-validatie in `engine/etoroLimieten.ts`, die waarschuwt maar de waarde nog steeds voorstelt.)
+- [ ] **Overlay-animatie voor pop-ups**: wanneer een sheet/popup opent, moet de donkere achtergrond (overlay) snel faden in plaats van omhoog te schuiven.
 
 ## ✅ Klaar
 
@@ -133,6 +136,7 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] Instellingen en andere sheets sluiten nu ook door ernaast te tikken, niet alleen via het kruisje (gedeelde `BottomSheet`-component)
 
 ### Huisstijl, navigatie & algemeen
+- [x] **Hamburger/kebab menu voor systeem-knoppen (0.1.11)**: belletje, boek en tandwiel in de header waren drie losse knoppen en maakten de balk te vol. Samengevoegd tot één kebab-icoon (drie puntjes, `SysteemMenu.tsx`) dat als dropdown onder het icoon uitklapt; een rood bolletje op het icoon toont ongelezen meldingen, het aantal staat op de "Meldingen"-regel binnenin.
 - [x] Dark/light mode: systeem/licht/donker via een tandwiel-icoon in de header, opgeslagen op het toestel
 - [x] Changelog in app: knop onder Instellingen, plus een pop-up bij eerste start na een update, met `changelog.ts` als bron
 - [x] Achtergrond informatie in app: uitleg-scherm bereikbaar via een los boek-icoon in de schermheader (niet onder Instellingen)
