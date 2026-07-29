@@ -7,7 +7,7 @@ import { X } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
-import { valideerStopLoss } from '../engine/etoroLimieten';
+import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { nieuweId, PortfolioTrade } from '../state/portfolioTypes';
@@ -38,6 +38,17 @@ function leegForm(trade: GetradeBron | null): VormData {
   };
 }
 
+// De R/R uit de analyse hoort bij de entry uit de analyse. Vul je zelf een andere aankoopprijs in,
+// of schuift de stop op voor eToro, dan klopt dat getal niet meer. Kan de R/R niet uit die drie
+// niveaus volgen (leeg entryveld, stop boven de entry, doel onder de entry), dan wordt het 0. Dat
+// is de afspraak die de rest van de app al hanteert: etoro.ts doet hetzelfde en het portfolio toont
+// een streepje bij een R/R van 0, in plaats van een cijfer dat aantoonbaar niet meer klopt.
+function herberekenRR(entry: number, stop: number, takeProfit: number): number {
+  const risico = entry - stop;
+  const rr = (takeProfit - entry) / risico;
+  return risico > 0 && rr > 0 ? rr : 0;
+}
+
 export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
   const { colors } = useTheme();
   const { voegTradeToe } = usePortfolio();
@@ -59,6 +70,20 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
     }
   }, [form.bedragUsd, form.entryPrijs]);
 
+  // Kader rekent zijn eigen stop uit, maar eToro accepteert niet elke afstand. Meten we tegen de
+  // aankoopprijs die je hier invult, want die wijkt af van de entry uit de analyse zodra de koers
+  // is doorgelopen. Zonder eToro-koppeling of bij een API-fout blijft de limiet null en zeggen we
+  // niets: liever geen waarschuwing dan een verzonnen grens.
+  const stopLimiet = useStopLossLimiet(trade?.symbool);
+  const ingevuldeEntry = parseFloat(form.entryPrijs.replace(',', '.'));
+  const advies: StopAdvies = trade
+    ? bepaalStop(ingevuldeEntry, trade.stopLoss, stopLimiet)
+    : { soort: 'ok' };
+
+  // Wat we tonen is ook wat we opslaan: tradeChecks.ts bewaakt later precies deze niveaus.
+  const stop = advies.soort === 'aangepast' ? advies.stop : trade?.stopLoss ?? 0;
+  const rr = trade ? herberekenRR(ingevuldeEntry, stop, trade.takeProfit) : 0;
+
   function valideerEnOpslaan() {
     const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
     const prijs = parseFloat(form.entryPrijs.replace(',', '.'));
@@ -68,6 +93,9 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
     if (isNaN(prijs) || prijs <= 0) { setFout('Voer een geldige aankoopprijs in'); return; }
     if (isNaN(aantal) || aantal <= 0) { setFout('Aantal coins moet groter dan 0 zijn'); return; }
     if (!trade) return;
+    // Een stop op of boven de aankoopprijs zou meteen als "stop geraakt" in je portfolio staan.
+    // Hetzelfde slot dat het handmatige formulier op het Portfolio-scherm al heeft.
+    if (stop >= prijs) { setFout('Stop-loss moet lager zijn dan de aankoopprijs, kijk je aankoopprijs na'); return; }
 
     const coin = infoVoor(trade.symbool);
     const portfolioTrade: PortfolioTrade = {
@@ -75,13 +103,14 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
       symbool: trade.symbool,
       naam: coin.naam,
       entryPrijs: prijs,
-      stopLoss: trade.stopLoss,
+      stopLoss: stop,
       takeProfit: trade.takeProfit,
-      rr: trade.rr,
+      rr,
       datum: new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),
       status: 'open',
       bedragUsd: bedrag,
       aantalCoins: aantal,
+      bron: 'handmatig',
     };
 
     voegTradeToe(portfolioTrade);
@@ -97,15 +126,6 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
   }];
 
   const coin = trade ? infoVoor(trade.symbool) : null;
-
-  // Kader rekent zijn eigen stop uit, maar eToro accepteert niet elke afstand. Meten we tegen de
-  // aankoopprijs die je hier invult, want die wijkt af van de entry uit de analyse zodra de koers
-  // is doorgelopen. Zonder eToro-koppeling of bij een API-fout blijft de limiet null en zeggen we
-  // niets: liever geen waarschuwing dan een verzonnen grens.
-  const stopLimiet = useStopLossLimiet(trade?.symbool);
-  const stopWaarschuwing = trade
-    ? valideerStopLoss(parseFloat(form.entryPrijs.replace(',', '.')), trade.stopLoss, stopLimiet)
-    : null;
 
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
@@ -129,8 +149,10 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
             </Text>
             <View style={stijlen.infoRij}>
               <View style={stijlen.infoVeld}>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>STOP</Text>
-                <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(trade.stopLoss)}</Text>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                  {advies.soort === 'vast' ? 'STOP (KADER)' : 'STOP'}
+                </Text>
+                <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(stop)}</Text>
               </View>
               <View style={stijlen.infoVeld}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
@@ -138,15 +160,15 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
               </View>
               <View style={stijlen.infoVeld}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-                <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(trade.rr)}</Text>
+                <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{rr > 0 ? fmtRR(rr) : '—'}</Text>
               </View>
             </View>
           </View>
         ) : null}
 
-        {stopWaarschuwing ? (
+        {advies.soort !== 'ok' ? (
           <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
-            <Text style={[Type.caption, { color: colors.letOp }]}>{stopWaarschuwing}</Text>
+            <Text style={[Type.caption, { color: colors.letOp }]}>{advies.uitleg}</Text>
           </View>
         ) : null}
 
