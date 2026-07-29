@@ -19,6 +19,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Op het trade-toevoegen-scherm stond een voorgestelde stop-loss met daaronder soms de melding dat eToro die waarde niet accepteert. Ligt de stop buiten eToro\'s grens, dan schuift Kader hem nu naar de dichtstbijzijnde waarde die eToro wel neemt, met de uitleg erbij. Laat eToro de stop voor die coin helemaal niet instellen, dan staat het niveau er als "STOP (KADER)": het niveau dat je terugziet bij je trade in het portfolio, niet iets om op eToro in te vullen',
       'De R/R op dat scherm rekent nu mee met de aankoopprijs die je zelf invult en met de eventueel bijgestelde stop. Wat je ziet is ook wat er opgeslagen wordt',
       'Tik je een aankoopprijs in die onder de voorgestelde stop-loss ligt, dan slaat Kader die trade niet meer op maar vraagt hij je de aankoopprijs na te kijken. Zo\'n trade stond anders meteen als "stop geraakt" in je portfolio',
+      'Sheets en pop-ups openen nu met een fadende donkere achtergrond in plaats van een donker vlak dat van onderaf mee omhoog schoof. Het witte vel komt daar rustig overheen op. Geldt voor alle sheets in de app, en respecteert nu ook de systeeminstelling voor verminderde beweging',
     ],
   },
   {

@@ -21,6 +21,10 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 - Tik je een aankoopprijs in die onder de voorgestelde stop-loss ligt, dan slaat Kader die trade niet
   meer op maar vraagt hij je de aankoopprijs na te kijken. Zo'n trade stond anders meteen als "stop
   geraakt" in je portfolio. Het handmatige formulier onder Mijn trades deed dit al
+- Sheets en pop-ups openen nu met een fadende donkere achtergrond in plaats van een donker vlak dat
+  van onderaf mee omhoog schoof. Het witte vel komt daar rustig overheen op. Geldt voor alle sheets
+  in de app (instellingen, meldingen, filters, trade toevoegen, wijzigingen en de formulieren), en
+  respecteert nu ook de systeeminstelling voor verminderde beweging
 
 ## 0.1.11
 
