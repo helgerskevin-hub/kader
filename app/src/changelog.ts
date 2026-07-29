@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.12',
+    datum: '2026-07-29',
+    punten: [
+      'Je open trades staan nu gegroepeerd per bron: posities die uit eToro komen en posities die je zelf hebt ingevoerd staan onder een eigen balk, die je kunt in- en uitklappen. Die keuze onthoudt de app. Heb je maar één bron, dan blijft het overzicht ongewijzigd',
+    ],
+  },
+  {
     versie: '0.1.11',
     datum: '2026-07-22',
     punten: [

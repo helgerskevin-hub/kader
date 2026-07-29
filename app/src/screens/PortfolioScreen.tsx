@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Pressable, FlatList, TextInput, ScrollView,
-  StyleSheet, Alert, RefreshControl,
+  StyleSheet, Alert, RefreshControl, LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3 } from 'lucide-react-native';
+import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3, ChevronDown, ChevronRight } from 'lucide-react-native';
 import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
+import { useReduceMotion } from '../theme/useReduceMotion';
 import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -16,14 +17,14 @@ import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
 import { HistorieScherm } from '../components/HistorieScherm';
 import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
 import { TradeActiesSheet } from '../components/TradeActiesSheet';
-import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
+import { PortfolioTrade, bronVan, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
 import { berekenPortfolioWaarde } from '../state/statistieken';
 import { useWeergave, Weergave } from '../state/useWeergave';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
-import { laadTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
+import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
 
 // ---------- TradeRegel ----------
 function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
@@ -376,6 +377,7 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
       notitie: form.notitie.trim() || undefined,
       bedragUsd: !isNaN(bedrag) && bedrag > 0 ? bedrag : undefined,
       aantalCoins: !isNaN(aantal) && aantal > 0 ? aantal : undefined,
+      bron: bestaand ? bestaand.bron : 'handmatig',
     });
     reset();
   }
@@ -662,6 +664,57 @@ const weergaveStyles = StyleSheet.create({
   },
 });
 
+// ---------- Bron-groepskop (alleen zichtbaar als er meer dan één bron is) ----------
+const BRON_LABEL: Record<'etoro' | 'handmatig', string> = {
+  etoro: 'eToro',
+  handmatig: 'Handmatig',
+};
+
+function BronKop({ bron, aantal, dicht, onWissel }: {
+  bron: 'etoro' | 'handmatig';
+  aantal: number;
+  dicht: boolean;
+  onWissel: () => void;
+}) {
+  const { colors } = useTheme();
+  const label = BRON_LABEL[bron];
+  return (
+    <Pressable
+      style={[bronKopStyles.balk, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}
+      onPress={onWissel}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${aantal} ${aantal === 1 ? 'trade' : 'trades'}, ${dicht ? 'ingeklapt' : 'uitgeklapt'}`}
+    >
+      <Text style={[Type.overline, { color: colors.tekstPrimair }]}>{label}</Text>
+      <View style={bronKopStyles.rechts}>
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{aantal}</Text>
+        {dicht
+          ? <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+          : <ChevronDown size={18} color={colors.tekstGedimd} strokeWidth={1.75} />}
+      </View>
+    </Pressable>
+  );
+}
+
+const bronKopStyles = StyleSheet.create({
+  balk: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    borderRadius: radii.kaart,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.base,
+    minHeight: 44,
+  },
+  rechts: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+});
+
+type TradeLijstItem =
+  | { soort: 'kop'; bron: 'etoro' | 'handmatig'; aantal: number }
+  | { soort: 'trade'; trade: PortfolioTrade };
+
 // ---------- Scherm ----------
 export function PortfolioScreen() {
   const { colors } = useTheme();
@@ -678,6 +731,26 @@ export function PortfolioScreen() {
   const [historieOpen, setHistorieOpen] = useState(false);
   const [actiesVoor, setActiesVoor] = useState<PortfolioTrade | null>(null);
   const { weergave, setWeergave } = useWeergave();
+  const reduceMotion = useReduceMotion();
+
+  // Welke bron-groepen zijn dichtgeklapt, bewaard tussen app-starts. Standaard staan ze allebei open.
+  const [dichteBronnen, setDichteBronnen] = useState<Set<'etoro' | 'handmatig'>>(new Set());
+  useEffect(() => {
+    laadTekst(SLEUTELS.portfolioBronDicht, '').then(tekst => {
+      if (!tekst) return;
+      setDichteBronnen(new Set(tekst.split(',').filter(Boolean) as ('etoro' | 'handmatig')[]));
+    });
+  }, []);
+
+  function wisselBron(bron: 'etoro' | 'handmatig') {
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setDichteBronnen(vorige => {
+      const volgende = new Set(vorige);
+      if (volgende.has(bron)) volgende.delete(bron); else volgende.add(bron);
+      bewaarTekst(SLEUTELS.portfolioBronDicht, Array.from(volgende).join(','));
+      return volgende;
+    });
+  }
 
   // Swipe omlaag en de verversknop: stil synchroniseren. Geen meldingen, ook niet als er geen
   // koppeling is; een mislukte eToro-sync komt via etoroFout terug in de statuskaart.
@@ -734,6 +807,24 @@ export function PortfolioScreen() {
   const afgeslotenCount = trades.length - openTrades.length;
   const waarde = berekenPortfolioWaarde(trades, livePrijzen);
 
+  // Groeperen per bron, eToro eerst, dan handmatig. Bij maar één bron geen groepsbalken: een
+  // enkele balk boven al je trades is ruis voor iedereen zonder eToro-koppeling.
+  const lijstData = useMemo<TradeLijstItem[]>(() => {
+    const etoroTrades = openTrades.filter(t => bronVan(t) === 'etoro');
+    const handmatigeTrades = openTrades.filter(t => bronVan(t) === 'handmatig');
+    if (etoroTrades.length === 0 || handmatigeTrades.length === 0) {
+      return openTrades.map(trade => ({ soort: 'trade', trade } as const));
+    }
+    const items: TradeLijstItem[] = [];
+    for (const [bron, groep] of [['etoro', etoroTrades], ['handmatig', handmatigeTrades]] as const) {
+      items.push({ soort: 'kop', bron, aantal: groep.length });
+      if (!dichteBronnen.has(bron)) {
+        for (const trade of groep) items.push({ soort: 'trade', trade });
+      }
+    }
+    return items;
+  }, [openTrades, dichteBronnen]);
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
@@ -752,27 +843,38 @@ export function PortfolioScreen() {
       />
 
       <FlatList
-        data={openTrades}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          weergave === 'compact' ? (
+        data={lijstData}
+        keyExtractor={item => item.soort === 'kop' ? `kop-${item.bron}` : item.trade.id}
+        renderItem={({ item }) => {
+          if (item.soort === 'kop') {
+            return (
+              <BronKop
+                bron={item.bron}
+                aantal={item.aantal}
+                dicht={dichteBronnen.has(item.bron)}
+                onWissel={() => wisselBron(item.bron)}
+              />
+            );
+          }
+          const trade = item.trade;
+          return weergave === 'compact' ? (
             <CompacteTradeRegel
-              trade={item}
-              livePrijs={livePrijzen[item.symbool]}
+              trade={trade}
+              livePrijs={livePrijzen[trade.symbool]}
               onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
               onOpenActies={setActiesVoor}
             />
           ) : (
             <TradeRegel
-              trade={item}
-              livePrijs={livePrijzen[item.symbool]}
+              trade={trade}
+              livePrijs={livePrijzen[trade.symbool]}
               onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
               onVerwijder={verwijderTrade}
               onBewerk={setBewerkTrade}
               onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
             />
-          )
-        )}
+          );
+        }}
         contentContainerStyle={portfolioStyles.lijst}
         refreshControl={
           <RefreshControl

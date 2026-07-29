@@ -58,7 +58,6 @@ _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
 
 ### Functioneel / inhoud
 - [ ] **Sterker maken van het analyse algoritme**: hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?
-- [ ] **Bronfilter op Portfolio**: dropdown menu om posities te filteren op bron (eToro, gekoppelde apps, handmatig toegevoegd) en per positie duidelijk aangeven waar de gegevens vandaan komen.
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging
@@ -76,7 +75,7 @@ _(Doorloop dit na elke grote wijziging om regressies te voorkomen.)_
 
 _(Werkt iets niet zoals verwacht? Schrijf het hier op, ook al weet je nog niet waarom.)_
 
-- [ ] **Flikkering van animaties op bepaalde devices**: Kevin heeft last van flikkering op zijn OnePlus 13R, zelfs op 60Hz. Op Thom's Samsung S25 Ultra (120Hz) leek dit opgelost, maar de oorzaak zat dieper: de zichtbaarheids-state voor de cross-fade werd in een `useEffect` gezet, dus React tekende altijd eerst één leeg beeldje (oude scherm al verborgen, nieuwe scherm nog niet gemount) voordat de fade begon. Op 120Hz is dat beeldje ~8ms en amper te zien, op 60Hz ~16ms en wel. Gefixt in 0.1.7 door de zichtbaarheid in dezelfde render als de tabwissel te zetten, plus de vier tabschermen memoized zodat de 60s-prijzenpoll ze niet meer onnodig hertekent tijdens een fade. Wacht op Kevins bevestiging op de OnePlus 13R voordat dit item dicht mag.
+- [x] **Flikkering van animaties op bepaalde devices**: Kevin heeft last van flikkering op zijn OnePlus 13R, zelfs op 60Hz. Op Thom's Samsung S25 Ultra (120Hz) leek dit opgelost, maar de oorzaak zat dieper: de zichtbaarheids-state voor de cross-fade werd in een `useEffect` gezet, dus React tekende altijd eerst één leeg beeldje (oude scherm al verborgen, nieuwe scherm nog niet gemount) voordat de fade begon. Op 120Hz is dat beeldje ~8ms en amper te zien, op 60Hz ~16ms en wel. Gefixt in 0.1.7 door de zichtbaarheid in dezelfde render als de tabwissel te zetten, plus de vier tabschermen memoized zodat de 60s-prijzenpoll ze niet meer onnodig hertekent tijdens een fade. Bevestigd op OnePlus 13R.
 - [ ] **Tegenstrijdige stop-loss op trade-toevoegen scherm**: op het trade-toevoegen scherm wordt een stop-loss voorgesteld, terwijl er tegelijk een uitleg staat dat die waarde niet op eToro in te vullen is. Dat spreekt zichzelf tegen: als het niet kan, waarom stel je het dan voor? De waarde bijstellen naar iets dat wel kan, of de suggestie weglaten. (Hangt samen met de al gebouwde eToro-stop-loss-validatie in `engine/etoroLimieten.ts`, die waarschuwt maar de waarde nog steeds voorstelt.)
 - [ ] **Overlay-animatie voor pop-ups**: wanneer een sheet/popup opent, moet de donkere achtergrond (overlay) snel faden in plaats van omhoog te schuiven.
 
@@ -120,6 +119,7 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] Naar beneden swipen op Marktpagina was te gevoelig: refresh gebeurt nu op de achtergrond zonder de lijst te legen, met een herhaal-blokkade
 
 ### Portfolio & trades
+- [x] **Bron per positie op Portfolio**: open trades staan gegroepeerd per bron (eToro of handmatig), met een inklapbare balk per groep waarvan de stand bewaard blijft (`SLEUTELS.portfolioBronDicht`). Bij één bron geen balken. Kevin vroeg om een filter-dropdown, het zijn groepen geworden: je ziet zo alles tegelijk in plaats van steeds te moeten wisselen. "Gekoppelde apps" is overgeslagen zolang eToro de enige koppeling is.
 - [x] **Compact view in portfolio**: keuze-switch tussen meer info en compact, zoals eToro's eigen portfolio-view. Compacte regel toont symbool, kort advies, live prijs, resultaat en een dunne stop-doel-balk; acties (Gewonnen/Verloren/Aanpassen/Verwijderen) via een kebab-menu.
 - [x] Live prijs-polling op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden
 - [x] Portfoliosamenvatting: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm
