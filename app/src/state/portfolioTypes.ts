@@ -26,3 +26,9 @@ export interface PortfolioTrade {
 export function nieuweId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
+
+// Bestaande opgeslagen trades hebben geen `bron`; die zijn per definitie handmatig ingevoerd,
+// eToro-import zet het veld altijd expliciet. Dus geen migratie nodig, alleen deze fallback.
+export function bronVan(t: PortfolioTrade): 'etoro' | 'handmatig' {
+  return t.bron === 'etoro' ? 'etoro' : 'handmatig';
+}

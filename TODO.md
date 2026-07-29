@@ -58,7 +58,6 @@ _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
 
 ### Functioneel / inhoud
 - [ ] **Sterker maken van het analyse algoritme**: hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?
-- [ ] **Bronfilter op Portfolio**: dropdown menu om posities te filteren op bron (eToro, gekoppelde apps, handmatig toegevoegd) en per positie duidelijk aangeven waar de gegevens vandaan komen.
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging
@@ -120,6 +119,7 @@ _(Afgevinkte taken mogen hierheen verhuizen, zodat we kunnen terugzien wat we al
 - [x] Naar beneden swipen op Marktpagina was te gevoelig: refresh gebeurt nu op de achtergrond zonder de lijst te legen, met een herhaal-blokkade
 
 ### Portfolio & trades
+- [x] **Bron per positie op Portfolio**: open trades staan gegroepeerd per bron (eToro of handmatig), met een inklapbare balk per groep waarvan de stand bewaard blijft (`SLEUTELS.portfolioBronDicht`). Bij één bron geen balken. Kevin vroeg om een filter-dropdown, het zijn groepen geworden: je ziet zo alles tegelijk in plaats van steeds te moeten wisselen. "Gekoppelde apps" is overgeslagen zolang eToro de enige koppeling is.
 - [x] **Compact view in portfolio**: keuze-switch tussen meer info en compact, zoals eToro's eigen portfolio-view. Compacte regel toont symbool, kort advies, live prijs, resultaat en een dunne stop-doel-balk; acties (Gewonnen/Verloren/Aanpassen/Verwijderen) via een kebab-menu.
 - [x] Live prijs-polling op de Mijn Trades-pagina: automatisch vernieuwen elke 60 seconden
 - [x] Portfoliosamenvatting: totale inleg, huidige waarde en winst/verlies zichtbaar op het Mijn Trades-scherm

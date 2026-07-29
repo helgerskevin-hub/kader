@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.12
+
+- Je open trades staan nu gegroepeerd per bron: posities die uit eToro komen en posities die je zelf
+  hebt ingevoerd staan onder een eigen balk, die je kunt in- en uitklappen. Die keuze onthoudt de app.
+  Heb je maar één bron, dan blijft het overzicht ongewijzigd
+
 ## 0.1.11
 
 - Belletje, boek en tandwiel in de header zijn samengevoegd tot één kebab-menu (drie puntjes) om de
