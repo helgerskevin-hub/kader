@@ -38,6 +38,9 @@ export const SLEUTELS = {
   // Tijdstip waarop de gebruiker het meldingenlog voor het laatst geopend heeft, voor de ongelezen-
   // teller op het belletje.
   meldingenGezienTijd: 'meldingen_gezien_tijd',
+  // Komma-gescheiden lijst van dichtgeklapte bron-groepen ('etoro'/'handmatig') op het
+  // Portfolio-scherm.
+  portfolioBronDicht: 'portfolio_bron_dicht',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

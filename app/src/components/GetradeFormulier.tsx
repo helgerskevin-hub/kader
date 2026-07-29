@@ -110,6 +110,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
       status: 'open',
       bedragUsd: bedrag,
       aantalCoins: aantal,
+      bron: 'handmatig',
     };
 
     voegTradeToe(portfolioTrade);

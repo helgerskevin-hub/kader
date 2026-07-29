@@ -15,6 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: '0.1.12',
     datum: '2026-07-29',
     punten: [
+      'Je open trades staan nu gegroepeerd per bron: posities die uit eToro komen en posities die je zelf hebt ingevoerd staan onder een eigen balk, die je kunt in- en uitklappen. Die keuze onthoudt de app. Heb je maar één bron, dan blijft het overzicht ongewijzigd',
       'Op het trade-toevoegen-scherm stond een voorgestelde stop-loss met daaronder soms de melding dat eToro die waarde niet accepteert. Ligt de stop buiten eToro\'s grens, dan schuift Kader hem nu naar de dichtstbijzijnde waarde die eToro wel neemt, met de uitleg erbij. Laat eToro de stop voor die coin helemaal niet instellen, dan staat het niveau er als "STOP (KADER)": het niveau dat je terugziet bij je trade in het portfolio, niet iets om op eToro in te vullen',
       'De R/R op dat scherm rekent nu mee met de aankoopprijs die je zelf invult en met de eventueel bijgestelde stop. Wat je ziet is ook wat er opgeslagen wordt',
       'Tik je een aankoopprijs in die onder de voorgestelde stop-loss ligt, dan slaat Kader die trade niet meer op maar vraagt hij je de aankoopprijs na te kijken. Zo\'n trade stond anders meteen als "stop geraakt" in je portfolio',
