@@ -4,7 +4,7 @@ import {
   Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, CheckCircle } from 'lucide-react-native';
+import { X, CheckCircle, ShoppingCart } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
 import { haalData } from '../engine/marketData';
@@ -20,6 +20,8 @@ import { PrijsGrafiek } from './PrijsGrafiek';
 import { OfflineMelding } from './OfflineMelding';
 import { Disclaimer } from './Disclaimer';
 import { GetradeFormulier, GetradeBron } from './GetradeFormulier';
+import { KooporderSheet } from './KooporderSheet';
+import { usePortfolio } from '../state/PortfolioProvider';
 
 interface Props {
   data: CoinDetailData | null;
@@ -39,6 +41,8 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   const [indicatoren, setIndicatoren] = useState<VerseIndicatoren | null>(null);
   const [foutTijd, setFoutTijd] = useState<Date>(new Date());
   const [getradeOpen, setGetradeOpen] = useState(false);
+  const [koopOpen, setKoopOpen] = useState(false);
+  const { magHandelen } = usePortfolio();
 
   useEffect(() => {
     if (data) laadData(data.symbool);
@@ -283,16 +287,35 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
         )}
 
         {kanGetrade && (
-          <View style={[styles.actiebalk, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
+          <View style={[styles.actiebalk, styles.actiebalkRij, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
+            {/* Met een schrijfsleutel wordt Getrade secundair: direct kopen is dan de hoofdactie,
+                en zelf overtikken de uitzondering. Zonder schrijfsleutel blijft de balk zoals hij was. */}
             <Pressable
-              style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
+              style={[
+                styles.getradeKnop,
+                magHandelen
+                  ? { borderColor: colors.rand, borderWidth: 1.5 }
+                  : { backgroundColor: colors.cta },
+              ]}
               onPress={() => setGetradeOpen(true)}
               accessibilityRole="button"
               accessibilityLabel="Getrade"
             >
-              <CheckCircle size={16} color="white" strokeWidth={1.75} />
-              <Text style={[Type.body, styles.getradeTekst]}>Getrade</Text>
+              <CheckCircle size={16} color={magHandelen ? colors.tekstGedimd : 'white'} strokeWidth={1.75} />
+              <Text style={[Type.body, styles.getradeTekst, magHandelen && { color: colors.tekstGedimd }]}>Getrade</Text>
             </Pressable>
+
+            {magHandelen && (
+              <Pressable
+                style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
+                onPress={() => setKoopOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`${data.symbool} kopen via eToro`}
+              >
+                <ShoppingCart size={16} color="white" strokeWidth={1.75} />
+                <Text style={[Type.body, styles.getradeTekst]}>Koop via eToro</Text>
+              </Pressable>
+            )}
           </View>
         )}
       </SafeAreaView>
@@ -302,6 +325,18 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
         trade={getradeBron}
         onSluiten={() => setGetradeOpen(false)}
       />
+
+      {koopOpen && data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined && (
+        <KooporderSheet
+          zichtbaar
+          symbool={data.symbool}
+          naam={data.naam}
+          entry={data.entry}
+          stop={data.stopLoss}
+          doel={data.takeProfit}
+          onSluiten={() => setKoopOpen(false)}
+        />
+      )}
     </Modal>
   );
 }
@@ -365,6 +400,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     padding: spacing.base,
   },
+  actiebalkRij: { flexDirection: 'row', gap: spacing.sm },
   getradeKnop: {
     flexDirection: 'row',
     alignItems: 'center',

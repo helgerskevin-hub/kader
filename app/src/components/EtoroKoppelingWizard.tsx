@@ -10,7 +10,7 @@ import {
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
-import { EtoroOmgeving, haalEtoroPortfolio } from '../engine/etoro';
+import { EtoroOmgeving, haalAccountInfo, magHandelenVolgensScopes } from '../engine/etoro';
 import { bewaarSleutels, sleutelsVan, wisSleutels } from '../state/etoroSleutels';
 import { StapOvergang } from './StapOvergang';
 
@@ -30,9 +30,10 @@ type TestStatus = 'idle' | 'testing' | 'ok' | 'fout';
 
 const HOE_STAPPEN = [
   'Log in op eToro (web) en ga naar Settings > Trading > API Key Management.',
-  'Maak een sleutel aan: kies Read (niet Write) en Real (niet Demo).',
-  'Voer de verificatiecode in die je op je telefoon ontvangt.',
-  'eToro toont daarna twee sleutels: een publieke sleutel (Public API Key) en een privésleutel (User Key).',
+  'Maak een sleutel aan en kies Read of Write. Met Read kan Kader alleen je posities ophalen; Write is nodig om vanuit Kader te kunnen handelen.',
+  'Voer de verificatiecode in die je per sms op je telefoon ontvangt.',
+  'eToro toont daarna twee sleutels: een publieke sleutel (Public API Key) en een privésleutel (User Key). De User Key krijg je maar één keer te zien, dus kopieer hem meteen.',
+  'Je kiest bij het aanmaken geen omgeving: dezelfde sleutel werkt voor demo en voor echt.',
 ];
 
 const AANTAL_STAPPEN = 4;
@@ -48,6 +49,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
   const [testFout, setTestFout] = useState('');
   const [bezigOpslaan, setBezigOpslaan] = useState(false);
   const [bestondKoppeling, setBestondKoppeling] = useState(false);
+  // Wat de sleutel volgens eToro mag, uit de scopes van /api/v1/me. Pas bekend na een geslaagde test.
+  const [magSchrijven, setMagSchrijven] = useState(false);
 
   // Laad bestaande sleutels en reset naar stap 0 telkens als de wizard opent.
   useEffect(() => {
@@ -55,6 +58,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
     setStap(0);
     setTestStatus('idle');
     setTestFout('');
+    setMagSchrijven(false);
     setToonApiKey(false);
     setToonUserKey(false);
     sleutelsVan(omgeving).then(s => {
@@ -77,13 +81,17 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
     if (stap > 0) setStap(v => v - 1);
   }
 
+  // Testen via /api/v1/me in plaats van het portfolio: dat endpoint geeft ook de scopes terug, en
+  // die bepalen of Kader in deze omgeving mag handelen. Zonder die controle zou de app moeten gokken.
   async function testVerbinding() {
     setTestStatus('testing');
     setTestFout('');
     try {
-      await haalEtoroPortfolio({ apiKey: apiKey.trim(), userKey: userKey.trim(), omgeving });
+      const account = await haalAccountInfo({ apiKey: apiKey.trim(), userKey: userKey.trim(), omgeving });
+      setMagSchrijven(magHandelenVolgensScopes(account.scopes, omgeving));
       setTestStatus('ok');
     } catch (e) {
+      setMagSchrijven(false);
       setTestFout(e instanceof Error ? e.message : 'Onbekende fout bij verbinden.');
       setTestStatus('fout');
     }
@@ -92,9 +100,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
   async function opslaanEnKlaar() {
     setBezigOpslaan(true);
     try {
-      // magSchrijven blijft false: deze wizard test met het portfolio-endpoint en kent de scopes van
-      // de sleutel dus niet. Handelen wordt pas ontgrendeld als /api/v1/me bevestigt dat het mag.
-      await bewaarSleutels(omgeving, { apiKey: apiKey.trim(), userKey: userKey.trim(), magSchrijven: false });
+      // Een leessleutel wordt gewoon bewaard, hij ontgrendelt alleen het handelen niet.
+      await bewaarSleutels(omgeving, { apiKey: apiKey.trim(), userKey: userKey.trim(), magSchrijven });
     } catch (e) {
       // De sleutelkluis kan weigeren (toestel zonder schermvergrendeling, kapotte keystore). Dan is
       // er niets opgeslagen, en dat moet je weten: anders blijft de knop draaien en denk je dat het
@@ -114,7 +121,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
   function verwijderKoppeling() {
     Alert.alert(
       'Koppeling verwijderen',
-      'Weet je zeker dat je de opgeslagen eToro-sleutels van dit toestel wilt wissen? Je importeert daarna niets meer tot je opnieuw koppelt.',
+      `Weet je zeker dat je de opgeslagen eToro-sleutels voor ${omgeving === 'demo' ? 'demo' : 'echt'} van dit toestel wilt wissen? Je importeert en handelt daarna niets meer in die omgeving tot je opnieuw koppelt.`,
       [
         { text: 'Annuleren', style: 'cancel' },
         {
@@ -180,12 +187,16 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
             <>
               <Text style={[Type.sectiekop, styles.kop, { color: colors.tekstPrimair }]}>Wat doet deze koppeling?</Text>
               <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
-                Kader haalt met een alleen-lezen API-sleutel je open crypto-posities op uit eToro. Kader kan niets kopen, verkopen of wijzigen. De sleutels blijven alleen op dit toestel.
+                Kader haalt met een API-sleutel je open crypto-posities op uit eToro. Deze sleutel gebruikt Kader
+                voor je {omgeving === 'demo' ? 'demo-account' : 'echte account'}. De sleutels blijven alleen op dit
+                toestel, in de beveiligde opslag.
               </Text>
               <View style={[styles.infoBlok, { backgroundColor: colors.verhoogd }]}>
                 <ShieldCheck size={18} color={colors.winst} strokeWidth={1.75} />
                 <Text style={[Type.caption, { color: colors.tekstGedimd, flex: 1, lineHeight: 18 }]}>
-                  Kies bij het aanmaken bewust "Read" en "Real", niet "Write".
+                  Met een Write-sleutel kan Kader ook orders plaatsen, maar alleen nadat jij per order op
+                  bevestigen drukt. De app staat standaard in demo. Wil je dat niet, kies dan Read: dan
+                  blijft het bij meekijken.
                 </Text>
               </View>
               <Text style={[Type.overline, styles.label, { color: colors.tekstGedimd }]}>ZO VIND JE JE SLEUTELS</Text>
@@ -261,10 +272,20 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
               </Pressable>
 
               {testStatus === 'ok' && (
-                <View style={styles.testRij}>
-                  <CheckCircle size={16} color={colors.winst} strokeWidth={1.75} />
-                  <Text style={[Type.caption, { color: colors.winst }]}>Verbinding OK, je sleutels werken.</Text>
-                </View>
+                <>
+                  <View style={styles.testRij}>
+                    <CheckCircle size={16} color={colors.winst} strokeWidth={1.75} />
+                    <Text style={[Type.caption, { color: colors.winst, flex: 1 }]}>Verbinding OK, je sleutels werken.</Text>
+                  </View>
+                  <View style={styles.testRij}>
+                    <ShieldCheck size={16} color={magSchrijven ? colors.letOp : colors.tekstGedimd} strokeWidth={1.75} />
+                    <Text style={[Type.caption, { color: colors.tekstGedimd, flex: 1, lineHeight: 18 }]}>
+                      {magSchrijven
+                        ? `Deze sleutel mag lezen en handelen in ${omgeving === 'demo' ? 'demo' : 'echt'}. Kader plaatst alleen een order nadat jij die bevestigt.`
+                        : 'Deze sleutel mag alleen lezen. Je posities komen binnen, maar handelen vanuit Kader blijft uit.'}
+                    </Text>
+                  </View>
+                </>
               )}
               {testStatus === 'fout' && (
                 <View style={styles.testRij}>

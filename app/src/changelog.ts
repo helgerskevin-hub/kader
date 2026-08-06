@@ -12,6 +12,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    // Nog niet uitgebracht: versie en datum worden pas ingevuld als er een release-APK gebouwd wordt.
+    versie: 'Nog niet uitgebracht',
+    datum: '',
+    punten: [
+      'Direct handelen via eToro. Vanaf het Markt-scherm, Grote Kansen en het coin-detailscherm kun je een coin nu meteen kopen: Kader vult het bedrag, de stop-loss en het doel voor je in en stuurt de order pas nadat je die in de sheet bevestigt',
+      'Vanuit je portfolio kun je een eToro-positie verkopen en de stop-loss of het doel van een lopende positie aanpassen, zonder over te tikken in de eToro-app',
+      'Een schakelaar tussen demo en echt onder Instellingen. Kader staat standaard op demo, zodat orders naar je oefenaccount bij eToro gaan; overschakelen naar echt vraagt eerst een bevestiging. Zolang demo actief is staat er een oranje DEMO-label bovenin het scherm',
+      'eToro eist voor sommige coins een minimale afstand tussen je aankoopprijs en je stop-loss (bij bitcoin bijvoorbeeld 10%). Ligt de stop van Kader dichterbij, dan schuift Kader hem op naar de dichtstbijzijnde waarde die eToro accepteert en zie je dat in de sheet staan, inclusief wat dat met je risico doet',
+      'Je eToro-sleutels staan nu in de beveiligde opslag van je toestel in plaats van in de gewone app-opslag. Bestaande sleutels verhuizen automatisch bij de eerste start',
+      'De app doet niet meer mee aan Android\'s automatische back-up naar Google Drive. Dat hield een kopie van je sleutels buiten je toestel. Gevolg: stap je over naar een nieuw toestel, dan komt je lokale portfolio niet meer vanzelf mee. Je posities uit eToro haalt Kader daar gewoon opnieuw op',
+    ],
+  },
+  {
     versie: '0.1.12',
     datum: '2026-07-29',
     punten: [

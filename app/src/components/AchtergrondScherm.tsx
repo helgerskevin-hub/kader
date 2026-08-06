@@ -211,16 +211,25 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
           <Sectie id="etoro" titel="Portfolio importeren uit eToro" open={open === 'etoro'} onToggle={wisselOpen}>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               Kader kan je open crypto-posities rechtstreeks bij eToro ophalen via hun officiële API.
-              De koppeling is alleen-lezen: Kader kan je posities bekijken, maar nooit handelen,
-              geld verplaatsen of instellingen wijzigen. Je sleutel wordt alleen op je eigen toestel
-              bewaard.
+              Wat de koppeling mag, bepaalt je sleutel: met een Read-sleutel kijkt Kader alleen mee,
+              met een Write-sleutel kan Kader ook kopen, verkopen en je stop-loss of doel aanpassen,
+              maar altijd pas nadat jij die order zelf bevestigt. Kader kan nooit geld overmaken of je
+              eToro-instellingen wijzigen. Je sleutels staan alleen op je eigen toestel, in de
+              beveiligde opslag.
             </Text>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               Zo stel je hem in: log in op eToro (web) en ga naar Settings, dan Trading, dan API Key
-              Management. Maak een sleutel aan met alleen Read-rechten (geen Write) op je Real-account,
-              en bevestig met de verificatiecode op je telefoon. Plak de sleutel(s) daarna in Kader
-              onder Instellingen (het tandwiel rechtsboven), bij "eToro-koppeling". Ga daarna naar de
-              portfolio-tab en druk op "Importeer uit eToro".
+              Management. Maak een sleutel aan (Read om alleen te importeren, Write om ook te kunnen
+              handelen) en bevestig met de sms-code op je telefoon. Je kiest daarbij geen omgeving:
+              dezelfde sleutel werkt voor demo en voor echt. De User Key krijg je maar één keer te
+              zien, dus kopieer hem meteen. Plak de sleutels daarna in Kader onder Instellingen, bij
+              "eToro-sleutel demo" of "eToro-sleutel echt". Ga daarna naar de portfolio-tab en druk op
+              "Importeer uit eToro".
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Onder Instellingen staat ook de schakelaar tussen demo en echt. Kader start in demo:
+              orders gaan dan naar je oefenaccount bij eToro. Zolang demo actief is staat er een oranje
+              DEMO-label bovenin het scherm. Overschakelen naar echt vraagt eerst een bevestiging.
             </Text>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               Alleen crypto-posities komen mee; aandelen en ETF's worden overgeslagen. Heb je bij een

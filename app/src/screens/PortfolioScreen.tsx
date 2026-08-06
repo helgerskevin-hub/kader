@@ -17,6 +17,10 @@ import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
 import { HistorieScherm } from '../components/HistorieScherm';
 import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
 import { TradeActiesSheet } from '../components/TradeActiesSheet';
+import { VerkoopOrderSheet } from '../components/VerkoopOrderSheet';
+import { NiveausSheet } from '../components/NiveausSheet';
+import { EtoroOmgeving } from '../engine/etoro';
+import { omschrijfOnbekendeOrder } from '../state/lopendeOrders';
 import { PortfolioTrade, bronVan, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
@@ -28,12 +32,28 @@ import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLE
 import { actieveSleutels } from '../state/etoroSleutels';
 
 // ---------- TradeRegel ----------
-function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
+// Kan deze rij bij eToro verkocht en gewijzigd worden? Alles moet kloppen: de trade komt uit eToro,
+// we kennen zowel het positie- als het instrument-ID, en de positie hoort bij de omgeving waar de
+// app nu in staat. Een positie-ID uit de ene omgeving naar het endpoint van de andere sturen is een
+// slechte afloop, dus bij twijfel verschijnt de knop simpelweg niet. Oude opgeslagen trades missen
+// deze velden en herstellen zichzelf bij de volgende sync.
+export function isEtoroBestuurbaar(trade: PortfolioTrade, omgeving: EtoroOmgeving): boolean {
+  return trade.bron === 'etoro'
+    && trade.status === 'open'
+    && typeof trade.etoroPositionID === 'number'
+    && typeof trade.etoroInstrumentID === 'number'
+    && (trade.etoroOmgeving ?? 'real') === omgeving;
+}
+
+function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail, onVerkoop, onNiveaus }: {
   trade: PortfolioTrade;
   livePrijs: number | undefined;
   onVraagSluiten: (trade: PortfolioTrade, status: 'gewonnen' | 'verloren') => void;
   onVerwijder: (id: string) => void;
   onBewerk: (trade: PortfolioTrade) => void;
+  // Ontbreken als deze rij niet bij eToro te besturen is; dan blijft de rij zoals hij was.
+  onVerkoop?: (trade: PortfolioTrade) => void;
+  onNiveaus?: (trade: PortfolioTrade) => void;
   onOpenDetail: (trade: PortfolioTrade) => void;
 }) {
   const { colors } = useTheme();
@@ -185,7 +205,31 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
       <View style={[tradeStyles.voet, { borderTopColor: colors.rand }]}>
         <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{trade.datum}</Text>
         <View style={tradeStyles.voetActies}>
-          {trade.status === 'open' && (
+          {/* Bij een eToro-positie die Kader echt kan besturen vervangen Verkopen en SL/TP de
+              handmatige knoppen: Gewonnen en Verloren zouden hier alleen de lokale administratie
+              wijzigen terwijl de positie bij eToro gewoon open blijft staan, en dat is misleidend. */}
+          {trade.status === 'open' && onVerkoop && onNiveaus && (
+            <>
+              <Pressable
+                style={tradeStyles.voetKnop}
+                onPress={() => onVerkoop(trade)}
+                accessibilityRole="button"
+                accessibilityLabel={`${trade.symbool} verkopen bij eToro`}
+              >
+                <Text style={[Type.caption, { color: colors.verlies }]}>Verkopen</Text>
+              </Pressable>
+              <Pressable
+                style={tradeStyles.voetKnop}
+                onPress={() => onNiveaus(trade)}
+                accessibilityRole="button"
+                accessibilityLabel="Stop-loss en doel aanpassen"
+              >
+                <Text style={[Type.caption, { color: colors.cta }]}>SL/TP</Text>
+              </Pressable>
+            </>
+          )}
+
+          {trade.status === 'open' && !(onVerkoop && onNiveaus) && (
             <>
               <Pressable
                 style={tradeStyles.voetKnop}
@@ -722,7 +766,11 @@ export function PortfolioScreen() {
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
     syncing, laatsteSync, syncFout, etoroFout, synchroniseer,
+    omgeving, magHandelen, verlopenOrders, controleerOnbekendeOrders,
   } = usePortfolio();
+  const [verkoopTrade, setVerkoopTrade] = useState<PortfolioTrade | null>(null);
+  const [niveausTrade, setNiveausTrade] = useState<PortfolioTrade | null>(null);
+  const [controleBezig, setControleBezig] = useState(false);
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
@@ -868,6 +916,8 @@ export function PortfolioScreen() {
               onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
               onVerwijder={verwijderTrade}
               onBewerk={setBewerkTrade}
+              onVerkoop={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setVerkoopTrade : undefined}
+              onNiveaus={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setNiveausTrade : undefined}
               onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
             />
           );
@@ -897,6 +947,36 @@ export function PortfolioScreen() {
               onImporteren={importerenUitEtoro}
               onOpenHistorie={() => setHistorieOpen(true)}
             />
+
+            {/* Orders waarvan we na een kwartier nog steeds niet weten of ze zijn doorgegaan. Er
+                staat bewust maar één knop: opnieuw controleren. Nergens iets dat opnieuw verstuurt,
+                want dan koop je mogelijk twee keer. */}
+            {verlopenOrders.length > 0 && (
+              <View style={[portfolioStyles.onbevestigd, { backgroundColor: colors.letOp + '1A', borderColor: colors.letOp }]}>
+                {verlopenOrders.map(order => (
+                  <Text key={order.verzoekId} style={[Type.caption, { color: colors.tekstPrimair, lineHeight: 18 }]}>
+                    {omschrijfOnbekendeOrder(order)}
+                  </Text>
+                ))}
+                <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
+                  Kader heeft geen bevestiging van eToro gekregen. Controleer je posities bij eToro voordat je opnieuw koopt.
+                </Text>
+                <Pressable
+                  onPress={async () => {
+                    if (controleBezig) return;
+                    setControleBezig(true);
+                    try { await controleerOnbekendeOrders(); } finally { setControleBezig(false); }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Opnieuw controleren bij eToro"
+                  style={[portfolioStyles.onbevestigdKnop, { borderColor: colors.letOp }]}
+                >
+                  <Text style={[Type.caption, { color: colors.letOp, fontWeight: '600' }]}>
+                    {controleBezig ? 'Bezig met controleren' : 'Opnieuw controleren'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
             {openTrades.length > 0 && (
               <View style={portfolioStyles.weergaveRij}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
@@ -949,6 +1029,23 @@ export function PortfolioScreen() {
         }}
       />
 
+      {verkoopTrade && (
+        <VerkoopOrderSheet
+          zichtbaar
+          trade={verkoopTrade}
+          huidigePrijs={livePrijzen[verkoopTrade.symbool]}
+          onSluiten={() => setVerkoopTrade(null)}
+        />
+      )}
+
+      {niveausTrade && (
+        <NiveausSheet
+          zichtbaar
+          trade={niveausTrade}
+          onSluiten={() => setNiveausTrade(null)}
+        />
+      )}
+
       <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
 
       <TradeActiesSheet
@@ -958,6 +1055,8 @@ export function PortfolioScreen() {
         onVerloren={t => setSluitVerzoek({ trade: t, status: 'verloren' })}
         onAanpassen={setBewerkTrade}
         onVerwijderen={t => verwijderTrade(t.id)}
+        onVerkoop={actiesVoor && magHandelen && isEtoroBestuurbaar(actiesVoor, omgeving) ? setVerkoopTrade : undefined}
+        onNiveaus={actiesVoor && magHandelen && isEtoroBestuurbaar(actiesVoor, omgeving) ? setNiveausTrade : undefined}
       />
 
       <HistorieScherm
@@ -973,6 +1072,23 @@ export function PortfolioScreen() {
 
 const portfolioStyles = StyleSheet.create({
   root: { flex: 1 },
+  onbevestigd: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.veld,
+    borderWidth: 1,
+    gap: spacing.sm,
+  },
+  onbevestigdKnop: {
+    alignSelf: 'flex-start',
+    borderWidth: 1.5,
+    borderRadius: radii.knop,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
   toevoegenKnop: {
     flexDirection: 'row',
     alignItems: 'center',
