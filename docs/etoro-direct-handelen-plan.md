@@ -27,11 +27,13 @@ Host voor beide omgevingen: `https://public-api.etoro.com`. **De omgeving zit in
 - Openen: `POST /api/v2/trading/execution/orders` (demo: `/api/v2/trading/execution/demo/orders`)
   Body: `{ action: "open", transaction: "buy", instrumentId, settlementType, orderType: "mkt", leverage, amount, orderCurrency: "usd", stopLossRate, takeProfitRate, stopLossType: "fixed" }`. `stopLossRate` en `takeProfitRate` zijn **absolute koersen**, geen percentages.
   Antwoord 200: `{ token, orderId, referenceId }`, waarbij `referenceId` je `x-request-id` echoot.
-- Sluiten: `POST /api/v1/trading/execution/market-close-orders/positions/{positionId}`, body `{ InstrumentId, UnitsToDeduct }` (`null` = volledig).
-- Niveaus wijzigen: `PATCH /api/v2/trading/positions/{positionId}`, body `{ stopLossRate, takeProfitRate, stopLossType, clearStopLoss, clearTakeProfit }`, antwoord 202.
-- Symbool naar id: `GET /api/v1/market-data/search?internalSymbolFull=BTC` -> `{ items: [{ internalSymbolFull, instrumentId }] }`. Geeft ook gedeeltelijke treffers terug.
+- Sluiten: `POST /api/v1/trading/execution/market-close-orders/positions/{positionId}`, body `{ InstrumentId, UnitsToDeduct }` (`null` = volledig). Demo: `/api/v1/trading/execution/demo/market-close-orders/positions/{positionId}`.
+- Niveaus wijzigen: `PATCH /api/v2/trading/positions/{positionId}`, body `{ stopLossRate, takeProfitRate, stopLossType, clearStopLoss, clearTakeProfit }`, antwoord 202. **Niet bevestigd, en waarschijnlijk onjuist.** Dit endpoint staat niet in eToro's gecureerde endpoint-index, de guide over marktorders kent alleen SL/TP bij het openen, en de pagina over positie-informatie noemt zichzelf expliciet read-only. Fase 4 hangt hier volledig op en moet empirisch beslist worden (`scripts/etoro-demo-order.ts --patch`) voor er iets gebouwd wordt.
+- Symbool naar id: `GET /api/v1/market-data/search?internalSymbolFull=BTC` -> `{ items: [{ internalSymbolFull, instrumentId }] }`. Geeft ook gedeeltelijke treffers terug. Onderscheidende velden voor spot/CFD/aandeel zijn `instrumentTypeID`, `internalCryptoTypeId`, `isDelisted`, `internalAssetClassName`.
+- Eligibility: demo heeft een eigen pad, `POST /api/v2/trading/info/demo/eligibility`. Het minimumbedrag per instrument zit in `leverageConfigs[].minPositionAmount`, een veld dat `etoroLimieten.ts` vandaag niet uitleest.
 - Account: `GET /api/v1/me` -> `{ gcid, realCid, demoCid, username, scopes }`.
-- Quota: trading execution 20/60s (gedeeld over openen/sluiten/annuleren), market-data 120/60s, portfolio/eligibility 60/60s.
+- `orderCurrency` accepteert uitsluitend `"usd"`, dus `amount` is in dollars. `settlementType` is een enum (`cfd`, `real`, `realFutures`, `marginTrade`); eToro's eigen BTC-voorbeeld laat het veld weg.
+- Quota: trading execution 20/60s, **gedeeld over demo en echt samen**. Market-data en portfolio 60/60s (niet 120). Eligibility heeft zijn eigen 20/60s.
 
 ## 1. `etoroFetch` uitbreiden (`app/src/engine/etoro.ts`)
 

@@ -7,7 +7,7 @@ import { spacing, radii } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { ChangelogSheet } from './ChangelogSheet';
 import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
-import { laadTekst, SLEUTELS } from '../storage/opslag';
+import { heeftSleutels } from '../state/etoroSleutels';
 import { usePortfolio } from '../state/PortfolioProvider';
 
 interface Props {
@@ -30,11 +30,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const [gekoppeld, setGekoppeld] = useState(false);
 
   async function ververGekoppeld() {
-    const [a, u] = await Promise.all([
-      laadTekst(SLEUTELS.etoroApiKey, ''),
-      laadTekst(SLEUTELS.etoroUserKey, ''),
-    ]);
-    setGekoppeld(Boolean(a && u));
+    setGekoppeld(await heeftSleutels('real'));
   }
 
   useEffect(() => {

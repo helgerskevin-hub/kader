@@ -20,6 +20,14 @@ export interface PortfolioTrade {
   // altijd bruto zijn terwijl het trefferpercentage netto is, en die twee spreken elkaar tegen.
   resultaatUsd?: number;
   etoroPositionID?: number;
+  // Nodig om deze positie via de API te kunnen sluiten; het sluit-endpoint wil naast het
+  // positionID ook het instrumentID. Ontbreekt bij alles wat vóór de handelskoppeling is
+  // geïmporteerd, en herstelt zichzelf bij de volgende sync.
+  etoroInstrumentID?: number;
+  // In welke eToro-omgeving deze positie staat. Ontbreekt = 'real', want alles van vóór deze
+  // versie kwam uit een echt account. Een echt positionID naar het demo-endpoint sturen (of
+  // andersom) is een slechte afloop, dus de verkoopknop hangt hierop.
+  etoroOmgeving?: 'real' | 'demo';
   bron?: 'etoro' | 'handmatig';
 }
 

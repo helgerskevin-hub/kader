@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react';
 import { haalStopLossLimieten } from '../engine/etoro';
 import { StopLossLimiet } from '../engine/etoroLimieten';
 import { ETORO_TRADABLE } from '../engine/opportunities';
-import { SLEUTELS, bewaarObject, laadObject, laadTekst } from '../storage/opslag';
+import { SLEUTELS, bewaarObject, laadObject } from '../storage/opslag';
+import { actieveSleutels } from './etoroSleutels';
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -31,14 +32,14 @@ async function haalCache(): Promise<Cache | null> {
     return geheugen;
   }
 
-  const [apiKey, userKey] = await Promise.all([
-    laadTekst(SLEUTELS.etoroApiKey, ''),
-    laadTekst(SLEUTELS.etoroUserKey, ''),
-  ]);
-  if (!apiKey || !userKey) return null;
+  // Bewust de sleutels van de actieve omgeving, niet de echte. Met een demo-opzet gaf de echte
+  // sleutel een 401, dus null limieten, en dan keurde bepaalStop elke stop goed: de stopvalidatie
+  // was dood op precies het pad waar hij het hardst nodig is.
+  const sleutels = await actieveSleutels();
+  if (!sleutels) return null;
 
   try {
-    const limieten = await haalStopLossLimieten([...ETORO_TRADABLE], { apiKey, userKey });
+    const limieten = await haalStopLossLimieten([...ETORO_TRADABLE], sleutels);
     geheugen = { opgehaald: nu, limieten };
     await bewaarObject(SLEUTELS.etoroLimieten, geheugen);
     return geheugen;

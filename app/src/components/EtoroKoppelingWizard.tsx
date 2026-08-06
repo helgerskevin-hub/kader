@@ -10,14 +10,16 @@ import {
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
-import { laadTekst, bewaarTekst, verwijderSleutel, SLEUTELS } from '../storage/opslag';
-import { haalEtoroPortfolio } from '../engine/etoro';
+import { EtoroOmgeving, haalEtoroPortfolio } from '../engine/etoro';
+import { bewaarSleutels, sleutelsVan, wisSleutels } from '../state/etoroSleutels';
 import { StapOvergang } from './StapOvergang';
 
 interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
   onOpgeslagen?: () => void;
+  // Welk sleutelpaar deze wizard beheert. Ontbreekt = de echte sleutels, zoals het altijd was.
+  omgeving?: EtoroOmgeving;
 }
 
 // SafeAreaView krijgt geen correcte top-inset binnen een full-screen Modal op Android,
@@ -35,7 +37,7 @@ const HOE_STAPPEN = [
 
 const AANTAL_STAPPEN = 4;
 
-export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Props) {
+export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgeving = 'real' }: Props) {
   const { colors } = useTheme();
   const [stap, setStap] = useState(0);
   const [apiKey, setApiKey] = useState('');
@@ -55,15 +57,12 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     setTestFout('');
     setToonApiKey(false);
     setToonUserKey(false);
-    Promise.all([
-      laadTekst(SLEUTELS.etoroApiKey, ''),
-      laadTekst(SLEUTELS.etoroUserKey, ''),
-    ]).then(([a, u]) => {
-      setApiKey(a);
-      setUserKey(u);
-      setBestondKoppeling(Boolean(a && u));
+    sleutelsVan(omgeving).then(s => {
+      setApiKey(s?.apiKey ?? '');
+      setUserKey(s?.userKey ?? '');
+      setBestondKoppeling(s !== null);
     });
-  }, [zichtbaar]);
+  }, [zichtbaar, omgeving]);
 
   const isLaatste = stap === AANTAL_STAPPEN - 1;
   const kanVolgende =
@@ -82,7 +81,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     setTestStatus('testing');
     setTestFout('');
     try {
-      await haalEtoroPortfolio({ apiKey: apiKey.trim(), userKey: userKey.trim() });
+      await haalEtoroPortfolio({ apiKey: apiKey.trim(), userKey: userKey.trim(), omgeving });
       setTestStatus('ok');
     } catch (e) {
       setTestFout(e instanceof Error ? e.message : 'Onbekende fout bij verbinden.');
@@ -92,8 +91,9 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
 
   async function opslaanEnKlaar() {
     setBezigOpslaan(true);
-    await bewaarTekst(SLEUTELS.etoroApiKey, apiKey.trim());
-    await bewaarTekst(SLEUTELS.etoroUserKey, userKey.trim());
+    // magSchrijven blijft false: deze wizard test met het portfolio-endpoint en kent de scopes van
+    // de sleutel dus niet. Handelen wordt pas ontgrendeld als /api/v1/me bevestigt dat het mag.
+    await bewaarSleutels(omgeving, { apiKey: apiKey.trim(), userKey: userKey.trim(), magSchrijven: false });
     setBezigOpslaan(false);
     onOpgeslagen?.();
     onSluiten();
@@ -109,10 +109,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
           text: 'Verwijderen',
           style: 'destructive',
           onPress: async () => {
-            await Promise.all([
-              verwijderSleutel(SLEUTELS.etoroApiKey),
-              verwijderSleutel(SLEUTELS.etoroUserKey),
-            ]);
+            await wisSleutels(omgeving);
             setApiKey('');
             setUserKey('');
             setBestondKoppeling(false);

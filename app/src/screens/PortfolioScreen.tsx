@@ -25,6 +25,7 @@ import { useWeergave, Weergave } from '../state/useWeergave';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
+import { actieveSleutels } from '../state/etoroSleutels';
 
 // ---------- TradeRegel ----------
 function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail }: {
@@ -767,11 +768,7 @@ export function PortfolioScreen() {
 
   // Knop: expliciete actie, dus wel terugkoppeling over wat er gebeurd is.
   async function importerenUitEtoro() {
-    const [apiKey, userKey] = await Promise.all([
-      laadTekst(SLEUTELS.etoroApiKey, ''),
-      laadTekst(SLEUTELS.etoroUserKey, ''),
-    ]);
-    if (!apiKey || !userKey) {
+    if (!(await actieveSleutels())) {
       Alert.alert(
         'Nog geen eToro-koppeling',
         'Stel je API-sleutel in via Instellingen (het tandwiel rechtsboven) voordat je kunt importeren.',

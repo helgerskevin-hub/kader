@@ -7,8 +7,27 @@ export const SLEUTELS = {
   thema: 'thema_modus',
   favorieten: 'favoriete_coins',
   changelogVersie: 'changelog_versie_gezien',
+  // De ECHTE sleutels. Namen ongewijzigd, want ze staan al op de toestellen van gebruikers.
+  // Let op: deze twee lopen sinds de handelskoppeling via state/etoroSleutels.ts en niet meer via
+  // laadTekst/bewaarTekst; ze staan in expo-secure-store, niet in AsyncStorage.
   etoroApiKey: 'etoro_api_key',
   etoroUserKey: 'etoro_user_key',
+  // Idem, maar voor het demo-account. Een demo-sleutel werkt niet op een echt pad en andersom.
+  etoroDemoApiKey: 'etoro_demo_api_key',
+  etoroDemoUserKey: 'etoro_demo_user_key',
+  // Mag deze sleutel handelen? Afgeleid uit de scopes van /api/v1/me bij het koppelen. Geen
+  // secure-store nodig: het is een ja/nee, geen geheim.
+  etoroRealSchrijven: 'etoro_real_schrijven',
+  etoroDemoSchrijven: 'etoro_demo_schrijven',
+  // Welke omgeving actief is: 'demo' of 'real'. Standaard demo, zodat een verkeerde aanname geen
+  // echt geld kost.
+  etoroOmgeving: 'etoro_omgeving',
+  // Symbool -> eToro instrumentId. Zonder TTL: die koppeling verandert niet en is gelijk in demo
+  // en echt.
+  etoroInstrumentIds: 'etoro_instrument_ids',
+  // Verstuurde orders waarvan we niet weten of ze zijn doorgegaan (netwerk weggevallen, 5xx).
+  // Staan op schijf voordat het verzoek uitgaat, zodat een app-kill ze niet kwijtraakt.
+  onbekendeOrders: 'onbekende_orders',
   etoroSetupGevraagd: 'etoro_setup_gevraagd',
   laatsteSync: 'laatste_sync_tijd',
   // eToro-positie-ID's die de gebruiker uit zijn portfolio heeft verwijderd. Zonder deze lijst

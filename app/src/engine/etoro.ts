@@ -4,10 +4,13 @@ import { COIN_INFO } from './coinInfo';
 import { EtoroEligibility, StopLossLimiet, kiesLimiet } from './etoroLimieten';
 
 const BASIS_URL = 'https://public-api.etoro.com/api';
-const HTTP_TIMEOUT = 15_000;
+// Lezen mag kort falen; een schrijfactie krijgt langer de tijd, want afbreken lost daar niets op
+// (zie EtoroFout.afgebroken) en een order die net onderweg is wil je niet zelf onbeslist maken.
+const LEES_TIMEOUT = 15_000;
+const SCHRIJF_TIMEOUT = 30_000;
 
 // eToro valideert X-Request-Id als een echt GUID; nieuweId() (base36) volstaat niet.
-function guid(): string {
+export function guid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -15,9 +18,14 @@ function guid(): string {
   });
 }
 
+export type EtoroOmgeving = 'real' | 'demo';
+
 export interface EtoroSleutels {
   apiKey: string;
   userKey: string;
+  // Ontbreekt = 'real'. Demo- en echte sleutels zijn niet uitwisselbaar: dezelfde sleutel op het
+  // verkeerde pad geeft een 401, geen order op het verkeerde account.
+  omgeving?: EtoroOmgeving;
 }
 
 interface EtoroPositie {
@@ -56,38 +64,154 @@ interface FetchOpties {
   // Een body aanwezig = POST. Zonder body blijft het een GET, zodat de bestaande aanroepen
   // ongewijzigd blijven werken.
   body?: unknown;
+  // Overschrijft die afleiding. Nodig voor de PATCH op posities en voor een POST zonder body.
+  methode?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  // De aanroeper levert 'm, zodat een handmatige herhaling van een order dezelfde id hergebruikt.
+  verzoekId?: string;
+  // Langere timeout, en de aanroeper mag een afgebroken poging niet als "mislukt" opvatten.
+  schrijft?: boolean;
+}
+
+// Waar het /demo/-segment staat verschilt per endpointgroep en is niet uit één regel af te leiden.
+// Verkeerd gokken betekent een echte order op een echt account, dus een pad dat hier niet in staat
+// levert een fout op in plaats van stilzwijgend het echte pad. Links het echte pad (prefix), rechts
+// wat er in demo gebruikt wordt; identiek betekent dat het endpoint niet accountgebonden is.
+//
+// Uit eToro's developer portal: orders, market-close-orders en eligibility hebben elk een eigen
+// gedocumenteerd demo-pad, en het /demo/-segment komt steeds na `execution` of `info`. Portfolio en
+// historie volgen datzelfde patroon maar zijn nog niet tegen een echte demo-sleutel bevestigd;
+// scripts/etoro-demo-order.ts probeert ze en meldt welk pad werkt.
+//
+// De PATCH op /trading/positions/{id} staat er bewust NIET in. In de gecureerde endpoint-index van
+// eToro komt hij niet voor, en de pagina over positie-informatie noemt zichzelf expliciet
+// read-only. Zolang niet vaststaat dat dat endpoint bestaat, gooit dit pad.
+const DEMO_PADEN: ReadonlyArray<readonly [string, string]> = [
+  ['/me', '/me'],
+  ['/market-data/', '/market-data/'],
+  ['/trading/info/eligibility', '/trading/info/demo/eligibility'],
+  ['/trading/info/portfolio', '/trading/info/demo/portfolio'],
+  ['/trading/info/trade/history', '/trading/info/demo/trade/history'],
+  ['/trading/execution/orders', '/trading/execution/demo/orders'],
+  ['/trading/execution/market-close-orders/', '/trading/execution/demo/market-close-orders/'],
+];
+
+// Alleen het pad zelf vergelijken; de querystring blijft ongemoeid achter het pad hangen.
+export function demoPad(pad: string): string {
+  const vraag = pad.indexOf('?');
+  const kaal = vraag === -1 ? pad : pad.slice(0, vraag);
+  const staart = vraag === -1 ? '' : pad.slice(vraag);
+
+  // Langste treffer wint, zodat /trading/info/portfolio niet per ongeluk op een kortere prefix valt.
+  let beste: readonly [string, string] | null = null;
+  for (const regel of DEMO_PADEN) {
+    if (!kaal.startsWith(regel[0])) continue;
+    if (!beste || regel[0].length > beste[0].length) beste = regel;
+  }
+  if (!beste) throw new Error(`Geen demo-pad bekend voor ${kaal}. Kader stuurt dit niet naar het echte account.`);
+  return beste[1] + kaal.slice(beste[0].length) + staart;
+}
+
+// status null = we hebben nooit een antwoord gezien (netwerkfout of timeout).
+export class EtoroFout extends Error {
+  constructor(bericht: string, readonly status: number | null, readonly afgebroken = false) {
+    super(bericht);
+    this.name = 'EtoroFout';
+  }
+}
+
+// Wat betekent deze statuscode voor een schrijfactie? 'fout' = eToro heeft 'm afgewezen, er is
+// zeker niets gebeurd. 'onbekend' = het kan uitgevoerd zijn; dan verzoenen, nooit herhalen.
+export function duidOrderStatus(status: number): 'ok' | 'fout' | 'onbekend' {
+  if (status >= 200 && status < 300) return 'ok';
+  if (status >= 400 && status < 500) return 'fout';
+  return 'onbekend';
 }
 
 async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: FetchOpties = {}): Promise<T> {
-  const { versie = 'v1', body } = opties;
-  const res = await Promise.race([
-    fetch(`${BASIS_URL}/${versie}${pad}`, {
-      method: body === undefined ? 'GET' : 'POST',
+  const { versie = 'v1', body, methode, verzoekId, schrijft = false } = opties;
+  const werkelijkPad = (sleutels.omgeving ?? 'real') === 'demo' ? demoPad(pad) : pad;
+
+  // Promise.race liet de fetch gewoon doorlopen; een AbortController breekt 'm echt af.
+  const controller = new AbortController();
+  const wekker = setTimeout(() => controller.abort(), schrijft ? SCHRIJF_TIMEOUT : LEES_TIMEOUT);
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASIS_URL}/${versie}${werkelijkPad}`, {
+      method: methode ?? (body === undefined ? 'GET' : 'POST'),
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
       headers: {
         'x-api-key': sleutels.apiKey,
         'x-user-key': sleutels.userKey,
-        'x-request-id': guid(),
+        'x-request-id': verzoekId ?? guid(),
         'Accept': 'application/json',
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
-    }),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), HTTP_TIMEOUT)),
-  ]) as Response;
-  if (res.status === 401 || res.status === 403) throw new Error('Ongeldige API-sleutel. Controleer je sleutel bij Instellingen.');
-  if (res.status === 429) throw new Error('Te veel aanvragen bij eToro. Probeer het over een minuut opnieuw.');
+    });
+  } catch (e) {
+    const afgebroken = controller.signal.aborted;
+    throw new EtoroFout(
+      afgebroken ? 'Geen antwoord van eToro binnen de tijd.' : 'Geen verbinding met eToro.',
+      null,
+      afgebroken,
+    );
+  } finally {
+    clearTimeout(wekker);
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    throw new EtoroFout('Ongeldige API-sleutel. Controleer je sleutel bij Instellingen.', res.status);
+  }
+  if (res.status === 429) {
+    throw new EtoroFout('Te veel aanvragen bij eToro. Probeer het over een minuut opnieuw.', res.status);
+  }
   if (!res.ok) {
     // ponytail: foutbody meesturen ipv alleen de statuscode, anders is de oorzaak niet te achterhalen
-    const body = await res.text().catch(() => '');
-    throw new Error(`eToro gaf een fout terug (${res.status}).${body ? ' ' + body.slice(0, 500) : ''}`);
+    const tekst = await res.text().catch(() => '');
+    throw new EtoroFout(`eToro gaf een fout terug (${res.status}).${tekst ? ' ' + tekst.slice(0, 500) : ''}`, res.status);
   }
   return res.json() as Promise<T>;
 }
 
-// Pad geverifieerd tegen eToro's publieke API (real-account). Demo zou /trading/info/demo/portfolio
-// zijn; wij gaan uit van een Real + Read-sleutel.
+// Pad geverifieerd tegen eToro's publieke API (real-account). Het demo-pad komt uit DEMO_PADEN en
+// is nog niet tegen een echte demo-sleutel bevestigd.
 export async function haalEtoroPortfolio(sleutels: EtoroSleutels): Promise<EtoroPortfolioRespons> {
   return etoroFetch<EtoroPortfolioRespons>('/trading/info/portfolio', sleutels);
+}
+
+// ---------- Account ----------
+
+export interface EtoroAccount {
+  gcid?: number;
+  realCid?: number;
+  demoCid?: number;
+  username?: string;
+  scopes?: string[];
+}
+
+export async function haalAccountInfo(sleutels: EtoroSleutels): Promise<EtoroAccount> {
+  return etoroFetch<EtoroAccount>('/me', sleutels);
+}
+
+// eToro's exacte scope-namen staan niet in de documentatie; wat /api/v1/me teruggeeft moet in
+// fase 1 bevestigd worden. Tot dan herkennen we een schrijfrecht aan het woord zelf, en bij twijfel
+// gaan we uit van alleen lezen: een knop die ontbreekt is vervelend, een koopknop die er ten
+// onrechte staat is een geldprobleem.
+const SCHRIJFRECHT = /(trade|trading|write|execute|execution|order)/i;
+const LEESRECHT = /read/i;
+
+export function magHandelenVolgensScopes(scopes: string[] | null | undefined): boolean {
+  if (!Array.isArray(scopes)) return false;
+  return scopes.some(s => typeof s === 'string' && SCHRIJFRECHT.test(s) && !LEESRECHT.test(s));
+}
+
+// Vrij te besteden saldo van de actieve omgeving. null = eToro gaf het veld niet mee; dan liever
+// geen betaalbaarheidscontrole dan een verzonnen bedrag.
+export async function haalVrijSaldo(sleutels: EtoroSleutels): Promise<number | null> {
+  const portfolio = await haalEtoroPortfolio(sleutels);
+  const credit = portfolio.clientPortfolio?.credit;
+  return typeof credit === 'number' && isFinite(credit) ? credit : null;
 }
 
 // ---------- Stop-loss-limieten ----------
@@ -427,6 +551,39 @@ if (require.main === module) {
   console.assert(naarGeslotenTrade({ ...ruw, closeRate: undefined }, 'BTC') === null, 'regel zonder closeRate is onbruikbaar');
   console.assert(naarGeslotenTrade({ ...ruw, openRate: undefined }, 'BTC') === null, 'regel zonder openRate is onbruikbaar');
   console.assert(naarGeslotenTrade({ ...ruw, closeTimestamp: 'onzin' }, 'BTC') === null, 'onparseerbare closeTimestamp is onbruikbaar');
+
+  // ---------- Demo-paden ----------
+  // Het gevaar is niet dat een demo-pad ontbreekt, maar dat een onbekend pad stilzwijgend naar het
+  // echte account gaat. Dus: elk bekend pad mapt, en al het andere gooit.
+  console.assert(demoPad('/trading/execution/orders') === '/trading/execution/demo/orders', 'orders moet het demo-segment krijgen');
+  console.assert(demoPad('/trading/info/portfolio') === '/trading/info/demo/portfolio', 'portfolio moet het demo-segment krijgen');
+  console.assert(demoPad('/trading/info/trade/history?minDate=2026-01-01&page=1') === '/trading/info/demo/trade/history?minDate=2026-01-01&page=1',
+    'de querystring moet intact achter het demo-pad blijven staan');
+  console.assert(demoPad('/trading/info/eligibility') === '/trading/info/demo/eligibility', 'eligibility heeft een eigen demo-pad');
+  console.assert(demoPad('/trading/execution/market-close-orders/positions/123') === '/trading/execution/demo/market-close-orders/positions/123',
+    'het positionID moet achter het demo-segment blijven staan');
+  console.assert(demoPad('/market-data/instruments?instrumentIds=1,2') === '/market-data/instruments?instrumentIds=1,2', 'market-data is niet accountgebonden');
+  console.assert(demoPad('/me') === '/me', '/me werkt in beide omgevingen');
+
+  const gooit = (pad: string) => { try { demoPad(pad); return false; } catch { return true; } };
+  console.assert(gooit('/trading/positions/1'), 'de PATCH op posities is niet geverifieerd en moet dus gooien');
+  console.assert(gooit('/trading/execution/close-orders/1'), 'een onbekend schrijfpad moet gooien, niet naar het echte account gaan');
+  console.assert(gooit('/verzonnen/pad'), 'een onbekend pad moet gooien');
+
+  // ---------- Statusduiding ----------
+  console.assert(duidOrderStatus(200) === 'ok' && duidOrderStatus(201) === 'ok' && duidOrderStatus(202) === 'ok', '2xx is uitgevoerd');
+  console.assert(duidOrderStatus(400) === 'fout', '400 is afgewezen door eToro, dus zeker niet uitgevoerd');
+  console.assert(duidOrderStatus(422) === 'fout', '422 is afgewezen');
+  console.assert(duidOrderStatus(429) === 'fout', '429 is afgewezen, niet onbekend: eToro heeft de order niet aangenomen');
+  console.assert(duidOrderStatus(500) === 'onbekend', '500 kan uitgevoerd zijn');
+  console.assert(duidOrderStatus(502) === 'onbekend', '502 kan uitgevoerd zijn');
+
+  // ---------- Scopes ----------
+  console.assert(magHandelenVolgensScopes(['trading']) === true, 'een schrijfscope ontgrendelt handelen');
+  console.assert(magHandelenVolgensScopes(['trading.read']) === false, 'een leesscope ontgrendelt niets');
+  console.assert(magHandelenVolgensScopes(['read']) === false, 'alleen lezen is niet handelen');
+  console.assert(magHandelenVolgensScopes([]) === false, 'geen scopes is niet handelen');
+  console.assert(magHandelenVolgensScopes(undefined) === false, 'een ontbrekend scopes-veld is niet handelen');
 
   console.log('etoro.ts self-check geslaagd');
 }

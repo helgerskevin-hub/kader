@@ -4,6 +4,7 @@ import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { importeerEtoroAlles, EtoroOvergeslagenPositie } from '../engine/etoro';
+import { actieveSleutels } from './etoroSleutels';
 import { checkOpenTrades } from '../notifications/tradeChecks';
 
 export interface SyncResultaat {
@@ -323,18 +324,15 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     const leeg: SyncResultaat = { gekoppeld: false, toegevoegd: 0, bijgewerkt: 0, gesloten: 0, uitHistorie: 0, overgeslagen: [], fout: null };
     await verversPrijzen();
 
-    const [apiKey, userKey] = await Promise.all([
-      laadTekst(SLEUTELS.etoroApiKey, ''),
-      laadTekst(SLEUTELS.etoroUserKey, ''),
-    ]);
-    if (!apiKey || !userKey) {
+    const sleutels = await actieveSleutels();
+    if (!sleutels) {
       // Geen koppeling is geen fout: een oude foutmelding mag hier niet blijven hangen.
       setEtoroFout(null);
       return leeg;
     }
 
     try {
-      const { open, historie } = await importeerEtoroAlles({ apiKey, userKey });
+      const { open, historie } = await importeerEtoroAlles(sleutels);
       const toegevoegd = importeerEtoroTrades(open.trades);
       const { afgesloten, toegevoegd: uitHistorie } = verwerkEtoroHistorie(historie.trades);
 
