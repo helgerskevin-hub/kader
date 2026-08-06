@@ -499,6 +499,16 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
 
 // ponytail: self-check ipv testframework, run met `npx ts-node app/src/engine/etoro.ts`
 if (require.main === module) {
+  // console.assert gooit niet in Node en zet de exitcode niet, dus zonder deze wrapper zou dit
+  // bestand "geslaagd" printen terwijl bijvoorbeeld demoPad stuk is. De poort uit het plan moet
+  // echt een poort zijn.
+  let missers = 0;
+  const origineleAssert = console.assert.bind(console);
+  console.assert = ((voorwaarde?: boolean, ...rest: unknown[]) => {
+    if (!voorwaarde) missers++;
+    origineleAssert(voorwaarde, ...rest);
+  }) as typeof console.assert;
+
   const mock: EtoroPositie = {
     positionID: 123, instrumentID: 1, isBuy: true, amount: 500, units: 0.01,
     openRate: 50000, openDateTime: '2026-01-15T10:00:00Z', stopLossRate: 45000, takeProfitRate: 65000,
@@ -592,5 +602,9 @@ if (require.main === module) {
   console.assert(magHandelenVolgensScopes([]) === false, 'geen scopes is niet handelen');
   console.assert(magHandelenVolgensScopes(undefined) === false, 'een ontbrekend scopes-veld is niet handelen');
 
+  if (missers > 0) {
+    console.error(`etoro.ts self-check GEFAALD: ${missers} controle(s) klopten niet`);
+    process.exit(1);
+  }
   console.log('etoro.ts self-check geslaagd');
 }

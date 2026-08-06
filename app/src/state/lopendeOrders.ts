@@ -44,7 +44,9 @@ function isOpgelost(order: OnbekendeOrder, trades: PortfolioTrade[]): boolean {
       && t.symbool === order.symbool
       && (t.etoroOmgeving ?? 'real') === order.omgeving
       && t.etoroPositionID !== undefined
-      && !order.bekendePosities.includes(t.etoroPositionID),
+      // ?? [] omdat deze vorm via SLEUTELS.onbekendeOrders op schijf staat: een record dat vóór een
+      // latere vormwijziging is weggeschreven mag geen TypeError geven midden in de verzoening.
+      && !(order.bekendePosities ?? []).includes(t.etoroPositionID),
     );
   }
 
@@ -100,6 +102,15 @@ export function omschrijfOnbekendeOrder(order: OnbekendeOrder): string {
 
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/state/lopendeOrders.ts`
 if (require.main === module) {
+  // console.assert gooit niet in Node en zet de exitcode niet; zonder deze wrapper zou dit bestand
+  // "geslaagd" printen terwijl de verzoening stuk is.
+  let missers = 0;
+  const origineleAssert = console.assert.bind(console);
+  console.assert = ((voorwaarde?: boolean, ...rest: unknown[]) => {
+    if (!voorwaarde) missers++;
+    origineleAssert(voorwaarde, ...rest);
+  }) as typeof console.assert;
+
   const nu = 1_800_000_000_000;
   const koop: OnbekendeOrder = { verzoekId: 'a', soort: 'koop', symbool: 'BTC', omgeving: 'demo', bedragUsd: 50, bekendePosities: [], tijd: nu - 1000 };
 
@@ -172,5 +183,9 @@ if (require.main === module) {
   console.assert(omschrijfOnbekendeOrder(koop).includes('BTC'), 'de omschrijving noemt de coin');
   console.assert(!omschrijfOnbekendeOrder(koop).includes('mislukt'), 'de omschrijving mag niet beweren dat het misging');
 
+  if (missers > 0) {
+    console.error(`lopendeOrders.ts self-check GEFAALD: ${missers} controle(s) klopten niet`);
+    process.exit(1);
+  }
   console.log('lopendeOrders.ts self-check geslaagd');
 }
