@@ -178,7 +178,18 @@ async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: Fetch
     const tekst = await res.text().catch(() => '');
     throw new EtoroFout(`eToro gaf een fout terug (${res.status}).${tekst ? ' ' + tekst.slice(0, 500) : ''}`, res.status);
   }
-  return res.json() as Promise<T>;
+
+  // Het lezen van de body zat eerst buiten elke afhandeling. Een geslaagde schrijfactie die een
+  // lege of niet-JSON body teruggeeft (een 202 mag dat) werd daardoor een kale SyntaxError zonder
+  // status, en dus een gelukte order die als onclassificeerbare fout eindigde. De status telt hier,
+  // niet de body: een 2xx is geslaagd, ook als er niets in staat.
+  const tekst = await res.text().catch(() => '');
+  if (!tekst.trim()) return undefined as T;
+  try {
+    return JSON.parse(tekst) as T;
+  } catch {
+    throw new EtoroFout(`eToro gaf een onleesbaar antwoord (${res.status}).`, res.status);
+  }
 }
 
 // Pad geverifieerd tegen eToro's publieke API (real-account). Het demo-pad komt uit DEMO_PADEN en
@@ -224,6 +235,226 @@ export async function haalVrijSaldo(sleutels: EtoroSleutels): Promise<number | n
   const portfolio = await haalEtoroPortfolio(sleutels);
   const credit = portfolio.clientPortfolio?.credit;
   return typeof credit === 'number' && isFinite(credit) ? credit : null;
+}
+
+// ============================================================================
+// ORDERS
+//
+// INVARIANT: de drie functies hieronder (plaatsKooporder, sluitPositie, wijzigNiveaus) mogen
+// UITSLUITEND aangeroepen worden vanuit een expliciete bevestiging door de gebruiker. Nooit vanuit
+// een setInterval, nooit vanuit de AppState-listener, nooit vanuit achtergrondtaak.ts, en nooit
+// vanuit een herhaallus. Er is met opzet geen retry en geen backoff: een afgebroken schrijfactie
+// annuleert niets aan eToro's kant, dus opnieuw sturen kan een tweede positie openen.
+//
+// Gemeten: eToro geeft één sleutel uit die zowel demo als echt mag handelen. Het PAD is dus het
+// enige dat speelgeld van echt geld scheidt, en demoPad() gooit bij een pad dat het niet kent.
+// ============================================================================
+
+export type OrderUitkomst =
+  | { soort: 'ok'; orderId?: number; token?: string }
+  // eToro heeft hem afgewezen; er is zeker niets gebeurd.
+  | { soort: 'fout'; bericht: string }
+  // Kan uitgevoerd zijn. Verzoenen, nooit herhalen.
+  | { soort: 'onbekend'; bericht: string; verzoekId: string };
+
+// Van een gevangen fout naar een uitkomst. Let op het verschil met duidOrderStatus: een EtoroFout
+// zonder status betekent dat we nooit een antwoord gezien hebben, en dat is 'onbekend'. Alles wat
+// geen EtoroFout is (een demoPad die gooit, een programmeerfout) komt uit onze eigen code en
+// betekent juist dat er niets verstuurd is: dat is de veiligste uitkomst, 'fout'.
+export function duidFout(e: unknown, verzoekId: string): OrderUitkomst {
+  if (e instanceof EtoroFout) {
+    const bericht = e.message;
+    if (e.status === null) return { soort: 'onbekend', bericht, verzoekId };
+    return duidOrderStatus(e.status) === 'onbekend'
+      ? { soort: 'onbekend', bericht, verzoekId }
+      : { soort: 'fout', bericht };
+  }
+  return { soort: 'fout', bericht: e instanceof Error ? e.message : 'Onbekende fout.' };
+}
+
+// Tweede slot tegen dubbel indienen, naast de bezig-state in de sheet. Die state leeft per
+// component; deze guard geldt voor de hele app, ook als er twee sheets tegelijk open zouden staan.
+let orderLoopt = false;
+
+async function voerOrderUit(
+  verzoekId: string,
+  actie: () => Promise<{ orderId?: number; token?: string } | undefined>,
+): Promise<OrderUitkomst> {
+  if (orderLoopt) return { soort: 'fout', bericht: 'Er loopt al een order. Wacht tot die klaar is.' };
+  orderLoopt = true;
+  try {
+    const antwoord = await actie();
+    return { soort: 'ok', orderId: antwoord?.orderId, token: antwoord?.token };
+  } catch (e) {
+    return duidFout(e, verzoekId);
+  } finally {
+    orderLoopt = false;
+  }
+}
+
+// ---------- Symbool naar instrumentId ----------
+
+interface ZoekTreffer {
+  internalSymbolFull?: string;
+  instrumentId?: number;
+  internalInstrumentId?: number;
+  internalAssetClassName?: string;
+  isDelisted?: boolean;
+  isBuyEnabled?: boolean;
+}
+
+// Zonder de fields-projectie geeft dit endpoint per treffer een paar kilobyte aan beschrijvingen in
+// twintig talen terug. Met projectie is het een handvol velden.
+const ZOEK_VELDEN = 'internalSymbolFull,instrumentId,internalAssetClassName,isDelisted,isBuyEnabled';
+
+// Geeft null bij elke twijfel, en dan is kopen geblokkeerd. Gemeten: zoeken op "BTC" geeft 53
+// treffers, waaronder BTCEUR, BTCJPY en futures als BTC.DEC29. Alleen een exacte match op
+// internalSymbolFull is de coin die de gebruiker bedoelt, en isBuyEnabled staat op alle crosses
+// op false en alleen op de echte BTC op true.
+export async function zoekInstrumentId(symbool: string, sleutels: EtoroSleutels): Promise<number | null> {
+  const gezocht = symbool.trim().toUpperCase();
+  if (!gezocht) return null;
+
+  const data = await etoroFetch<{ items?: ZoekTreffer[] }>(
+    `/market-data/search?internalSymbolFull=${encodeURIComponent(gezocht)}&fields=${ZOEK_VELDEN}`,
+    sleutels,
+  );
+
+  const treffers = (data?.items ?? []).filter(i => (i.internalSymbolFull ?? '').toUpperCase() === gezocht);
+  if (treffers.length !== 1) return null;
+
+  const treffer = treffers[0];
+  if (treffer.isDelisted === true) return null;
+  if (treffer.isBuyEnabled === false) return null;
+  if (treffer.internalAssetClassName && treffer.internalAssetClassName.toLowerCase() !== 'crypto') return null;
+
+  const id = treffer.instrumentId ?? treffer.internalInstrumentId;
+  return typeof id === 'number' && id > 0 ? id : null;
+}
+
+// ---------- Kooporder ----------
+
+export interface KooporderInvoer {
+  instrumentId: number;
+  bedragUsd: number;
+  // Absolute koersen, geen percentages. Weglaten betekent: geen niveau meesturen, eToro kiest zelf.
+  stopLossRate?: number;
+  takeProfitRate?: number;
+}
+
+// eToro accepteerde 51592.8, dus een paar decimalen mag. Zonder afronden stuur je drijvendekomma-
+// ruis als 51592.800000000003 mee.
+const afgerond = (waarde: number) => Math.round(waarde * 1e8) / 1e8;
+
+// Puur, zodat de samenvatting in de sheet uit dezelfde waarden komt als wat er werkelijk verstuurd
+// wordt. settlementType wordt bewust weggelaten: gemeten werkt dat, en eToro koos zelf het juiste
+// type voor een spot-cryptokoop.
+export function bouwKooporderBody(invoer: KooporderInvoer): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    action: 'open',
+    transaction: 'buy',
+    instrumentId: invoer.instrumentId,
+    orderType: 'mkt',
+    leverage: 1,
+    amount: afgerond(invoer.bedragUsd),
+    orderCurrency: 'usd',
+  };
+
+  const stop = invoer.stopLossRate;
+  if (typeof stop === 'number' && isFinite(stop) && stop > 0) {
+    body.stopLossRate = afgerond(stop);
+    body.stopLossType = 'fixed';
+  }
+  const doel = invoer.takeProfitRate;
+  if (typeof doel === 'number' && isFinite(doel) && doel > 0) {
+    body.takeProfitRate = afgerond(doel);
+  }
+  return body;
+}
+
+export async function plaatsKooporder(
+  invoer: KooporderInvoer,
+  sleutels: EtoroSleutels,
+  verzoekId: string,
+): Promise<OrderUitkomst> {
+  return voerOrderUit(verzoekId, () =>
+    etoroFetch<{ orderId?: number; token?: string }>('/trading/execution/orders', sleutels, {
+      versie: 'v2',
+      body: bouwKooporderBody(invoer),
+      verzoekId,
+      schrijft: true,
+    }),
+  );
+}
+
+// ---------- Positie sluiten ----------
+
+// unitsToDeduct null = de hele positie sluiten.
+export async function sluitPositie(
+  positionId: number,
+  instrumentId: number,
+  unitsToDeduct: number | null,
+  sleutels: EtoroSleutels,
+  verzoekId: string,
+): Promise<OrderUitkomst> {
+  return voerOrderUit(verzoekId, () =>
+    etoroFetch<{ orderId?: number; token?: string }>(
+      `/trading/execution/market-close-orders/positions/${positionId}`,
+      sleutels,
+      {
+        versie: 'v1',
+        // Hoofdletters zoals eToro ze documenteert.
+        body: { InstrumentId: instrumentId, UnitsToDeduct: unitsToDeduct },
+        verzoekId,
+        schrijft: true,
+      },
+    ),
+  );
+}
+
+// ---------- Niveaus wijzigen ----------
+
+export interface NiveauWijziging {
+  stopLossRate?: number;
+  takeProfitRate?: number;
+  // Een niveau weghalen in plaats van verzetten.
+  clearStopLoss?: boolean;
+  clearTakeProfit?: boolean;
+}
+
+// Gemeten: een veld dat je niet meestuurt blijft ongemoeid, dus een gedeeltelijke wijziging kan.
+export function bouwNiveauBody(wijziging: NiveauWijziging): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (wijziging.clearStopLoss) body.clearStopLoss = true;
+  else if (typeof wijziging.stopLossRate === 'number' && wijziging.stopLossRate > 0) {
+    body.stopLossRate = afgerond(wijziging.stopLossRate);
+    body.stopLossType = 'fixed';
+  }
+  if (wijziging.clearTakeProfit) body.clearTakeProfit = true;
+  else if (typeof wijziging.takeProfitRate === 'number' && wijziging.takeProfitRate > 0) {
+    body.takeProfitRate = afgerond(wijziging.takeProfitRate);
+  }
+  return body;
+}
+
+export async function wijzigNiveaus(
+  positionId: number,
+  wijziging: NiveauWijziging,
+  sleutels: EtoroSleutels,
+  verzoekId: string,
+): Promise<OrderUitkomst> {
+  const body = bouwNiveauBody(wijziging);
+  if (Object.keys(body).length === 0) return { soort: 'fout', bericht: 'Er is niets gewijzigd.' };
+
+  return voerOrderUit(verzoekId, () =>
+    etoroFetch<{ orderId?: number; token?: string }>(`/trading/positions/${positionId}`, sleutels, {
+      versie: 'v2',
+      methode: 'PATCH',
+      body,
+      verzoekId,
+      schrijft: true,
+    }),
+  );
 }
 
 // ---------- Stop-loss-limieten ----------
@@ -302,7 +533,7 @@ function symboolVan(instrument: EtoroInstrument | undefined): string {
   return ruw.replace(/\/.*$/, '').toUpperCase(); // "BTC/USD" -> "BTC"
 }
 
-export function naarPortfolioTrade(positie: EtoroPositie, symbool: string): PortfolioTrade {
+export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgeving: EtoroOmgeving = 'real'): PortfolioTrade {
   const stopLoss = positie.stopLossRate ?? 0;
   const takeProfit = positie.takeProfitRate ?? 0;
   const rr = stopLoss > 0 && takeProfit > 0 && positie.openRate > stopLoss
@@ -322,6 +553,10 @@ export function naarPortfolioTrade(positie: EtoroPositie, symbool: string): Port
     bedragUsd: positie.amount ?? positie.initialAmountInDollars ?? 0,
     aantalCoins: positie.units,
     etoroPositionID: positie.positionID,
+    // Allebei nodig om deze positie later te kunnen sluiten: het sluit-endpoint wil naast het
+    // positionID ook het instrumentID, en het positionID hoort bij precies één omgeving.
+    etoroInstrumentID: positie.instrumentID,
+    etoroOmgeving: omgeving,
     bron: 'etoro',
   };
 }
@@ -356,6 +591,7 @@ function bouwOpenTrades(
   posities: EtoroPositie[],
   instrumentKaart: Map<number, EtoroInstrument>,
   cryptoTypeIds: Set<number> | null,
+  omgeving: EtoroOmgeving,
 ): EtoroImportResultaat {
   const trades: PortfolioTrade[] = [];
   const overgeslagen: EtoroOvergeslagenPositie[] = [];
@@ -365,7 +601,7 @@ function bouwOpenTrades(
 
     if (!positie.isBuy) { overgeslagen.push({ naam, reden: 'short' }); continue; }
     if (!symbool || !isCrypto) { overgeslagen.push({ naam, reden: 'geen-crypto' }); continue; }
-    trades.push(naarPortfolioTrade(positie, symbool));
+    trades.push(naarPortfolioTrade(positie, symbool, omgeving));
   }
 
   return { trades, overgeslagen };
@@ -416,7 +652,7 @@ const nlDatum = (ms: number) =>
 
 // netProfit is inclusief kosten en bepaalt daarom of het een winst of verlies was, niet de
 // vergelijking van closeRate met openRate.
-export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string): PortfolioTrade | null {
+export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string, omgeving: EtoroOmgeving = 'real'): PortfolioTrade | null {
   const positionID = positieIdVan(regel);
   const slotTijd = regel.closeTimestamp ? Date.parse(regel.closeTimestamp) : NaN;
   const openTijd = regel.openTimestamp ? Date.parse(regel.openTimestamp) : NaN;
@@ -449,6 +685,8 @@ export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string): P
     // zou het totaalresultaat vervuilen met nepwinsten van precies nul.
     resultaatUsd: typeof regel.netProfit === 'number' ? regel.netProfit : undefined,
     etoroPositionID: positionID,
+    etoroInstrumentID: instrumentIdVan(regel),
+    etoroOmgeving: omgeving,
     bron: 'etoro',
   };
 }
@@ -457,6 +695,7 @@ function bouwGeslotenTrades(
   regels: EtoroHistorieRegel[],
   instrumentKaart: Map<number, EtoroInstrument>,
   cryptoTypeIds: Set<number> | null,
+  omgeving: EtoroOmgeving,
 ): EtoroImportResultaat {
   const trades: PortfolioTrade[] = [];
   const overgeslagen: EtoroOvergeslagenPositie[] = [];
@@ -468,7 +707,7 @@ function bouwGeslotenTrades(
 
     if (regel.isBuy === false) { overgeslagen.push({ naam, reden: 'short' }); continue; }
     if (!symbool || !isCrypto) { overgeslagen.push({ naam, reden: 'geen-crypto' }); continue; }
-    const trade = naarGeslotenTrade(regel, symbool);
+    const trade = naarGeslotenTrade(regel, symbool, omgeving);
     if (trade) trades.push(trade);
   }
 
@@ -499,9 +738,14 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
     haalCryptoTypeIds(sleutels),
   ]);
 
+  // De omgeving van de sleutels waarmee we net opgehaald hebben, zodat elke geïmporteerde trade
+  // weet waar hij vandaan komt. Zonder dat veld kun je een demo-positie niet onderscheiden van een
+  // echte, en zou de verkoopknop een demo-ID naar het echte endpoint kunnen sturen.
+  const omgeving = sleutels.omgeving ?? 'real';
+
   return {
-    open: bouwOpenTrades(posities, instrumentKaart, cryptoTypeIds),
-    historie: bouwGeslotenTrades(regels, instrumentKaart, cryptoTypeIds),
+    open: bouwOpenTrades(posities, instrumentKaart, cryptoTypeIds, omgeving),
+    historie: bouwGeslotenTrades(regels, instrumentKaart, cryptoTypeIds, omgeving),
   };
 }
 
@@ -626,6 +870,59 @@ if (require.main === module) {
   console.assert(magHandelenVolgensScopes(['etoro-public:trade.demo:read'], 'demo') === false, 'alleen lezen is niet handelen');
   console.assert(magHandelenVolgensScopes([], 'demo') === false, 'geen scopes is niet handelen');
   console.assert(magHandelenVolgensScopes(undefined, 'demo') === false, 'een ontbrekend scopes-veld is niet handelen');
+
+  // ---------- Orderbody ----------
+  // Deze body is letterlijk de body die eToro op 2026-08-06 met een 200 accepteerde.
+  const koopBody = bouwKooporderBody({ instrumentId: 100000, bedragUsd: 10, stopLossRate: 51592.8, takeProfitRate: 83838.3 });
+  console.assert(koopBody.action === 'open' && koopBody.transaction === 'buy', 'een koop is action open, transaction buy');
+  console.assert(koopBody.orderType === 'mkt' && koopBody.leverage === 1, 'marktorder zonder hefboom');
+  console.assert(koopBody.amount === 10 && koopBody.orderCurrency === 'usd', 'bedrag in dollars');
+  console.assert(koopBody.stopLossRate === 51592.8 && koopBody.stopLossType === 'fixed', 'de stop gaat als absolute koers mee');
+  console.assert(koopBody.takeProfitRate === 83838.3, 'het doel gaat als absolute koers mee');
+  console.assert(!('settlementType' in koopBody), 'settlementType wordt bewust weggelaten, eToro kiest zelf');
+
+  // Zonder stop mag het veld er niet als 0 of null in staan: dat zou eToro als een echte stop op
+  // nul lezen. Weglaten betekent "geen stop meesturen".
+  const zonderStop = bouwKooporderBody({ instrumentId: 100000, bedragUsd: 10 });
+  console.assert(!('stopLossRate' in zonderStop), 'een lege stop wordt weggelaten, niet als 0 verstuurd');
+  console.assert(!('stopLossType' in zonderStop), 'zonder stop ook geen stopLossType');
+  console.assert(!('takeProfitRate' in zonderStop), 'een leeg doel wordt weggelaten');
+  const nulStop = bouwKooporderBody({ instrumentId: 100000, bedragUsd: 10, stopLossRate: 0, takeProfitRate: NaN });
+  console.assert(!('stopLossRate' in nulStop) && !('takeProfitRate' in nulStop), 'een stop van 0 of NaN telt als geen niveau');
+
+  // Drijvendekommaruis mag niet meegestuurd worden.
+  const ruis = bouwKooporderBody({ instrumentId: 1, bedragUsd: 0.1 + 0.2, stopLossRate: 51592.800000000003 });
+  console.assert(ruis.amount === 0.3, `bedrag moet afgerond worden, was ${ruis.amount}`);
+  console.assert(ruis.stopLossRate === 51592.8, `stop moet afgerond worden, was ${ruis.stopLossRate}`);
+
+  // ---------- Niveaubody ----------
+  const alleenStop = bouwNiveauBody({ stopLossRate: 54000 });
+  console.assert(alleenStop.stopLossRate === 54000 && !('takeProfitRate' in alleenStop),
+    'een veld dat je niet wijzigt blijft weg, zodat eToro het ongemoeid laat');
+  const wissen = bouwNiveauBody({ clearStopLoss: true, stopLossRate: 54000 });
+  console.assert(wissen.clearStopLoss === true && !('stopLossRate' in wissen), 'wissen wint van een meegegeven niveau');
+  console.assert(Object.keys(bouwNiveauBody({})).length === 0, 'een lege wijziging levert een lege body');
+
+  // ---------- Foutduiding ----------
+  const vid = 'verzoek-1';
+  console.assert(duidFout(new EtoroFout('weg', null, true), vid).soort === 'onbekend', 'een afgebroken verzoek is onbekend, niet mislukt');
+  console.assert(duidFout(new EtoroFout('netwerk', null), vid).soort === 'onbekend', 'zonder antwoord weten we het niet');
+  console.assert(duidFout(new EtoroFout('afgewezen', 400), vid).soort === 'fout', 'een 400 is afgewezen');
+  console.assert(duidFout(new EtoroFout('quotum', 429), vid).soort === 'fout', 'een 429 is afgewezen, dus zeker niet uitgevoerd');
+  console.assert(duidFout(new EtoroFout('stuk', 503), vid).soort === 'onbekend', 'een 5xx kan alsnog uitgevoerd zijn');
+  const onbekend = duidFout(new EtoroFout('x', null), vid);
+  console.assert(onbekend.soort === 'onbekend' && onbekend.verzoekId === vid, 'de verzoek-id moet mee, anders kun je niet verzoenen');
+
+  // Een fout uit onze eigen code (demoPad die gooit) betekent dat er niets verstuurd is. Dat is
+  // 'fout', niet 'onbekend': anders gaat de app verzoenen voor een order die nooit bestond.
+  console.assert(duidFout(new Error('Geen demo-pad bekend voor /iets'), vid).soort === 'fout',
+    'een gewone Error komt uit onze eigen code en betekent dat er niets verstuurd is');
+
+  // ---------- Omgeving op geimporteerde trades ----------
+  const demoTrade = naarPortfolioTrade(mock, 'BTC', 'demo');
+  console.assert(demoTrade.etoroOmgeving === 'demo', 'een demo-positie moet als demo gemerkt worden');
+  console.assert(demoTrade.etoroInstrumentID === 1, 'het instrumentID moet mee, anders kun je niet sluiten');
+  console.assert(naarPortfolioTrade(mock, 'BTC').etoroOmgeving === 'real', 'zonder opgave is het een echte positie');
 
   if (missers > 0) {
     console.error(`etoro.ts self-check GEFAALD: ${missers} controle(s) klopten niet`);
