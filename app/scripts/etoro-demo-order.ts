@@ -191,8 +191,8 @@ async function main() {
   streep('4. POST /api/v2/trading/execution/demo/orders  -> de eigenlijke test');
 
   // Een stop en een doel op een ruime afstand van de laatste koers, zodat ze niet direct raken.
-  // De koers komt uit de zoekrespons als die hem meegaf, anders slaan we de niveaus over.
-  const koers = Number(exact?.lastPrice ?? exact?.price ?? (items[0] as any)?.lastPrice ?? NaN);
+  // Veldnaam geverifieerd tegen de echte respons: currentRate, met internalClosingPrice als reserve.
+  const koers = Number(exact?.currentRate ?? exact?.internalClosingPrice ?? exact?.lastPrice ?? NaN);
   const metNiveaus = !GEEN_SL && isFinite(koers) && koers > 0;
   if (!GEEN_SL && !metNiveaus) {
     noteer('geen koers in de zoekrespons, dus de order gaat zonder stopLossRate/takeProfitRate. Vraag 1 blijft dan open.');
@@ -287,10 +287,9 @@ async function main() {
   if (DUBBEL && nieuw.length === 1) noteer('Precies één nieuwe positie na twee identieke verzoeken: eToro ontdubbelt wél op x-request-id (vraag 6).');
 
   // ---------- 7. Bestaat er een endpoint om SL/TP te wijzigen? (blokkeert fase 4) ----------
-  // Het plan gaat uit van PATCH /api/v2/trading/positions/{id}, maar dat endpoint staat niet in
-  // eToro's gecureerde endpoint-index en de pagina over positie-informatie noemt zichzelf
-  // read-only. Als dit niet bestaat, kan SL/TP alleen bij het openen gezet worden en moet fase 4
-  // anders (of vervallen).
+  // Beantwoord op 2026-08-06: PATCH /api/v2/trading/demo/positions/{id} geeft 202 en verzet de
+  // stop echt. De andere plaatsingen van het /demo/-segment gaven RouteNotFound. Deze lus blijft
+  // staan zodat een volgende wijziging aan eToro's kant weer te meten is.
   //
   // Veilig om te proberen: dit script draait per definitie met een demo-sleutel, en eToro weigert
   // een demo-sleutel op een echt pad. Er kan hier dus niets aan een echt account gebeuren.
@@ -300,10 +299,13 @@ async function main() {
     const nieuweStop = Math.round(Number(nieuw[0].openRate) * 0.85 * 100) / 100;
     const patchBody = { stopLossRate: nieuweStop, stopLossType: 'fixed' };
 
+    // Alleen demo-vormen. Het kale /trading/positions/{id} stond hier eerst ook bij, en dat was
+    // fout: eToro geeft één sleutel uit die ook trade.real:write draagt, dus dat pad is geen
+    // onschuldige 404-test maar een schrijfactie op het echte account.
     for (const pad of [
       `/trading/demo/positions/${positionId}`,
       `/trading/positions/demo/${positionId}`,
-      `/trading/positions/${positionId}`,
+      `/trading/execution/demo/positions/${positionId}`,
     ]) {
       const poging = await roep(pad, { versie: 'v2', methode: 'PATCH', body: patchBody });
       noteer(`PATCH ${pad} -> ${poging.status}`);

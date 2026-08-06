@@ -238,7 +238,22 @@ Verder beantwoord:
 
 Praktisch gevolg dat aandacht verdient: eToro eist voor BTC x1 een stop van **minimaal 10% onder de entry**. Kaders eigen stop (0,5x-3x ATR rond een swing low) ligt daar vaak binnen, dus `bepaalStop` zal regelmatig naar 10% opschuiven. Dat verandert het werkelijke risico per trade en dus de R/R die de gebruiker ziet.
 
-Nog niet beantwoord, daarvoor is een echte demo-order nodig: valuta van `amount` (vraag 3), of `leverage` verplicht is (4), het demo-pad van de PATCH (5), ontdubbeling op `x-request-id` (6) en de vultijd (8).
+### Uit de demo-order zelf (BTC, $10, positionID 3576802030)
+
+Body die werkte, met `settlementType` **weggelaten**:
+```json
+{"action":"open","transaction":"buy","instrumentId":100000,"orderType":"mkt","leverage":1,
+ "amount":10,"orderCurrency":"usd","stopLossRate":51592.8,"takeProfitRate":83838.3,"stopLossType":"fixed"}
+```
+Antwoord 200: `{"token":"...","orderId":371855197,"referenceId":"<onze x-request-id>"}`.
+
+- **Vraag 1 definitief.** De positie kwam binnen met `stopLossRate: 51592.8` en `takeProfitRate: 83838.3`, exact zoals verstuurd, en `isNoStopLoss: false`. Een stop-loss werkt dus echt op een spot-cryptopositie. `settlementType` mag weg; eToro koos zelf `settlementTypeID: 1`.
+- **Vraag 3, valuta.** `credit` ging van 74750,04 naar 74739,96, dus ruim $10 eraf voor een `amount` van 10, en de positie kreeg `amount: 9.98`. `amount` is dollars, en er gaat een klein bedrag aan kosten af bovenop je inleg. De betaalbaarheidscontrole moet dus niet op `bedrag <= credit` maar op iets van `bedrag * 1,02 <= credit`.
+- **Vraag 4.** `leverage: 1` werkt.
+- **Vraag 5, demo-pad van de PATCH.** Het endpoint **bestaat wel**, in tegenstelling tot wat de documentatie-index suggereerde: `PATCH /api/v2/trading/demo/positions/{positionId}` geeft **202** met `{operationId, positionId, referenceId}`. De stop verschoof daadwerkelijk van 51592,8 naar 54000 en `stopLossVersion` liep van 1 naar 2. De take-profit bleef ongemoeid toen we die niet meestuurden, dus een gedeeltelijke wijziging kan. **Let op de plaatsing:** `/demo/` zit hier direct achter `trading`, niet achter `positions`. De drie andere plaatsingen gaven `RouteNotFound`. Fase 4 is dus niet geblokkeerd.
+- **Vraag 8, vultijd. Dit is het antwoord dat het plan raakt.** Het portfolio-endpoint toonde de positie **niet** na 0 seconden en **ook niet na 5 seconden**, terwijl de positie blijkens `openDateTime` op hetzelfde moment als de order al bestond. Bij een controle een paar minuten later stond hij er wel. Het portfolio-endpoint loopt dus achter op de werkelijkheid. De "na ~2s `synchroniseer()`"-opzet uit §4 gaat daarmee bijna altijd te vroeg kijken, en de gebruiker ziet ten onrechte niets. De verzoening moet herhaald kijken over een langere periode in plaats van één keer na twee seconden.
+
+**Nog open:** ontdubbeling op `x-request-id` (vraag 6). `referenceId` echoot de meegestuurde id exact, maar of een tweede verzoek met dezelfde id een tweede positie oplevert is niet getest.
 
 ## 9. Openstaande vragen, alleen te beantwoorden met een echte demo-sleutel
 

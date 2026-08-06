@@ -82,9 +82,9 @@ interface FetchOpties {
 // historie volgen datzelfde patroon maar zijn nog niet tegen een echte demo-sleutel bevestigd;
 // scripts/etoro-demo-order.ts probeert ze en meldt welk pad werkt.
 //
-// De PATCH op /trading/positions/{id} staat er bewust NIET in. In de gecureerde endpoint-index van
-// eToro komt hij niet voor, en de pagina over positie-informatie noemt zichzelf expliciet
-// read-only. Zolang niet vaststaat dat dat endpoint bestaat, gooit dit pad.
+// Let op hoe onregelmatig het is: bij orders en market-close komt /demo/ achter `execution`, bij
+// portfolio en eligibility achter `info`, maar bij het wijzigen van een positie direct achter
+// `trading`. Precies daarom een tabel en geen regel.
 const DEMO_PADEN: ReadonlyArray<readonly [string, string]> = [
   ['/me', '/me'],
   ['/market-data/', '/market-data/'],
@@ -93,6 +93,9 @@ const DEMO_PADEN: ReadonlyArray<readonly [string, string]> = [
   ['/trading/info/trade/history', '/trading/info/demo/trade/history'],
   ['/trading/execution/orders', '/trading/execution/demo/orders'],
   ['/trading/execution/market-close-orders/', '/trading/execution/demo/market-close-orders/'],
+  // Gemeten: PATCH /api/v2/trading/demo/positions/{id} geeft 202 en verzet de stop echt.
+  // De drie andere plaatsingen van het /demo/-segment gaven allemaal RouteNotFound.
+  ['/trading/positions/', '/trading/demo/positions/'],
 ];
 
 // Alleen het pad zelf vergelijken; de querystring blijft ongemoeid achter het pad hangen.
@@ -584,8 +587,10 @@ if (require.main === module) {
   console.assert(demoPad('/market-data/instruments?instrumentIds=1,2') === '/market-data/instruments?instrumentIds=1,2', 'market-data is niet accountgebonden');
   console.assert(demoPad('/me') === '/me', '/me werkt in beide omgevingen');
 
+  console.assert(demoPad('/trading/positions/3576802030') === '/trading/demo/positions/3576802030',
+    'het demo-segment van een positie-wijziging zit achter trading, niet achter positions');
+
   const gooit = (pad: string) => { try { demoPad(pad); return false; } catch { return true; } };
-  console.assert(gooit('/trading/positions/1'), 'de PATCH op posities is niet geverifieerd en moet dus gooien');
   console.assert(gooit('/trading/execution/close-orders/1'), 'een onbekend schrijfpad moet gooien, niet naar het echte account gaan');
   console.assert(gooit('/verzonnen/pad'), 'een onbekend pad moet gooien');
   console.assert(gooit('/messages'), 'een pad dat toevallig met /me begint mag niet op de /me-regel vallen');
