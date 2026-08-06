@@ -90,7 +90,10 @@ const DEMO_PADEN: ReadonlyArray<readonly [string, string]> = [
   ['/market-data/', '/market-data/'],
   ['/trading/info/eligibility', '/trading/info/demo/eligibility'],
   ['/trading/info/portfolio', '/trading/info/demo/portfolio'],
-  ['/trading/info/trade/history', '/trading/info/demo/trade/history'],
+  // Gemeten: hier zit /demo/ tussen `trade` en `history`. /trading/info/demo/trade/history geeft
+  // RouteNotFound. Let op waarom dit ertoe doet: het echte pad antwoordt gewoon met 200 en echte
+  // historie, dus een verkeerde gok had hier stilzwijgend het echte account gelezen.
+  ['/trading/info/trade/history', '/trading/info/trade/demo/history'],
   ['/trading/execution/orders', '/trading/execution/demo/orders'],
   ['/trading/execution/market-close-orders/', '/trading/execution/demo/market-close-orders/'],
   // Gemeten: PATCH /api/v2/trading/demo/positions/{id} geeft 202 en verzet de stop echt.
@@ -823,8 +826,8 @@ if (require.main === module) {
   // echte account gaat. Dus: elk bekend pad mapt, en al het andere gooit.
   console.assert(demoPad('/trading/execution/orders') === '/trading/execution/demo/orders', 'orders moet het demo-segment krijgen');
   console.assert(demoPad('/trading/info/portfolio') === '/trading/info/demo/portfolio', 'portfolio moet het demo-segment krijgen');
-  console.assert(demoPad('/trading/info/trade/history?minDate=2026-01-01&page=1') === '/trading/info/demo/trade/history?minDate=2026-01-01&page=1',
-    'de querystring moet intact achter het demo-pad blijven staan');
+  console.assert(demoPad('/trading/info/trade/history?minDate=2026-01-01&page=1') === '/trading/info/trade/demo/history?minDate=2026-01-01&page=1',
+    'de querystring moet intact achter het demo-pad blijven staan, en /demo/ zit hier tussen trade en history');
   console.assert(demoPad('/trading/info/eligibility') === '/trading/info/demo/eligibility', 'eligibility heeft een eigen demo-pad');
   console.assert(demoPad('/trading/execution/market-close-orders/positions/123') === '/trading/execution/demo/market-close-orders/positions/123',
     'het positionID moet achter het demo-segment blijven staan');

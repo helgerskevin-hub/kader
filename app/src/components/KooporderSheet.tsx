@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { X } from 'lucide-react-native';
-import { fmtPrijs } from '../engine/format';
+import { fmtBedrag, fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { bouwKooporderBody, guid, haalVrijSaldo, KooporderInvoer, plaatsKooporder } from '../engine/etoro';
 import { actieveSleutels } from '../state/etoroSleutels';
@@ -115,7 +115,7 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
     ? ` ${niveaus.join(', ').replace(/^./, t => t.toUpperCase())}.`
     : '';
   const samenvatting = heeftBedrag
-    ? `Je koopt voor ${fmtPrijs(bedragGetal)} aan ${symbool} tegen de marktprijs.${niveauZin}`
+    ? `Je koopt voor ${fmtBedrag(bedragGetal)} aan ${symbool} tegen de marktprijs.${niveauZin}`
     : '';
 
   // Eén rode melding tegelijk, in de volgorde waarin ze zwaarwegend zijn.
@@ -123,9 +123,9 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
     instrumentId === null
       ? `Kader kan ${symbool} niet eenduidig aan een eToro-instrument koppelen. Kopen via de app is daarom uitgeschakeld.`
     : advies.soort === 'waarschuwing' ? advies.uitleg
-    : heeftBedrag && bedragGetal < MINIMUM_USD ? `Het minimum bij eToro is ${fmtPrijs(MINIMUM_USD)}.`
+    : heeftBedrag && bedragGetal < MINIMUM_USD ? `Het minimum bij eToro is ${fmtBedrag(MINIMUM_USD)}.`
     : heeftBedrag && vrijSaldo !== null && bedragGetal * KOSTENMARGE > vrijSaldo
-      ? `Dit past niet in je vrije saldo van ${fmtPrijs(vrijSaldo)}. eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
+      ? `Dit past niet in je vrije saldo van ${fmtBedrag(vrijSaldo)}. eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
     : null;
 
   const magBevestigen = heeftBedrag && blokkade === null && onbekend === '';
@@ -154,7 +154,7 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
         onSluiten();
-        onGeslaagd?.(`Je koop van ${fmtPrijs(bedragGetal)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`);
+        onGeslaagd?.(`Je koop van ${fmtBedrag(bedragGetal)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`);
         return;
       }
 
@@ -258,7 +258,7 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
         />
         {vrijSaldo !== null ? (
           <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
-            Beschikbaar: {fmtPrijs(vrijSaldo)}
+            Beschikbaar: {fmtBedrag(vrijSaldo)}
           </Text>
         ) : null}
 

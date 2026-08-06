@@ -7,6 +7,13 @@ export function fmtPrijs(p: number): string {
   return `$${p.toLocaleString('en-US', { minimumFractionDigits: 5, maximumFractionDigits: 5 })}`;
 }
 
+// Een bedrag dat je inlegt of beschikbaar hebt, geen muntkoers. fmtPrijs geeft onder de $100 extra
+// decimalen omdat een koers die precisie nodig heeft, en dan wordt een inleg van 10 dollar
+// "$10.000". Dat leest als tienduizend, precies de verwarring die je op een orderscherm niet wilt.
+export function fmtBedrag(n: number): string {
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 // Percentage met expliciet +/− teken, NL-komma voor decimalen
 export function fmtPct(p: number, decimals = 1): string {
   const teken = p >= 0 ? '+' : '−';
@@ -52,6 +59,11 @@ export function fmtMarktcap(cap: number): string {
 
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/format.ts`
 if (require.main === module) {
+  console.assert(fmtBedrag(10) === '$10.00', `een inleg van 10 moet $10.00 zijn, niet $10.000; was ${fmtBedrag(10)}`);
+  console.assert(fmtBedrag(250) === '$250.00', 'een rond bedrag krijgt twee decimalen');
+  console.assert(fmtBedrag(74749.84) === '$74,749.84', 'grote bedragen houden hun duizendtalscheiding');
+  console.assert(fmtPrijs(10) === '$10.000', 'fmtPrijs blijft ongewijzigd voor koersen');
+
   console.assert(fmtResultaatUsd(4.21) === '+$4.21', 'winst krijgt een plus');
   console.assert(fmtResultaatUsd(-4.21) === '−$4.21', `verlies krijgt een minteken, was ${fmtResultaatUsd(-4.21)}`);
   console.assert(fmtResultaatUsd(0) === '+$0.00', 'nul telt als niet-negatief');

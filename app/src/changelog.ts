@@ -12,8 +12,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    // Nog niet uitgebracht: versie en datum worden pas ingevuld als er een release-APK gebouwd wordt.
-    versie: 'Nog niet uitgebracht',
+    // Nog niet uitgebracht. Het nummer staat er alvast in omdat het changelogscherm en de
+    // "nieuw in deze versie"-melding het letterlijk tonen; app.json blijft op de huidige versie
+    // staan tot er echt een release-APK gebouwd wordt. De datum vullen we dan in.
+    versie: '0.1.13',
     datum: '',
     punten: [
       'Direct handelen via eToro. Vanaf het Markt-scherm, Grote Kansen en het coin-detailscherm kun je een coin nu meteen kopen: Kader vult het bedrag, de stop-loss en het doel voor je in en stuurt de order pas nadat je die in de sheet bevestigt',
