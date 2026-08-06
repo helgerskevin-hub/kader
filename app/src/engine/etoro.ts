@@ -198,16 +198,21 @@ export async function haalAccountInfo(sleutels: EtoroSleutels): Promise<EtoroAcc
   return etoroFetch<EtoroAccount>('/me', sleutels);
 }
 
-// eToro's exacte scope-namen staan niet in de documentatie; wat /api/v1/me teruggeeft moet in
-// fase 1 bevestigd worden. Tot dan herkennen we een schrijfrecht aan het woord zelf, en bij twijfel
-// gaan we uit van alleen lezen: een knop die ontbreekt is vervelend, een koopknop die er ten
-// onrechte staat is een geldprobleem.
-const SCHRIJFRECHT = /(trade|trading|write|execute|execution|order)/i;
-const LEESRECHT = /read/i;
+// Geverifieerd tegen een echte respons van /api/v1/me: eToro geeft scopes als
+// 'etoro-public:trade.demo:write' en 'etoro-public:trade.real:write', per omgeving apart.
+//
+// Exact vergelijken, geen patroon. Een eerdere versie zocht op woorden als 'write', en die zei ja
+// tegen 'etoro-public:agent-portfolio:write': een scope die niets met handelen te maken heeft zou
+// dan de koopknop ontgrendelen. Hernoemt eToro deze scopes ooit, dan valt handelen uit. Dat is de
+// goede kant om op te falen.
+const HANDELSSCOPE: Record<EtoroOmgeving, string> = {
+  real: 'etoro-public:trade.real:write',
+  demo: 'etoro-public:trade.demo:write',
+};
 
-export function magHandelenVolgensScopes(scopes: string[] | null | undefined): boolean {
+export function magHandelenVolgensScopes(scopes: string[] | null | undefined, omgeving: EtoroOmgeving): boolean {
   if (!Array.isArray(scopes)) return false;
-  return scopes.some(s => typeof s === 'string' && SCHRIJFRECHT.test(s) && !LEESRECHT.test(s));
+  return scopes.includes(HANDELSSCOPE[omgeving]);
 }
 
 // Vrij te besteden saldo van de actieve omgeving. null = eToro gaf het veld niet mee; dan liever
@@ -596,11 +601,26 @@ if (require.main === module) {
   console.assert(duidOrderStatus(502) === 'onbekend', '502 kan uitgevoerd zijn');
 
   // ---------- Scopes ----------
-  console.assert(magHandelenVolgensScopes(['trading']) === true, 'een schrijfscope ontgrendelt handelen');
-  console.assert(magHandelenVolgensScopes(['trading.read']) === false, 'een leesscope ontgrendelt niets');
-  console.assert(magHandelenVolgensScopes(['read']) === false, 'alleen lezen is niet handelen');
-  console.assert(magHandelenVolgensScopes([]) === false, 'geen scopes is niet handelen');
-  console.assert(magHandelenVolgensScopes(undefined) === false, 'een ontbrekend scopes-veld is niet handelen');
+  // Letterlijk de scopes uit een echte /api/v1/me-respons, ingekort tot wat hier telt.
+  const echteScopes = [
+    'etoro-public:agent-portfolio:write', 'etoro-public:crypto:write', 'etoro-public:market-data:read',
+    'etoro-public:trade.demo:read', 'etoro-public:trade.demo:write',
+    'etoro-public:trade.real:read', 'etoro-public:trade.real:write',
+  ];
+  console.assert(magHandelenVolgensScopes(echteScopes, 'demo') === true, 'trade.demo:write ontgrendelt handelen in demo');
+  console.assert(magHandelenVolgensScopes(echteScopes, 'real') === true, 'trade.real:write ontgrendelt handelen in echt');
+
+  // De omgevingen staan los van elkaar: alleen demo mogen handelen betekent niet echt mogen handelen.
+  const alleenDemo = ['etoro-public:trade.demo:write', 'etoro-public:trade.real:read'];
+  console.assert(magHandelenVolgensScopes(alleenDemo, 'demo') === true, 'demo mag handelen');
+  console.assert(magHandelenVolgensScopes(alleenDemo, 'real') === false, 'een leesscope op echt ontgrendelt daar niets');
+
+  // Het geval waar de oude woordherkenning op stukging: schrijfrecht dat niets met handelen te maken heeft.
+  console.assert(magHandelenVolgensScopes(['etoro-public:agent-portfolio:write'], 'demo') === false,
+    'een schrijfscope buiten handelen mag de koopknop niet ontgrendelen');
+  console.assert(magHandelenVolgensScopes(['etoro-public:trade.demo:read'], 'demo') === false, 'alleen lezen is niet handelen');
+  console.assert(magHandelenVolgensScopes([], 'demo') === false, 'geen scopes is niet handelen');
+  console.assert(magHandelenVolgensScopes(undefined, 'demo') === false, 'een ontbrekend scopes-veld is niet handelen');
 
   if (missers > 0) {
     console.error(`etoro.ts self-check GEFAALD: ${missers} controle(s) klopten niet`);

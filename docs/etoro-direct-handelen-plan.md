@@ -223,6 +223,23 @@ Er is geen testsuite; verificatie loopt via de `run-android`-skill op de emulato
 
 **Zelfchecks om toe te voegen:** in `etoro.ts` dat `demoPad()` elk bekend pad mapt en **gooit** bij een onbekend pad, dat `duidOrderStatus` 400/429 naar `fout` en 500 naar `onbekend` mapt, en dat `bouwKooporderBody` `stopLossRate` weglaat bij een lege stop. In `lopendeOrders.ts` dat `ruimOnbekendeOrdersOp` een koop oplost zodra de positie verschijnt, hem vasthoudt zolang dat niet gebeurt, en na 15 minuten laat verlopen. Voor `bepaalStop` niets nieuws: `etoroLimieten.ts:118-191` dekt dat al.
 
+## 9a. Gemeten op 2026-08-06 met een echte sleutel (leesronde, geen order)
+
+**De belangrijkste uitkomst: er bestaan geen aparte demo- en echte sleutels.** eToro geeft één sleutel uit die alle vier de rechten draagt: `etoro-public:trade.demo:read`, `trade.demo:write`, `trade.real:read`, `trade.real:write`. De omgeving zit uitsluitend in het PAD. Daarmee vervalt de aanname uit §11 dat een verkeerd pad "gewoon" een 401 geeft: een demo-pad en een echt pad worden allebei geaccepteerd door dezelfde sleutel, en het pad is het enige dat echt geld van speelgeld scheidt. `demoPad()` die gooit bij een onbekend pad is daarmee geen nette extra maar de kern van de beveiliging.
+
+Verder beantwoord:
+
+- **Vraag 1, settlementType.** Voor BTC x1 **long** is het `real`, met `allowEditStopLoss: true`, `allowStopLossTakeProfit: true`, `minStopLossPercentage: 10`, `maxStopLossPercentage: 100`. Een stop-loss wordt dus wél geaccepteerd op een niet-CFD cryptopositie. De grootste onbekende in het plan valt de goede kant op. (`cfd` hoort bij **short**, wat Kader niet doet.)
+- **Vraag 2, minimumbedrag.** `minPositionAmount: 10` en `minPositionExposure: 10`, dus $10. Ook `maxUnitsPerOrder: 41` en `unitsQuantityType: "fractional"`.
+- **Vraag 7, meerduidige tickers.** `internalSymbolFull=BTC` gaf **53** treffers: crosses (BTCA, BTCEUR, BTCJPY), en futures (BTC.APR27 tot en met BTC.DEC29). De spot-BTC is `internalSymbolFull === "BTC"` exact, `instrumentId 100000`. Alleen een exacte match is bruikbaar; velden om op te filteren zijn `internalAssetClassName: "Crypto"`, `internalCryptoTypeName`, `isBuyEnabled` en `isDelisted`.
+- **Vraag 9, rechten.** Eén sleutel geeft lezen én schrijven, in beide omgevingen. Er is dus geen tweede sleutelpaar per omgeving nodig; de opslagvorm uit §3 kan simpeler.
+- **Demo-paden bevestigd:** `/api/v1/trading/info/demo/portfolio` en `/api/v2/trading/info/demo/eligibility` geven allebei 200.
+- **Eligibility-parsing klopt.** De echte respons gebruikt `direction: "long"` en `leverageValues: [1]`, precies wat `kiesLimiet()` verwacht.
+
+Praktisch gevolg dat aandacht verdient: eToro eist voor BTC x1 een stop van **minimaal 10% onder de entry**. Kaders eigen stop (0,5x-3x ATR rond een swing low) ligt daar vaak binnen, dus `bepaalStop` zal regelmatig naar 10% opschuiven. Dat verandert het werkelijke risico per trade en dus de R/R die de gebruiker ziet.
+
+Nog niet beantwoord, daarvoor is een echte demo-order nodig: valuta van `amount` (vraag 3), of `leverage` verplicht is (4), het demo-pad van de PATCH (5), ontdubbeling op `x-request-id` (6) en de vultijd (8).
+
 ## 9. Openstaande vragen, alleen te beantwoorden met een echte demo-sleutel
 
 1. **`settlementType` voor crypto**, `real` of `cfd`. Kader is x1 long zonder hefboom, dat wijst op `real`, maar het is niet zeker dat `stopLossRate` überhaupt geaccepteerd wordt op een niet-CFD cryptopositie. Als dat niet zo is verandert het hele stop-loss-verhaal en wordt `bepaalStop` alleen nog adviserend. **Grootste onbekende in dit plan.**
