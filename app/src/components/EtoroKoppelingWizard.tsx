@@ -91,9 +91,21 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
 
   async function opslaanEnKlaar() {
     setBezigOpslaan(true);
-    // magSchrijven blijft false: deze wizard test met het portfolio-endpoint en kent de scopes van
-    // de sleutel dus niet. Handelen wordt pas ontgrendeld als /api/v1/me bevestigt dat het mag.
-    await bewaarSleutels(omgeving, { apiKey: apiKey.trim(), userKey: userKey.trim(), magSchrijven: false });
+    try {
+      // magSchrijven blijft false: deze wizard test met het portfolio-endpoint en kent de scopes van
+      // de sleutel dus niet. Handelen wordt pas ontgrendeld als /api/v1/me bevestigt dat het mag.
+      await bewaarSleutels(omgeving, { apiKey: apiKey.trim(), userKey: userKey.trim(), magSchrijven: false });
+    } catch (e) {
+      // De sleutelkluis kan weigeren (toestel zonder schermvergrendeling, kapotte keystore). Dan is
+      // er niets opgeslagen, en dat moet je weten: anders blijft de knop draaien en denk je dat het
+      // gelukt is terwijl de koppeling er niet is.
+      setBezigOpslaan(false);
+      Alert.alert(
+        'Opslaan mislukt',
+        `Je sleutels konden niet veilig op dit toestel worden opgeslagen. ${e instanceof Error ? e.message : ''}`.trim(),
+      );
+      return;
+    }
     setBezigOpslaan(false);
     onOpgeslagen?.();
     onSluiten();

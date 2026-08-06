@@ -102,9 +102,13 @@ export function demoPad(pad: string): string {
   const staart = vraag === -1 ? '' : pad.slice(vraag);
 
   // Langste treffer wint, zodat /trading/info/portfolio niet per ongeluk op een kortere prefix valt.
+  // Een treffer moet op een padgrens eindigen: zonder die eis zou '/me' ook op een toekomstig
+  // '/messages' matchen en dat pad stilzwijgend doorlaten in plaats van te gooien.
   let beste: readonly [string, string] | null = null;
   for (const regel of DEMO_PADEN) {
     if (!kaal.startsWith(regel[0])) continue;
+    const rest = kaal.slice(regel[0].length);
+    if (rest !== '' && !regel[0].endsWith('/') && !rest.startsWith('/')) continue;
     if (!beste || regel[0].length > beste[0].length) beste = regel;
   }
   if (!beste) throw new Error(`Geen demo-pad bekend voor ${kaal}. Kader stuurt dit niet naar het echte account.`);
@@ -569,6 +573,9 @@ if (require.main === module) {
   console.assert(gooit('/trading/positions/1'), 'de PATCH op posities is niet geverifieerd en moet dus gooien');
   console.assert(gooit('/trading/execution/close-orders/1'), 'een onbekend schrijfpad moet gooien, niet naar het echte account gaan');
   console.assert(gooit('/verzonnen/pad'), 'een onbekend pad moet gooien');
+  console.assert(gooit('/messages'), 'een pad dat toevallig met /me begint mag niet op de /me-regel vallen');
+  console.assert(gooit('/trading/info/portfolio-extra'), 'een treffer moet op een padgrens eindigen');
+  console.assert(demoPad('/me?veld=1') === '/me?veld=1', 'een querystring direct achter een exacte treffer blijft goed');
 
   // ---------- Statusduiding ----------
   console.assert(duidOrderStatus(200) === 'ok' && duidOrderStatus(201) === 'ok' && duidOrderStatus(202) === 'ok', '2xx is uitgevoerd');
