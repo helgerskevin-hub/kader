@@ -48,10 +48,13 @@ function isOpgelost(order: OnbekendeOrder, trades: PortfolioTrade[]): boolean {
     );
   }
 
-  // Verkoop: opgelost zodra de positie niet meer open staat. Dat dekt zowel "hij is weg" als
-  // "hij staat nu in de historie".
+  // Verkoop: alleen oplossen op positief bewijs, namelijk dat diezelfde positie er nu als gesloten
+  // staat. Bewust niet "de positie staat niet meer open", want dan lost een lijst die nog niet
+  // geladen is of een sync die net faalde de order op zonder dat er iets bewezen is. Verdwijnt de
+  // rij helemaal, dan verloopt de order na een kwartier en ziet de gebruiker de banner. Dat is de
+  // goede kant om op te falen.
   if (order.soort === 'verkoop') {
-    return !trades.some(t => t.etoroPositionID === order.positionId && t.status === 'open');
+    return trades.some(t => t.etoroPositionID === order.positionId && t.status !== 'open');
   }
 
   // Niveauwijziging: hier valt niets betrouwbaars aan af te lezen zonder de nieuwe waarden te
@@ -155,7 +158,12 @@ if (require.main === module) {
   const verkoop: OnbekendeOrder = { verzoekId: 'b', soort: 'verkoop', symbool: 'BTC', omgeving: 'demo', positionId: 7, bekendePosities: [7], tijd: nu - 1000 };
   console.assert(ruimOnbekendeOrdersOp([verkoop], [positie()], nu).open.length === 1, 'zolang de positie open staat is de verkoop niet bevestigd');
   console.assert(ruimOnbekendeOrdersOp([verkoop], [positie({ status: 'gewonnen' })], nu).open.length === 0, 'een gesloten positie lost de verkoop op');
-  console.assert(ruimOnbekendeOrdersOp([verkoop], [], nu).open.length === 0, 'een verdwenen positie lost de verkoop ook op');
+
+  // Het gevaarlijke geval: een lege lijst is geen bewijs. Als de trades nog niet geladen zijn of de
+  // sync net faalde, mag de verkoop niet stilzwijgend als bevestigd gelden.
+  console.assert(ruimOnbekendeOrdersOp([verkoop], [], nu).open.length === 1, 'een lege tradelijst bewijst niets en lost de verkoop niet op');
+  console.assert(ruimOnbekendeOrdersOp([verkoop], [positie({ etoroPositionID: 99, status: 'gewonnen' })], nu).open.length === 1,
+    'een andere gesloten positie lost deze verkoop niet op');
 
   // Niveauwijziging valt niet af te lezen en verloopt gewoon.
   const niveaus: OnbekendeOrder = { verzoekId: 'c', soort: 'niveaus', symbool: 'BTC', omgeving: 'demo', positionId: 7, bekendePosities: [7], tijd: nu - 1000 };
