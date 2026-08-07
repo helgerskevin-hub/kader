@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react-native';
+import { CheckCircle, XCircle, Pencil, Trash2, ShoppingCart, SlidersHorizontal } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
@@ -14,12 +14,18 @@ interface Props {
   onVerloren: (trade: PortfolioTrade) => void;
   onAanpassen: (trade: PortfolioTrade) => void;
   onVerwijderen: (trade: PortfolioTrade) => void;
+  // Ontbreken als deze positie niet bij eToro te besturen is. Zijn ze er wel, dan vervangen ze
+  // Gewonnen, Verloren en Aanpassen: die zouden alleen de lokale administratie wijzigen terwijl de
+  // positie bij eToro gewoon open blijft staan.
+  onVerkoop?: (trade: PortfolioTrade) => void;
+  onNiveaus?: (trade: PortfolioTrade) => void;
 }
 
 // Kebab-menu voor de compacte tradelijst: dezelfde vier acties als de voetbalk van de uitgebreide
 // kaart, maar dan in een sheet omdat er in de compacte regel geen ruimte voor knoppen is.
-export function TradeActiesSheet({ trade, onSluiten, onGewonnen, onVerloren, onAanpassen, onVerwijderen }: Props) {
+export function TradeActiesSheet({ trade, onSluiten, onGewonnen, onVerloren, onAanpassen, onVerwijderen, onVerkoop, onNiveaus }: Props) {
   const { colors } = useTheme();
+  const viaEtoro = Boolean(onVerkoop && onNiveaus);
 
   function uitvoeren(actie: (trade: PortfolioTrade) => void) {
     if (!trade) return;
@@ -36,7 +42,26 @@ export function TradeActiesSheet({ trade, onSluiten, onGewonnen, onVerloren, onA
         ) : null}
       </View>
 
-      {trade?.status === 'open' && (
+      {trade?.status === 'open' && viaEtoro && (
+        <>
+          <Rij
+            icoon={<ShoppingCart size={18} color={colors.verlies} strokeWidth={1.75} />}
+            label="Verkopen bij eToro"
+            kleur={colors.verlies}
+            rand={colors.rand}
+            onPress={() => uitvoeren(onVerkoop!)}
+          />
+          <Rij
+            icoon={<SlidersHorizontal size={18} color={colors.cta} strokeWidth={1.75} />}
+            label="Stop-loss en doel aanpassen"
+            kleur={colors.cta}
+            rand={colors.rand}
+            onPress={() => uitvoeren(onNiveaus!)}
+          />
+        </>
+      )}
+
+      {trade?.status === 'open' && !viaEtoro && (
         <>
           <Rij
             icoon={<CheckCircle size={18} color={colors.winst} strokeWidth={1.75} />}

@@ -12,6 +12,9 @@ import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { TradeCard } from '../components/TradeCard';
 import { GetradeFormulier } from '../components/GetradeFormulier';
+import { KooporderSheet } from '../components/KooporderSheet';
+import { usePortfolio } from '../state/PortfolioProvider';
+import { infoVoor } from '../engine/coinInfo';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
@@ -35,7 +38,11 @@ export function MarktScreen() {
   const { state, startAnalyse } = useMarkt();
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
+  const [koopTrade, setKoopTrade] = useState<Trade | null>(null);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
+  // Geen schrijfrecht in de actieve omgeving betekent geen koopknop. De kaart is dan identiek
+  // aan hoe hij altijd was.
+  const { magHandelen } = usePortfolio();
   const [ververst, setVerverstState] = useState(false);
   const [fearGreed, setFearGreed] = useState<{ waarde: number; klasse: string } | null>(null);
   const [filter, setFilter] = useState<Filter>('alle');
@@ -128,6 +135,7 @@ export function MarktScreen() {
               onOpenDetail={t => setDetailCoin(vanTrade(t))}
               favoriet={isFavoriet(item.symbool)}
               onToggleFavoriet={wisselFavoriet}
+              onKoop={magHandelen ? setKoopTrade : undefined}
             />
           )}
           contentContainerStyle={styles.lijst}
@@ -187,6 +195,18 @@ export function MarktScreen() {
         trade={getradeteTrade}
         onSluiten={() => setGetradeteTrade(null)}
       />
+
+      {koopTrade && (
+        <KooporderSheet
+          zichtbaar
+          symbool={koopTrade.symbool}
+          naam={infoVoor(koopTrade.symbool).naam}
+          entry={koopTrade.entry}
+          stop={koopTrade.stopLoss}
+          doel={koopTrade.takeProfit}
+          onSluiten={() => setKoopTrade(null)}
+        />
+      )}
 
       <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
 

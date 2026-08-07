@@ -27,11 +27,13 @@ Host voor beide omgevingen: `https://public-api.etoro.com`. **De omgeving zit in
 - Openen: `POST /api/v2/trading/execution/orders` (demo: `/api/v2/trading/execution/demo/orders`)
   Body: `{ action: "open", transaction: "buy", instrumentId, settlementType, orderType: "mkt", leverage, amount, orderCurrency: "usd", stopLossRate, takeProfitRate, stopLossType: "fixed" }`. `stopLossRate` en `takeProfitRate` zijn **absolute koersen**, geen percentages.
   Antwoord 200: `{ token, orderId, referenceId }`, waarbij `referenceId` je `x-request-id` echoot.
-- Sluiten: `POST /api/v1/trading/execution/market-close-orders/positions/{positionId}`, body `{ InstrumentId, UnitsToDeduct }` (`null` = volledig).
-- Niveaus wijzigen: `PATCH /api/v2/trading/positions/{positionId}`, body `{ stopLossRate, takeProfitRate, stopLossType, clearStopLoss, clearTakeProfit }`, antwoord 202.
-- Symbool naar id: `GET /api/v1/market-data/search?internalSymbolFull=BTC` -> `{ items: [{ internalSymbolFull, instrumentId }] }`. Geeft ook gedeeltelijke treffers terug.
+- Sluiten: `POST /api/v1/trading/execution/market-close-orders/positions/{positionId}`, body `{ InstrumentId, UnitsToDeduct }` (`null` = volledig). Demo: `/api/v1/trading/execution/demo/market-close-orders/positions/{positionId}`.
+- Niveaus wijzigen: `PATCH /api/v2/trading/positions/{positionId}`, body `{ stopLossRate, takeProfitRate, stopLossType, clearStopLoss, clearTakeProfit }`, antwoord 202. **Niet bevestigd, en waarschijnlijk onjuist.** Dit endpoint staat niet in eToro's gecureerde endpoint-index, de guide over marktorders kent alleen SL/TP bij het openen, en de pagina over positie-informatie noemt zichzelf expliciet read-only. Fase 4 hangt hier volledig op en moet empirisch beslist worden (`scripts/etoro-demo-order.ts --patch`) voor er iets gebouwd wordt.
+- Symbool naar id: `GET /api/v1/market-data/search?internalSymbolFull=BTC` -> `{ items: [{ internalSymbolFull, instrumentId }] }`. Geeft ook gedeeltelijke treffers terug. Onderscheidende velden voor spot/CFD/aandeel zijn `instrumentTypeID`, `internalCryptoTypeId`, `isDelisted`, `internalAssetClassName`.
+- Eligibility: demo heeft een eigen pad, `POST /api/v2/trading/info/demo/eligibility`. Het minimumbedrag per instrument zit in `leverageConfigs[].minPositionAmount`, een veld dat `etoroLimieten.ts` vandaag niet uitleest.
 - Account: `GET /api/v1/me` -> `{ gcid, realCid, demoCid, username, scopes }`.
-- Quota: trading execution 20/60s (gedeeld over openen/sluiten/annuleren), market-data 120/60s, portfolio/eligibility 60/60s.
+- `orderCurrency` accepteert uitsluitend `"usd"`, dus `amount` is in dollars. `settlementType` is een enum (`cfd`, `real`, `realFutures`, `marginTrade`); eToro's eigen BTC-voorbeeld laat het veld weg.
+- Quota: trading execution 20/60s, **gedeeld over demo en echt samen**. Market-data en portfolio 60/60s (niet 120). Eligibility heeft zijn eigen 20/60s.
 
 ## 1. `etoroFetch` uitbreiden (`app/src/engine/etoro.ts`)
 
@@ -220,6 +222,38 @@ Er is geen testsuite; verificatie loopt via de `run-android`-skill op de emulato
 - **Fase 5:** één echte order op het minimumbedrag, direct weer sluiten. Controleer dat ingedrukt-houden niet met een losse tik af te vuren is.
 
 **Zelfchecks om toe te voegen:** in `etoro.ts` dat `demoPad()` elk bekend pad mapt en **gooit** bij een onbekend pad, dat `duidOrderStatus` 400/429 naar `fout` en 500 naar `onbekend` mapt, en dat `bouwKooporderBody` `stopLossRate` weglaat bij een lege stop. In `lopendeOrders.ts` dat `ruimOnbekendeOrdersOp` een koop oplost zodra de positie verschijnt, hem vasthoudt zolang dat niet gebeurt, en na 15 minuten laat verlopen. Voor `bepaalStop` niets nieuws: `etoroLimieten.ts:118-191` dekt dat al.
+
+## 9a. Gemeten op 2026-08-06 met een echte sleutel (leesronde, geen order)
+
+**De belangrijkste uitkomst: er bestaan geen aparte demo- en echte sleutels.** eToro geeft één sleutel uit die alle vier de rechten draagt: `etoro-public:trade.demo:read`, `trade.demo:write`, `trade.real:read`, `trade.real:write`. De omgeving zit uitsluitend in het PAD. Daarmee vervalt de aanname uit §11 dat een verkeerd pad "gewoon" een 401 geeft: een demo-pad en een echt pad worden allebei geaccepteerd door dezelfde sleutel, en het pad is het enige dat echt geld van speelgeld scheidt. `demoPad()` die gooit bij een onbekend pad is daarmee geen nette extra maar de kern van de beveiliging.
+
+Verder beantwoord:
+
+- **Vraag 1, settlementType.** Voor BTC x1 **long** is het `real`, met `allowEditStopLoss: true`, `allowStopLossTakeProfit: true`, `minStopLossPercentage: 10`, `maxStopLossPercentage: 100`. Een stop-loss wordt dus wél geaccepteerd op een niet-CFD cryptopositie. De grootste onbekende in het plan valt de goede kant op. (`cfd` hoort bij **short**, wat Kader niet doet.)
+- **Vraag 2, minimumbedrag.** `minPositionAmount: 10` en `minPositionExposure: 10`, dus $10. Ook `maxUnitsPerOrder: 41` en `unitsQuantityType: "fractional"`.
+- **Vraag 7, meerduidige tickers.** `internalSymbolFull=BTC` gaf **53** treffers: crosses (BTCA, BTCEUR, BTCJPY), en futures (BTC.APR27 tot en met BTC.DEC29). De spot-BTC is `internalSymbolFull === "BTC"` exact, `instrumentId 100000`. Alleen een exacte match is bruikbaar; velden om op te filteren zijn `internalAssetClassName: "Crypto"`, `internalCryptoTypeName`, `isBuyEnabled` en `isDelisted`.
+- **Vraag 9, rechten.** Eén sleutel geeft lezen én schrijven, in beide omgevingen. Er is dus geen tweede sleutelpaar per omgeving nodig; de opslagvorm uit §3 kan simpeler.
+- **Demo-paden bevestigd:** `/api/v1/trading/info/demo/portfolio` en `/api/v2/trading/info/demo/eligibility` geven allebei 200.
+- **Eligibility-parsing klopt.** De echte respons gebruikt `direction: "long"` en `leverageValues: [1]`, precies wat `kiesLimiet()` verwacht.
+
+Praktisch gevolg dat aandacht verdient: eToro eist voor BTC x1 een stop van **minimaal 10% onder de entry**. Kaders eigen stop (0,5x-3x ATR rond een swing low) ligt daar vaak binnen, dus `bepaalStop` zal regelmatig naar 10% opschuiven. Dat verandert het werkelijke risico per trade en dus de R/R die de gebruiker ziet.
+
+### Uit de demo-order zelf (BTC, $10, positionID 3576802030)
+
+Body die werkte, met `settlementType` **weggelaten**:
+```json
+{"action":"open","transaction":"buy","instrumentId":100000,"orderType":"mkt","leverage":1,
+ "amount":10,"orderCurrency":"usd","stopLossRate":51592.8,"takeProfitRate":83838.3,"stopLossType":"fixed"}
+```
+Antwoord 200: `{"token":"...","orderId":371855197,"referenceId":"<onze x-request-id>"}`.
+
+- **Vraag 1 definitief.** De positie kwam binnen met `stopLossRate: 51592.8` en `takeProfitRate: 83838.3`, exact zoals verstuurd, en `isNoStopLoss: false`. Een stop-loss werkt dus echt op een spot-cryptopositie. `settlementType` mag weg; eToro koos zelf `settlementTypeID: 1`.
+- **Vraag 3, valuta.** `credit` ging van 74750,04 naar 74739,96, dus ruim $10 eraf voor een `amount` van 10, en de positie kreeg `amount: 9.98`. `amount` is dollars, en er gaat een klein bedrag aan kosten af bovenop je inleg. De betaalbaarheidscontrole moet dus niet op `bedrag <= credit` maar op iets van `bedrag * 1,02 <= credit`.
+- **Vraag 4.** `leverage: 1` werkt.
+- **Vraag 5, demo-pad van de PATCH.** Het endpoint **bestaat wel**, in tegenstelling tot wat de documentatie-index suggereerde: `PATCH /api/v2/trading/demo/positions/{positionId}` geeft **202** met `{operationId, positionId, referenceId}`. De stop verschoof daadwerkelijk van 51592,8 naar 54000 en `stopLossVersion` liep van 1 naar 2. De take-profit bleef ongemoeid toen we die niet meestuurden, dus een gedeeltelijke wijziging kan. **Let op de plaatsing:** `/demo/` zit hier direct achter `trading`, niet achter `positions`. De drie andere plaatsingen gaven `RouteNotFound`. Fase 4 is dus niet geblokkeerd.
+- **Vraag 8, vultijd. Dit is het antwoord dat het plan raakt.** Het portfolio-endpoint toonde de positie **niet** na 0 seconden en **ook niet na 5 seconden**, terwijl de positie blijkens `openDateTime` op hetzelfde moment als de order al bestond. Bij een controle een paar minuten later stond hij er wel. Het portfolio-endpoint loopt dus achter op de werkelijkheid. De "na ~2s `synchroniseer()`"-opzet uit §4 gaat daarmee bijna altijd te vroeg kijken, en de gebruiker ziet ten onrechte niets. De verzoening moet herhaald kijken over een langere periode in plaats van één keer na twee seconden.
+
+**Nog open:** ontdubbeling op `x-request-id` (vraag 6). `referenceId` echoot de meegestuurde id exact, maar of een tweede verzoek met dezelfde id een tweede positie oplevert is niet getest.
 
 ## 9. Openstaande vragen, alleen te beantwoorden met een echte demo-sleutel
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
-import { Info, CheckCircle, ChevronDown, ChevronUp, Star } from 'lucide-react-native';
+import { Info, CheckCircle, ChevronDown, ChevronUp, Star, ShoppingCart } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
@@ -19,6 +19,10 @@ interface Props {
   onOpenDetail?: (trade: Trade) => void;
   favoriet?: boolean;
   onToggleFavoriet?: (symbool: string) => void;
+  // Opent de kooporder-sheet. Ontbreekt deze prop (geen koppeling, of een sleutel zonder
+  // schrijfrecht), dan blijft de kaart precies zoals hij was: twee knoppen, geen koopknop.
+  // De knop plaatst zelf nooit een order, hij opent alleen de sheet.
+  onKoop?: (trade: Trade) => void;
 }
 
 type AdviesLabel = 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
@@ -35,7 +39,7 @@ function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>
   return colors.letOp;
 }
 
-export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet }: Props) {
+export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
@@ -169,6 +173,21 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           <CheckCircle size={15} color={colors.winst} strokeWidth={1.75} />
           <Text style={[Type.caption, styles.actieLabel, { color: colors.winst }]}>Getrade</Text>
         </Pressable>
+
+        {onKoop && (
+          <>
+            <View style={[styles.scheiding, { backgroundColor: colors.rand }]} />
+            <Pressable
+              style={[styles.actieKnop, { minHeight: 44 }]}
+              onPress={() => onKoop(trade)}
+              accessibilityLabel={`${trade.symbool} kopen via eToro`}
+              accessibilityRole="button"
+            >
+              <ShoppingCart size={15} color={colors.cta} strokeWidth={1.75} />
+              <Text style={[Type.caption, styles.actieLabel, { color: colors.cta }]}>Koop</Text>
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );

@@ -19,6 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.kader.app",
+      "allowBackup": false,
       "versionCode": 20
     },
     "web": {
@@ -40,7 +41,8 @@
           }
         }
       ],
-      "expo-background-task"
+      "expo-background-task",
+      "expo-secure-store"
     ]
   }
 }

@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MoreVertical } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing } from '../theme/tokens';
+import { spacing, radii } from '../theme/tokens';
 import { InstellingenSheet } from './InstellingenSheet';
 import { AchtergrondScherm } from './AchtergrondScherm';
 import { MeldingenSheet } from './MeldingenSheet';
@@ -11,19 +11,24 @@ import { SysteemMenu, MenuAnker } from './SysteemMenu';
 import { KaderLogo } from './KaderLogo';
 import { laadLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { MeldingLogEntry } from '../notifications/tradeChecks';
+import { usePortfolio } from '../state/PortfolioProvider';
 
 interface Props {
   titel: string;
   meta?: string;
   rechts?: React.ReactNode;
+  // De DEMO-pil staat standaard aan. Alleen uitzetten als een scherm zelf al onmiskenbaar toont in
+  // welke omgeving je zit; de gevaarlijke toestand is immers vergeten dat je in echt staat.
+  toonDemoPil?: boolean;
 }
 
 // Zelfde cadans als de prijs-poll elders: een AsyncStorage-read elke 60s is verwaarloosbaar en
 // bespaart een apart event-systeem om het belletje te laten verversen na een achtergrondmelding.
 const MELDINGEN_POLL_MS = 60_000;
 
-export function ScreenHeader({ titel, meta, rechts }: Props) {
+export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props) {
   const { colors } = useTheme();
+  const { omgeving } = usePortfolio();
   const [instellingenOpen, setInstellingenOpen] = useState(false);
   const [uitlegOpen, setUitlegOpen] = useState(false);
   const [meldingenOpen, setMeldingenOpen] = useState(false);
@@ -74,6 +79,14 @@ export function ScreenHeader({ titel, meta, rechts }: Props) {
         </View>
       </View>
       <View style={styles.rechtsGroep}>
+        {toonDemoPil && omgeving === 'demo' && (
+          <View
+            style={[styles.demoPil, { backgroundColor: colors.letOp + '22', borderColor: colors.letOp }]}
+            accessibilityLabel="Demo-omgeving actief, orders gaan niet met echt geld"
+          >
+            <Text style={[Type.overline, { color: colors.letOp }]}>DEMO</Text>
+          </View>
+        )}
         {rechts ? <View style={styles.rechts}>{rechts}</View> : null}
         <Pressable
           ref={kebabRef}
@@ -132,6 +145,12 @@ const styles = StyleSheet.create({
   },
   rechts: {
     alignItems: 'flex-end',
+  },
+  demoPil: {
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
   tandwiel: {
     minHeight: 44,

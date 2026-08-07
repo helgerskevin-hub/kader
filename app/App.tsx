@@ -23,6 +23,7 @@ import { PortfolioScreen } from './src/screens/PortfolioScreen';
 import { TradersScreen } from './src/screens/TradersScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { laadVlag, bewaarVlag, laadTekst, bewaarTekst, SLEUTELS } from './src/storage/opslag';
+import { heeftEnigeSleutel } from './src/state/etoroSleutels';
 import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
@@ -143,11 +144,8 @@ function AppInhoud() {
   async function verwijsNaarEtoroIndienNodig() {
     const alGevraagd = await laadVlag(SLEUTELS.etoroSetupGevraagd);
     if (alGevraagd) return;
-    const [apiKey, userKey] = await Promise.all([
-      laadTekst(SLEUTELS.etoroApiKey, ''),
-      laadTekst(SLEUTELS.etoroUserKey, ''),
-    ]);
-    if (apiKey && userKey) return;
+    // Al gekoppeld in welke omgeving dan ook: dan is de verwijzing overbodig.
+    if (await heeftEnigeSleutel()) return;
     bewaarVlag(SLEUTELS.etoroSetupGevraagd, true);
     setTimeout(() => setEtoroPromptOpen(true), 350);
   }

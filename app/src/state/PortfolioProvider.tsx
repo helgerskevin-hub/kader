@@ -3,7 +3,10 @@ import { AppState } from 'react-native';
 import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
-import { importeerEtoroAlles, EtoroOvergeslagenPositie } from '../engine/etoro';
+import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving } from '../engine/etoro';
+import { actieveSleutels, haalOmgeving, zetOmgeving, magHandelen as magNuHandelen } from './etoroSleutels';
+import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
+import { bronVan } from './portfolioTypes';
 import { checkOpenTrades } from '../notifications/tradeChecks';
 
 export interface SyncResultaat {
@@ -36,6 +39,26 @@ interface PortfolioContextWaarde {
   verwijderTrade: (id: string) => void;
   verversPrijzen: (extraSymbolen?: string[]) => Promise<void>;
   synchroniseer: () => Promise<SyncResultaat>;
+
+  // ---- Direct handelen via eToro ----
+  // Welke eToro-omgeving actief is. Alles in `trades` hoort bij deze omgeving (handmatige trades
+  // uitgezonderd, die horen bij geen van beide).
+  omgeving: EtoroOmgeving;
+  setOmgeving: (o: EtoroOmgeving) => Promise<void>;
+  // Mag Kader in deze omgeving een order plaatsen? False zonder koppeling of zonder schrijfrecht,
+  // en dan verschijnt er nergens een koop- of verkoopknop.
+  magHandelen: boolean;
+  // Orders waarvan we niet weten of ze zijn doorgegaan. Nooit automatisch opnieuw versturen.
+  onbekendeOrders: OnbekendeOrder[];
+  // Te lang onopgelost: hier hoort de banner met "Opnieuw controleren" bij.
+  verlopenOrders: OnbekendeOrder[];
+  // Schrijft de order eerst naar schijf en dan pas naar state, zodat een app-kill op dat moment
+  // hem niet kwijtraakt.
+  noteerOnbekendeOrder: (order: OnbekendeOrder) => Promise<void>;
+  controleerOnbekendeOrders: () => Promise<void>;
+  // Na een geslaagde order: herhaald kijken of de positie verschijnt. Gemeten loopt eToro's
+  // portfolio-endpoint achter, dus een enkele sync na twee seconden ziet bijna nooit iets.
+  verzoenNaOrder: () => void;
 }
 
 const PortfolioContext = createContext<PortfolioContextWaarde | null>(null);
@@ -58,6 +81,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [laatsteSync, setLaatsteSync] = useState<number | null>(null);
   const [syncFout, setSyncFout] = useState(false);
   const [etoroFout, setEtoroFout] = useState<string | null>(null);
+  const [omgeving, setOmgevingState] = useState<EtoroOmgeving>('real');
+  const [magHandelen, setMagHandelen] = useState(false);
+  const [onbekendeOrders, setOnbekendeOrders] = useState<OnbekendeOrder[]>([]);
+  const [verlopenOrders, setVerlopenOrders] = useState<OnbekendeOrder[]>([]);
   const tradesRef = useRef(trades);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startSyncGedaan = useRef(false);
@@ -323,18 +350,15 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     const leeg: SyncResultaat = { gekoppeld: false, toegevoegd: 0, bijgewerkt: 0, gesloten: 0, uitHistorie: 0, overgeslagen: [], fout: null };
     await verversPrijzen();
 
-    const [apiKey, userKey] = await Promise.all([
-      laadTekst(SLEUTELS.etoroApiKey, ''),
-      laadTekst(SLEUTELS.etoroUserKey, ''),
-    ]);
-    if (!apiKey || !userKey) {
+    const sleutels = await actieveSleutels();
+    if (!sleutels) {
       // Geen koppeling is geen fout: een oude foutmelding mag hier niet blijven hangen.
       setEtoroFout(null);
       return leeg;
     }
 
     try {
-      const { open, historie } = await importeerEtoroAlles({ apiKey, userKey });
+      const { open, historie } = await importeerEtoroAlles(sleutels);
       const toegevoegd = importeerEtoroTrades(open.trades);
       const { afgesloten, toegevoegd: uitHistorie } = verwerkEtoroHistorie(historie.trades);
 
@@ -390,16 +414,87 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     synchroniseer();
   }, [geladen, synchroniseer]);
 
+  // ---------- Direct handelen ----------
+
+  // Omgeving en schrijfrecht komen van schijf. Ook aan te roepen na koppelen of wisselen, want
+  // allebei kunnen dan veranderen.
+  const ververHandelStatus = useCallback(async () => {
+    const [nieuweOmgeving, mag] = await Promise.all([haalOmgeving(), magNuHandelen()]);
+    setOmgevingState(nieuweOmgeving);
+    setMagHandelen(mag);
+  }, []);
+
+  useEffect(() => {
+    ververHandelStatus();
+    laadLijst<OnbekendeOrder>(SLEUTELS.onbekendeOrders).then(setOnbekendeOrders);
+  }, [ververHandelStatus]);
+
+  const setOmgeving = useCallback(async (nieuw: EtoroOmgeving) => {
+    await zetOmgeving(nieuw);
+    await ververHandelStatus();
+    // De zichtbare lijst hangt aan de omgeving, en de posities van de nieuwe omgeving zijn nog niet
+    // opgehaald. Meteen synchroniseren, anders staat het portfolio leeg tot de volgende ronde.
+    await synchroniseer();
+  }, [ververHandelStatus, synchroniseer]);
+
+  const bewaarOnbekende = useCallback(async (lijst: OnbekendeOrder[]) => {
+    await bewaarLijst(SLEUTELS.onbekendeOrders, lijst);
+    setOnbekendeOrders(lijst);
+  }, []);
+
+  // Eerst naar schijf, dan pas naar state: als de app precies hier omvalt, mag de order niet
+  // verdwijnen. Dit is het enige spoor dat er iets onderweg was.
+  const noteerOnbekendeOrder = useCallback(async (order: OnbekendeOrder) => {
+    await bewaarOnbekende([...onbekendeOrders, order]);
+  }, [onbekendeOrders, bewaarOnbekende]);
+
+  // Kijken of de onopgeloste orders inmiddels beantwoord zijn door wat er bij eToro staat. Er wordt
+  // hier nooit iets opnieuw verstuurd; er wordt alleen gekeken.
+  const controleerOnbekendeOrders = useCallback(async () => {
+    if (onbekendeOrders.length === 0) return;
+    await synchroniseer();
+    // tradesRef, niet de gefilterde lijst: een order in de andere omgeving moet ook opgelost kunnen
+    // worden, anders blijft hij eeuwig staan als je net gewisseld bent.
+    const { open, verlopen } = ruimOnbekendeOrdersOp(onbekendeOrders, tradesRef.current, Date.now());
+    setVerlopenOrders(verlopen);
+    if (open.length + verlopen.length !== onbekendeOrders.length) {
+      await bewaarOnbekende([...open, ...verlopen]);
+    }
+  }, [onbekendeOrders, synchroniseer, bewaarOnbekende]);
+
+  // Gemeten: het portfolio-endpoint van eToro loopt achter. De positie bestond al terwijl hij na 0
+  // en na 5 seconden nog niet in het portfolio stond. Eén sync na twee seconden ziet dus bijna
+  // nooit iets, en de gebruiker zou denken dat zijn koop niet is doorgegaan. Vandaar een paar
+  // keer kijken, met ruimere tussenpozen.
+  const verzoenNaOrder = useCallback(() => {
+    for (const na of [5_000, 20_000, 45_000]) {
+      setTimeout(() => { synchroniseer().catch(() => {}); }, na);
+    }
+  }, [synchroniseer]);
+
+  // Eén filter, één keer bij de bron, zodat elke consument het erft: het portfolio, de statistieken
+  // en de historie tonen alleen de actieve omgeving. Handmatige trades horen bij geen omgeving en
+  // blijven dus altijd staan. Let op dat tradesRef, importeerEtoroTrades en verwerkEtoroHistorie
+  // bewust tegen de volledige lijst blijven werken.
+  const zichtbareTrades = useMemo(
+    () => trades.filter(t => bronVan(t) === 'handmatig' || (t.etoroOmgeving ?? 'real') === omgeving),
+    [trades, omgeving],
+  );
+
   // Zonder memo is dit elke render een vers object, en abonneert elke consument (ook AppInhoud,
   // die alleen synchroniseer gebruikt) zich daardoor op elke wijziging, inclusief de 60s-prijzenpoll.
   const waarde = useMemo<PortfolioContextWaarde>(() => ({
-    trades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    trades: zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,
+    omgeving, setOmgeving, magHandelen, onbekendeOrders, verlopenOrders,
+    noteerOnbekendeOrder, controleerOnbekendeOrders, verzoenNaOrder,
   }), [
-    trades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,
+    omgeving, setOmgeving, magHandelen, onbekendeOrders, verlopenOrders,
+    noteerOnbekendeOrder, controleerOnbekendeOrders, verzoenNaOrder,
   ]);
 
   return (

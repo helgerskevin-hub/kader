@@ -3,7 +3,7 @@ import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, LayoutAnimation, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RefreshCw, ChevronDown, ChevronUp, Zap, CheckCircle } from 'lucide-react-native';
+import { RefreshCw, ChevronDown, ChevronUp, Zap, CheckCircle, ShoppingCart } from 'lucide-react-native';
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
 import { useReduceMotion } from '../theme/useReduceMotion';
@@ -20,6 +20,8 @@ import { Laadbalk } from '../components/Laadbalk';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanOpportunity } from '../engine/coinDetailData';
 import { GetradeFormulier } from '../components/GetradeFormulier';
+import { KooporderSheet } from '../components/KooporderSheet';
+import { usePortfolio } from '../state/PortfolioProvider';
 
 // ---------- State machine ----------
 type KansenState =
@@ -45,10 +47,12 @@ function reducer(state: KansenState, action: Action): KansenState {
 }
 
 // ---------- OpportunityCard ----------
-function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
+function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop }: {
   kans: Opportunity;
   onOpenDetail: (kans: Opportunity) => void;
   onGetrade: (kans: Opportunity) => void;
+  // Ontbreekt zonder schrijfrecht; dan is de kaart identiek aan vroeger.
+  onKoop?: (kans: Opportunity) => void;
 }) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
@@ -176,6 +180,19 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade }: {
             <Text style={[Type.caption, { color: colors.winst }]}>Getrade</Text>
           </Pressable>
         )}
+        {/* Alleen bij een kans met technische niveaus: zonder entry, stop en doel valt er geen
+            order te bouwen die Kaders eigen plan volgt. */}
+        {kans.heeftTechnisch && onKoop && (
+          <Pressable
+            style={cardStyles.voetKnop}
+            onPress={() => onKoop(kans)}
+            accessibilityRole="button"
+            accessibilityLabel={`${kans.symbool} kopen via eToro`}
+          >
+            <ShoppingCart size={15} color={colors.cta} strokeWidth={1.75} />
+            <Text style={[Type.caption, { color: colors.cta }]}>Koop</Text>
+          </Pressable>
+        )}
         <Pressable
           style={cardStyles.voetKnop}
           onPress={wisselUitgeklapt}
@@ -265,6 +282,8 @@ export function KansenScreen() {
   const [ververst, setVerverstState] = useState(false);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [getradeteKans, setGetradeteKans] = useState<Opportunity | null>(null);
+  const [koopKans, setKoopKans] = useState<Opportunity | null>(null);
+  const { magHandelen } = usePortfolio();
 
   // stil = true (pull-to-refresh): de bestaande lijst blijft zichtbaar terwijl er ververst wordt,
   // in plaats van naar het laadscherm te springen. Mislukt de stille refresh, dan blijft de oude
@@ -368,6 +387,7 @@ export function KansenScreen() {
               kans={item}
               onOpenDetail={k => setDetailCoin(vanOpportunity(k))}
               onGetrade={setGetradeteKans}
+              onKoop={magHandelen ? setKoopKans : undefined}
             />
           )}
           contentContainerStyle={screenStyles.lijst}
@@ -396,6 +416,18 @@ export function KansenScreen() {
         trade={getradeteKans}
         onSluiten={() => setGetradeteKans(null)}
       />
+
+      {koopKans && (
+        <KooporderSheet
+          zichtbaar
+          symbool={koopKans.symbool}
+          naam={koopKans.naam}
+          entry={koopKans.entry}
+          stop={koopKans.stopLoss}
+          doel={koopKans.takeProfit}
+          onSluiten={() => setKoopKans(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

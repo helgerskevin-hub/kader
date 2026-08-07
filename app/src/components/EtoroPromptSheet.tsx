@@ -22,7 +22,7 @@ export function EtoroPromptSheet({ zichtbaar, onLater, onNuInstellen }: Props) {
       </View>
       <Text style={[Type.titel, styles.titel, { color: colors.tekstPrimair }]}>eToro koppelen?</Text>
       <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
-        Koppel je eToro-account met een alleen-lezen sleutel om je open crypto-posities automatisch te importeren. Je kunt dit later altijd via Instellingen doen.
+        Koppel je eToro-account met een API-sleutel om je open crypto-posities automatisch te importeren. Met een Write-sleutel kun je vanuit Kader ook handelen, altijd pas nadat je een order zelf bevestigt. Je kunt dit later altijd via Instellingen doen.
       </Text>
 
       <Pressable
