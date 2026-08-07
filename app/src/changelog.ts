@@ -12,11 +12,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    // Nog niet uitgebracht. Het nummer staat er alvast in omdat het changelogscherm en de
-    // "nieuw in deze versie"-melding het letterlijk tonen; app.json blijft op de huidige versie
-    // staan tot er echt een release-APK gebouwd wordt. De datum vullen we dan in.
     versie: '0.1.13',
-    datum: '',
+    datum: '2026-08-07',
     punten: [
       'Direct handelen via eToro. Vanaf het Markt-scherm, Grote Kansen en het coin-detailscherm kun je een coin nu meteen kopen: Kader vult het bedrag, de stop-loss en het doel voor je in en stuurt de order pas nadat je die in de sheet bevestigt',
       'Vanuit je portfolio kun je een eToro-positie verkopen en de stop-loss of het doel van een lopende positie aanpassen, zonder over te tikken in de eToro-app',
