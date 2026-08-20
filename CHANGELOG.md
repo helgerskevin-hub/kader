@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.14
+
+- De melding "ongeldige API-sleutel" bij het synchroniseren zei niet waar het misging. eToro geeft dezelfde weigering voor een sleutel die echt fout is en voor een goede sleutel die naar de verkeerde omgeving ging. De melding noemt nu de omgeving en vertelt wat je kunt doen: staat Kader op demo terwijl je alleen een sleutel voor je echte account hebt, dan zet je de schakelaar bij Instellingen op Echt
+- De verbindingstest in de koppelwizard controleerde alleen je account, en dat adres is gelijk voor demo en echt. Een sleutel die in demo nergens werkt kreeg daardoor toch een groene "verbinding OK" en viel pas om bij de eerste synchronisatie. De test haalt nu ook je portfolio op en toetst zo echt de gekozen omgeving
+- Bij het opstarten konden twee gelijktijdige lezingen van je opgeslagen eToro-sleutels elkaar in de weg zitten tijdens de verhuizing naar de beveiligde opslag. In het ongelukkigste geval las de app een lege sleutel en dacht hij de rest van de sessie dat je niet gekoppeld was. Die verhuizing gebeurt nu nog maar één keer tegelijk
+
 ## 0.1.13
 
 - Direct handelen via eToro. Vanaf het Markt-scherm, Grote Kansen en het coin-detailscherm kun je een

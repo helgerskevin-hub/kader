@@ -30,9 +30,25 @@ let omgevingGeheugen: EtoroOmgeving | null = null;
 
 // ---------- Secure store, met eenmalige migratie ----------
 
+// Twee lezers tegelijk op dezelfde sleutel liepen elkaar in de weg. Bij een koude start vraagt
+// ververHandelStatus() haalOmgeving() en magHandelen() naast elkaar op, en magHandelen() roept
+// haalOmgeving() nog eens aan; sleutelsVan vult zijn cache pas na afloop, dus de migratie hieronder
+// liep dubbel. Verwijderde de ene lezer de oude kopie net nadat de andere de kluis al leeg had
+// gezien, dan las die tweede '' en onthield sleutelsVan een sessie lang "niet gekoppeld".
+// Eén lopende belofte per sleutel delen, zodat de migratie precies één keer gebeurt.
+const lopendeLezingen = new Map<string, Promise<string>>();
+
+function leesGeheim(sleutel: string): Promise<string> {
+  const lopend = lopendeLezingen.get(sleutel);
+  if (lopend) return lopend;
+  const belofte = leesGeheimEenmalig(sleutel).finally(() => lopendeLezingen.delete(sleutel));
+  lopendeLezingen.set(sleutel, belofte);
+  return belofte;
+}
+
 // Ouder toestel: de sleutel staat nog in AsyncStorage. Verplaats 'm, maar pas verwijderen nadat de
 // nieuwe plek terugleest. Andersom zou een mislukte schrijfactie de sleutel wissen.
-async function leesGeheim(sleutel: string): Promise<string> {
+async function leesGeheimEenmalig(sleutel: string): Promise<string> {
   let kluisFout = false;
   try {
     const uitKluis = await SecureStore.getItemAsync(sleutel);
@@ -63,12 +79,16 @@ async function leesGeheim(sleutel: string): Promise<string> {
 }
 
 async function schrijfGeheim(sleutel: string, waarde: string): Promise<void> {
+  // Een lezing die nu nog loopt heeft de oude waarde te pakken; die mag na deze schrijfactie niet
+  // alsnog aan een nieuwe aanroeper worden uitgedeeld.
+  lopendeLezingen.delete(sleutel);
   await SecureStore.setItemAsync(sleutel, waarde);
   // Restant van vóór de migratie opruimen, anders blijft de oude kopie in de back-up staan.
   await verwijderSleutel(sleutel);
 }
 
 async function wisGeheim(sleutel: string): Promise<void> {
+  lopendeLezingen.delete(sleutel);
   try {
     await SecureStore.deleteItemAsync(sleutel);
   } catch {

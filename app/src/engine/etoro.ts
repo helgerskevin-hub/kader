@@ -171,7 +171,17 @@ async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: Fetch
   }
 
   if (res.status === 401 || res.status === 403) {
-    throw new EtoroFout('Ongeldige API-sleutel. Controleer je sleutel bij Instellingen.', res.status);
+    // Noem de omgeving erbij. eToro geeft 401 op zowel een echt verkeerde sleutel als op een goede
+    // sleutel die naar het pad van de andere omgeving ging, en dat zijn totaal verschillende
+    // problemen. Zonder dit onderscheid stuurt de melding je je sleutel opnieuw laten invoeren
+    // terwijl die nergens fout was en alleen de schakelaar demo/echt verkeerd stond.
+    const inDemo = (sleutels.omgeving ?? 'real') === 'demo';
+    throw new EtoroFout(
+      inDemo
+        ? 'eToro accepteert je sleutel niet op het demo-account. Staat Kader op demo terwijl je alleen een sleutel voor je echte account hebt? Zet de schakelaar bij Instellingen op Echt, of koppel een sleutel onder "eToro-sleutel demo".'
+        : 'eToro accepteert je sleutel niet op je echte account. Controleer je sleutel bij Instellingen. Let op: de User Key laat eToro maar één keer zien, dus na een nieuwe sleutel moet je beide velden opnieuw invullen.',
+      res.status,
+    );
   }
   if (res.status === 429) {
     throw new EtoroFout('Te veel aanvragen bij eToro. Probeer het over een minuut opnieuw.', res.status);

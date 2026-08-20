@@ -10,7 +10,7 @@ import {
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
-import { EtoroOmgeving, haalAccountInfo, magHandelenVolgensScopes } from '../engine/etoro';
+import { EtoroOmgeving, haalAccountInfo, haalEtoroPortfolio, magHandelenVolgensScopes } from '../engine/etoro';
 import { bewaarSleutels, sleutelsVan, wisSleutels } from '../state/etoroSleutels';
 import { StapOvergang } from './StapOvergang';
 
@@ -81,13 +81,18 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, omgev
     if (stap > 0) setStap(v => v - 1);
   }
 
-  // Testen via /api/v1/me in plaats van het portfolio: dat endpoint geeft ook de scopes terug, en
-  // die bepalen of Kader in deze omgeving mag handelen. Zonder die controle zou de app moeten gokken.
+  // Twee aanroepen, met opzet. /api/v1/me geeft de scopes terug en bepaalt of Kader hier mag
+  // handelen, maar dat pad is identiek in demo en echt (zie DEMO_PADEN), dus het zegt niets over de
+  // omgeving. Alleen daarop testen gaf een groene "verbinding OK" in de demo-wizard voor een sleutel
+  // die op elk demo-endpoint een 401 geeft, en dan viel het pas om bij de eerste synchronisatie.
+  // Het portfolio staat wel op een eigen demo-pad en is dus de echte proef op de som.
   async function testVerbinding() {
     setTestStatus('testing');
     setTestFout('');
+    const sleutels = { apiKey: apiKey.trim(), userKey: userKey.trim(), omgeving };
     try {
-      const account = await haalAccountInfo({ apiKey: apiKey.trim(), userKey: userKey.trim(), omgeving });
+      const account = await haalAccountInfo(sleutels);
+      await haalEtoroPortfolio(sleutels);
       setMagSchrijven(magHandelenVolgensScopes(account.scopes, omgeving));
       setTestStatus('ok');
     } catch (e) {
