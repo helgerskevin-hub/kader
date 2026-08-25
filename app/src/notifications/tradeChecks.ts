@@ -8,6 +8,7 @@ import { scoorCandles, analyseerMarkt } from '../engine/analyzer';
 import { macd } from '../engine/indicators';
 import { fmtPrijs } from '../engine/format';
 import { stuurTradeMelding } from './meldingen';
+import { MeldingDoel, leesDoel } from './meldingDoel';
 
 // Let op: PortfolioTrade heeft geen richting-veld, en de hele advies-logica in de app gaat uit van
 // long (stop onder de entry, doel erboven). Deze checks doen dat ook. Trades die niet aan die vorm
@@ -89,15 +90,36 @@ interface Melding {
   sleutel: string;
   titel: string;
   tekst: string;
+  // Waar deze melding over gaat, zodat je er in het meldingenlog naartoe kunt tikken.
+  doel: MeldingDoel;
 }
 
 export interface MeldingLogEntry {
   tijd: number;
   titel: string;
   tekst: string;
+  // Ontbreekt bij alles wat vóór deze versie gelogd is; zo'n regel blijft leesbaar maar is niet
+  // aantikbaar. Bewust optioneel gehouden in plaats van een migratie: het log is een historie,
+  // en er is geen manier om achteraf te bepalen over welke trade een oude regel ging.
+  doel?: MeldingDoel;
 }
 
 const MAX_LOG_ENTRIES = 50;
+
+/**
+ * Leest het meldingenlog uit de opslag en schoont het doel per regel op.
+ *
+ * Bestaat zodat de UI niet zelf hoeft te weten dat oude regels geen doel hebben en dat een
+ * opgeslagen doel van een vorige app-versie niet meer hoeft te kloppen: leesDoel geeft dan null
+ * en de regel is gewoon niet aantikbaar, in plaats van dat een tik nergens op uitkomt.
+ */
+export async function laadMeldingLog(): Promise<MeldingLogEntry[]> {
+  const ruw = await laadLijst<MeldingLogEntry & { doel?: unknown }>(SLEUTELS.meldingLog);
+  return ruw.map(entry => {
+    const doel = leesDoel(entry.doel);
+    return doel ? { ...entry, doel } : { tijd: entry.tijd, titel: entry.titel, tekst: entry.tekst };
+  });
+}
 
 // Bewaart verstuurde meldingen lokaal, zodat een melding die uit de notificatiebalk is verdwenen
 // (of nooit doorkwam terwijl de telefoon vergrendeld was) terug te lezen is in de app. De dagelijkse
@@ -105,7 +127,7 @@ const MAX_LOG_ENTRIES = 50;
 // draait, en heeft toch geen trade-context om te loggen.
 async function loggeMeldingen(meldingen: Melding[], nu: number): Promise<void> {
   const bestaand = await laadLijst<MeldingLogEntry>(SLEUTELS.meldingLog);
-  const nieuw = meldingen.map(m => ({ tijd: nu, titel: m.titel, tekst: m.tekst }));
+  const nieuw = meldingen.map(m => ({ tijd: nu, titel: m.titel, tekst: m.tekst, doel: m.doel }));
   await bewaarLijst(SLEUTELS.meldingLog, [...nieuw, ...bestaand].slice(0, MAX_LOG_ENTRIES));
 }
 
@@ -140,6 +162,7 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   if (bijnaOpDoel && momentumSterk && koers < trade.takeProfit && vers.takeProfit > trade.takeProfit) {
     meldingen.push({
       sleutel: sleutelVoor(trade.id, 'verhoogTP'),
+      doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
       titel: `${trade.symbool} nadert je doel`,
       tekst: `De koers staat op ${fmtPrijs(koers)}, dicht bij je doel van ${fmtPrijs(trade.takeProfit)}, en het momentum is nog sterk. Overweeg je doel te verhogen naar ${fmtPrijs(vers.takeProfit)}.`,
     });
@@ -156,6 +179,7 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
     if (voorstel !== null) {
       meldingen.push({
         sleutel: sleutelVoor(trade.id, 'trekStopAan'),
+        doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
         titel: `${trade.symbool}: momentum vlakt af`,
         tekst: `Je staat in winst (koers ${fmtPrijs(koers)}), maar het momentum neemt af. Overweeg je stop te verhogen van ${fmtPrijs(trade.stopLoss)} naar ${fmtPrijs(voorstel)} om winst vast te zetten.`,
       });
@@ -197,6 +221,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
   if (nieuw === 'ongunstig') {
     return {
       sleutel: sleutelVoor('markt', 'klimaat'),
+    doel: { soort: 'markt' },
       titel: 'Marktklimaat omgeslagen naar ongunstig',
       tekst: `BTC staat onder zijn 50-daags gemiddelde en de marktbreedte daalt. Kader geeft vanaf nu geen koopsignalen meer en schakelt over op bear-modus.${posities}`,
     };
@@ -205,6 +230,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
   if (vorig === 'ongunstig') {
     return {
       sleutel: sleutelVoor('markt', 'klimaat'),
+    doel: { soort: 'markt' },
       titel: nieuw === 'gunstig' ? 'Het marktklimaat is weer gunstig' : 'De bear-modus is voorbij',
       tekst: nieuw === 'gunstig'
         ? 'BTC staat weer boven zijn 50-daags gemiddelde en de marktbreedte stijgt. Kader toont vanaf nu weer koopsignalen.'
@@ -215,6 +241,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
   if (nieuw === 'gunstig') {
     return {
       sleutel: sleutelVoor('markt', 'klimaat'),
+    doel: { soort: 'markt' },
       titel: 'Het marktklimaat is gunstig',
       tekst: 'BTC staat boven zijn 50-daags gemiddelde en de marktbreedte stijgt. In dit klimaat presteerden koopsignalen historisch het best.',
     };
@@ -223,6 +250,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
   // gunstig -> gemengd
   return {
     sleutel: sleutelVoor('markt', 'klimaat'),
+    doel: { soort: 'markt' },
     titel: 'Het marktklimaat is verzwakt',
     tekst: `De markt is van gunstig naar gemengd gegaan. Koopsignalen blijven zichtbaar, maar de rugwind is weg.${posities}`,
   };
@@ -252,6 +280,7 @@ async function beoordeelMarkt(
     .slice(0, MAX_KOOP_MELDINGEN)
     .map(t => ({
       sleutel: sleutelVoor(t.symbool, 'sterkeKoop'),
+      doel: { soort: 'coin', symbool: t.symbool },
       titel: `Sterk koopsignaal: ${t.symbool}`,
       tekst: `${t.symbool} scoort ${t.score} van de 100 (${t.redenen.join(', ')}). Entry ${fmtPrijs(t.entry)}, stop ${fmtPrijs(t.stopLoss)}, doel ${fmtPrijs(t.takeProfit)}.`,
     }));
@@ -277,6 +306,7 @@ async function beoordeelMarkt(
   if (verslechterd && !omslag) {
     meldingen.push({
       sleutel: sleutelVoor('markt', 'portfolioRisico'),
+      doel: { soort: 'portfolio' },
       titel: `${risico.zwak} van je ${risico.beoordeeld} posities staan zwak`,
       tekst: `De markt daalt en ${risico.zwak} van je beoordeelde posities zijn onder hun 50-daags gemiddelde gezakt${risico.dichtBijStop > 0 ? `, waarvan ${risico.dichtBijStop} binnen één dagbeweging van de stop` : ''}. Bekijk in Mijn trades wat je wil afbouwen.`,
     });

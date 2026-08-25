@@ -31,6 +31,7 @@ import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
 import { MarktProvider } from './src/state/MarktProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
+import { NavigatieProvider } from './src/state/navigatie';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
 import { WelkomFeest } from './src/components/WelkomFeest';
 import { EtoroPromptSheet } from './src/components/EtoroPromptSheet';
@@ -175,6 +176,9 @@ function AppInhoud() {
   }
 
   return (
+    // Binnen AppInhoud en niet daarbuiten, want de provider heeft wisselTab nodig. Alles wat een
+    // melding kan aantikken (ScreenHeader staat op elk scherm) zit hierbinnen.
+    <NavigatieProvider wisselTab={wisselTab}>
     <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
       <View style={styles.schermen}>
         {bezochteTabs.map(tab => {
@@ -219,6 +223,7 @@ function AppInhoud() {
         onOpgeslagen={synchroniseer}
       />
     </View>
+    </NavigatieProvider>
   );
 }
 

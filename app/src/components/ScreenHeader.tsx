@@ -9,8 +9,10 @@ import { AchtergrondScherm } from './AchtergrondScherm';
 import { MeldingenSheet } from './MeldingenSheet';
 import { SysteemMenu, MenuAnker } from './SysteemMenu';
 import { KaderLogo } from './KaderLogo';
-import { laadLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
-import { MeldingLogEntry } from '../notifications/tradeChecks';
+import { laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
+import { MeldingLogEntry, laadMeldingLog } from '../notifications/tradeChecks';
+import { MeldingDoel } from '../notifications/meldingDoel';
+import { useNavigatie } from '../state/navigatie';
 import { usePortfolio } from '../state/PortfolioProvider';
 
 interface Props {
@@ -29,6 +31,7 @@ const MELDINGEN_POLL_MS = 60_000;
 export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props) {
   const { colors } = useTheme();
   const { omgeving } = usePortfolio();
+  const { gaNaar } = useNavigatie();
   const [instellingenOpen, setInstellingenOpen] = useState(false);
   const [uitlegOpen, setUitlegOpen] = useState(false);
   const [meldingenOpen, setMeldingenOpen] = useState(false);
@@ -40,7 +43,7 @@ export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props)
 
   const ververs = useCallback(async () => {
     const [log, gezien] = await Promise.all([
-      laadLijst<MeldingLogEntry>(SLEUTELS.meldingLog),
+      laadMeldingLog(),
       laadTekst(SLEUTELS.meldingenGezienTijd, '0'),
     ]);
     setMeldingenLog(log);
@@ -58,6 +61,13 @@ export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props)
     setMeldingenOpen(true);
     setOngelezen(0);
     bewaarTekst(SLEUTELS.meldingenGezienTijd, String(Date.now()));
+  }
+
+  // Eerst de sheet sluiten, dan pas navigeren. Andersom staat er nog een modal over het scherm
+  // waar je net naartoe gestuurd bent, en dat leest als "er gebeurde niets".
+  function kiesMelding(doel: MeldingDoel) {
+    setMeldingenOpen(false);
+    gaNaar(doel);
   }
 
   function openMenu() {
@@ -112,7 +122,12 @@ export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props)
       />
       <InstellingenSheet zichtbaar={instellingenOpen} onSluiten={() => setInstellingenOpen(false)} />
       <AchtergrondScherm zichtbaar={uitlegOpen} onSluiten={() => setUitlegOpen(false)} />
-      <MeldingenSheet zichtbaar={meldingenOpen} onSluiten={() => setMeldingenOpen(false)} log={meldingenLog} />
+      <MeldingenSheet
+        zichtbaar={meldingenOpen}
+        onSluiten={() => setMeldingenOpen(false)}
+        log={meldingenLog}
+        onKies={kiesMelding}
+      />
     </View>
   );
 }

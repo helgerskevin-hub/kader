@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RefreshCw, SlidersHorizontal, TriangleAlert } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { useMarkt } from '../state/MarktProvider';
+import { useNavigatie } from '../state/navigatie';
+import { MeldingNotitie } from '../components/MeldingNotitie';
 import { MIN_RISK_REWARD } from '../engine/analyzer';
 import { useFavorieten } from '../state/useFavorieten';
 import { useTheme } from '../theme/ThemeProvider';
@@ -39,6 +41,8 @@ export function MarktScreen() {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const { state, startAnalyse } = useMarkt();
+  const { doel: navigatieDoel, wisDoel } = useNavigatie();
+  const [meldingNotitie, setMeldingNotitie] = useState<string | null>(null);
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
   const [koopTrade, setKoopTrade] = useState<Trade | null>(null);
@@ -71,6 +75,31 @@ export function MarktScreen() {
   useEffect(() => {
     haalFearGreed().then(setFearGreed);
   }, []);
+
+  // Aangetikt vanuit het meldingenlog. Anders dan bij het portfolio hebben we de data hier niet
+  // altijd al: is er nog geen analyse gedraaid, dan start die eerst en blijft het doel staan tot
+  // de coins binnen zijn. Zonder dat kom je na een tik op een koopsignaal uit op "Nog geen
+  // analyse" en moet je het zelf nog een keer doen.
+  useEffect(() => {
+    if (!navigatieDoel) return;
+    if (navigatieDoel.soort === 'markt') { wisDoel(); return; }
+    if (navigatieDoel.soort !== 'coin') return;
+
+    if (state.status === 'idle') { startAnalyse(); return; }
+    if (state.status === 'loading') return;
+    // Bij een fout staat er al een scherm dat uitlegt wat er mis is; daar niets overheen zetten.
+    if (state.status === 'error') { wisDoel(); return; }
+
+    const trade = state.alle.find(t => t.symbool === navigatieDoel.symbool);
+    if (trade) {
+      setDetailCoin(vanTrade(trade));
+    } else {
+      setMeldingNotitie(
+        `${navigatieDoel.symbool} zat niet in de laatste analyse. Ververs de markt en probeer het opnieuw.`,
+      );
+    }
+    wisDoel();
+  }, [navigatieDoel, state, startAnalyse, wisDoel]);
 
   async function handleVervers() {
     if (ververst) return;
@@ -163,6 +192,9 @@ export function MarktScreen() {
           }
           ListHeaderComponent={
             <>
+              {meldingNotitie && (
+                <MeldingNotitie tekst={meldingNotitie} onSluiten={() => setMeldingNotitie(null)} />
+              )}
               {/* Niet in bear-modus: dan staat er al een kaart die uitlegt waarom er geen koopsignaal
                   is, en is de klimaatpoort de zwaarwegende reden. Twee balken die allebei "vandaag
                   geen koopsignaal" zeggen, met de minst belangrijke bovenaan, begraven het punt. */}

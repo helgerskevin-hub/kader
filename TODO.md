@@ -90,6 +90,7 @@ _(Het probleem: in een stijgende markt levert Kader elke dag concrete trades. Zo
 
 ## 🔔 Meldingen
 
+- [x] **Meldingen aantikbaar**: tik in het meldingenoverzicht op een melding en je komt uit bij de trade in Mijn trades of de coin op het marktscherm. Onder elke melding staat waar je uitkomt. Oude meldingen zonder verwijzing blijven leesbaar maar zijn geen knop.
 _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
 
 - [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. De achtergrond-sync hiervoor staat er nu (`notifications/achtergrondtaak.ts`), dus dit is nog een kwestie van een prijs per coin kunnen instellen en die in `tradeChecks.ts` meenemen.

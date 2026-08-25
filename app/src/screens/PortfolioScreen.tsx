@@ -30,6 +30,8 @@ import { BlootstellingKaart } from '../components/BlootstellingKaart';
 import { KapitaalSheet } from '../components/KapitaalSheet';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
 import { useMarkt } from '../state/MarktProvider';
+import { useNavigatie } from '../state/navigatie';
+import { MeldingNotitie } from '../components/MeldingNotitie';
 import { berekenPortfolioWaarde } from '../state/statistieken';
 import { useWeergave, Weergave } from '../state/useWeergave';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
@@ -803,6 +805,8 @@ export function PortfolioScreen() {
   // een gedraaide analyse blijft het klimaat null en verdwijnen het blootstellingsvak en de
   // afbouwadviezen gewoon; die zijn een aanvulling, geen voorwaarde om je trades te kunnen zien.
   const { state: marktState } = useMarkt();
+  const { doel: navigatieDoel, wisDoel } = useNavigatie();
+  const [meldingNotitie, setMeldingNotitie] = useState<string | null>(null);
   const { weergave, setWeergave } = useWeergave();
   const reduceMotion = useReduceMotion();
 
@@ -814,6 +818,30 @@ export function PortfolioScreen() {
       setDichteBronnen(new Set(tekst.split(',').filter(Boolean) as ('etoro' | 'handmatig')[]));
     });
   }, []);
+
+  // Aangetikt vanuit het meldingenlog: open meteen de trade waar die melding over ging. Het doel
+  // wordt hier gewist, ook als de trade niet meer bestaat; anders blijft het staan en springt het
+  // scherm bij de volgende render opnieuw open.
+  useEffect(() => {
+    if (!navigatieDoel) return;
+    // Alleen doelen die op dit scherm thuishoren; de rest laat het Marktscherm staan.
+    if (navigatieDoel.soort === 'portfolio') { wisDoel(); return; }
+    if (navigatieDoel.soort !== 'trade') return;
+
+    // Op id, met het symbool als terugval: een opnieuw geïmporteerde eToro-positie kan een ander
+    // id hebben gekregen, en dan is de open trade in dezelfde coin wat je bedoelde.
+    const trade = trades.find(t => t.id === navigatieDoel.tradeId)
+      ?? trades.find(t => t.symbool === navigatieDoel.symbool && t.status === 'open');
+
+    if (trade) {
+      setDetailCoin(vanPortfolioTrade(trade, livePrijzen[trade.symbool]));
+    } else {
+      setMeldingNotitie(
+        `Die melding ging over ${navigatieDoel.symbool}, maar die positie is inmiddels gesloten of verwijderd.`,
+      );
+    }
+    wisDoel();
+  }, [navigatieDoel, trades, livePrijzen, wisDoel]);
 
   function wisselBron(bron: 'etoro' | 'handmatig') {
     if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -1025,6 +1053,10 @@ export function PortfolioScreen() {
                 </Pressable>
               </View>
             )}
+            {meldingNotitie && (
+              <MeldingNotitie tekst={meldingNotitie} onSluiten={() => setMeldingNotitie(null)} />
+            )}
+
             {klimaat && openTrades.length > 0 && (
               <BlootstellingKaart
                 inMarktUsd={waarde.huidigeWaardeUsd}
