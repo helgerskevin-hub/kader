@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## 0.1.15 (nog niet uitgebracht)
+## 0.1.15
 
 - Meldingen zijn aantikbaar geworden. Tik in het meldingenoverzicht op een melding en je gaat naar waar hij over gaat: de trade in Mijn trades, of de coin op het marktscherm. Onder elke melding staat waar je uitkomt, zodat je het vóór het tikken weet. Meldingen van vóór deze versie hebben die verwijzing niet en blijven gewoon leesbaar. Is de trade inmiddels gesloten of verwijderd, dan zegt de app dat in plaats van niets te doen
 - Kader schakelt in een dalende markt over op bear-modus. Zodra het marktklimaat ongunstig is, maakt het vak "Wat moet ik nu kopen?" plaats voor een vak dat vertelt wat er aan de hand is, hoe lang dat al zo is en wat bitcoin sindsdien gedaan heeft. Dat laatste staat er met opzet bij: niet kopen voelt als niets doen, maar in een markt die 18% daalt is niet kopen een resultaat. De drempels blijven ongewijzigd, want ze verlagen om toch iets te kunnen tonen is precies de fout die geld kost
