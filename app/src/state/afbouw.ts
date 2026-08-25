@@ -159,7 +159,7 @@ if (require.main === module) {
     symbool: 'SOL', bron: 'binance', prijs: 100, entry: 100, entryLaag: 98, entryHoog: 102,
     stopLoss: 90, takeProfit: 130, rr: 3, atr: 5, rsi: 50, ema20: 100, ema50: 100,
     macdBullish: true, volumeRatio: 1, score: 60, redenen: [], signaal: 'WATCH',
-    highConviction: false, voldoetAanRR: true, ...over,
+    highConviction: false, voldoetAanRR: true, profiel: 'momentum', ...over,
   });
   const trade = (over: Partial<PortfolioTrade> = {}): PortfolioTrade => ({
     id: '1', symbool: 'SOL', naam: 'Solana', entryPrijs: 100, stopLoss: 90, takeProfit: 130,

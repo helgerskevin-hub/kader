@@ -56,14 +56,18 @@ _(Gevonden op marketmirror.com, functies die het overwegen waard zijn voor Kader
 
 _(Het probleem: in een stijgende markt levert Kader elke dag concrete trades. Zodra `bepaalKlimaat()` in [marktklimaat.ts](app/src/engine/marktklimaat.ts) op ONGUNSTIG staat, sluit de poort en zegt de app in feite alleen nog "niet kopen". Dat klopt inhoudelijk, de backtest is er duidelijk over, maar het maakt de app maandenlang een leeg scherm. Kader moet in een dalende markt iets te doen hebben in plaats van alleen iets te verbieden.)_
 
-**Stand van zaken (25 aug 2026)**: fase 1 en 2 staan in `feature/bearmarkt-modus`, geverifieerd op de emulator. Fase 3 en 4 staan bewust stil tot fase 0 gedraaid is; ze bouwen zonder die meting zou ingaan tegen de regel hieronder.
+**Stand van zaken (25 aug 2026)**: fase 1 en 2 staan op main, geverifieerd op de emulator. Fase 0 is gedraaid, de cijfers staan hieronder. Uitkomst: **fase 3 gaat niet door** (de meting steunt het niet) en **fase 4 (shorts) krijgt groen licht** (meting F werkt in alle drie de bearmarkten). Zie de onderbouwing per fase.
 
 **Uitgangspunt dat niet ter discussie staat**: we verlagen nooit `DREMPEL_KOOP`, `MIN_RISK_REWARD` of de klimaatpoort om in een bearmarkt tóch signalen te kunnen tonen. Dat is precies de fout die geld kost. De app moet iets anders gaan doen, niet hetzelfde met soepelere drempels.
 
-#### Fase 0: eerst meten, dan bouwen
-- [ ] `npm run backtest` draaien en meting C/D/E/F opschrijven in dit bestand, zodat we per fase een nulmeting hebben. Zonder cijfers is elke keuze hieronder een gok.
-- [ ] Meting F (shorts) is er al maar staat geparkeerd: score < 40 met BTC onder EMA200, doel 2x ATR, 20 dagen. Uitkomst per jaar bekijken: werkten shorts in 2018 en 2022 óók, of was 2025-26 toeval? Dit is de go/no-go voor fase 4.
-- [ ] Nieuwe meting toevoegen: presteren mean-reversion-longs (diep oversold RSI, capitulatievolume, kort doel) beter dan momentum-longs in de jaren waarin de poort dicht stond? Dit is de go/no-go voor fase 3.
+#### Fase 0: eerst meten, dan bouwen - GEDAAN (25 aug 2026)
+_(Alle cijfers uit `npm run backtest` over 57 coins, 9 jaar Binance-historie tot 12 juli 2026. Getallen zijn gemiddelde R per trade. Ruwe data in `data/backtest/`.)_
+
+- [x] **Meting C, het algoritme per jaar**: de app zoals hij nu draait (KOOP + R/R-filter) haalt +0,083 over 3170 trades, tegen +0,032 voor een willekeurige instap. High conviction is het sterkst met +0,154. Per jaar valt op dat 2018 (-0,66), 2022 (-0,47), 2025 (-0,32) en 2026 (-0,29) de verliesjaren zijn, precies de bearmarkten. Dat is het hele probleem dat dit plan moet oplossen.
+- [x] **Meting D, de poorten**: "BTC boven EMA50 en breedte stijgt" blijft de beste poort met +0,200 tegen +0,154 zonder poort. Dat is de poort die nu in `bepaalKlimaat()` zit, dus daar hoeft niets aan te veranderen.
+- [x] **Meting E, doel en houdtijd**: doel 3x ATR met 30 dagen wint over de hele periode (+0,154). Kortere doelen geven een hoger trefferpercentage (1,5x ATR haalt 67%) maar minder R. `REWARD_MULTIPLIER` van 3,0 blijft dus staan.
+- [x] **Meting F, shorts: dit is de go voor fase 4.** Short op score < 40, doel 2x ATR, 20 dagen: +0,064 over 5377 trades. Belangrijker is het jaarpatroon, want dat was de vraag: 2018 **+0,15**, 2022 **+0,19**, 2025 **+0,13**, 2026 **+0,10**. Alle drie de bearmarkten positief, dus 2025-26 was geen toeval. Verliesjaren zijn juist de bulljaren (2020 -0,16, 2024 -0,04), wat logisch is en precies waarom shorts achter de klimaatpoort horen. Let op: de extra filter "BTC onder EMA200" maakt het **slechter** (+0,054), en score < 25 nog slechter (+0,026). De simpele regel is de beste.
+- [x] **Meting G, mean-reversion-longs: dit is de no-go voor fase 3.** Zie de onderbouwing onder fase 3 hieronder.
 
 #### Fase 1: de bear-modus als eigen toestand van de app (geen nieuwe databron nodig) - GEBOUWD
 - [x] **Marktscherm krijgt een echte bear-modus**: bij ONGUNSTIG toont het scherm niet dezelfde lijst met alles op WATCH, maar een andere indeling: bovenaan wat je met je open posities moet doen, daaronder de relatieve-sterktelijst, en pas onderaan de gewone analyse ter informatie. De copy in [MarktBalk.tsx](app/src/components/MarktBalk.tsx) legt nu wel uit waarom er niets is, maar biedt geen alternatief.
@@ -78,13 +82,30 @@ _(Het probleem: in een stijgende markt levert Kader elke dag concrete trades. Zo
 - [x] **Portfoliobrede risicomelding**: nu gaat elke melding over één trade. Voeg een melding toe over het geheel: "het klimaat is omgeslagen naar ongunstig en 4 van je 6 posities staan onder hun EMA50". Dat is in een bearmarkt de melding die er echt toe doet. Hergebruikt de bestaande suppressielogica in `SLEUTELS.meldingSuppressie`.
 - [x] **Klimaatomslag als pushmelding, beide kanten op**: melden zodra `bepaalKlimaat()` van GEMENGD naar ONGUNSTIG gaat (afbouwen) en zodra hij van ONGUNSTIG naar GEMENGD of GUNSTIG gaat (de poort opent weer). Die tweede is in een bearmarkt de belangrijkste melding die de app kan sturen, want daar wacht je maandenlang op. De achtergrondtaak in [achtergrondtaak.ts](app/src/notifications/achtergrondtaak.ts) draait al, alleen het klimaat wordt daar nog niet berekend en er is nog geen vorige-toestand in AsyncStorage.
 
-#### Fase 3: een tweede scoreprofiel voor bearmarktrally's
-- [ ] De huidige scoring beloont trend, prijs boven EMA20, bullish MACD en volumepieken. Dat is een momentumprofiel en dat werkt in een dalende markt structureel slecht. Wat daar wél werkt is mean reversion: diep oversold, capitulatievolume, eerste hogere bodem, klein doel, korte houdtijd.
-- [ ] `scoorCandles()` krijgt een profielparameter (`momentum` of `omkeer`) in plaats van een tweede kopie van de functie, zodat de backtest beide profielen door dezelfde engine kan draaien. Bij ONGUNSTIG kiest `analyseerMarkt()` het omkeerprofiel.
-- [ ] Andere niveaus voor dat profiel: doel rond 1,5x ATR in plaats van 3x ATR en een kortere maximale houdtijd. Meting E laat al zien dat doel en houdtijd samen horen te bewegen. `MIN_RISK_REWARD` blijft staan, het doel wordt kleiner dus de stop moet krapper, niet de eis lager.
-- [ ] Bouwen alleen als de meting uit fase 0 het steunt. Zo niet, dan is de eerlijke uitkomst dat de app in een bearmarkt geen longs geeft en blijft het bij fase 1 en 2.
+#### Fase 3: een tweede scoreprofiel voor bearmarktrally's - GEMETEN EN AFGEVOERD (25 aug 2026)
 
-#### Fase 4: shorts (het echte antwoord, maar ook het duurste)
+_(De eerlijke uitkomst die het plan hierboven zelf voorschreef: "bouwen alleen als de meting het steunt". De meting steunt het niet, dus de app geeft in een bearmarkt geen longs en blijft het bij fase 1 en 2.)_
+
+Het omkeerprofiel is wel gebouwd en gemeten. `scoorCandles()` heeft nu een profielparameter (`momentum` of `omkeer`) die diep oversold RSI, capitulatievolume, de eerste hogere bodem en een oplopend MACD-histogram scoort, met doel 2x ATR en een stop-clamp van 0,5 tot 1x ATR. **Die parameter blijft in de code staan als meetgereedschap** (standaard `momentum`, `analyseerMarkt()` gebruikt hem niet, dus de app verandert er niet van). Zo is de meting later te herhalen op verse data zonder alles opnieuw te bouwen, en meting G in `app/scripts/backtest.ts` blijft draaien.
+
+Wat de meting zei, op de dagen dat de klimaatpoort dicht stond (doel 2x ATR, 20 dagen):
+
+| regel | n | treffer% | gem R |
+|---|---|---|---|
+| willekeurige instap | 6720 | 30 | -0,075 |
+| momentum (KOOP + R/R) | 532 | 34 | -0,085 |
+| omkeer (KOOP + R/R) | 1327 | 38 | **+0,156** |
+
+Dat ziet er goed uit, en in de strengste doorsnede (poort dicht **en** BTC onder EMA200) nog beter: omkeer +0,234 tegen -0,175 voor momentum. Het probleem zit in het jaarpatroon. Die winst komt uit scherpe correcties die weer omhoog gingen (2023 +0,94, 2024 +1,47, 2025 +0,93), niet uit de bearmarkten zelf: **2019 -0,48, 2022 -0,08, 2026 -0,34**.
+
+Vooraf was afgesproken dat fase 3 alleen doorging als het profiel in minstens twee van de drie bearmarkten standhield. Dat haalt het niet: van de vier meetbare dalende periodes is er één positief (2025) en zijn er drie negatief. Doorslaggevend is 2026: **in de markt waar we nu in zitten verliest dit profiel 0,34 R per trade.** Iets uitbrengen dat vandaag geld kost is precies de fout die de kop "waar we vanaf blijven" hieronder beschrijft.
+
+- [ ] Eventueel later: het profiel werkt wél op scherpe correcties binnen een opgaande markt. Dat is een ander idee dan dit ("koop de dip in een bullmarkt", niet "wat doe je in een bearmarkt") en hoort niet in het bearmarkt-plan thuis. Alleen oppakken als iemand er expliciet voor kiest, en dan opnieuw meten op verse data.
+
+#### Fase 4: shorts (het echte antwoord, maar ook het duurste) - GROEN LICHT
+
+_(Meting F uit fase 0 is de go: shorts op score < 40 leverden in alle drie de bearmarkten geld op (2018 +0,15, 2022 +0,19, 2025 +0,13, 2026 +0,10) en verloren alleen in bulljaren. Nu fase 3 is afgevoerd is dit het enige overgebleven antwoord op "wat doet Kader in een dalende markt". Het is ook het duurste, vooral door eToro: crypto shorten kan daar alleen als CFD met hefboom.)_
+
 - [ ] `PortfolioTrade` heeft geen richting-veld. Dat raakt meer dan het lijkt: [tradeChecks.ts](app/src/notifications/tradeChecks.ts) gaat overal uit van long, en de eToro-import slaat shortposities nu stilzwijgend over (zie de melding in [PortfolioScreen.tsx](app/src/screens/PortfolioScreen.tsx)). Het richting-veld toevoegen is stap één en heeft op zichzelf al waarde, ook zonder short-signalen: je ziet je eToro-shorts dan tenminste terug in de app.
 - [ ] `scoorCandles()` gespiegeld voor short: stop net boven de recente swing high in plaats van onder de swing low, doel onder de entry, scoring op afwaartse trend. `stopAfstandStructuur()` krijgt daarvoor een richtingparameter.
 - [ ] eToro-beperking uitzoeken voordat we UI bouwen: crypto shorten kan daar alleen als CFD en dus met hefboom, wat andere marginregels en andere stop-loss-limieten betekent. [etoroLimieten.ts](app/src/engine/etoroLimieten.ts) haalt de `Sell`-configs al op maar `kiesLimiet()` filtert nu bewust op hefboom x1 en richting Buy. Die data hebben we dus, we gebruiken hem alleen niet.
