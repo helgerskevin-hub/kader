@@ -2,6 +2,7 @@ import { Candle, Trade } from './types';
 import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
 import { haalData } from './marketData';
 import { bepaalKlimaat, poortOpen, Marktklimaat } from './marktklimaat';
+import { berekenRelatieveSterkte, RelatieveSterkte } from './relatieveSterkte';
 import { HIGH_CONVICTION_SCORE, HIGH_CONVICTION_VOLUME_MIN, DREMPEL_KOOP } from './drempels';
 
 // De coins die wij analyseren: op eToro te kopen én met een live Binance USDT-paar (eventueel via
@@ -180,6 +181,13 @@ export interface MarktUitkomst {
   // Van hoeveel coins we daadwerkelijk data binnenkregen. `trades` is daar de top-N van, dus
   // zonder dit getal lijkt "20 coins" alsof de rest van het universum niet bekeken is.
   bekeken: number;
+  // Alle gescoorde coins, dezelfde sortering als `trades` maar zonder de top-N-knip. De
+  // Markt-lijst blijft `trades` gebruiken; dit is er voor wie een specifieke coin moet opzoeken,
+  // zoals het risico-oordeel over je open posities. Die kunnen namelijk best buiten de top 20
+  // vallen, en dan zou de app over juist die posities zwijgen.
+  alle: Trade[];
+  // Rangschikking op prestatie t.o.v. BTC, sterkste eerst. Leeg als BTC ontbreekt.
+  relatieveSterkte: RelatieveSterkte[];
 }
 
 export async function analyseerMarkt(options?: {
@@ -221,6 +229,9 @@ export async function analyseerMarkt(options?: {
   const btc = opgehaald.find(o => o.symbool === 'BTC');
   const klimaat = btc ? bepaalKlimaat(btc.candles, opgehaald.map(o => o.candles)) : null;
 
+  // Hergebruikt dezelfde candles als de scan hierboven, dus dit kost geen extra requests.
+  const relatieveSterkte = berekenRelatieveSterkte(opgehaald);
+
   // De poort: bij een ongunstig of gemengd klimaat wordt geen enkel signaal nog als KOOP getoond.
   // De score en de onderbouwing blijven gewoon zichtbaar, alleen het koopsignaal zelf zwijgt.
   const gefilterd = poortOpen(klimaat)
@@ -236,5 +247,11 @@ export async function analyseerMarkt(options?: {
     return b.rr - a.rr;
   });
 
-  return { trades: gefilterd.slice(0, topN), klimaat, bekeken: opgehaald.length };
+  return {
+    trades: gefilterd.slice(0, topN),
+    alle: gefilterd,
+    klimaat,
+    relatieveSterkte,
+    bekeken: opgehaald.length,
+  };
 }

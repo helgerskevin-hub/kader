@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RefreshCw, SlidersHorizontal, TriangleAlert } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { useMarkt } from '../state/MarktProvider';
+import { useNavigatie } from '../state/navigatie';
+import { MeldingNotitie } from '../components/MeldingNotitie';
 import { MIN_RISK_REWARD } from '../engine/analyzer';
 import { useFavorieten } from '../state/useFavorieten';
 import { useTheme } from '../theme/ThemeProvider';
@@ -24,6 +26,8 @@ import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
+import { BearModusKaart } from '../components/BearModusKaart';
+import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
@@ -37,6 +41,8 @@ export function MarktScreen() {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const { state, startAnalyse } = useMarkt();
+  const { doel: navigatieDoel, wisDoel } = useNavigatie();
+  const [meldingNotitie, setMeldingNotitie] = useState<string | null>(null);
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
   const [koopTrade, setKoopTrade] = useState<Trade | null>(null);
@@ -70,6 +76,31 @@ export function MarktScreen() {
     haalFearGreed().then(setFearGreed);
   }, []);
 
+  // Aangetikt vanuit het meldingenlog. Anders dan bij het portfolio hebben we de data hier niet
+  // altijd al: is er nog geen analyse gedraaid, dan start die eerst en blijft het doel staan tot
+  // de coins binnen zijn. Zonder dat kom je na een tik op een koopsignaal uit op "Nog geen
+  // analyse" en moet je het zelf nog een keer doen.
+  useEffect(() => {
+    if (!navigatieDoel) return;
+    if (navigatieDoel.soort === 'markt') { wisDoel(); return; }
+    if (navigatieDoel.soort !== 'coin') return;
+
+    if (state.status === 'idle') { startAnalyse(); return; }
+    if (state.status === 'loading') return;
+    // Bij een fout staat er al een scherm dat uitlegt wat er mis is; daar niets overheen zetten.
+    if (state.status === 'error') { wisDoel(); return; }
+
+    const trade = state.alle.find(t => t.symbool === navigatieDoel.symbool);
+    if (trade) {
+      setDetailCoin(vanTrade(trade));
+    } else {
+      setMeldingNotitie(
+        `${navigatieDoel.symbool} zat niet in de laatste analyse. Ververs de markt en probeer het opnieuw.`,
+      );
+    }
+    wisDoel();
+  }, [navigatieDoel, state, startAnalyse, wisDoel]);
+
   async function handleVervers() {
     if (ververst) return;
     setVerverstState(true);
@@ -93,6 +124,17 @@ export function MarktScreen() {
       || (marktFilters.rsi === 'oversold' ? t.rsi < 30 : t.rsi > 70))
     .filter(t => t.score >= marktFilters.minScore)
     .filter(t => t.rr >= marktFilters.minRR);
+
+  const bearModus = state.status === 'success' && state.klimaat?.klimaat === 'ongunstig';
+
+  // De relatieve-sterktelijst kent alleen symbolen. De bijbehorende analyse zoeken we op in `alle`
+  // en niet in `trades`: een coin die standhoudt in een dalende markt scoort vaak juist laag op
+  // momentum en valt dan buiten de top-20 die de lijst toont.
+  function openCoinDetail(symbool: string) {
+    if (state.status !== 'success') return;
+    const trade = state.alle.find(t => t.symbool === symbool);
+    if (trade) setDetailCoin(vanTrade(trade));
+  }
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.root, { backgroundColor: colors.achtergrond }]}>
@@ -150,11 +192,33 @@ export function MarktScreen() {
           }
           ListHeaderComponent={
             <>
-              {state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
+              {meldingNotitie && (
+                <MeldingNotitie tekst={meldingNotitie} onSluiten={() => setMeldingNotitie(null)} />
+              )}
+              {/* Niet in bear-modus: dan staat er al een kaart die uitlegt waarom er geen koopsignaal
+                  is, en is de klimaatpoort de zwaarwegende reden. Twee balken die allebei "vandaag
+                  geen koopsignaal" zeggen, met de minst belangrijke bovenaan, begraven het punt. */}
+              {!bearModus && state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
                 <RrWaarschuwing bekeken={state.bekeken} />
               )}
-              <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
+              {/* In een dalende markt is "wat moet ik nu kopen" de verkeerde vraag: het antwoord is
+                  dan maandenlang hetzelfde lege "wacht op een sterker signaal". De bear-modus-kaart
+                  neemt die plek in en vertelt wat er wél te doen is. */}
+              {bearModus ? (
+                <BearModusKaart stand={state.bearModus} />
+              ) : (
+                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
+              )}
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
+              {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
+                  al waar de kracht zit en zou deze lijst er een tweede rangschikking naast zetten. */}
+              {state.klimaat && state.klimaat.klimaat !== 'gunstig' && (
+                <RelatieveSterkteKaart
+                  lijst={state.relatieveSterkte}
+                  klimaat={state.klimaat.klimaat}
+                  onOpenCoin={openCoinDetail}
+                />
+              )}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
               <View style={styles.tabsRij}>
                 <FilterTabs actief={filter} onWijzig={wisselFilterTab} aantalFavorieten={aantalFavorieten} />
