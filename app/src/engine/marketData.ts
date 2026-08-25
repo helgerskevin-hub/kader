@@ -140,6 +140,22 @@ export async function haalLaatstePrijzen(symbolen: string[]): Promise<Record<str
   return resultaat;
 }
 
+// Euro per dollar, via CoinGecko's /exchange_rates (alles t.o.v. BTC, dus eur/usd is de deling).
+// Geen aparte FX-provider en geen sleutel nodig; CoinGecko staat hier toch al in de keten.
+export async function haalEurPerUsd(): Promise<number | null> {
+  const data = await httpGet<{ rates?: Record<string, { value?: number }> }>(
+    `${COINGECKO_BASE}/exchange_rates`,
+  );
+  const usd = data?.rates?.usd?.value;
+  const eur = data?.rates?.eur?.value;
+  if (typeof usd !== 'number' || typeof eur !== 'number' || usd <= 0) return null;
+  const koers = eur / usd;
+  // De euro/dollar-koers zweeft al decennia tussen grofweg 0.6 en 1.5. Ligt hij daarbuiten, dan
+  // is er iets mis met de respons en tonen we liever dollars dan elk bedrag in de app te vertienen.
+  if (!isFinite(koers) || koers < 0.5 || koers > 2) return null;
+  return koers;
+}
+
 export async function haalFearGreed(): Promise<{ waarde: number; klasse: string } | null> {
   const data = await httpGet<{ data: { value: string; value_classification: string }[] }>(
     'https://api.alternative.me/fng/',

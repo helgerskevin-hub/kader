@@ -27,6 +27,10 @@ export interface Trade {
   redenen: string[];
   signaal: 'KOOP' | 'WATCH';
   highConviction: boolean;
+  // Haalt deze coin de minimale risk/reward (MIN_RISK_REWARD)? Zo niet, dan blijft de analyse
+  // gewoon zichtbaar maar wordt het signaal nooit KOOP. Vroeger liet scoorCandles zo'n coin
+  // helemaal vallen, waardoor de Markt in een brede markt een leeg scherm gaf zonder uitleg.
+  voldoetAanRR: boolean;
 }
 
 export interface Opportunity {

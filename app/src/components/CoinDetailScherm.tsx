@@ -22,6 +22,7 @@ import { Disclaimer } from './Disclaimer';
 import { GetradeFormulier, GetradeBron } from './GetradeFormulier';
 import { KooporderSheet } from './KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useValutaStand } from '../state/useValuta';
 
 interface Props {
   data: CoinDetailData | null;
@@ -35,6 +36,10 @@ const androidStatusBarPadding = Platform.OS === 'android' ? (StatusBar.currentHe
 type LaadStatus = 'idle' | 'loading' | 'error' | 'success';
 
 export function CoinDetailScherm({ data, onSluiten }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
   const [status, setStatus] = useState<LaadStatus>('idle');
   const [candles, setCandles] = useState<Candle[]>([]);

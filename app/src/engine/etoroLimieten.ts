@@ -6,6 +6,11 @@
 // onderaan.
 import { fmtPrijs } from './format';
 
+// Deze adviezen verschijnen alleen op de orderschermen (koop, verkoop-niveaus, trade toevoegen) en
+// die rekenen in dollars, omdat eToro dat doet. Dus hier expliciet dollars, ook als de gebruiker
+// de app op euro's heeft staan: het getal moet één op één matchen met wat hij intikt.
+const DOLLARS = { valuta: 'USD' } as const;
+
 // Alle velden optioneel: eToro mag er morgen een weglaten zonder dat wij crashen.
 export interface EtoroLeverageConfig {
   settlementType?: string;
@@ -98,7 +103,7 @@ export function bepaalStop(entry: number, stop: number, limiet: StopLossLimiet |
 
   const naar = (grensPct: number, reden: string): StopAdvies => {
     const nieuw = entry * (1 - grensPct / 100);
-    return { soort: 'aangepast', stop: nieuw, uitleg: `Stop aangepast naar ${fmtPrijs(nieuw)}. ${reden}` };
+    return { soort: 'aangepast', stop: nieuw, uitleg: `Stop aangepast naar ${fmtPrijs(nieuw, DOLLARS)}. ${reden}` };
   };
 
   const afstand = ((entry - stop) / entry) * 100;

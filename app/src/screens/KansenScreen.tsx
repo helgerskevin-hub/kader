@@ -22,6 +22,7 @@ import { CoinDetailData, vanOpportunity } from '../engine/coinDetailData';
 import { GetradeFormulier } from '../components/GetradeFormulier';
 import { KooporderSheet } from '../components/KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useValutaStand } from '../state/useValuta';
 
 // ---------- State machine ----------
 type KansenState =
@@ -277,6 +278,10 @@ const cardStyles = StyleSheet.create({
 
 // ---------- Scherm ----------
 export function KansenScreen() {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
   const [ververst, setVerverstState] = useState(false);

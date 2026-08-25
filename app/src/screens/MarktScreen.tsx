@@ -3,9 +3,10 @@ import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl, LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RefreshCw, SlidersHorizontal } from 'lucide-react-native';
+import { RefreshCw, SlidersHorizontal, TriangleAlert } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { useMarkt } from '../state/MarktProvider';
+import { MIN_RISK_REWARD } from '../engine/analyzer';
 import { useFavorieten } from '../state/useFavorieten';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -149,6 +150,9 @@ export function MarktScreen() {
           }
           ListHeaderComponent={
             <>
+              {state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
+                <RrWaarschuwing bekeken={state.bekeken} />
+              )}
               <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
@@ -170,7 +174,7 @@ export function MarktScreen() {
               </View>
               <View style={styles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                  {state.trades.length} coins geanalyseerd · gesorteerd op signaalsterkte
+                  {state.trades.length} van {state.bekeken} coins · gesorteerd op signaalsterkte
                 </Text>
               </View>
             </>
@@ -184,7 +188,12 @@ export function MarktScreen() {
               <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
                 Geen coins voldoen aan de gekozen filters.
               </Text>
-            ) : null
+            ) : (
+              <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
+                Er kwam van geen enkele coin marktdata binnen. Trek de lijst omlaag om het opnieuw
+                te proberen.
+              </Text>
+            )
           }
           ListFooterComponent={<Disclaimer />}
         />
@@ -221,6 +230,27 @@ export function MarktScreen() {
 }
 
 // ---------- Sub-views ----------
+// Geen enkele coin haalt de R/R-drempel. Dat is een normale markttoestand, geen storing, maar
+// zonder deze uitleg lijkt het scherm kapot: je ziet dan wel scores en niveaus en nergens een KOOP.
+function RrWaarschuwing({ bekeken }: { bekeken: number }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.waarschuwing, { backgroundColor: colors.kaart, borderColor: colors.letOp }]}>
+      <View style={styles.waarschuwingKop}>
+        <TriangleAlert size={16} color={colors.letOp} strokeWidth={2} />
+        <Text style={[Type.overline, { color: colors.letOp }]}>
+          GEEN COIN HAALT NU 1:{MIN_RISK_REWARD}
+        </Text>
+      </View>
+      <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
+        Alle {bekeken} coins zijn geanalyseerd, maar bij geen enkele ligt het doel ver genoeg boven
+        de stop. Je ziet de analyse hieronder ter informatie; er staat vandaag geen koopsignaal
+        tussen.
+      </Text>
+    </View>
+  );
+}
+
 function IdleView({ onStart }: { onStart: () => void }) {
   const { colors } = useTheme();
   return (
@@ -327,6 +357,19 @@ const styles = StyleSheet.create({
   },
   ctaTekst: { color: 'white', fontWeight: '600' },
   lijst: { paddingTop: spacing.md, paddingBottom: spacing.md },
+  waarschuwing: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.base,
+    borderRadius: radii.kaart,
+    borderLeftWidth: 3,
+    gap: spacing.sm,
+  },
+  waarschuwingKop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   lijstKop: {
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,

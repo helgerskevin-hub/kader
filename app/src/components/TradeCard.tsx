@@ -4,6 +4,7 @@ import { Info, CheckCircle, ChevronDown, ChevronUp, Star, ShoppingCart } from 'l
 import { Trade } from '../engine/types';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
+import { MIN_RISK_REWARD } from '../engine/analyzer';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
@@ -12,6 +13,7 @@ import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
+import { useValutaStand } from '../state/useValuta';
 
 interface Props {
   trade: Trade;
@@ -40,6 +42,10 @@ function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>
 }
 
 export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
@@ -114,7 +120,17 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
       <View style={styles.metaRij}>
         <View style={styles.metaItem}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-          <Text style={[Type.prijs, styles.metaWaarde, { color: colors.tekstPrimair }]}>{fmtRR(trade.rr)}</Text>
+          {/* Onder de drempel kleurt de verhouding: de coin blijft zichtbaar, maar dit is precies
+              de reden dat hij geen KOOP wordt. Zonder markering lijkt het een willekeurig getal. */}
+          <Text style={[
+            Type.prijs, styles.metaWaarde,
+            { color: trade.voldoetAanRR ? colors.tekstPrimair : colors.letOp },
+          ]}>
+            {fmtRR(trade.rr)}
+          </Text>
+          {!trade.voldoetAanRR && (
+            <Text style={[Type.caption, { color: colors.letOp }]}>onder 1:{MIN_RISK_REWARD}</Text>
+          )}
         </View>
         <View style={styles.metaItem}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>

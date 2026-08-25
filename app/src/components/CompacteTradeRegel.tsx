@@ -8,6 +8,7 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { bepaalAdvies } from '../state/advies';
 import { PositieBalk } from './PositieBalk';
+import { useValutaStand } from '../state/useValuta';
 
 interface Props {
   trade: PortfolioTrade;
@@ -17,6 +18,10 @@ interface Props {
 }
 
 export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActies }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
 
   const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs);

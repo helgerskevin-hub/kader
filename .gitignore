@@ -22,3 +22,7 @@ __pycache__/
 .idea/
 .vscode/
 .claude/settings.json
+
+# Werkbestanden van de AI-tooling (oh-my-claudecode), geen projectinhoud
+.omc/
+**/.omc/

@@ -29,6 +29,7 @@ import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
 import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
 import { MarktProvider } from './src/state/MarktProvider';
+import { laadValutaBijStart } from './src/state/useValuta';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
 import { WelkomFeest } from './src/components/WelkomFeest';
@@ -110,6 +111,12 @@ function AppInhoud() {
       setOvergangTab(huidig => (huidig === wissel.van ? null : huidig));
     });
   }, [actieveTab, fadeWaarden]);
+
+  // De bewaarde valutakeuze en de gecachete wisselkoers moeten er zijn voordat er een bedrag op
+  // het scherm komt, anders flitst alles even in dollars voorbij.
+  useEffect(() => {
+    laadValutaBijStart();
+  }, []);
 
   useEffect(() => {
     laadVlag(SLEUTELS.onboarding).then(klaar => {

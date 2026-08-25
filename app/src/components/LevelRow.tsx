@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { fmtPrijs } from '../engine/format';
+import { useValutaStand } from '../state/useValuta';
 
 interface Props {
   stop: number;
@@ -11,6 +12,10 @@ interface Props {
 }
 
 export function LevelRow({ stop, entry, doel }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
 
   // Relatieve positie van entry op de schaal stop→doel

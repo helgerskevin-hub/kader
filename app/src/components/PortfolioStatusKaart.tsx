@@ -8,6 +8,7 @@ import { fmtPrijs, fmtPct, fmtResultaatUsd, relatieveTijd } from '../engine/form
 import { PortfolioWaarde } from '../state/statistieken';
 import { bepaalSyncStand } from '../state/syncStatus';
 import { AnimatedGetal } from './AnimatedGetal';
+import { useValutaStand } from '../state/useValuta';
 
 const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
 
@@ -33,6 +34,9 @@ export function PortfolioStatusKaart({
   onVerversen, onImporteren, onOpenHistorie,
 }: Props) {
   const { colors } = useTheme();
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft deze kaart na het omzetten in de oude valuta staan.
+  useValutaStand();
 
   const heeftWaardering = waarde.gewaardeerd > 0;
   const resultaatKleur = waarde.ongerealiseerdUsd >= 0 ? colors.winst : colors.verlies;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import {
   X, Smartphone, Sun, Moon, FileText, Link2, ChevronRight, FlaskConical, Wallet,
+  DollarSign, Euro,
 } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -13,6 +14,8 @@ import { heeftSleutels } from '../state/etoroSleutels';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { EtoroOmgeving } from '../engine/etoro';
 import { SLEUTELS, laadVlag } from '../storage/opslag';
+import { useValuta } from '../state/useValuta';
+import { Valuta } from '../engine/valuta';
 
 interface Props {
   zichtbaar: boolean;
@@ -23,6 +26,11 @@ const OPTIES: { modus: ThemaModus; label: string; Icon: typeof Sun }[] = [
   { modus: 'systeem', label: 'Systeem', Icon: Smartphone },
   { modus: 'licht', label: 'Licht', Icon: Sun },
   { modus: 'donker', label: 'Donker', Icon: Moon },
+];
+
+const VALUTAS: { valuta: Valuta; label: string; Icon: typeof Sun }[] = [
+  { valuta: 'USD', label: 'Dollar', Icon: DollarSign },
+  { valuta: 'EUR', label: 'Euro', Icon: Euro },
 ];
 
 const OMGEVINGEN: { omgeving: EtoroOmgeving; label: string; Icon: typeof Sun }[] = [
@@ -44,6 +52,7 @@ async function statusVan(omgeving: EtoroOmgeving): Promise<SleutelStatus> {
 
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
+  const { valuta, eurPerUsd, koersOntbreekt, kiesValuta } = useValuta();
   // Meteen ophalen zodra de koppeling is opgeslagen, niet pas bij de volgende app-start.
   const { omgeving, setOmgeving } = usePortfolio();
   const [changelogOpen, setChangelogOpen] = useState(false);
@@ -140,6 +149,43 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
           );
         })}
       </View>
+
+      <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
+        VALUTA
+      </Text>
+      <View style={styles.opties}>
+        {VALUTAS.map(({ valuta: optieValuta, label, Icon }) => {
+          const actief = valuta === optieValuta;
+          return (
+            <Pressable
+              key={optieValuta}
+              onPress={() => kiesValuta(optieValuta)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: actief }}
+              accessibilityLabel={`Bedragen in ${label.toLowerCase()}`}
+              style={[
+                styles.optie,
+                {
+                  backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
+                  borderColor: actief ? colors.cta : colors.rand,
+                },
+              ]}
+            >
+              <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
+              <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={[Type.caption, styles.uitleg, { color: koersOntbreekt ? colors.letOp : colors.tekstGedimd }]}>
+        {koersOntbreekt
+          ? 'De wisselkoers is nog niet opgehaald, dus bedragen staan voorlopig in dollars. Zodra er internet is pakt de app dit vanzelf op.'
+          : valuta === 'EUR' && eurPerUsd !== null
+            ? `Koersen en bedragen worden omgerekend tegen €${eurPerUsd.toFixed(4)} per dollar. Orders reken je bij eToro in dollars af, dus die schermen blijven in dollars.`
+            : 'Marktdata en eToro rekenen allebei in dollars. Kies euro als je liever ziet wat een bedrag in je eigen valuta is.'}
+      </Text>
 
       <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
         HANDELSOMGEVING
