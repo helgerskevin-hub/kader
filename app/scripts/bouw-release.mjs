@@ -7,7 +7,14 @@
 import { execFileSync, execSync } from 'node:child_process';
 import { existsSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+
+// Thom en Kevin bouwen allebei, de een op Windows en de ander op macOS. De namen van de
+// SDK-tools en de Gradle-wrapper verschillen per platform, en dit script moet op allebei
+// draaien: het is de enige route naar een release-APK, dus een uitzondering "even zelf
+// gradlew draaien" is precies waar dit script tegen beschermt.
+const OP_WINDOWS = process.platform === 'win32';
 
 const APP_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const VERWACHTE_SHA256 =
@@ -18,14 +25,33 @@ function fout(bericht) {
   process.exit(1);
 }
 
+function standaardAndroidHome() {
+  if (OP_WINDOWS) return join(process.env.LOCALAPPDATA ?? '', 'Android', 'Sdk');
+  if (process.platform === 'darwin') return join(homedir(), 'Library', 'Android', 'sdk');
+  return join(homedir(), 'Android', 'Sdk');
+}
+
+// Numeriek sorteren, niet alfabetisch: anders wint "9.0.0" ooit van "10.0.0".
+function nieuwsteVersie(versies) {
+  return versies
+    .filter((v) => /^\d+\.\d+\.\d+/.test(v))
+    .sort((a, b) => {
+      const pa = a.split('.').map(Number);
+      const pb = b.split('.').map(Number);
+      for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i];
+      return 0;
+    })
+    .pop();
+}
+
 function vindBuildTools() {
-  const androidHome = process.env.ANDROID_HOME || process.env.LOCALAPPDATA + '\\Android\\Sdk';
+  const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || standaardAndroidHome();
   const buildToolsDir = join(androidHome, 'build-tools');
   if (!existsSync(buildToolsDir)) {
     fout(`Kan build-tools niet vinden in ${buildToolsDir}. Zet ANDROID_HOME correct.`);
   }
-  const versies = readdirSync(buildToolsDir).sort();
-  const laatste = versies[versies.length - 1];
+  const laatste = nieuwsteVersie(readdirSync(buildToolsDir));
+  if (!laatste) fout(`Geen bruikbare build-tools-versie gevonden in ${buildToolsDir}.`);
   return join(buildToolsDir, laatste);
 }
 
@@ -42,8 +68,8 @@ const { versionName, versionCode } = leesAppJson();
 console.log(`app.json zegt: version=${versionName} versionCode=${versionCode}`);
 
 const buildTools = vindBuildTools();
-const aapt2 = join(buildTools, 'aapt2.exe');
-const apksigner = join(buildTools, 'apksigner.bat');
+const aapt2 = join(buildTools, OP_WINDOWS ? 'aapt2.exe' : 'aapt2');
+const apksigner = join(buildTools, OP_WINDOWS ? 'apksigner.bat' : 'apksigner');
 if (!existsSync(aapt2) || !existsSync(apksigner)) {
   fout(`aapt2/apksigner niet gevonden in ${buildTools}`);
 }
@@ -56,7 +82,7 @@ execFileSync('npx', ['expo', 'prebuild', '-p', 'android', '--clean'], {
 });
 
 console.log('\n-- gradlew assembleRelease --');
-execFileSync('.\\gradlew.bat', ['assembleRelease'], {
+execFileSync(OP_WINDOWS ? '.\\gradlew.bat' : './gradlew', ['assembleRelease'], {
   cwd: join(APP_DIR, 'android'),
   stdio: 'inherit',
   shell: true,
@@ -89,9 +115,12 @@ if (gevondenVersionName !== versionName) {
 console.log('OK: versionCode en versionName kloppen.');
 
 console.log('\n-- Verificatie: signing --');
+// shell alleen op Windows, waar apksigner een .bat is die anders niet start. Op macOS/Linux
+// zou shell:true het APK-pad op spaties splitsen, en het projectpad van Kevin bevat er twee
+// ("Claude Copy trading/Claude access"); apksigner zag daardoor losse parameters.
 const signOutput = execFileSync(apksigner, ['verify', '--print-certs', apkPad], {
   encoding: 'utf8',
-  shell: true,
+  shell: OP_WINDOWS,
 });
 console.log(signOutput.trim());
 
