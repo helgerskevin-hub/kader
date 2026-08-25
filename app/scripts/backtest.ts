@@ -190,6 +190,9 @@ const strategie: Simulatie[] = [];
 type Signaal = {
   i: number; datum: string; entry: number; stop: number; atr: number;
   score: number; hc: boolean; koop: boolean; rrOk: boolean; breedte: number | null;
+  // Omkeerprofiel (mean reversion), voor meting G. Losse velden i.p.v. een sub-object, zodat
+  // de rest van het script (draai, jaarRegel) simpel Signaal-velden kan blijven lezen.
+  scoreOmkeer: number; entryOmkeer: number; stopOmkeer: number; koopOmkeer: boolean; rrOkOmkeer: boolean;
 };
 
 // Alles wat de markt op een gegeven dag over zichzelf zei. Een poort mag hier alleen uit putten,
@@ -216,6 +219,11 @@ for (const symbool of coins) {
     const t: Trade | null = scoorCandles(symbool, venster, 'binance', { minRR: 0 });
     if (!t) continue;
 
+    // Omkeerprofiel op exact hetzelfde venster (candles[0..i]), dus geen extra look-ahead
+    // t.o.v. het momentumsignaal hierboven. Geeft de engine hier null terug, dan moet deze
+    // bar nooit als omkeersignaal gekozen kunnen worden: koopOmkeer/rrOkOmkeer blijven false.
+    const tOmkeer: Trade | null = scoorCandles(symbool, venster, 'binance', { minRR: 0, profiel: 'omkeer' });
+
     const uitkomst = simuleer(candles, i, t.entry, t.stopLoss, t.takeProfit);
     if (!uitkomst) continue;
 
@@ -225,6 +233,11 @@ for (const symbool of coins) {
       score: t.score, hc: t.highConviction, koop: t.signaal === 'KOOP',
       rrOk: t.rr >= MIN_RISK_REWARD - 1e-9,
       breedte: breedtePerDag[datum] ?? null,
+      scoreOmkeer: tOmkeer?.score ?? 0,
+      entryOmkeer: tOmkeer?.entry ?? 0,
+      stopOmkeer: tOmkeer?.stopLoss ?? 0,
+      koopOmkeer: tOmkeer ? tOmkeer.signaal === 'KOOP' : false,
+      rrOkOmkeer: tOmkeer ? tOmkeer.rr >= MIN_RISK_REWARD - 1e-9 : false,
     });
     const sim: Simulatie = {
       symbool,
@@ -423,10 +436,11 @@ function simuleerShort(
 // houdtijd instelbaar. Retourneert het resultaat van elke trade met zijn datum.
 function draai(
   kiest: (s: Signaal) => boolean,
-  opties: { doelAtr?: number; maxBars?: number; short?: boolean } = {},
+  opties: { doelAtr?: number; maxBars?: number; short?: boolean; bron?: 'momentum' | 'omkeer' } = {},
 ): { r: number; datum: string }[] {
   const doelAtr = opties.doelAtr ?? 3.0;
   const maxBars = opties.maxBars ?? MAX_BARS;
+  const bron = opties.bron ?? 'momentum';
   const uit: { r: number; datum: string }[] = [];
 
   for (const symbool of coins) {
@@ -435,12 +449,18 @@ function draai(
     for (const s of signalenPerCoin[symbool] ?? []) {
       if (s.i <= bezetTot || !kiest(s)) continue;
 
+      // Welk paar entry/stop we gebruiken hangt af van bron: het momentumsignaal (default) of
+      // het omkeersignaal op dezelfde bar. De bezetTot-logica hierboven blijft ongewijzigd:
+      // die voorkomt overlappende trades per coin, ongeacht welke bron er gekozen is.
+      const entry = bron === 'omkeer' ? s.entryOmkeer : s.entry;
+      const stop = bron === 'omkeer' ? s.stopOmkeer : s.stop;
+
       const u = opties.short
         ? (() => {
             const n = shortNiveaus(candles, s.i, s.atr);
             return simuleerShort(candles, s.i, n.entry, n.stop, n.entry - doelAtr * s.atr, maxBars);
           })()
-        : simuleer(candles, s.i, s.entry, s.stop, s.entry + doelAtr * s.atr, maxBars);
+        : simuleer(candles, s.i, entry, stop, entry + doelAtr * s.atr, maxBars);
 
       if (!u) continue;
       uit.push({ r: u.r, datum: s.datum });
@@ -537,6 +557,66 @@ jaarKop('Short, doel 2x ATR, 20 dagen:');
 jaarRegel('score < 40', draai(s => s.score < 40, { doelAtr: 2.0, maxBars: 20, short: true }));
 jaarRegel('score < 40, BTC onder EMA200', draai(s => s.score < 40 && M(s).riskOn === false, { doelAtr: 2.0, maxBars: 20, short: true }));
 jaarRegel('score < 25, BTC onder EMA200', draai(s => s.score < 25 && M(s).riskOn === false, { doelAtr: 2.0, maxBars: 20, short: true }));
+
+// --- meting G: omkeerprofiel op poort-dichte dagen --------------------------------------
+//
+// Meting D liet zien dat een poort de slechte jaren kan dempen door simpelweg te zwijgen.
+// Maar zwijgen is niet de enige optie: als de markt in díe periodes voorspelbaar terugveert
+// (mean reversion), kan een omkeerprofiel daar iets opleveren in plaats van niets. Deze meting
+// beantwoordt de vraag: presteren mean-reversion-longs (het omkeerprofiel) beter dan
+// momentum-longs in precies de periodes waarin de klimaatpoort dicht stond? Dit is de
+// go/no-go voor fase 3 van het bearmarkt-plan: is een actief omkeersignaal de moeite waard,
+// naast het stille "geen trade" dat de poort nu al oplevert?
+
+console.log('\n' + '='.repeat(72));
+console.log('METING G: omkeerprofiel versus momentum, op poort-dichte dagen');
+console.log('='.repeat(72));
+console.log('\nPoort dicht = exact bepaalKlimaat() uit marktklimaat.ts: BTC onder EMA50 en de');
+console.log('marktbreedte stijgt niet. Nulmeting is willekeurige instap op diezelfde dagen.');
+
+// Zelfde definitie als bepaalKlimaat() in src/engine/marktklimaat.ts (regel 58). Niet los
+// herschrijven: dan meten we een andere poort dan de app werkelijk gebruikt.
+const poortDicht = (s: Signaal) => M(s).btc50 === false && M(s).breedteStijgt === false;
+
+for (const maxBars of [10, 20]) {
+  for (const k of [1.5, 2.0]) {
+    jaarKop(`G1, poort dicht, doel ${k.toFixed(1)}x ATR, ${maxBars} dagen:`);
+    jaarRegel('nulmeting (willekeurig)', draai(s => poortDicht(s), { doelAtr: k, maxBars }));
+    jaarRegel('momentum (KOOP + R/R)', draai(s => s.koop && s.rrOk && poortDicht(s), { doelAtr: k, maxBars }));
+    jaarRegel('omkeer (KOOP + R/R)', draai(s => s.koopOmkeer && s.rrOkOmkeer && poortDicht(s), { doelAtr: k, maxBars, bron: 'omkeer' }));
+  }
+}
+
+console.log('\nG2: dezelfde drie regels zónder poortfilter, doel 2,0x ATR / 20 dagen. Dit is de');
+console.log('contextvraag: werkt het omkeerprofiel alleen in een bearmarkt, of altijd?');
+
+jaarKop('G2, geen poortfilter, doel 2,0x ATR, 20 dagen:');
+jaarRegel('nulmeting (willekeurig)', draai(() => true, { doelAtr: 2.0, maxBars: 20 }));
+jaarRegel('momentum (KOOP + R/R)', draai(s => s.koop && s.rrOk, { doelAtr: 2.0, maxBars: 20 }));
+jaarRegel('omkeer (KOOP + R/R)', draai(s => s.koopOmkeer && s.rrOkOmkeer, { doelAtr: 2.0, maxBars: 20, bron: 'omkeer' }));
+
+// G3 splitst de poort-dichte dagen in tweeën. "Poort dicht" betekent BTC onder zijn EMA50 en een
+// niet-stijgende breedte, en dat overkomt een opgaande markt ook: een dip van een paar weken
+// binnen een bullmarkt ziet er op dat moment precies zo uit als het begin van een bearmarkt. Het
+// verschil zie je pas aan de lange trend. BTC boven zijn EMA200 is dus "dip in een opgaande
+// markt", eronder is "echte bearmarkt". Zonder deze splitsing kan een profiel dat alleen dips
+// koopt zich verstoppen achter een gemiddelde dat door de bulljaren omhoog wordt getrokken.
+console.log('\nG3: poort-dichte dagen gesplitst op BTC t.o.v. EMA200. Boven = dip binnen een');
+console.log('opgaande markt, onder = echte bearmarkt. Doel 2,0x ATR, 20 dagen.');
+
+const dipInBull = (s: Signaal) => poortDicht(s) && M(s).riskOn === true;
+const echteBear = (s: Signaal) => poortDicht(s) && M(s).riskOn === false;
+
+jaarKop('G3a, poort dicht MAAR BTC boven EMA200 (dip in een opgaande markt):');
+jaarRegel('nulmeting (willekeurig)', draai(dipInBull, { doelAtr: 2.0, maxBars: 20 }));
+jaarRegel('momentum (KOOP + R/R)', draai(s => s.koop && s.rrOk && dipInBull(s), { doelAtr: 2.0, maxBars: 20 }));
+jaarRegel('omkeer (KOOP + R/R)', draai(s => s.koopOmkeer && s.rrOkOmkeer && dipInBull(s), { doelAtr: 2.0, maxBars: 20, bron: 'omkeer' }));
+
+jaarKop('G3b, poort dicht EN BTC onder EMA200 (echte bearmarkt):');
+jaarRegel('nulmeting (willekeurig)', draai(echteBear, { doelAtr: 2.0, maxBars: 20 }));
+jaarRegel('momentum (KOOP + R/R)', draai(s => s.koop && s.rrOk && echteBear(s), { doelAtr: 2.0, maxBars: 20 }));
+jaarRegel('omkeer (KOOP + R/R)', draai(s => s.koopOmkeer && s.rrOkOmkeer && echteBear(s), { doelAtr: 2.0, maxBars: 20, bron: 'omkeer' }));
+
 // --- wegschrijven -----------------------------------------------------------------------
 
 mkdirSync(UIT, { recursive: true });
