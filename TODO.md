@@ -46,6 +46,45 @@ _(Gevonden op marketmirror.com, functies die het overwegen waard zijn voor Kader
 - [ ] **Pushmelding bij grote whale-trade**: stuur een notificatie als een bekende wallet of exchange een grote positie opent in een coin die je volgt. Market Mirror doet dit live ("Whale opened $112K ETH LONG").
 - [ ] **Freemium-model als referentie**: Market Mirror rekent gratis / $9,99 / $29,99 per maand. Als Kader ooit betaald wordt, is dit een realistische bandbreedte voor crypto-apps.
 
+### 🐻 Plan: Kader bruikbaar maken in een bearmarkt
+
+_(Het probleem: in een stijgende markt levert Kader elke dag concrete trades. Zodra `bepaalKlimaat()` in [marktklimaat.ts](app/src/engine/marktklimaat.ts) op ONGUNSTIG staat, sluit de poort en zegt de app in feite alleen nog "niet kopen". Dat klopt inhoudelijk, de backtest is er duidelijk over, maar het maakt de app maandenlang een leeg scherm. Kader moet in een dalende markt iets te doen hebben in plaats van alleen iets te verbieden.)_
+
+**Uitgangspunt dat niet ter discussie staat**: we verlagen nooit `DREMPEL_KOOP`, `MIN_RISK_REWARD` of de klimaatpoort om in een bearmarkt tóch signalen te kunnen tonen. Dat is precies de fout die geld kost. De app moet iets anders gaan doen, niet hetzelfde met soepelere drempels.
+
+#### Fase 0: eerst meten, dan bouwen
+- [ ] `npm run backtest` draaien en meting C/D/E/F opschrijven in dit bestand, zodat we per fase een nulmeting hebben. Zonder cijfers is elke keuze hieronder een gok.
+- [ ] Meting F (shorts) is er al maar staat geparkeerd: score < 40 met BTC onder EMA200, doel 2x ATR, 20 dagen. Uitkomst per jaar bekijken: werkten shorts in 2018 en 2022 óók, of was 2025-26 toeval? Dit is de go/no-go voor fase 4.
+- [ ] Nieuwe meting toevoegen: presteren mean-reversion-longs (diep oversold RSI, capitulatievolume, kort doel) beter dan momentum-longs in de jaren waarin de poort dicht stond? Dit is de go/no-go voor fase 3.
+
+#### Fase 1: de bear-modus als eigen toestand van de app (geen nieuwe databron nodig)
+- [ ] **Marktscherm krijgt een echte bear-modus**: bij ONGUNSTIG toont het scherm niet dezelfde lijst met alles op WATCH, maar een andere indeling: bovenaan wat je met je open posities moet doen, daaronder de relatieve-sterktelijst, en pas onderaan de gewone analyse ter informatie. De copy in [MarktBalk.tsx](app/src/components/MarktBalk.tsx) legt nu wel uit waarom er niets is, maar biedt geen alternatief.
+- [ ] **Relatieve sterkte t.o.v. BTC**: rangschik het universum op prestatie over 30 dagen versus BTC over dezelfde periode. In een dalende markt is dat de enige long-informatie die iets waard is: wie standhoudt tijdens de daling zijn doorgaans de leiders van de volgende cyclus. De data hebben we al, `analyseerMarkt()` haalt alle 57 coins toch al binnen en gooit de candles nu weg na de breedteberekening. Kost dus geen extra requests.
+- [ ] **Maximale blootstelling per klimaat**: toon een expliciet plafond in plaats van een impliciet verbod. GUNSTIG geen plafond, GEMENGD ongeveer de helft, ONGUNSTIG een klein deel. Met de portfoliowaarde uit [statistieken.ts](app/src/state/statistieken.ts) kan de app zeggen "je zit nu op 80% terwijl 20% past bij dit klimaat".
+- [ ] **Cash als zichtbare positie**: laat zien wat niet-handelen heeft opgeleverd. "Kader staat 34 dagen in bear-modus, de markt is in die periode 18% gedaald." Wachten wordt zo een meetbaar resultaat in plaats van een leeg scherm.
+
+#### Fase 2: kapitaalbescherming voor wat je al hebt (grootste waarde, minste risico)
+- [ ] **Afbouwadvies per open trade** in Mijn Trades: staat deze coin nog boven zijn EMA50, is het momentum aan het afvlakken, ligt de stop nog logisch? [tradeChecks.ts](app/src/notifications/tradeChecks.ts) rekent de MACD-histogramhelling al uit, die conclusie staat nu alleen in een melding en niet in het scherm.
+- [ ] **Trailing stop meebewegen**: als een trade in de winst staat en het klimaat draait, stel dan een opgetrokken stop voor (bijvoorbeeld naar break-even of onder de laatste swing low). Rekenwerk zit al in `stopAfstandStructuur()`, moet alleen op een bestaande trade toegepast worden in plaats van op een nieuwe entry. Let op: [useStopLossLimiet.ts](app/src/state/useStopLossLimiet.ts) moet valideren of eToro die stop toestaat.
+- [ ] **Portfoliobrede risicomelding**: nu gaat elke melding over één trade. Voeg een melding toe over het geheel: "het klimaat is omgeslagen naar ongunstig en 4 van je 6 posities staan onder hun EMA50". Dat is in een bearmarkt de melding die er echt toe doet. Hergebruikt de bestaande suppressielogica in `SLEUTELS.meldingSuppressie`.
+- [ ] **Klimaatomslag als pushmelding, beide kanten op**: melden zodra `bepaalKlimaat()` van GEMENGD naar ONGUNSTIG gaat (afbouwen) en zodra hij van ONGUNSTIG naar GEMENGD of GUNSTIG gaat (de poort opent weer). Die tweede is in een bearmarkt de belangrijkste melding die de app kan sturen, want daar wacht je maandenlang op. De achtergrondtaak in [achtergrondtaak.ts](app/src/notifications/achtergrondtaak.ts) draait al, alleen het klimaat wordt daar nog niet berekend en er is nog geen vorige-toestand in AsyncStorage.
+
+#### Fase 3: een tweede scoreprofiel voor bearmarktrally's
+- [ ] De huidige scoring beloont trend, prijs boven EMA20, bullish MACD en volumepieken. Dat is een momentumprofiel en dat werkt in een dalende markt structureel slecht. Wat daar wél werkt is mean reversion: diep oversold, capitulatievolume, eerste hogere bodem, klein doel, korte houdtijd.
+- [ ] `scoorCandles()` krijgt een profielparameter (`momentum` of `omkeer`) in plaats van een tweede kopie van de functie, zodat de backtest beide profielen door dezelfde engine kan draaien. Bij ONGUNSTIG kiest `analyseerMarkt()` het omkeerprofiel.
+- [ ] Andere niveaus voor dat profiel: doel rond 1,5x ATR in plaats van 3x ATR en een kortere maximale houdtijd. Meting E laat al zien dat doel en houdtijd samen horen te bewegen. `MIN_RISK_REWARD` blijft staan, het doel wordt kleiner dus de stop moet krapper, niet de eis lager.
+- [ ] Bouwen alleen als de meting uit fase 0 het steunt. Zo niet, dan is de eerlijke uitkomst dat de app in een bearmarkt geen longs geeft en blijft het bij fase 1 en 2.
+
+#### Fase 4: shorts (het echte antwoord, maar ook het duurste)
+- [ ] `PortfolioTrade` heeft geen richting-veld. Dat raakt meer dan het lijkt: [tradeChecks.ts](app/src/notifications/tradeChecks.ts) gaat overal uit van long, en de eToro-import slaat shortposities nu stilzwijgend over (zie de melding in [PortfolioScreen.tsx](app/src/screens/PortfolioScreen.tsx)). Het richting-veld toevoegen is stap één en heeft op zichzelf al waarde, ook zonder short-signalen: je ziet je eToro-shorts dan tenminste terug in de app.
+- [ ] `scoorCandles()` gespiegeld voor short: stop net boven de recente swing high in plaats van onder de swing low, doel onder de entry, scoring op afwaartse trend. `stopAfstandStructuur()` krijgt daarvoor een richtingparameter.
+- [ ] eToro-beperking uitzoeken voordat we UI bouwen: crypto shorten kan daar alleen als CFD en dus met hefboom, wat andere marginregels en andere stop-loss-limieten betekent. [etoroLimieten.ts](app/src/engine/etoroLimieten.ts) haalt de `Sell`-configs al op maar `kiesLimiet()` filtert nu bewust op hefboom x1 en richting Buy. Die data hebben we dus, we gebruiken hem alleen niet.
+- [ ] Pas daarna de UI: richtingkeuze in de kooporder-sheet, en in het marktscherm per coin aangeven of long of short op dit moment het betere idee is.
+
+#### Waar we vanaf blijven
+- [ ] Geen drempelverlaging om het scherm te vullen. Een leeg marktscherm met uitleg is beter dan een verzonnen signaal, hetzelfde principe als bij de eToro-stoplimieten.
+- [ ] Geen "koop de dip"-taal zonder gemeten onderbouwing. In een bearmarkt is elke dip er één te vroeg.
+
 ## 🔔 Meldingen
 
 _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_

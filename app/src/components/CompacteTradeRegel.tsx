@@ -7,6 +7,7 @@ import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { bepaalAdvies } from '../state/advies';
+import { AfbouwAdvies } from '../state/afbouw';
 import { PositieBalk } from './PositieBalk';
 import { useValutaStand } from '../state/useValuta';
 
@@ -15,9 +16,13 @@ interface Props {
   livePrijs: number | undefined;
   onOpenDetail: (trade: PortfolioTrade) => void;
   onOpenActies: (trade: PortfolioTrade) => void;
+  // Het klimaat-bewuste advies, als er iets te zeggen valt. In de compacte weergave is er geen
+  // ruimte voor de hele zin, dus staat hier alleen het korte label; de volledige tekst zie je in de
+  // uitgebreide weergave en in het detailscherm.
+  afbouw?: AfbouwAdvies | null;
 }
 
-export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActies }: Props) {
+export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActies, afbouw }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -41,7 +46,9 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
     ? (resultaatPct >= 0 ? colors.winst : colors.verlies)
     : colors.tekstGedimd;
 
-  const accessibilityLabel = `${trade.symbool}, ${advies.kort}${resultaatPct !== null ? `, resultaat ${fmtPct(resultaatPct)}` : ''}`;
+  const afbouwKleur = afbouw?.niveau === 'houden' ? colors.winst : colors.letOp;
+
+  const accessibilityLabel = `${trade.symbool}, ${advies.kort}${afbouw ? `, ${afbouw.kort}` : ''}${resultaatPct !== null ? `, resultaat ${fmtPct(resultaatPct)}` : ''}`;
 
   return (
     <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: adviesKleur }]}>
@@ -59,6 +66,11 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
             <Text style={[Type.caption, { color: adviesKleur }]} numberOfLines={1}>
               {advies.kort}
             </Text>
+            {afbouw && (
+              <Text style={[Type.caption, { color: afbouwKleur }]} numberOfLines={1}>
+                {afbouw.kort}
+              </Text>
+            )}
           </View>
           <View style={styles.rechts}>
             <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>

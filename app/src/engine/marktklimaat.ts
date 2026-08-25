@@ -8,6 +8,10 @@ export interface Marktklimaat {
   btcBovenEma50: boolean;
   breedte: number; // aandeel van het universum boven de eigen 50-daags EMA, 0-1
   breedteStijgend: boolean;
+  // Slotkoers van BTC op het moment van deze meting. De bear-modus legt die vast zodra het klimaat
+  // omslaat, zodat de app later kan tonen wat de markt sindsdien gedaan heeft. Zonder dit veld zou
+  // daar een tweede, aparte BTC-request voor nodig zijn terwijl de candles hier al binnen zijn.
+  btcPrijs: number;
 }
 
 const EMA_LANG = 50;
@@ -56,7 +60,9 @@ export function bepaalKlimaat(btcCandles: Candle[], universumCandles: Candle[][]
       : !btcBovenEma50 && !breedteStijgend ? 'ongunstig'
         : 'gemengd';
 
-  return { klimaat, btcBovenEma50, breedte, breedteStijgend };
+  const btcPrijs = btcCandles[btcCandles.length - 1].close;
+
+  return { klimaat, btcBovenEma50, breedte, breedteStijgend, btcPrijs };
 }
 
 // De poort voor KOOP-signalen: alleen open bij een gunstig klimaat, exact de gate die de backtest

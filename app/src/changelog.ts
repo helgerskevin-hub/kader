@@ -12,6 +12,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.15',
+    datum: '2026-08-25',
+    punten: [
+      'Kader schakelt in een dalende markt over op bear-modus. Zodra het marktklimaat ongunstig is, maakt het vak "Wat moet ik nu kopen?" plaats voor een vak dat vertelt wat er aan de hand is, hoe lang dat al zo is en wat bitcoin sindsdien gedaan heeft. Dat laatste staat er met opzet bij: niet kopen voelt als niets doen, maar in een markt die 18% daalt is niet kopen een resultaat. De drempels blijven ongewijzigd, want ze verlagen om toch iets te kunnen tonen is precies de fout die geld kost',
+      'Nieuw op het marktscherm zodra het klimaat niet gunstig is: "Wie houdt stand?". Die lijst toont per coin het rendement over 30 dagen min dat van bitcoin over dezelfde periode. In een dalende markt daalt alles en scoort dus alles laag op de gewone Kader-score, waardoor die nauwelijks nog onderscheid maakt. Wie minder hard daalt heeft kopers die blijven zitten, en dat zijn doorgaans de coins die als eerste omhoog gaan als de markt draait. Het is nadrukkelijk geen koopsignaal en telt niet mee in de score',
+      'Mijn trades toont nu hoeveel van je kapitaal er in de markt staat, afgezet tegen wat bij het huidige klimaat past: geen plafond bij gunstig, de helft bij gemengd, een vijfde bij ongunstig. Het percentage verschijnt alleen als je zelf je handelskapitaal invult, want zonder dat bedrag zou het verzonnen zijn. Dat bedrag blijft op je telefoon staan',
+      'Per open positie kan er een advies onder de trade staan over wat de markt eromheen betekent. Staat een coin in winst maar zakt hij onder zijn 50-daags gemiddelde terwijl de markt daalt, dan stelt Kader voor om winst te nemen of de stop op te trekken, met het niveau erbij. Staat hij onder je entry en onder dat gemiddelde, dan is het advies juist om niets te doen: stop niet verlagen, niet bijkopen om je gemiddelde te drukken. Is er niets bijzonders, dan staat er ook niets',
+      'Je krijgt voortaan een pushmelding als het marktklimaat omslaat, in beide richtingen. De belangrijkste is die tweede: in een bearmarkt wacht je maandenlang op het moment dat de poort weer opengaat, en dat hoef je nu niet meer zelf in de gaten te houden. Daarnaast waarschuwt Kader als meer van je posities zwak komen te staan dan waarover hij al gewaarschuwd had, dus zonder elke zes uur hetzelfde te herhalen',
+      'Het boek-icoon heeft er drie hoofdstukken bij: bear-modus, "Wie houdt stand?" en blootstelling en afbouwen. Daar staat per onderwerp wat er berekend wordt, waarom, en waar het cijfer vandaan komt',
+    ],
+  },
+  {
     versie: '0.1.14',
     datum: '2026-08-25',
     punten: [

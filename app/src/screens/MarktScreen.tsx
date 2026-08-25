@@ -24,6 +24,8 @@ import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
+import { BearModusKaart } from '../components/BearModusKaart';
+import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
@@ -94,6 +96,17 @@ export function MarktScreen() {
     .filter(t => t.score >= marktFilters.minScore)
     .filter(t => t.rr >= marktFilters.minRR);
 
+  const bearModus = state.status === 'success' && state.klimaat?.klimaat === 'ongunstig';
+
+  // De relatieve-sterktelijst kent alleen symbolen. De bijbehorende analyse zoeken we op in `alle`
+  // en niet in `trades`: een coin die standhoudt in een dalende markt scoort vaak juist laag op
+  // momentum en valt dan buiten de top-20 die de lijst toont.
+  function openCoinDetail(symbool: string) {
+    if (state.status !== 'success') return;
+    const trade = state.alle.find(t => t.symbool === symbool);
+    if (trade) setDetailCoin(vanTrade(trade));
+  }
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
@@ -150,11 +163,30 @@ export function MarktScreen() {
           }
           ListHeaderComponent={
             <>
-              {state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
+              {/* Niet in bear-modus: dan staat er al een kaart die uitlegt waarom er geen koopsignaal
+                  is, en is de klimaatpoort de zwaarwegende reden. Twee balken die allebei "vandaag
+                  geen koopsignaal" zeggen, met de minst belangrijke bovenaan, begraven het punt. */}
+              {!bearModus && state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
                 <RrWaarschuwing bekeken={state.bekeken} />
               )}
-              <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
+              {/* In een dalende markt is "wat moet ik nu kopen" de verkeerde vraag: het antwoord is
+                  dan maandenlang hetzelfde lege "wacht op een sterker signaal". De bear-modus-kaart
+                  neemt die plek in en vertelt wat er wél te doen is. */}
+              {bearModus ? (
+                <BearModusKaart stand={state.bearModus} />
+              ) : (
+                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
+              )}
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
+              {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
+                  al waar de kracht zit en zou deze lijst er een tweede rangschikking naast zetten. */}
+              {state.klimaat && state.klimaat.klimaat !== 'gunstig' && (
+                <RelatieveSterkteKaart
+                  lijst={state.relatieveSterkte}
+                  klimaat={state.klimaat.klimaat}
+                  onOpenCoin={openCoinDetail}
+                />
+              )}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
               <View style={styles.tabsRij}>
                 <FilterTabs actief={filter} onWijzig={wisselFilterTab} aantalFavorieten={aantalFavorieten} />

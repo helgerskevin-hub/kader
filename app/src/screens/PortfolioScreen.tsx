@@ -24,6 +24,12 @@ import { omschrijfOnbekendeOrder } from '../state/lopendeOrders';
 import { PortfolioTrade, bronVan, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
+import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
+import { AfbouwRegel } from '../components/AfbouwRegel';
+import { BlootstellingKaart } from '../components/BlootstellingKaart';
+import { KapitaalSheet } from '../components/KapitaalSheet';
+import { useHandelskapitaal } from '../state/useHandelskapitaal';
+import { useMarkt } from '../state/MarktProvider';
 import { berekenPortfolioWaarde } from '../state/statistieken';
 import { useWeergave, Weergave } from '../state/useWeergave';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
@@ -46,7 +52,7 @@ export function isEtoroBestuurbaar(trade: PortfolioTrade, omgeving: EtoroOmgevin
     && (trade.etoroOmgeving ?? 'real') === omgeving;
 }
 
-function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail, onVerkoop, onNiveaus }: {
+function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail, onVerkoop, onNiveaus, afbouw }: {
   trade: PortfolioTrade;
   livePrijs: number | undefined;
   onVraagSluiten: (trade: PortfolioTrade, status: 'gewonnen' | 'verloren') => void;
@@ -56,6 +62,8 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
   onVerkoop?: (trade: PortfolioTrade) => void;
   onNiveaus?: (trade: PortfolioTrade) => void;
   onOpenDetail: (trade: PortfolioTrade) => void;
+  // Het klimaat-bewuste advies, of null als er niets bijzonders te melden is.
+  afbouw?: AfbouwAdvies | null;
 }) {
   const { colors } = useTheme();
 
@@ -137,6 +145,10 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
             : `Gesloten op ${fmtPrijs(trade.exitPrijs ?? trade.entryPrijs)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
         </Text>
       </View>
+
+      {trade.status === 'open' && afbouw && (
+        <AfbouwRegel advies={afbouw} huidigeStop={trade.stopLoss} />
+      )}
 
       {/* Niveaus */}
       <View style={tradeStyles.niveaus}>
@@ -784,6 +796,13 @@ export function PortfolioScreen() {
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
   const [actiesVoor, setActiesVoor] = useState<PortfolioTrade | null>(null);
+  const [kapitaalOpen, setKapitaalOpen] = useState(false);
+  const { kapitaal, zetKapitaal } = useHandelskapitaal();
+  // Het marktscherm heeft de analyse en het klimaat al opgehaald. Dit scherm leunt daarop en scant
+  // niet zelf: dat zou 57 coins aan requests kosten voor data die al in het geheugen staat. Zonder
+  // een gedraaide analyse blijft het klimaat null en verdwijnen het blootstellingsvak en de
+  // afbouwadviezen gewoon; die zijn een aanvulling, geen voorwaarde om je trades te kunnen zien.
+  const { state: marktState } = useMarkt();
   const { weergave, setWeergave } = useWeergave();
   const reduceMotion = useReduceMotion();
 
@@ -857,6 +876,28 @@ export function PortfolioScreen() {
   const afgeslotenCount = trades.length - openTrades.length;
   const waarde = berekenPortfolioWaarde(trades, livePrijzen);
 
+  const klimaat = marktState.status === 'success' ? marktState.klimaat : null;
+  // `alle` en niet `trades`: een positie kan best buiten de top-20 van het marktscherm vallen, en
+  // juist over die posities zou de app dan zwijgen.
+  const marktPerSymbool = useMemo(
+    () => marktState.status === 'success'
+      ? Object.fromEntries(marktState.alle.map(t => [t.symbool, t]))
+      : {},
+    [marktState],
+  );
+  const afbouwPerTrade = useMemo(() => {
+    const uit: Record<string, AfbouwAdvies | null> = {};
+    for (const trade of openTrades) {
+      uit[trade.id] = bepaalAfbouwAdvies(
+        trade,
+        livePrijzen[trade.symbool],
+        marktPerSymbool[trade.symbool],
+        klimaat?.klimaat ?? null,
+      );
+    }
+    return uit;
+  }, [openTrades, livePrijzen, marktPerSymbool, klimaat]);
+
   // Groeperen per bron, eToro eerst, dan handmatig. Bij maar één bron geen groepsbalken: een
   // enkele balk boven al je trades is ruis voor iedereen zonder eToro-koppeling.
   const lijstData = useMemo<TradeLijstItem[]>(() => {
@@ -911,6 +952,7 @@ export function PortfolioScreen() {
             <CompacteTradeRegel
               trade={trade}
               livePrijs={livePrijzen[trade.symbool]}
+              afbouw={afbouwPerTrade[trade.id]}
               onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
               onOpenActies={setActiesVoor}
             />
@@ -918,6 +960,7 @@ export function PortfolioScreen() {
             <TradeRegel
               trade={trade}
               livePrijs={livePrijzen[trade.symbool]}
+              afbouw={afbouwPerTrade[trade.id]}
               onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
               onVerwijder={verwijderTrade}
               onBewerk={setBewerkTrade}
@@ -982,6 +1025,16 @@ export function PortfolioScreen() {
                 </Pressable>
               </View>
             )}
+            {klimaat && openTrades.length > 0 && (
+              <BlootstellingKaart
+                inMarktUsd={waarde.huidigeWaardeUsd}
+                nietGewaardeerd={waarde.zonderLivePrijs}
+                klimaat={klimaat.klimaat}
+                kapitaalUsd={kapitaal}
+                onKapitaalWijzigen={() => setKapitaalOpen(true)}
+              />
+            )}
+
             {openTrades.length > 0 && (
               <View style={portfolioStyles.weergaveRij}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
@@ -1070,6 +1123,13 @@ export function PortfolioScreen() {
         onSluiten={() => setHistorieOpen(false)}
         onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
         onVerwijder={verwijderTrade}
+      />
+
+      <KapitaalSheet
+        zichtbaar={kapitaalOpen}
+        huidig={kapitaal}
+        onOpslaan={zetKapitaal}
+        onSluiten={() => setKapitaalOpen(false)}
       />
     </SafeAreaView>
   );

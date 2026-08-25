@@ -63,6 +63,17 @@ export const SLEUTELS = {
   // Weergavevaluta: 'USD' of 'EUR'. Standaard USD, want dat is de valuta waarin alle marktdata
   // en eToro zelf rekenen.
   valuta: 'weergave_valuta',
+  // Sinds wanneer Kader een ongunstig klimaat ziet, met de BTC-koers van dat moment. Nodig om te
+  // kunnen tonen wat de markt sindsdien gedaan heeft. Wordt gewist zodra het klimaat niet langer
+  // ongunstig is, dus de teller begint bij een volgende bearmarkt weer bij nul.
+  bearModus: 'bear_modus_sinds',
+  // Het handelskapitaal dat de gebruiker zelf invult, in dollars. Alleen nodig voor het
+  // blootstellingsplafond: zonder noemer is "20% van je kapitaal" een lege uitspraak. Kader vraagt
+  // dit nergens verplicht en verzint het nooit.
+  handelskapitaal: 'handelskapitaal_usd',
+  // Het laatst gemelde marktklimaat, zodat de achtergrondcheck een omslag kan herkennen. Zonder
+  // dit zou elke ronde opnieuw "het klimaat is ongunstig" melden.
+  laatsteKlimaat: 'laatste_gemelde_klimaat',
   // Laatst opgehaalde euro-per-dollar-koers met tijdstip. Gecachet zodat de app ook zonder
   // netwerk direct in euro's kan openen; ververst zodra hij ouder is dan een halve dag.
   wisselkoers: 'wisselkoers_eur_per_usd',

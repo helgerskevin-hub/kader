@@ -1,5 +1,7 @@
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { drempelBijnaOpDoel } from '../state/advies';
+import { voorstelTrailingStop, beoordeelPortfolioRisico } from '../state/afbouw';
+import { Klimaat } from '../engine/marktklimaat';
 import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { haalData } from '../engine/marketData';
 import { scoorCandles, analyseerMarkt } from '../engine/analyzer';
@@ -11,7 +13,7 @@ import { stuurTradeMelding } from './meldingen';
 // long (stop onder de entry, doel erboven). Deze checks doen dat ook. Trades die niet aan die vorm
 // voldoen worden overgeslagen in plaats van verkeerd geadviseerd; shorts zijn een aparte uitbreiding.
 
-type TriggerType = 'verhoogTP' | 'trekStopAan' | 'sterkeKoop';
+type TriggerType = 'verhoogTP' | 'trekStopAan' | 'sterkeKoop' | 'klimaat' | 'portfolioRisico';
 
 // Per trade + trigger het epoch-ms van de laatst verstuurde melding.
 type SuppressieState = Record<string, number>;
@@ -148,8 +150,10 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   const inWinst = koers > trade.entryPrijs;
   const momentumVlaktAf = !histogramStijgt;
   if (inWinst && momentumVlaktAf) {
-    const voorstel = Math.max(trade.entryPrijs, koers - vers.atr);
-    if (voorstel > trade.stopLoss && voorstel < koers) {
+    // Zelfde berekening als het afbouwadvies in het Portfolio-scherm, bewust uit één bron: een
+    // melding die een ander niveau noemt dan het scherm kost het vertrouwen in allebei.
+    const voorstel = voorstelTrailingStop(trade.entryPrijs, koers, vers.atr, trade.stopLoss);
+    if (voorstel !== null) {
       meldingen.push({
         sleutel: sleutelVoor(trade.id, 'trekStopAan'),
         titel: `${trade.symbool}: momentum vlakt af`,
@@ -161,19 +165,89 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   return meldingen;
 }
 
-// Zoekt nieuwe, heel sterke koopsignalen. Leunt bewust op analyseerMarkt en niet op een eigen scan:
-// die past de marktklimaat-poort al toe, dus in een ongunstig klimaat zwijgt dit vanzelf, net als
-// het Marktscherm. De lat is high conviction, de sterkste bucket uit de backtest: alleen daarvoor
-// is het te rechtvaardigen iemand een pushmelding te sturen.
-async function beoordeelSterkeKoop(openSymbolen: Set<string>, nu: number): Promise<Melding[]> {
+// De laatst gemelde markttoestand. `zwakGemeld` is het aantal zwakke posities waarover al een
+// waarschuwing uitging; daardoor meldt de app alleen verslechtering en niet elke zes uur opnieuw
+// hetzelfde tijdens een bearmarkt die maanden duurt.
+interface KlimaatGeheugen {
+  klimaat: Klimaat | null;
+  zwakGemeld: number;
+}
+
+async function laadKlimaatGeheugen(): Promise<KlimaatGeheugen> {
+  const ruw = await laadObject<Partial<KlimaatGeheugen>>(SLEUTELS.laatsteKlimaat);
+  const klimaat = ruw?.klimaat;
+  return {
+    klimaat: klimaat === 'gunstig' || klimaat === 'gemengd' || klimaat === 'ongunstig' ? klimaat : null,
+    zwakGemeld: typeof ruw?.zwakGemeld === 'number' && Number.isFinite(ruw.zwakGemeld) ? ruw.zwakGemeld : 0,
+  };
+}
+
+// Minimaal aantal zwakke posities voordat een portefeuillebrede waarschuwing terecht is. Bij één
+// zwakke positie is er niets portefeuillebreeds aan de hand; daar gaan de trade-meldingen al over.
+const MIN_ZWAK_VOOR_MELDING = 2;
+
+function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beoordeeld: number): Melding | null {
+  // Eerste meting ooit: dan is er geen omslag, alleen een beginstand. Daar hoort geen melding bij.
+  if (vorig === null || vorig === nieuw) return null;
+
+  const posities = beoordeeld > 0 && zwak > 0
+    ? ` Van je ${beoordeeld} beoordeelde posities ${zwak === 1 ? 'staat er 1' : `staan er ${zwak}`} onder het eigen 50-daags gemiddelde.`
+    : '';
+
+  if (nieuw === 'ongunstig') {
+    return {
+      sleutel: sleutelVoor('markt', 'klimaat'),
+      titel: 'Marktklimaat omgeslagen naar ongunstig',
+      tekst: `BTC staat onder zijn 50-daags gemiddelde en de marktbreedte daalt. Kader geeft vanaf nu geen koopsignalen meer en schakelt over op bear-modus.${posities}`,
+    };
+  }
+
+  if (vorig === 'ongunstig') {
+    return {
+      sleutel: sleutelVoor('markt', 'klimaat'),
+      titel: nieuw === 'gunstig' ? 'Het marktklimaat is weer gunstig' : 'De bear-modus is voorbij',
+      tekst: nieuw === 'gunstig'
+        ? 'BTC staat weer boven zijn 50-daags gemiddelde en de marktbreedte stijgt. Kader toont vanaf nu weer koopsignalen.'
+        : 'Het klimaat is van ongunstig naar gemengd gegaan. De bear-modus is uit, maar de markt is nog niet overtuigend: Kader is voorzichtig met koopsignalen.',
+    };
+  }
+
+  if (nieuw === 'gunstig') {
+    return {
+      sleutel: sleutelVoor('markt', 'klimaat'),
+      titel: 'Het marktklimaat is gunstig',
+      tekst: 'BTC staat boven zijn 50-daags gemiddelde en de marktbreedte stijgt. In dit klimaat presteerden koopsignalen historisch het best.',
+    };
+  }
+
+  // gunstig -> gemengd
+  return {
+    sleutel: sleutelVoor('markt', 'klimaat'),
+    titel: 'Het marktklimaat is verzwakt',
+    tekst: `De markt is van gunstig naar gemengd gegaan. Koopsignalen blijven zichtbaar, maar de rugwind is weg.${posities}`,
+  };
+}
+
+// Eén marktronde: haalt de scan één keer op en leidt daar alle marktbrede meldingen uit af. Bewust
+// gebundeld en niet drie losse functies, want elke scan is 57 coins aan requests.
+//
+// De koopsignalen leunen op analyseerMarkt en niet op een eigen scan, zodat de marktklimaat-poort
+// er al op zit: in een ongunstig klimaat zwijgen ze vanzelf, net als het Marktscherm. De lat is high
+// conviction, de sterkste bucket uit de backtest.
+async function beoordeelMarkt(
+  open: PortfolioTrade[],
+  nu: number,
+): Promise<Melding[]> {
   const laatst = await laadTijdstip(SLEUTELS.laatsteSterkeKoopScan);
   if (nu - laatst < STERKE_KOOP_SCAN_VENSTER_MS) return [];
   // Claimen vóór de scan, niet erna: een mislukte scan brandt het venster op, maar zo kan een
   // tweede aanroeper er niet naast gaan draaien.
   await bewaarTekst(SLEUTELS.laatsteSterkeKoopScan, String(nu));
 
-  const { trades } = await analyseerMarkt({ topN: 10 });
-  return trades
+  const { trades, alle, klimaat } = await analyseerMarkt({ topN: 10 });
+  const openSymbolen = new Set(open.map(t => t.symbool));
+
+  const meldingen: Melding[] = trades
     .filter(t => t.highConviction && t.signaal === 'KOOP' && !openSymbolen.has(t.symbool))
     .slice(0, MAX_KOOP_MELDINGEN)
     .map(t => ({
@@ -181,6 +255,41 @@ async function beoordeelSterkeKoop(openSymbolen: Set<string>, nu: number): Promi
       titel: `Sterk koopsignaal: ${t.symbool}`,
       tekst: `${t.symbool} scoort ${t.score} van de 100 (${t.redenen.join(', ')}). Entry ${fmtPrijs(t.entry)}, stop ${fmtPrijs(t.stopLoss)}, doel ${fmtPrijs(t.takeProfit)}.`,
     }));
+
+  if (!klimaat) return meldingen;
+
+  // De scan levert voor elke coin een verse koers, dus het risico-oordeel over de open posities
+  // kost hier geen enkel extra verzoek. De achtergrondtaak heeft ook geen andere prijsbron: die
+  // draait buiten de React-tree en kan niet bij de live prijzen in PortfolioProvider.
+  const marktPerSymbool = Object.fromEntries(alle.map(t => [t.symbool, t]));
+  const prijzen = Object.fromEntries(alle.map(t => [t.symbool, t.prijs]));
+  const risico = beoordeelPortfolioRisico(open, prijzen, marktPerSymbool);
+
+  const geheugen = await laadKlimaatGeheugen();
+  const omslag = klimaatMelding(geheugen.klimaat, klimaat.klimaat, risico.zwak, risico.beoordeeld);
+  if (omslag) meldingen.push(omslag);
+
+  // Alleen bij verslechtering: staan er meer posities zwak dan waarover we al gewaarschuwd hebben?
+  // Zonder die vergelijking zou dezelfde waarschuwing een hele bearmarkt lang blijven terugkomen.
+  const verslechterd = klimaat.klimaat === 'ongunstig'
+    && risico.zwak >= MIN_ZWAK_VOOR_MELDING
+    && risico.zwak > geheugen.zwakGemeld;
+  if (verslechterd && !omslag) {
+    meldingen.push({
+      sleutel: sleutelVoor('markt', 'portfolioRisico'),
+      titel: `${risico.zwak} van je ${risico.beoordeeld} posities staan zwak`,
+      tekst: `De markt daalt en ${risico.zwak} van je beoordeelde posities zijn onder hun 50-daags gemiddelde gezakt${risico.dichtBijStop > 0 ? `, waarvan ${risico.dichtBijStop} binnen één dagbeweging van de stop` : ''}. Bekijk in Mijn trades wat je wil afbouwen.`,
+    });
+  }
+
+  await bewaarObject(SLEUTELS.laatsteKlimaat, {
+    klimaat: klimaat.klimaat,
+    // Buiten een ongunstig klimaat op nul, zodat een volgende bearmarkt weer vanaf de eerste
+    // zwakke positie waarschuwt in plaats van pas boven de vorige stand.
+    zwakGemeld: klimaat.klimaat === 'ongunstig' ? Math.max(risico.zwak, geheugen.zwakGemeld) : 0,
+  } satisfies KlimaatGeheugen);
+
+  return meldingen;
 }
 
 /**
@@ -220,8 +329,7 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   }
 
   try {
-    const openSymbolen = new Set(open.map(t => t.symbool));
-    kandidaten.push(...await beoordeelSterkeKoop(openSymbolen, nu));
+    kandidaten.push(...await beoordeelMarkt(open, nu));
   } catch {
     // Een mislukte marktscan is geen reden om de trade-meldingen hierboven te laten vallen.
   }

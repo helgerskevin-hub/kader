@@ -67,7 +67,15 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
             shadow.modal,
             {
               backgroundColor: colors.kaart,
-              paddingBottom: Math.max(spacing.xl, toetsenbordHoogte, insets.bottom),
+              // Bij een open toetsenbord een extra marge boven op de gemelde hoogte. Android meldt
+              // de hoogte van het toetsenbord zelf, zonder de werkbalk met suggesties erboven, en
+              // precies die strook viel over de onderste knop heen: die was dan niet aan te tikken
+              // zonder eerst het toetsenbord weg te halen. Gemeten op een Pixel 8 met Gboard.
+              paddingBottom: Math.max(
+                spacing.xl,
+                toetsenbordHoogte > 0 ? toetsenbordHoogte + spacing.xl : 0,
+                insets.bottom,
+              ),
               opacity,
               transform: [{ translateY }],
             },
