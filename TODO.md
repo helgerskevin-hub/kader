@@ -24,9 +24,9 @@ _(Verplaats hier de taak waar we op dit moment aan werken, zodat we het overzich
 
 ### 📣 Thom, lees dit even (25 aug 2026)
 
-- [ ] **PR #33 is gemerged zonder dat jij ernaar gekeken hebt.** Kevin heeft daar bewust voor gekozen, maar volgens `docs/github-werkwijze.md` hoor jij er eerst even overheen te kijken. Kijk er dus alsnog naar als je tijd hebt: het gaat om de bear-modus (Kader bruikbaar maken in een dalende markt) en aanklikbare meldingen. Zie de PR-beschrijving voor wat er in zit en hoe het getest is.
-- [ ] **Versie 0.1.15 staat wel op main, maar er is géén GitHub-release van.** De APK is alleen lokaal gebouwd (`app/kader-0.1.15.apk`) om te kunnen testen. Wil je 'm installeren, vraag Kevin om het bestand of bouw 'm zelf met `npm run release:apk` vanuit `app/`. Publiceren doen we pas als jij en Kevin het erover eens zijn; dat is één commando: `gh release create v0.1.15 app/kader-0.1.15.apk --title "Kader v0.1.15"`.
-- [ ] **Let op bij het volgende release-nummer**: `app.json` staat nu op versie 0.1.15 met versionCode 23. Als 0.1.15 nooit gepubliceerd wordt en je gaat door naar 0.1.16, hoeft versionCode alleen maar hoger te zijn dan 22 (de laatst uitgebrachte), dus 23 mag dan opnieuw gebruikt worden.
+- [x] **PR #33 is gemerged zonder dat jij ernaar gekeken hebt.** Kevin heeft daar bewust voor gekozen, maar volgens `docs/github-werkwijze.md` hoor jij er eerst even overheen te kijken. Kijk er dus alsnog naar als je tijd hebt: het gaat om de bear-modus (Kader bruikbaar maken in een dalende markt) en aanklikbare meldingen. Zie de PR-beschrijving voor wat er in zit en hoe het getest is.
+- [x] **Versie 0.1.15 staat wel op main, maar er is géén GitHub-release van.** De APK is alleen lokaal gebouwd (`app/kader-0.1.15.apk`) om te kunnen testen. Wil je 'm installeren, vraag Kevin om het bestand of bouw 'm zelf met `npm run release:apk` vanuit `app/`. Publiceren gebeurt bewust nog niet: 0.1.15 is niet af zolang shorts er niet in zitten (zie fase 4 van het bearmarkt-plan hieronder). Zodra dat erin zit en jullie het eens zijn is het één commando: `gh release create v0.1.15 app/kader-0.1.15.apk --title "Kader v0.1.15"`.
+- [x] **Let op bij het volgende release-nummer**: `app.json` staat nu op versie 0.1.15 met versionCode 23. Als 0.1.15 nooit gepubliceerd wordt en je gaat door naar 0.1.16, hoeft versionCode alleen maar hoger te zijn dan 22 (de laatst uitgebrachte), dus 23 mag dan opnieuw gebruikt worden.
 
 ## 💡 Ideeën / wensen
 
