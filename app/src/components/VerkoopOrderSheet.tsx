@@ -18,6 +18,7 @@ import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { OrderBevestigKnop } from './OrderBevestigKnop';
+import { useValutaStand } from '../state/useValuta';
 
 interface Props {
   zichtbaar: boolean;
@@ -28,6 +29,10 @@ interface Props {
 }
 
 export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, onGeslaagd }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
   const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
 

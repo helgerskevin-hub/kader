@@ -6,6 +6,7 @@ import { fmtPrijs } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing } from '../theme/tokens';
+import { useValutaStand } from '../state/useValuta';
 
 interface Niveau {
   waarde: number;
@@ -27,6 +28,10 @@ function fmtDatumKort(tijd?: number): string {
 }
 
 export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180 }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
   const [breedte, setBreedte] = useState(0);
   const [actief, setActief] = useState<number | null>(null);

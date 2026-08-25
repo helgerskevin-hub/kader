@@ -60,6 +60,12 @@ export const SLEUTELS = {
   // Komma-gescheiden lijst van dichtgeklapte bron-groepen ('etoro'/'handmatig') op het
   // Portfolio-scherm.
   portfolioBronDicht: 'portfolio_bron_dicht',
+  // Weergavevaluta: 'USD' of 'EUR'. Standaard USD, want dat is de valuta waarin alle marktdata
+  // en eToro zelf rekenen.
+  valuta: 'weergave_valuta',
+  // Laatst opgehaalde euro-per-dollar-koers met tijdstip. Gecachet zodat de app ook zonder
+  // netwerk direct in euro's kan openen; ververst zodra hij ouder is dan een halve dag.
+  wisselkoers: 'wisselkoers_eur_per_usd',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

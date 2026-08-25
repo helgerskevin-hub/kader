@@ -20,6 +20,11 @@ import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { OrderBevestigKnop } from './OrderBevestigKnop';
 
+// De niveaus die je hier intikt gaan als dollarprijzen naar eToro, dus dit scherm blijft in dollars,
+// ook als de app op euro's staat.
+const DOLLARS = { valuta: 'USD' } as const;
+
+
 interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
@@ -188,7 +193,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
-          Aankoopprijs {fmtPrijs(trade.entryPrijs)}. Een veld dat je niet wijzigt blijft bij eToro
+          Aankoopprijs {fmtPrijs(trade.entryPrijs, DOLLARS)}. Een veld dat je niet wijzigt blijft bij eToro
           staan zoals het stond.
         </Text>
 

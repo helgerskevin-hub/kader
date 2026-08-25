@@ -15,11 +15,19 @@ import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useInstrumentId } from '../state/useInstrumentId';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
+import { useValuta } from '../state/useValuta';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { OrderBevestigKnop } from './OrderBevestigKnop';
+
+// eToro rekent orders in dollars af en het bedrag dat je hier intikt gaat letterlijk zo de order in.
+// Daarom blijft dit scherm in dollars, ook als de app op euro's staat: een omgerekend getal naast
+// een invoerveld dat dollars verwacht is precies de verwarring die geld kost. Onder het veld staat
+// wel de euro-tegenwaarde, zie EuroHint.
+const DOLLARS = { valuta: 'USD' } as const;
+
 
 // Gemeten bij eToro: minPositionAmount en minPositionExposure staan allebei op 10 voor BTC x1.
 const MINIMUM_USD = 10;
@@ -45,6 +53,9 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
   const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
   const instrumentId = useInstrumentId(zichtbaar ? symbool : null);
   const stopLimiet = useStopLossLimiet(zichtbaar ? symbool : null);
+  // Staat de app op euro's, dan blijft dit scherm in dollars maar tonen we wel wat je inleg in
+  // euro's is. Anders moet je zelf gaan rekenen om te weten wat je uitgeeft.
+  const { valuta, eurPerUsd } = useValuta();
 
   const [bedrag, setBedrag] = useState('');
   const [vrijSaldo, setVrijSaldo] = useState<number | null>(null);
@@ -109,13 +120,13 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
   // Anders kan er iets anders op het scherm staan dan wat er de deur uitgaat.
   const body = bouwKooporderBody(invoer);
   const niveaus: string[] = [];
-  if (typeof body.stopLossRate === 'number') niveaus.push(`stop-loss ${fmtPrijs(body.stopLossRate)}`);
-  if (typeof body.takeProfitRate === 'number') niveaus.push(`doel ${fmtPrijs(body.takeProfitRate)}`);
+  if (typeof body.stopLossRate === 'number') niveaus.push(`stop-loss ${fmtPrijs(body.stopLossRate, DOLLARS)}`);
+  if (typeof body.takeProfitRate === 'number') niveaus.push(`doel ${fmtPrijs(body.takeProfitRate, DOLLARS)}`);
   const niveauZin = niveaus.length > 0
     ? ` ${niveaus.join(', ').replace(/^./, t => t.toUpperCase())}.`
     : '';
   const samenvatting = heeftBedrag
-    ? `Je koopt voor ${fmtBedrag(bedragGetal)} aan ${symbool} tegen de marktprijs.${niveauZin}`
+    ? `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}`
     : '';
 
   // Eén rode melding tegelijk, in de volgorde waarin ze zwaarwegend zijn.
@@ -123,9 +134,9 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
     instrumentId === null
       ? `Kader kan ${symbool} niet eenduidig aan een eToro-instrument koppelen. Kopen via de app is daarom uitgeschakeld.`
     : advies.soort === 'waarschuwing' ? advies.uitleg
-    : heeftBedrag && bedragGetal < MINIMUM_USD ? `Het minimum bij eToro is ${fmtBedrag(MINIMUM_USD)}.`
+    : heeftBedrag && bedragGetal < MINIMUM_USD ? `Het minimum bij eToro is ${fmtBedrag(MINIMUM_USD, DOLLARS)}.`
     : heeftBedrag && vrijSaldo !== null && bedragGetal * KOSTENMARGE > vrijSaldo
-      ? `Dit past niet in je vrije saldo van ${fmtBedrag(vrijSaldo)}. eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
+      ? `Dit past niet in je vrije saldo van ${fmtBedrag(vrijSaldo, DOLLARS)}. eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
     : null;
 
   const magBevestigen = heeftBedrag && blokkade === null && onbekend === '';
@@ -154,7 +165,7 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
         onSluiten();
-        onGeslaagd?.(`Je koop van ${fmtBedrag(bedragGetal)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`);
+        onGeslaagd?.(`Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`);
         return;
       }
 
@@ -221,17 +232,17 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
           <View style={stijlen.infoRij}>
             <View style={stijlen.infoVeld}>
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(entry)}</Text>
+              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(entry, DOLLARS)}</Text>
             </View>
             <View style={stijlen.infoVeld}>
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                 {advies.soort === 'vast' ? 'STOP (KADER)' : 'STOP'}
               </Text>
-              <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(getoondeStop)}</Text>
+              <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(getoondeStop, DOLLARS)}</Text>
             </View>
             <View style={stijlen.infoVeld}>
               <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
-              <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(doel)}</Text>
+              <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(doel, DOLLARS)}</Text>
             </View>
           </View>
           <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.sm, lineHeight: 18 }]}>
@@ -256,9 +267,14 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
           keyboardType="decimal-pad"
           editable={!bezig && onbekend === ''}
         />
+        {valuta === 'EUR' && eurPerUsd !== null && heeftBedrag ? (
+          <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
+            Dat is ongeveer €{(bedragGetal * eurPerUsd).toFixed(2)}. eToro rekent in dollars af.
+          </Text>
+        ) : null}
         {vrijSaldo !== null ? (
           <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
-            Beschikbaar: {fmtBedrag(vrijSaldo)}
+            Beschikbaar: {fmtBedrag(vrijSaldo, DOLLARS)}
           </Text>
         ) : null}
 

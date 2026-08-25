@@ -16,6 +16,11 @@ import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 
+// De prijzen en bedragen die je hier intikt bewaart Kader als dollars (zo komt de marktdata binnen),
+// dus dit formulier blijft in dollars, ook als de app op euro's staat.
+const DOLLARS = { valuta: 'USD' } as const;
+
+
 export type GetradeBron = Pick<Trade, 'symbool' | 'entry' | 'stopLoss' | 'takeProfit' | 'rr'>;
 
 interface Props {
@@ -152,11 +157,11 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {advies.soort === 'vast' ? 'STOP (KADER)' : 'STOP'}
                 </Text>
-                <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(stop)}</Text>
+                <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(stop, DOLLARS)}</Text>
               </View>
               <View style={stijlen.infoVeld}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
-                <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(trade.takeProfit)}</Text>
+                <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(trade.takeProfit, DOLLARS)}</Text>
               </View>
               <View style={stijlen.infoVeld}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>

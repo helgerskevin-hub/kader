@@ -57,9 +57,8 @@ export function scoorCandles(
   symbool: string,
   candles: Candle[],
   bron: Trade['bron'],
-  // De backtest zet de R/R-filter uit (minRR: 0) om te kunnen meten wat die filter ons kost:
-  // presteren de afgewezen signalen beter of slechter dan de toegelaten? De app gebruikt de
-  // default en gedraagt zich dus precies als voorheen.
+  // De backtest zet de R/R-drempel op 0 (minRR: 0) om te kunnen meten wat die drempel ons kost:
+  // presteren de afgewezen signalen beter of slechter dan de toegelaten?
   opties?: { minRR?: number },
 ): Trade | null {
   if (candles.length < MIN_CANDLES) return null;
@@ -141,10 +140,15 @@ export function scoorCandles(
   const entryLaag = entry - 0.2 * atrNu;
   const entryHoog = entry + 0.2 * atrNu;
 
-  if (rr < minRR - 1e-9) return null;
+  // Een te lage R/R laat de coin niet meer verdwijnen, hij mag alleen geen koopsignaal geven.
+  // De analyse blijft dus leesbaar (score, onderbouwing, niveaus) terwijl de discipline staat:
+  // onder 1:2 zegt de app nooit KOOP.
+  const voldoetAanRR = rr >= minRR - 1e-9;
 
-  const signaalTekst: 'KOOP' | 'WATCH' = score >= DREMPEL_KOOP ? 'KOOP' : 'WATCH';
+  const signaalTekst: 'KOOP' | 'WATCH' =
+    score >= DREMPEL_KOOP && voldoetAanRR ? 'KOOP' : 'WATCH';
   const highConviction =
+    voldoetAanRR &&
     score >= HIGH_CONVICTION_SCORE &&
     ema20Nu > ema50Nu &&
     macdNu > signaalNu &&
@@ -156,7 +160,7 @@ export function scoorCandles(
     rsi: rsiNu, ema20: ema20Nu, ema50: ema50Nu,
     macdBullish: macdNu > signaalNu,
     volumeRatio, score, redenen,
-    signaal: signaalTekst, highConviction,
+    signaal: signaalTekst, highConviction, voldoetAanRR,
   };
 }
 
@@ -173,6 +177,9 @@ const GELIJKTIJDIG = 6;
 export interface MarktUitkomst {
   trades: Trade[];
   klimaat: Marktklimaat | null;
+  // Van hoeveel coins we daadwerkelijk data binnenkregen. `trades` is daar de top-N van, dus
+  // zonder dit getal lijkt "20 coins" alsof de rest van het universum niet bekeken is.
+  bekeken: number;
 }
 
 export async function analyseerMarkt(options?: {
@@ -220,12 +227,14 @@ export async function analyseerMarkt(options?: {
     ? resultaten
     : resultaten.map(t => (t.signaal === 'KOOP' ? { ...t, signaal: 'WATCH' as const, highConviction: false } : t));
 
-  // Sorteer: HIGH CONVICTION eerst, dan op score, dan op R/R
+  // Sorteer: HIGH CONVICTION eerst, dan wie de R/R-drempel haalt (die is verhandelbaar, de rest
+  // is alleen ter informatie), dan op score, dan op R/R.
   gefilterd.sort((a, b) => {
     if (a.highConviction !== b.highConviction) return a.highConviction ? -1 : 1;
+    if (a.voldoetAanRR !== b.voldoetAanRR) return a.voldoetAanRR ? -1 : 1;
     if (b.score !== a.score) return b.score - a.score;
     return b.rr - a.rr;
   });
 
-  return { trades: gefilterd.slice(0, topN), klimaat };
+  return { trades: gefilterd.slice(0, topN), klimaat, bekeken: opgehaald.length };
 }

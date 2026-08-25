@@ -30,6 +30,7 @@ import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
 import { actieveSleutels } from '../state/etoroSleutels';
+import { useValutaStand } from '../state/useValuta';
 
 // ---------- TradeRegel ----------
 // Kan deze rij bij eToro verkocht en gewijzigd worden? Alles moet kloppen: de trade komt uit eToro,
@@ -762,6 +763,10 @@ type TradeLijstItem =
 
 // ---------- Scherm ----------
 export function PortfolioScreen() {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,

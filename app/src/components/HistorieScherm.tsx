@@ -10,6 +10,7 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { berekenStatistieken } from '../state/statistieken';
+import { useValutaStand } from '../state/useValuta';
 
 interface Props {
   zichtbaar: boolean;
@@ -22,6 +23,10 @@ interface Props {
 const androidStatusBarPadding = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
 
 export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onVerwijder }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
 
   const gesloten = trades

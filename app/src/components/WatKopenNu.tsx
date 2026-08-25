@@ -7,6 +7,7 @@ import { fmtPrijs } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import { useValutaStand } from '../state/useValuta';
 
 interface Props {
   trades: Trade[];
@@ -14,6 +15,10 @@ interface Props {
 }
 
 export function WatKopenNu({ trades, onOpenDetail }: Props) {
+  // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
+  // blijft dit scherm na het omzetten in de oude valuta staan.
+  useValutaStand();
+
   const { colors } = useTheme();
   // Alleen high conviction: gemeten +0,16 R gemiddeld, de sterkste bucket uit de backtest.
   // Een lagere score kan hier ook nog KOOP zijn, maar is niet sterk genoeg voor dit uitgelichte advies.
