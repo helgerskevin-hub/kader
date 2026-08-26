@@ -71,3 +71,18 @@ export function poortOpen(klimaat: Marktklimaat | null): boolean {
   if (!klimaat) return true;
   return klimaat.klimaat === 'gunstig';
 }
+
+// De poort voor SHORT-signalen, het spiegelbeeld: alleen open bij een ongunstig klimaat. Meting F
+// liet zien waarom die poort er hoort te zijn: shorts op score < 40 verdienden in alle vier de
+// dalende jaren (2018 +0,15, 2022 +0,19, 2025 +0,13, 2026 +0,10) en verloren juist in de bulljaren
+// (2020 -0,16, 2024 -0,04).
+//
+// Let op het verschil met poortOpen hierboven: zonder klimaatdata blijft de KOOP-poort open, want
+// geen data is geen reden om te blokkeren. Bij een short is dat precies omgekeerd. Over de hele
+// negen jaar is een short gemiddeld nauwelijks positief en dat komt volledig uit de bearmarkten,
+// dus zonder te weten dat we in een dalende markt zitten is een short geen gefundeerd signaal.
+// Fail-closed dus: geen klimaat, geen short.
+export function poortOpenShort(klimaat: Marktklimaat | null): boolean {
+  if (!klimaat) return false;
+  return klimaat.klimaat === 'ongunstig';
+}
