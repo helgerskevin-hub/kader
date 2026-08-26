@@ -5,9 +5,10 @@ import { fmtPrijs, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { PortfolioTrade } from '../state/portfolioTypes';
+import { PortfolioTrade, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { bepaalAdvies } from '../state/advies';
 import { AfbouwAdvies } from '../state/afbouw';
+import { RichtingBadge } from './RichtingBadge';
 import { PositieBalk } from './PositieBalk';
 import { useValutaStand } from '../state/useValuta';
 
@@ -29,7 +30,9 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
 
   const { colors } = useTheme();
 
-  const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs);
+  const richting = richtingVan(trade);
+  const teken = tekenVan(trade);
+  const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs, richting);
   const adviesKleur = advies.kleur === 'winst' ? colors.winst
     : advies.kleur === 'verlies' ? colors.verlies
     : advies.kleur === 'letOp' ? colors.letOp
@@ -37,10 +40,10 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
 
   const heeftAantal = typeof trade.aantalCoins === 'number' && trade.aantalCoins > 0;
   const resultaatUsd = livePrijs !== undefined && heeftAantal
-    ? (livePrijs - trade.entryPrijs) * trade.aantalCoins!
+    ? (livePrijs - trade.entryPrijs) * trade.aantalCoins! * teken
     : null;
   const resultaatPct = livePrijs !== undefined
-    ? (livePrijs - trade.entryPrijs) / trade.entryPrijs * 100
+    ? (livePrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
     : null;
   const resultaatKleur = resultaatPct !== null
     ? (resultaatPct >= 0 ? colors.winst : colors.verlies)
@@ -48,7 +51,7 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
 
   const afbouwKleur = afbouw?.niveau === 'houden' ? colors.winst : colors.letOp;
 
-  const accessibilityLabel = `${trade.symbool}, ${advies.kort}${afbouw ? `, ${afbouw.kort}` : ''}${resultaatPct !== null ? `, resultaat ${fmtPct(resultaatPct)}` : ''}`;
+  const accessibilityLabel = `${trade.symbool}${richting === 'short' ? ', short' : ''}, ${advies.kort}${afbouw ? `, ${afbouw.kort}` : ''}${resultaatPct !== null ? `, resultaat ${fmtPct(resultaatPct)}` : ''}`;
 
   return (
     <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: adviesKleur }]}>
@@ -60,9 +63,15 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
       >
         <View style={styles.rij}>
           <View style={styles.links}>
-            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]} numberOfLines={1}>
-              {trade.symbool}
-            </Text>
+            {/* Symbool en SHORT-label naast elkaar: zonder dat label zijn een long en een short op
+                dezelfde coin in deze compacte lijst niet uit elkaar te houden, terwijl hun
+                resultaat precies tegenovergesteld is. */}
+            <View style={styles.symboolRij}>
+              <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]} numberOfLines={1}>
+                {trade.symbool}
+              </Text>
+              <RichtingBadge richting={richting} />
+            </View>
             <Text style={[Type.caption, { color: adviesKleur }]} numberOfLines={1}>
               {advies.kort}
             </Text>
@@ -90,6 +99,7 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
           doel={trade.takeProfit}
           live={livePrijs}
           kleur={adviesKleur}
+          richting={richting}
         />
       </Pressable>
 
@@ -107,6 +117,7 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
 }
 
 const styles = StyleSheet.create({
+  symboolRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kaart: {
     borderRadius: radii.kaart,
     borderLeftWidth: 4,

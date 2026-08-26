@@ -1,4 +1,4 @@
-import { PortfolioTrade, nieuweId } from '../state/portfolioTypes';
+import { PortfolioTrade, Richting, nieuweId } from '../state/portfolioTypes';
 import { ETORO_TRADABLE } from './opportunities';
 import { COIN_INFO } from './coinInfo';
 import { EtoroEligibility, StopLossLimiet, kiesLimiet } from './etoroLimieten';
@@ -548,12 +548,30 @@ function symboolVan(instrument: EtoroInstrument | undefined): string {
   return ruw.replace(/\/.*$/, '').toUpperCase(); // "BTC/USD" -> "BTC"
 }
 
+// R/R voor een positie, met het teken van de richting erin. Long: het risico ligt onder de entry
+// (stop < entry) en de beloning erboven (doel > entry). Short: precies gespiegeld, het risico ligt
+// boven de entry en de beloning eronder. Zonder de spiegelformule zou de long-berekening op een
+// short altijd door de guard (openRate > stopLoss) vallen en stilzwijgend rr: 0 opleveren, ook als
+// er wel degelijk geldige niveaus stonden.
+function berekenRR(stopLoss: number, takeProfit: number, openRate: number, richting: Richting): number {
+  if (stopLoss <= 0 || takeProfit <= 0) return 0;
+  if (richting === 'short') {
+    if (openRate >= stopLoss) return 0;
+    return Math.round(((openRate - takeProfit) / (stopLoss - openRate)) * 10) / 10;
+  }
+  if (openRate <= stopLoss) return 0;
+  return Math.round(((takeProfit - openRate) / (openRate - stopLoss)) * 10) / 10;
+}
+
 export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgeving: EtoroOmgeving = 'real'): PortfolioTrade {
   const stopLoss = positie.stopLossRate ?? 0;
   const takeProfit = positie.takeProfitRate ?? 0;
-  const rr = stopLoss > 0 && takeProfit > 0 && positie.openRate > stopLoss
-    ? Math.round(((takeProfit - positie.openRate) / (positie.openRate - stopLoss)) * 10) / 10
-    : 0;
+  // Bewust `=== false` en niet de waarheidswaarde van isBuy: het veld is getypeerd als verplicht,
+  // maar dat is een aanname over ongevalideerde JSON. Ontbreekt hij, dan is long de veilige uitkomst
+  // (zelfde keuze als in de historie hieronder). Met een waarheidstest zou een ontbrekend veld een
+  // stilzwijgende short opleveren, met omgekeerde winst, balk en trailing stop.
+  const richting: Richting = positie.isBuy === false ? 'short' : 'long';
+  const rr = berekenRR(stopLoss, takeProfit, positie.openRate, richting);
 
   return {
     id: nieuweId(),
@@ -567,6 +585,7 @@ export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgev
     status: 'open',
     bedragUsd: positie.amount ?? positie.initialAmountInDollars ?? 0,
     aantalCoins: positie.units,
+    richting,
     etoroPositionID: positie.positionID,
     // Allebei nodig om deze positie later te kunnen sluiten: het sluit-endpoint wil naast het
     // positionID ook het instrumentID, en het positionID hoort bij precies één omgeving.
@@ -578,7 +597,7 @@ export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgev
 
 export interface EtoroOvergeslagenPositie {
   naam: string;
-  reden: 'short' | 'geen-crypto';
+  reden: 'geen-crypto';
 }
 
 export interface EtoroImportResultaat {
@@ -614,7 +633,6 @@ function bouwOpenTrades(
   for (const positie of posities) {
     const { symbool, naam, isCrypto } = duidInstrument(positie.instrumentID, instrumentKaart, cryptoTypeIds);
 
-    if (!positie.isBuy) { overgeslagen.push({ naam, reden: 'short' }); continue; }
     if (!symbool || !isCrypto) { overgeslagen.push({ naam, reden: 'geen-crypto' }); continue; }
     trades.push(naarPortfolioTrade(positie, symbool, omgeving));
   }
@@ -676,9 +694,10 @@ export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string, om
 
   const stopLoss = regel.stopLossRate ?? 0;
   const takeProfit = regel.takeProfitRate ?? 0;
-  const rr = stopLoss > 0 && takeProfit > 0 && regel.openRate > stopLoss
-    ? Math.round(((takeProfit - regel.openRate) / (regel.openRate - stopLoss)) * 10) / 10
-    : 0;
+  // isBuy ontbreekt soms in de historie-respons; ontbreken betekent long, hetzelfde als vóór deze
+  // versie toen shorts nog overgeslagen werden (zie ook bouwGeslotenTrades hieronder).
+  const richting: Richting = regel.isBuy === false ? 'short' : 'long';
+  const rr = berekenRR(stopLoss, takeProfit, regel.openRate, richting);
   const netProfit = regel.netProfit ?? 0;
 
   return {
@@ -699,6 +718,7 @@ export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string, om
     // Alleen bewaren als eToro het echt meestuurde. Een ontbrekende netProfit als 0 wegschrijven
     // zou het totaalresultaat vervuilen met nepwinsten van precies nul.
     resultaatUsd: typeof regel.netProfit === 'number' ? regel.netProfit : undefined,
+    richting,
     etoroPositionID: positionID,
     etoroInstrumentID: instrumentIdVan(regel),
     etoroOmgeving: omgeving,
@@ -720,7 +740,6 @@ function bouwGeslotenTrades(
     if (instrumentID === undefined) continue;
     const { symbool, naam, isCrypto } = duidInstrument(instrumentID, instrumentKaart, cryptoTypeIds);
 
-    if (regel.isBuy === false) { overgeslagen.push({ naam, reden: 'short' }); continue; }
     if (!symbool || !isCrypto) { overgeslagen.push({ naam, reden: 'geen-crypto' }); continue; }
     const trade = naarGeslotenTrade(regel, symbool, omgeving);
     if (trade) trades.push(trade);
@@ -787,10 +806,21 @@ if (require.main === module) {
   console.assert(trade.rr === 3, `RR moet 3 zijn ((65000-50000)/(50000-45000)), was ${trade.rr}`);
   console.assert(trade.etoroPositionID === 123, 'positionID moet bewaard blijven');
   console.assert(trade.bron === 'etoro', 'bron moet etoro zijn');
+  console.assert(trade.richting === 'long', 'isBuy true moet long worden');
 
   const geenSlTp = naarPortfolioTrade({ ...mock, stopLossRate: undefined, takeProfitRate: undefined }, 'BTC');
   console.assert(geenSlTp.stopLoss === 0 && geenSlTp.takeProfit === 0, 'ontbrekende SL/TP moet 0 worden');
   console.assert(geenSlTp.rr === 0, 'RR zonder SL/TP moet 0 zijn');
+
+  // Short: stop boven de entry, doel eronder. isBuy false betekent short, en de gespiegelde
+  // formule moet nog steeds een positieve R/R van 3 geven, niet 0 door de long-guard.
+  const shortMock: EtoroPositie = {
+    positionID: 456, instrumentID: 1, isBuy: false, amount: 500, units: 0.01,
+    openRate: 50000, openDateTime: '2026-01-15T10:00:00Z', stopLossRate: 55000, takeProfitRate: 35000,
+  };
+  const shortTrade = naarPortfolioTrade(shortMock, 'BTC');
+  console.assert(shortTrade.richting === 'short', 'isBuy false moet short worden');
+  console.assert(shortTrade.rr === 3, `short RR moet 3 zijn ((50000-35000)/(55000-50000)), was ${shortTrade.rr}`);
 
   // Historie: gesloten trade uit een ruwe historie-regel.
   const ruw = {
@@ -807,6 +837,22 @@ if (require.main === module) {
   console.assert(gesloten?.aantalCoins === 0.01 && gesloten?.bedragUsd === 500, 'units/investment moeten overgenomen worden');
   console.assert(gesloten?.bron === 'etoro', 'bron moet etoro zijn');
   console.assert(gesloten?.resultaatUsd === 150, `netProfit moet als resultaatUsd bewaard blijven, was ${gesloten?.resultaatUsd}`);
+  console.assert(gesloten?.richting === 'long', 'isBuy true in de historie moet long worden');
+
+  // isBuy ontbreekt in deze regel (zoals bij een deel van de echte historie-respons): dat moet
+  // hetzelfde long-gedrag geven als isBuy: true, niet stilzwijgend als short gelezen worden.
+  const zonderIsBuy = naarGeslotenTrade({ ...ruw, isBuy: undefined }, 'BTC');
+  console.assert(zonderIsBuy?.richting === 'long', 'ontbrekende isBuy moet standaard long zijn');
+
+  // Short in de historie: stop boven de entry, doel eronder, RR gespiegeld.
+  const shortRuw = {
+    positionId: 789, instrumentId: 1, isBuy: false, openRate: 50000, closeRate: 35000,
+    openTimestamp: '2026-01-15T10:00:00Z', closeTimestamp: '2026-02-01T12:00:00Z',
+    netProfit: 300, units: 0.01, investment: 500, stopLossRate: 55000, takeProfitRate: 35000,
+  };
+  const shortGesloten = naarGeslotenTrade(shortRuw, 'BTC');
+  console.assert(shortGesloten?.richting === 'short', 'isBuy false in de historie moet short worden');
+  console.assert(shortGesloten?.rr === 3, `short RR in de historie moet 3 zijn, was ${shortGesloten?.rr}`);
 
   // netProfit wint van de prijsvergelijking: exit boven entry, maar door kosten toch verlies.
   const kostenVerlies = naarGeslotenTrade({ ...ruw, netProfit: -2 }, 'BTC');
@@ -943,5 +989,13 @@ if (require.main === module) {
     console.error(`etoro.ts self-check GEFAALD: ${missers} controle(s) klopten niet`);
     process.exit(1);
   }
+  // Een open positie zonder isBuy in de respons moet long blijven, net als in de historie. Met een
+  // waarheidstest zou hij stilzwijgend als short opgeslagen worden, en dan klopt alles eromheen niet.
+  {
+    const zonderVeld = { positionID: 1, instrumentID: 2, units: 1, openRate: 100, openDateTime: '2026-01-01T00:00:00Z' } as unknown as Parameters<typeof naarPortfolioTrade>[0];
+    const t = naarPortfolioTrade(zonderVeld, 'BTC');
+    console.assert(t.richting === 'long', `een positie zonder isBuy moet long zijn, was ${t.richting}`);
+  }
+
   console.log('etoro.ts self-check geslaagd');
 }

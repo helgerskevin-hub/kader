@@ -1,4 +1,5 @@
 import { fmtPrijs } from '../engine/format';
+import { Richting } from './portfolioTypes';
 
 export type AdviesKleur = 'neutraal' | 'winst' | 'verlies' | 'letOp';
 
@@ -21,6 +22,7 @@ export function bepaalAdvies(
   stopLoss: number,
   takeProfit: number,
   livePrijs: number | undefined,
+  richting: Richting = 'long',
 ): Advies {
   if (livePrijs === undefined) {
     return { tekst: 'Live prijs laden...', kort: 'Live prijs laden', kleur: 'neutraal' };
@@ -34,23 +36,32 @@ export function bepaalAdvies(
     };
   }
 
-  if (livePrijs <= stopLoss) {
+  // Bij een long ligt de stop onder de entry en het doel erboven; bij een short is dat precies
+  // gespiegeld, dus elke vergelijking hieronder draait om of het "stop geraakt" en "doel bereikt"
+  // klopt voor de richting.
+  const short = richting === 'short';
+
+  if (short ? livePrijs >= stopLoss : livePrijs <= stopLoss) {
     return { tekst: 'Stop-loss geraakt. Plan was hier uit te stappen.', kort: 'Stop geraakt', kleur: 'verlies' };
   }
 
-  if (livePrijs >= takeProfit) {
+  if (short ? livePrijs <= takeProfit : livePrijs >= takeProfit) {
     return { tekst: 'Doel bereikt. Overweeg (deels) winst te nemen.', kort: 'Doel bereikt', kleur: 'winst' };
   }
 
+  // drempelBijnaOpDoel zelf hoeft niet gespiegeld: bij een short ligt takeProfit al onder entryPrijs,
+  // dus de formule levert vanzelf een drempel iets boven het doel. Alleen de vergelijking ermee flipt.
   const drempelNaarDoel = drempelBijnaOpDoel(entryPrijs, takeProfit);
-  if (livePrijs > drempelNaarDoel) {
+  if (short ? livePrijs < drempelNaarDoel : livePrijs > drempelNaarDoel) {
     return { tekst: 'Bijna op doel. Houd vast of zet een trailing stop.', kort: 'Bijna op doel', kleur: 'letOp' };
   }
 
-  if (livePrijs < entryPrijs) {
+  // "Onder entry" was long-specifiek (verlies = koers onder entry); bij een short is verlies juist
+  // koers BOVEN entry. "In verlies" klopt in allebei de richtingen.
+  if (short ? livePrijs > entryPrijs : livePrijs < entryPrijs) {
     return {
-      tekst: 'Onder entry. Plan: vasthouden tot stop, niet eerder uitstappen op emotie.',
-      kort: 'Onder entry',
+      tekst: 'In verlies staand. Plan: vasthouden tot stop, niet eerder uitstappen op emotie.',
+      kort: 'In verlies',
       kleur: 'letOp',
     };
   }

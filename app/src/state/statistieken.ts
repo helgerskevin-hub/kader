@@ -1,4 +1,4 @@
-import { PortfolioTrade } from './portfolioTypes';
+import { PortfolioTrade, tekenVan } from './portfolioTypes';
 
 export interface PortfolioStatistieken {
   afgesloten: number;
@@ -10,8 +10,12 @@ export interface PortfolioStatistieken {
 export interface PortfolioWaarde {
   openPosities: number;        // aantal open trades
   ingelegdUsd: number;         // som(aantalCoins * entryPrijs) van open trades met live prijs
-  huidigeWaardeUsd: number;    // som(aantalCoins * livePrijs) van open trades met live prijs
-  ongerealiseerdUsd: number;   // huidige waarde - ingelegd (alleen posities met beide)
+  // Ingelegd plus ongerealiseerd. Voor een portfolio met shorts erin is dit je eigen vermogen en
+  // niet de marktwaarde van wat je bezit: een short bezit je niet, die lever je.
+  huidigeWaardeUsd: number;
+  // som(teken * (livePrijs - entryPrijs) * aantalCoins), teken +1 bij long en -1 bij short.
+  // Alleen posities die zowel een aantal als een live prijs hebben.
+  ongerealiseerdUsd: number;
   ongerealiseerdPct: number | null;
   gewaardeerd: number;         // aantal open posities dat in de waarde meetelt
   zonderLivePrijs: number;     // open posities zonder aantal of live prijs
@@ -24,7 +28,7 @@ export function berekenPortfolioWaarde(
   const open = trades.filter(t => t.status === 'open');
 
   let ingelegdUsd = 0;
-  let huidigeWaardeUsd = 0;
+  let ongerealiseerdUsd = 0;
   let gewaardeerd = 0;
   let zonderLivePrijs = 0;
 
@@ -32,15 +36,18 @@ export function berekenPortfolioWaarde(
     const livePrijs = livePrijzen[t.symbool];
     const heeftAantal = typeof t.aantalCoins === 'number' && t.aantalCoins > 0;
     if (heeftAantal && typeof livePrijs === 'number') {
+      // Ingelegd is het geld dat werkelijk is ingezet, ongeacht richting: entry * aantal. Een short
+      // gaat pas winstgevend als de koers ONDER de entry zakt, dus het ongerealiseerde resultaat
+      // draait om het teken (+1 long, -1 short) en niet om huidigeWaarde - ingelegd.
       ingelegdUsd += t.entryPrijs * t.aantalCoins!;
-      huidigeWaardeUsd += livePrijs * t.aantalCoins!;
+      ongerealiseerdUsd += tekenVan(t) * (livePrijs - t.entryPrijs) * t.aantalCoins!;
       gewaardeerd += 1;
     } else {
       zonderLivePrijs += 1;
     }
   }
 
-  const ongerealiseerdUsd = huidigeWaardeUsd - ingelegdUsd;
+  const huidigeWaardeUsd = ingelegdUsd + ongerealiseerdUsd;
   const ongerealiseerdPct = ingelegdUsd > 0 ? (ongerealiseerdUsd / ingelegdUsd) * 100 : null;
 
   return {
@@ -63,20 +70,27 @@ function behaaldeExit(t: PortfolioTrade): number {
 // zou het risico gelijk zijn aan de hele entryprijs en kwam er een rendementsfractie uit (0,3
 // voor +30%) die vervolgens werd gemiddeld met echte R-waarden van 2 of 3. Dat trok het
 // gemiddelde naar nul en maakte de stat betekenisloos.
+//
+// Het teken (+1 long, -1 short) zit in zowel het risico als de uitkomst: bij een long ligt de
+// stop onder de entry, bij een short erboven, dus `entry - stop` wisselt zelf al van teken.
+// Zonder de correctie zou elke short een negatief risico geven en dus door de risico<=0-check
+// hierboven stilzwijgend verdwijnen, waardoor de hele gem-R-stat alleen nog longs telde.
 function behaaldeRR(t: PortfolioTrade): number | null {
   if (t.stopLoss <= 0) return null;
-  const risico = t.entryPrijs - t.stopLoss;
+  const teken = tekenVan(t);
+  const risico = teken * (t.entryPrijs - t.stopLoss);
   if (risico <= 0) return null;
-  return (behaaldeExit(t) - t.entryPrijs) / risico;
+  return teken * (behaaldeExit(t) - t.entryPrijs) / risico;
 }
 
 // Het werkelijke resultaat in dollars. eToro's netProfit is inclusief kosten en dus de waarheid;
 // die gebruiken we als hij er is. Voor handmatige trades kennen we de kosten niet en blijft het
-// bruto koersverschil de beste schatting.
+// bruto koersverschil de beste schatting, met het teken erin zodat een short die in winst sloot
+// (koers daalde) ook als winst telt.
 function resultaatVan(t: PortfolioTrade): number | null {
   if (typeof t.resultaatUsd === 'number') return t.resultaatUsd;
   if (typeof t.aantalCoins === 'number' && t.aantalCoins > 0) {
-    return (behaaldeExit(t) - t.entryPrijs) * t.aantalCoins;
+    return tekenVan(t) * (behaaldeExit(t) - t.entryPrijs) * t.aantalCoins;
   }
   return null;
 }
@@ -152,5 +166,35 @@ if (require.main === module) {
   console.assert(w.ongerealiseerdUsd === 30, `ongerealiseerd moet 30 zijn, was ${w.ongerealiseerdUsd}`);
   console.assert(w.ongerealiseerdPct === 20, `ongerealiseerd% moet 20 zijn, was ${w.ongerealiseerdPct}`);
   console.assert(w.gewaardeerd === 1 && w.zonderLivePrijs === 1, `ADA hoort zonder live prijs te vallen (gewaardeerd ${w.gewaardeerd}, zonder ${w.zonderLivePrijs})`);
+
+  // ---------- Short-trades ----------
+  // Short: entry 100, stop 110 (erboven), doel 70 (eronder). Voluit gewonnen op het doel is +3R,
+  // en de stop raken is -1R, het spiegelbeeld van een long met hetzelfde risico. Zonder de
+  // richting-correctie zou dit risico (entry - stop = -10) negatief zijn en de trade stilzwijgend
+  // uit de gem-R-stat verdwijnen, precies zoals de stopLoss<=0-trade dat hierboven doet.
+  const shortGewonnen = berekenStatistieken([
+    { id: 's1', symbool: 'SOL', naam: 'Solana', entryPrijs: 100, stopLoss: 110, takeProfit: 70, rr: 3, datum: '', status: 'gewonnen', exitPrijs: 70, richting: 'short' },
+  ]);
+  console.assert(shortGewonnen.gemBehaaldeRR === 3, `short op doel moet +3R zijn, was ${shortGewonnen.gemBehaaldeRR}`);
+  const shortVerloren = berekenStatistieken([
+    { id: 's2', symbool: 'SOL', naam: 'Solana', entryPrijs: 100, stopLoss: 110, takeProfit: 70, rr: 3, datum: '', status: 'verloren', exitPrijs: 110, richting: 'short' },
+  ]);
+  console.assert(shortVerloren.gemBehaaldeRR === -1, `short op de stop moet -1R zijn, was ${shortVerloren.gemBehaaldeRR}`);
+
+  // Bruto resultaat van een short: koers daalt van 100 naar 70 op 2 coins, dat is +60, niet -60.
+  const shortResultaat = berekenStatistieken([
+    { id: 's4', symbool: 'SOL', naam: 'Solana', entryPrijs: 100, stopLoss: 110, takeProfit: 70, rr: 3, datum: '', status: 'gewonnen', exitPrijs: 70, aantalCoins: 2, richting: 'short' },
+  ]);
+  console.assert(shortResultaat.totaalResultaatUsd === 60, `short-winst moet +60 zijn (koers daalde), was ${shortResultaat.totaalResultaatUsd}`);
+
+  // Open short: entry 100, 2 coins, live 80 (koers daalde) => ongerealiseerd +40, niet -40.
+  const shortWaarde = berekenPortfolioWaarde(
+    [{ id: 's5', symbool: 'SOL', naam: 'Solana', entryPrijs: 100, stopLoss: 110, takeProfit: 70, rr: 3, datum: '', status: 'open', aantalCoins: 2, richting: 'short' }],
+    { SOL: 80 },
+  );
+  console.assert(shortWaarde.ingelegdUsd === 200, `ingelegd blijft entry * aantal ongeacht richting, was ${shortWaarde.ingelegdUsd}`);
+  console.assert(shortWaarde.ongerealiseerdUsd === 40, `short in winst als de koers daalt: +40 verwacht, was ${shortWaarde.ongerealiseerdUsd}`);
+  console.assert(shortWaarde.huidigeWaardeUsd === 240, `huidige waarde is ingelegd + ongerealiseerd, was ${shortWaarde.huidigeWaardeUsd}`);
+
   console.log('statistieken.ts self-check geslaagd');
 }

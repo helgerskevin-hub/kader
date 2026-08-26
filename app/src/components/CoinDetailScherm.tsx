@@ -74,7 +74,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
   const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
   const getradeBron: GetradeBron | null = kanGetrade
-    ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
+    ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0, richting: data.richting }
     : null;
 
   const niveaus = [
@@ -94,32 +94,38 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
   const isOpen = data.status === 'open';
   const heeftAantal = typeof data.aantalCoins === 'number' && data.aantalCoins > 0;
+  // +1 voor long, -1 voor short: zelfde truc als tekenVan() in portfolioTypes.ts, maar dit is geen
+  // PortfolioTrade meer, dus rechtstreeks op het richting-veld.
+  const teken = data.richting === 'short' ? -1 : 1;
 
   const resultaatUsd = data.context === 'portfolio' && isOpen && data.prijs !== undefined && heeftAantal
-    ? (data.prijs - (data.entryPrijs ?? 0)) * data.aantalCoins!
+    ? (data.prijs - (data.entryPrijs ?? 0)) * data.aantalCoins! * teken
     : null;
   const resultaatPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.entryPrijs
-    ? (data.prijs - data.entryPrijs) / data.entryPrijs * 100
+    ? (data.prijs - data.entryPrijs) / data.entryPrijs * 100 * teken
     : null;
   const resultaatKleur = resultaatUsd !== null ? (resultaatUsd >= 0 ? colors.winst : colors.verlies) : colors.tekstGedimd;
 
   const behaaldPct = data.context === 'portfolio' && !isOpen && data.exitPrijs !== undefined && data.entryPrijs
-    ? (data.exitPrijs - data.entryPrijs) / data.entryPrijs * 100
+    ? (data.exitPrijs - data.entryPrijs) / data.entryPrijs * 100 * teken
     : null;
   const behaaldUsd = data.context === 'portfolio' && !isOpen && data.exitPrijs !== undefined && heeftAantal
-    ? (data.exitPrijs - (data.entryPrijs ?? 0)) * data.aantalCoins!
+    ? (data.exitPrijs - (data.entryPrijs ?? 0)) * data.aantalCoins! * teken
     : null;
   const behaaldKleur = behaaldPct !== null ? (behaaldPct >= 0 ? colors.winst : colors.verlies) : colors.tekstGedimd;
 
+  // Bij long ligt de stop onder en het doel boven de prijs, bij short is dat omgekeerd. Het teken
+  // rekent beide kanten naar hetzelfde begrip: hoeveel procent zou je kwijt zijn als de stop raakt,
+  // en hoeveel procent staat er nog tussen de prijs en het doel.
   const afstandStopPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.stopLoss !== undefined
-    ? (data.prijs - data.stopLoss) / data.prijs * 100
+    ? (data.prijs - data.stopLoss) / data.prijs * 100 * teken
     : null;
   const afstandDoelPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.takeProfit !== undefined
-    ? (data.takeProfit - data.prijs) / data.prijs * 100
+    ? (data.takeProfit - data.prijs) / data.prijs * 100 * teken
     : null;
 
   const portfolioAdvies = data.context === 'portfolio' && isOpen
-    ? bepaalAdvies(data.entryPrijs ?? 0, data.stopLoss ?? 0, data.takeProfit ?? 0, data.prijs)
+    ? bepaalAdvies(data.entryPrijs ?? 0, data.stopLoss ?? 0, data.takeProfit ?? 0, data.prijs, data.richting)
     : null;
   const portfolioAdviesKleur = portfolioAdvies?.kleur === 'winst' ? colors.winst
     : portfolioAdvies?.kleur === 'verlies' ? colors.verlies
@@ -177,7 +183,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
             {heeftNiveaus && (
               <View style={styles.sectie}>
-                <LevelRow stop={data.stopLoss!} entry={data.entry!} doel={data.takeProfit!} />
+                <LevelRow stop={data.stopLoss!} entry={data.entry!} doel={data.takeProfit!} richting={data.richting} />
                 {data.rr !== undefined && (
                   <Text style={[Type.caption, styles.rrTekst, { color: colors.tekstGedimd }]}>R/R {fmtRR(data.rr)}</Text>
                 )}

@@ -21,7 +21,8 @@ import { VerkoopOrderSheet } from '../components/VerkoopOrderSheet';
 import { NiveausSheet } from '../components/NiveausSheet';
 import { EtoroOmgeving } from '../engine/etoro';
 import { omschrijfOnbekendeOrder } from '../state/lopendeOrders';
-import { PortfolioTrade, bronVan, nieuweId } from '../state/portfolioTypes';
+import { PortfolioTrade, Richting, bronVan, nieuweId, richtingVan, tekenVan } from '../state/portfolioTypes';
+import { RichtingBadge } from '../components/RichtingBadge';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { bepaalAdvies } from '../state/advies';
 import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
@@ -81,7 +82,9 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
     : trade.status === 'verloren' ? 'Verloren'
     : 'Open';
 
-  const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs);
+  const richting = richtingVan(trade);
+  const teken = tekenVan(trade);
+  const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs, richting);
 
   const adviesKleur = advies.kleur === 'winst' ? colors.winst
     : advies.kleur === 'verlies' ? colors.verlies
@@ -90,24 +93,25 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
 
   const heeftAantal = typeof trade.aantalCoins === 'number' && trade.aantalCoins > 0;
   const resultaatUsd = livePrijs !== undefined && heeftAantal
-    ? (livePrijs - trade.entryPrijs) * trade.aantalCoins!
+    ? (livePrijs - trade.entryPrijs) * trade.aantalCoins! * teken
     : null;
   const resultaatPct = livePrijs !== undefined
-    ? (livePrijs - trade.entryPrijs) / trade.entryPrijs * 100
+    ? (livePrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
     : null;
   const resultaatKleur = resultaatUsd !== null
     ? (resultaatUsd >= 0 ? colors.winst : colors.verlies)
     : colors.tekstGedimd;
 
   const behaaldPct = trade.exitPrijs !== undefined
-    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
+    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
     : null;
-  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat. Alleen als we dat niet
-  // hebben (handmatige trade) rekenen we het bruto koersverschil uit.
+  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat, en staat al op het juiste
+  // teken. Alleen als we dat niet hebben (handmatige trade) rekenen we het bruto koersverschil uit,
+  // en dan moet dat verschil ook door tekenVan.
   const behaaldUsd = typeof trade.resultaatUsd === 'number'
     ? trade.resultaatUsd
     : trade.exitPrijs !== undefined && heeftAantal
-      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
+      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins! * teken
       : null;
   // Kleuren op het bedrag, niet op het koersverschil. Een trade kan net boven entry sluiten en na
   // kosten toch verlies zijn; dan hoort er geen groene +0,4% naast een rode "verloren"-badge.
@@ -128,7 +132,10 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
       >
       <View style={tradeStyles.kop}>
         <View style={tradeStyles.kopLinks}>
-          <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
+          <View style={tradeStyles.symboolRij}>
+            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
+            <RichtingBadge richting={richting} />
+          </View>
           {trade.naam ? (
             <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{trade.naam}</Text>
           ) : null}
@@ -152,19 +159,28 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
         <AfbouwRegel advies={afbouw} huidigeStop={trade.stopLoss} />
       )}
 
-      {/* Niveaus */}
+      {/* Niveaus. Bij long staat de stop links (laagste prijs) en het doel rechts, bij short is dat
+          andersom: de kolomvolgorde volgt dezelfde laag→hoog-logica als LevelRow/PositieBalk. */}
       <View style={tradeStyles.niveaus}>
         <View style={tradeStyles.niveau}>
-          <Text style={[Type.overline, { color: colors.verlies }]}>STOP</Text>
-          <Text style={[Type.prijs, { color: colors.verlies, fontSize: 13 }]}>{trade.stopLoss > 0 ? fmtPrijs(trade.stopLoss) : '—'}</Text>
+          <Text style={[Type.overline, { color: richting === 'short' ? colors.winst : colors.verlies }]}>
+            {richting === 'short' ? 'DOEL' : 'STOP'}
+          </Text>
+          <Text style={[Type.prijs, { color: richting === 'short' ? colors.winst : colors.verlies, fontSize: 13 }]}>
+            {(richting === 'short' ? trade.takeProfit : trade.stopLoss) > 0 ? fmtPrijs(richting === 'short' ? trade.takeProfit : trade.stopLoss) : '—'}
+          </Text>
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
           <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtPrijs(trade.entryPrijs)}</Text>
         </View>
         <View style={tradeStyles.niveau}>
-          <Text style={[Type.overline, { color: colors.winst }]}>DOEL</Text>
-          <Text style={[Type.prijs, { color: colors.winst, fontSize: 13 }]}>{trade.takeProfit > 0 ? fmtPrijs(trade.takeProfit) : '—'}</Text>
+          <Text style={[Type.overline, { color: richting === 'short' ? colors.verlies : colors.winst }]}>
+            {richting === 'short' ? 'STOP' : 'DOEL'}
+          </Text>
+          <Text style={[Type.prijs, { color: richting === 'short' ? colors.verlies : colors.winst, fontSize: 13 }]}>
+            {(richting === 'short' ? trade.stopLoss : trade.takeProfit) > 0 ? fmtPrijs(richting === 'short' ? trade.stopLoss : trade.takeProfit) : '—'}
+          </Text>
         </View>
         <View style={tradeStyles.niveau}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
@@ -301,6 +317,7 @@ const tradeStyles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   kopLinks: { gap: 2 },
+  symboolRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kopRechts: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   advies: {
     marginHorizontal: spacing.base,
@@ -338,6 +355,7 @@ const tradeStyles = StyleSheet.create({
 interface VormData {
   symbool: string;
   naam: string;
+  richting: Richting;
   entryPrijs: string;
   stopLoss: string;
   takeProfit: string;
@@ -347,13 +365,14 @@ interface VormData {
 }
 
 const leegForm: VormData = {
-  symbool: '', naam: '', entryPrijs: '', stopLoss: '', takeProfit: '', bedragUsd: '', aantalCoins: '', notitie: '',
+  symbool: '', naam: '', richting: 'long', entryPrijs: '', stopLoss: '', takeProfit: '', bedragUsd: '', aantalCoins: '', notitie: '',
 };
 
 function formVanTrade(trade: PortfolioTrade): VormData {
   return {
     symbool: trade.symbool,
     naam: trade.naam,
+    richting: richtingVan(trade),
     entryPrijs: trade.entryPrijs.toString(),
     stopLoss: trade.stopLoss.toString(),
     takeProfit: trade.takeProfit.toString(),
@@ -418,16 +437,28 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
     const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
     const aantal = parseFloat(form.aantalCoins.replace(',', '.'));
 
+    const isShort = form.richting === 'short';
+
     if (!sym) { setFout('Voer een symbool in (bijv. BTC)'); return; }
     if (isNaN(entry) || entry <= 0) { setFout('Voer een geldige entryprijs in'); return; }
-    if (isNaN(stop) || stop >= entry) { setFout('Stop-loss moet lager zijn dan de entryprijs'); return; }
-    if (isNaN(tp) || tp <= entry) { setFout('Take-profit moet hoger zijn dan de entryprijs'); return; }
+    // Bij een short liggen stop en doel aan de andere kant van de entry: de stop erboven (je verliest
+    // als de koers stijgt), het doel eronder (je wint als de koers daalt).
+    if (isShort) {
+      if (isNaN(stop) || stop <= entry) { setFout('Stop-loss moet hoger zijn dan de entryprijs bij een short'); return; }
+      if (isNaN(tp) || tp >= entry) { setFout('Take-profit moet lager zijn dan de entryprijs bij een short'); return; }
+    } else {
+      if (isNaN(stop) || stop >= entry) { setFout('Stop-loss moet lager zijn dan de entryprijs'); return; }
+      if (isNaN(tp) || tp <= entry) { setFout('Take-profit moet hoger zijn dan de entryprijs'); return; }
+    }
 
-    const rr = Math.round(((tp - entry) / (entry - stop)) * 10) / 10;
+    const rr = isShort
+      ? Math.round(((entry - tp) / (stop - entry)) * 10) / 10
+      : Math.round(((tp - entry) / (entry - stop)) * 10) / 10;
     onOpslaan({
       id: bestaand ? bestaand.id : nieuweId(),
       symbool: sym,
       naam: form.naam.trim(),
+      richting: form.richting,
       entryPrijs: entry,
       stopLoss: stop,
       takeProfit: tp,
@@ -482,6 +513,34 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
           placeholder="bijv. Bitcoin"
           placeholderTextColor={colors.tekstGedimd}
         />
+
+        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>RICHTING</Text>
+        <View style={formStyles.richtingRij}>
+          <Pressable
+            style={[
+              formStyles.richtingKnop,
+              { borderColor: form.richting === 'long' ? colors.primair : colors.rand },
+              form.richting === 'long' && { backgroundColor: colors.primair + '1A' },
+            ]}
+            onPress={() => setForm(f => ({ ...f, richting: 'long' }))}
+            accessibilityRole="button"
+            accessibilityLabel="Long"
+          >
+            <Text style={[Type.body, { color: form.richting === 'long' ? colors.primair : colors.tekstGedimd, fontWeight: '600' }]}>Long</Text>
+          </Pressable>
+          <Pressable
+            style={[
+              formStyles.richtingKnop,
+              { borderColor: form.richting === 'short' ? colors.goud : colors.rand },
+              form.richting === 'short' && { backgroundColor: colors.goud + '1A' },
+            ]}
+            onPress={() => setForm(f => ({ ...f, richting: 'short' }))}
+            accessibilityRole="button"
+            accessibilityLabel="Short"
+          >
+            <Text style={[Type.body, { color: form.richting === 'short' ? colors.goud : colors.tekstGedimd, fontWeight: '600' }]}>Short</Text>
+          </Pressable>
+        </View>
 
         <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>ENTRYPRIJS *</Text>
         <TextInput
@@ -656,6 +715,16 @@ const formStyles = StyleSheet.create({
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   label: { marginTop: spacing.md, marginBottom: spacing.xs },
+  richtingRij: { flexDirection: 'row', gap: spacing.sm },
+  richtingKnop: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: radii.veld,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
   input: {
     borderWidth: 1,
     borderRadius: radii.veld,
@@ -899,9 +968,8 @@ export function PortfolioScreen() {
       if (uitkomst.overgeslagen.length > 0) delen.push(`${uitkomst.overgeslagen.length} overgeslagen`);
       let bericht = delen.join(', ') + '.';
       if (uitkomst.overgeslagen.length > 0) {
-        const regels = uitkomst.overgeslagen.map(
-          o => `- ${o.naam} (${o.reden === 'short' ? 'short, nog niet ondersteund' : 'geen crypto'})`,
-        );
+        // Shorts komen nu gewoon binnen; wat hier nog overblijft is geen crypto-instrument.
+        const regels = uitkomst.overgeslagen.map(o => `- ${o.naam} (geen crypto)`);
         bericht += '\n\nOvergeslagen:\n' + regels.join('\n');
       }
       Alert.alert('Import voltooid', bericht);

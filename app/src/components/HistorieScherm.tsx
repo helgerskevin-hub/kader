@@ -8,7 +8,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
-import { PortfolioTrade } from '../state/portfolioTypes';
+import { PortfolioTrade, tekenVan } from '../state/portfolioTypes';
 import { berekenStatistieken } from '../state/statistieken';
 import { useValutaStand } from '../state/useValuta';
 
@@ -123,15 +123,17 @@ function GeslotenKaart({ trade, onOpenDetail, onVerwijder }: {
   const StatusIcon = gewonnen ? CheckCircle : XCircle;
 
   const heeftAantal = typeof trade.aantalCoins === 'number' && trade.aantalCoins > 0;
+  const teken = tekenVan(trade);
   const behaaldPct = trade.exitPrijs !== undefined
-    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
+    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
     : null;
-  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat. Alleen als we dat niet
-  // hebben (handmatige trade) rekenen we het bruto koersverschil uit.
+  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat, en staat al op het juiste
+  // teken. Alleen als we dat niet hebben (handmatige trade) rekenen we het bruto koersverschil uit,
+  // en dan moet dat verschil ook door tekenVan.
   const behaaldUsd = typeof trade.resultaatUsd === 'number'
     ? trade.resultaatUsd
     : trade.exitPrijs !== undefined && heeftAantal
-      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins!
+      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins! * teken
       : null;
   // Kleuren op het bedrag, niet op het koersverschil: een trade kan net boven entry sluiten en na
   // kosten toch verlies zijn, en dan hoort er geen groene +0,4% naast de rode "verloren"-badge.

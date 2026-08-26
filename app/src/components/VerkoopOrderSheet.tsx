@@ -11,7 +11,7 @@ import { fmtPrijs, fmtResultaatUsd } from '../engine/format';
 import { guid, sluitPositie } from '../engine/etoro';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { actieveSleutels } from '../state/etoroSleutels';
-import { PortfolioTrade } from '../state/portfolioTypes';
+import { PortfolioTrade, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -35,6 +35,16 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
 
   const { colors } = useTheme();
   const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
+
+  // Bij een short heb je de positie geopend door te verkopen; sluiten gebeurt dan door terug te
+  // kopen. "Verkopen" zou dus verwarrend zijn, "sluiten" klopt voor beide richtingen.
+  const richting = richtingVan(trade);
+  const isShort = richting === 'short';
+  const werkwoord = isShort ? 'sluiten' : 'verkopen';
+  const werkwoordVervoegd = isShort ? 'sluit' : 'verkoopt';
+  // Hele zinsdeel in plaats van los zelfstandig naamwoord: "je verkoop van BTC" loopt, maar de
+  // short-variant daarvan ("je sluitorder van BTC") niet, dus die krijgt een eigen formulering.
+  const opdrachtTekst = isShort ? `opdracht om ${trade.symbool} te sluiten` : `verkoop van ${trade.symbool}`;
 
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
@@ -77,7 +87,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
   const aantal = trade.aantalCoins
     ?? (trade.bedragUsd && trade.entryPrijs > 0 ? trade.bedragUsd / trade.entryPrijs : undefined);
   const resultaat = aantal !== undefined && huidigePrijs !== undefined && huidigePrijs > 0
-    ? (huidigePrijs - trade.entryPrijs) * aantal
+    ? (huidigePrijs - trade.entryPrijs) * aantal * tekenVan(trade)
     : undefined;
 
   async function bevestig() {
@@ -98,7 +108,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
         onSluiten();
-        onGeslaagd?.(`Je verkoop van ${trade.symbool} staat bij eToro. Kader werkt je portfolio bij zodra de positie gesloten is.`);
+        onGeslaagd?.(`Je ${opdrachtTekst} staat bij eToro. Kader werkt je portfolio bij zodra de positie gesloten is.`);
         return;
       }
 
@@ -128,7 +138,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
       <View style={stijlen.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{trade.symbool} verkopen</Text>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{trade.symbool} {werkwoord}</Text>
         <Pressable
           onPress={onSluiten}
           accessibilityLabel="Sluiten"
@@ -175,8 +185,9 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
         </View>
 
         <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
-          Je verkoopt de hele positie tegen de marktprijs. Het resultaat hierboven is een schatting op
-          basis van de prijs die Kader kent; eToro rekent het werkelijke bedrag af, inclusief kosten.
+          {isShort
+            ? 'Je sluit de hele shortpositie tegen de marktprijs. Het resultaat hierboven is een schatting op basis van de prijs die Kader kent; eToro rekent het werkelijke bedrag af, inclusief kosten.'
+            : 'Je verkoopt de hele positie tegen de marktprijs. Het resultaat hierboven is een schatting op basis van de prijs die Kader kent; eToro rekent het werkelijke bedrag af, inclusief kosten.'}
         </Text>
 
         {!mag ? (
@@ -198,14 +209,14 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
         ) : null}
 
         <OrderBevestigKnop
-          label={`${trade.symbool} verkopen`}
+          label={`${trade.symbool} ${werkwoord}`}
           omgeving={omgeving}
           bezig={bezig}
           // Na een onbekende uitkomst blijft de knop uit: opnieuw versturen kan een tweede order
           // opleveren terwijl de eerste misschien gelukt is.
           uitgeschakeld={!mag || onbekend !== ''}
           onBevestig={bevestig}
-          echtWaarschuwing="Dit verkoopt een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen."
+          echtWaarschuwing={`Dit ${werkwoordVervoegd} een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen.`}
         />
       </ScrollView>
     </BottomSheet>

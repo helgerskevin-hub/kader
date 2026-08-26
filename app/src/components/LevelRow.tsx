@@ -4,47 +4,63 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { fmtPrijs } from '../engine/format';
 import { useValutaStand } from '../state/useValuta';
+import { Richting } from '../state/portfolioTypes';
 
 interface Props {
   stop: number;
   entry: number;
   doel: number;
+  // Ontbreekt = 'long', zodat bestaande aanroepen blijven werken. Bij een short liggen stop en doel
+  // andersom (stop boven de entry, doel eronder), dus zowel de balk als de STOP/DOEL-volgorde moeten
+  // meedraaien.
+  richting?: Richting;
 }
 
-export function LevelRow({ stop, entry, doel }: Props) {
+export function LevelRow({ stop, entry, doel, richting = 'long' }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
 
   const { colors } = useTheme();
 
-  // Relatieve positie van entry op de schaal stop→doel
-  const range = doel - stop;
-  const entryFractie = range > 0 ? (entry - stop) / range : 0.5;
+  // De rij loopt altijd van lage naar hoge prijs. Bij long is dat stop→doel, bij short doel→stop:
+  // zo blijft de fractieberekening positief in plaats van dat "doel - stop" negatief wordt.
+  const isShort = richting === 'short';
+  const laag = isShort ? doel : stop;
+  const hoog = isShort ? stop : doel;
+  const range = hoog - laag;
+  const entryFractie = range > 0 ? (entry - laag) / range : 0.5;
   const entryPct = Math.round(Math.min(Math.max(entryFractie, 0.05), 0.95) * 100);
+
+  // Welke kleur en welk label bij het lage en het hoge uiteinde horen, wisselt mee met de richting:
+  // bij long is laag de stop (rood) en hoog het doel (groen); bij short is het net andersom.
+  const laagKleur = isShort ? colors.winst : colors.verlies;
+  const hoogKleur = isShort ? colors.verlies : colors.winst;
+  const laagLabel = isShort ? 'DOEL' : 'STOP';
+  const hoogLabel = isShort ? 'STOP' : 'DOEL';
 
   return (
     <View style={styles.container}>
       {/* Labels */}
       <View style={styles.labelsRij}>
-        <Text style={[Type.overline, { color: colors.verlies }]}>STOP</Text>
+        <Text style={[Type.overline, { color: laagKleur }]}>{laagLabel}</Text>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
-        <Text style={[Type.overline, { color: colors.winst }]}>DOEL</Text>
+        <Text style={[Type.overline, { color: hoogKleur }]}>{hoogLabel}</Text>
       </View>
 
       {/* Balk */}
       <View style={[styles.balkContainer, { backgroundColor: colors.verhoogd }]}>
-        <View style={[styles.stukStop, { backgroundColor: colors.verlies, flex: entryPct }]} />
-        <View style={[styles.stukDoel, { backgroundColor: colors.winst, flex: 100 - entryPct }]} />
+        <View style={[styles.stukLinks, { backgroundColor: laagKleur, flex: entryPct }]} />
+        <View style={[styles.stukRechts, { backgroundColor: hoogKleur, flex: 100 - entryPct }]} />
         {/* Entry-markering */}
         <View style={[styles.entryMarker, { left: `${entryPct}%` as unknown as number, borderColor: colors.cta }]} />
       </View>
 
       {/* Prijzen */}
       <View style={styles.prijzenRij}>
-        <Text style={[Type.prijs, styles.prijs, { color: colors.verlies }]}>{fmtPrijs(stop)}</Text>
+        <Text style={[Type.prijs, styles.prijs, { color: laagKleur }]}>{fmtPrijs(isShort ? doel : stop)}</Text>
         <Text style={[Type.prijs, styles.prijsEntry, { color: colors.tekstPrimair }]}>{fmtPrijs(entry)}</Text>
-        <Text style={[Type.prijs, styles.prijs, { color: colors.winst }]}>{fmtPrijs(doel)}</Text>
+        <Text style={[Type.prijs, styles.prijs, { color: hoogKleur }]}>{fmtPrijs(isShort ? stop : doel)}</Text>
       </View>
     </View>
   );
@@ -60,8 +76,8 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     position: 'relative',
   },
-  stukStop: { borderTopLeftRadius: 3, borderBottomLeftRadius: 3 },
-  stukDoel: { borderTopRightRadius: 3, borderBottomRightRadius: 3 },
+  stukLinks: { borderTopLeftRadius: 3, borderBottomLeftRadius: 3 },
+  stukRechts: { borderTopRightRadius: 3, borderBottomRightRadius: 3 },
   entryMarker: {
     position: 'absolute',
     top: -3,
