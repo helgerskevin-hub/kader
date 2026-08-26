@@ -46,6 +46,7 @@ const SECTIES = [
   { id: 'indicatoren', titel: 'De indicatoren' },
   { id: 'marktklimaat', titel: 'Het marktklimaat' },
   { id: 'bearmodus', titel: 'Bear-modus (dalende markt)' },
+  { id: 'shorts', titel: 'Shorts' },
   { id: 'relatievesterkte', titel: 'Wie houdt stand?' },
   { id: 'blootstelling', titel: 'Blootstelling en afbouwen' },
   { id: 'feargreed', titel: 'Fear & Greed' },
@@ -189,6 +190,41 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
               begin van de daling. Open je de app een maand niet, dan begint de teller dus later. Je krijgt ook een
               pushmelding zodra het klimaat omslaat, in beide richtingen: als de bear-modus aangaat, en als hij weer
               voorbij is.
+            </Text>
+          </Sectie>
+
+          <Sectie id="shorts" titel="Shorts" open={open === 'shorts'} onToggle={wisselOpen}>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Een short verdient geld als de koers daalt in plaats van stijgt. Je opent 'm door de coin
+              te verkopen zonder 'm te bezitten en sluit 'm af door 'm terug te kopen; het verschil
+              tussen die twee prijzen is je resultaat. De niveaus liggen daarom gespiegeld ten opzichte
+              van een gewone trade: de stop-loss ligt boven de entry, het doel eronder.
+            </Text>
+            <LevelRow stop={118} entry={100} doel={82} richting="short" />
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Kader toont short-signalen alleen zolang het marktklimaat ONGUNSTIG is, en alleen voor
+              coins met een score onder de 40: hoe zwakker het momentum, hoe sterker het short-signaal.
+              Diezelfde score, dezelfde 0 tot 100, alleen omgekeerd gelezen. Gemeten over negen jaar
+              Binance-historie leverden shorts op die drempel in alle vier de dalende jaren geld op
+              (2018, 2022, 2025 en het lopende 2026) en verloren ze juist in de stijgende jaren. Daarom
+              zit er een klimaatpoort voor: buiten een ongunstig klimaat toont Kader nooit een short.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Het doel ligt op 2 keer de ATR onder de entry, de stop op dezelfde swing-structuur als bij
+              een gewone trade maar dan gespiegeld: net boven de recente weerstand. Ook hier geldt de
+              minimale verhouding van 1:2 tussen risico en beloning, dus alleen coins die daaraan
+              voldoen krijgen het signaal.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Bij eToro kan een crypto-short alleen als CFD, maar wel op dezelfde hefboom x1 als een
+              gewone koop: Kader rekent nergens met hefboom, ook niet bij een short. eToro staat voor
+              een short wel een krappere stop toe dan bij een koop (gemeten: maximaal 50% van je inleg
+              tegen 100% bij een koop), en Kader toetst je stop tegen precies die grens voordat de order
+              de deur uitgaat.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Zoals bij elk signaal in Kader: dit is een technische uitkomst van de analyse, geen
+              financieel advies. Check altijd de actuele koers op eToro voor je een order plaatst.
             </Text>
           </Sectie>
 
