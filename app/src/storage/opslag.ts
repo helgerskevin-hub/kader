@@ -7,16 +7,22 @@ export const SLEUTELS = {
   thema: 'thema_modus',
   favorieten: 'favoriete_coins',
   changelogVersie: 'changelog_versie_gezien',
-  // De ECHTE sleutels. Namen ongewijzigd, want ze staan al op de toestellen van gebruikers.
+  // DE eToro-sleutel, en de enige. Gemeten: eToro geeft één sleutel uit die zowel demo als echt mag
+  // handelen, dus het PAD scheidt speelgeld van echt geld en niet de sleutel. Namen ongewijzigd,
+  // want ze staan al op de toestellen van gebruikers.
   // Let op: deze twee lopen sinds de handelskoppeling via state/etoroSleutels.ts en niet meer via
   // laadTekst/bewaarTekst; ze staan in expo-secure-store, niet in AsyncStorage.
   etoroApiKey: 'etoro_api_key',
   etoroUserKey: 'etoro_user_key',
-  // Idem, maar voor het demo-account. Een demo-sleutel werkt niet op een echt pad en andersom.
+  // VEROUDERD. Kader bewaarde tot 0.1.15 een tweede paar voor demo, in de veronderstelling dat een
+  // demo-sleutel niet op een echt pad werkte. Dat klopte niet. Wordt alleen nog uitgelezen door de
+  // eenmalige samenvoeging in state/etoroSleutels.ts, en daar bewust niet gewist: staat er toch een
+  // afwijkende sleutel, dan is die niet terug te halen (eToro toont een User Key maar één keer).
   etoroDemoApiKey: 'etoro_demo_api_key',
   etoroDemoUserKey: 'etoro_demo_user_key',
-  // Mag deze sleutel handelen? Afgeleid uit de scopes van /api/v1/me bij het koppelen. Geen
-  // secure-store nodig: het is een ja/nee, geen geheim.
+  // Mag deze sleutel handelen? Afgeleid uit de scopes van /api/v1/me bij het koppelen. Blijft per
+  // omgeving, want eToro kan je in demo wel en in echt geen handelsrecht geven. Geen secure-store
+  // nodig: het is een ja/nee, geen geheim.
   etoroRealSchrijven: 'etoro_real_schrijven',
   etoroDemoSchrijven: 'etoro_demo_schrijven',
   // Welke omgeving actief is: 'demo' of 'real'. Standaard demo, zodat een verkeerde aanname geen

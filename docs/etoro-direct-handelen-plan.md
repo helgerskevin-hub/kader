@@ -13,7 +13,7 @@ Dit is een geldpad. De hele opzet is fail-closed: bij twijfel gebeurt er niets, 
 | Vraag | Keuze |
 |---|---|
 | Omvang | Kopen + verkopen + SL/TP wijzigen |
-| Sleutels | Aparte demo-sleutels naast de bestaande echte, plus een Demo/Echt-schakelaar. Standaard demo |
+| Sleutels | ~~Aparte demo-sleutels naast de bestaande echte~~, plus een Demo/Echt-schakelaar. Standaard demo. **Achterhaald door de meting in 9a: eToro geeft een sleutel uit die in beide omgevingen werkt. Teruggedraaid naar een gedeeld sleutelpaar.** |
 | Koopknop | Op TradeCard (Markt), OpportunityCard (Kansen) en CoinDetailScherm |
 | Verkoopknop | Op PortfolioScreen, ter vervanging van Gewonnen/Verloren bij eToro-rijen |
 | Demo-filter | Portfolio, statistieken en historie tonen alleen de actieve omgeving. Handmatige trades altijd |
@@ -22,7 +22,9 @@ Dit is een geldpad. De hele opzet is fail-closed: bij twijfel gebeurt er niets, 
 
 ## Geverifieerd API-contract
 
-Host voor beide omgevingen: `https://public-api.etoro.com`. **De omgeving zit in het PAD, niet in een header.** Demo- en echte sleutels zijn niet uitwisselbaar.
+Host voor beide omgevingen: `https://public-api.etoro.com`. **De omgeving zit in het PAD, niet in een header.** ~~Demo- en echte sleutels zijn niet uitwisselbaar.~~
+
+> **Correctie, na de meting van 2026-08-06 (zie 9a).** Die laatste zin klopt niet. eToro geeft een sleutel uit; `/api/v1/me` levert voor die ene sleutel zowel `etoro-public:trade.demo:read/write` als `etoro-public:trade.real:read/write`, en zowel een demo-pad als een echt pad wordt erdoor geaccepteerd. Het pad is daarmee het enige dat speelgeld van echt geld scheidt. De opslag van twee losse sleutelparen die uit deze aanname volgde is teruggedraaid naar een gedeeld paar: de gebruiker vulde zijn sleutel anders twee keer in, en stond hij in het andere vakje dan de actieve omgeving, dan was hij zonder melding niet gekoppeld.
 
 - Openen: `POST /api/v2/trading/execution/orders` (demo: `/api/v2/trading/execution/demo/orders`)
   Body: `{ action: "open", transaction: "buy", instrumentId, settlementType, orderType: "mkt", leverage, amount, orderCurrency: "usd", stopLossRate, takeProfitRate, stopLossType: "fixed" }`. `stopLossRate` en `takeProfitRate` zijn **absolute koersen**, geen percentages.

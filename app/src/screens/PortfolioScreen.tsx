@@ -37,7 +37,7 @@ import { useWeergave, Weergave } from '../state/useWeergave';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
-import { actieveSleutels } from '../state/etoroSleutels';
+import { sleutelUitkomst } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
 
 // ---------- TradeRegel ----------
@@ -868,10 +868,20 @@ export function PortfolioScreen() {
 
   // Knop: expliciete actie, dus wel terugkoppeling over wat er gebeurd is.
   async function importerenUitEtoro() {
-    if (!(await actieveSleutels())) {
+    const uitkomst = await sleutelUitkomst();
+    if (uitkomst.soort === 'geen') {
       Alert.alert(
         'Nog geen eToro-koppeling',
         'Stel je API-sleutel in via Instellingen (het tandwiel rechtsboven) voordat je kunt importeren.',
+      );
+      return;
+    }
+    if (uitkomst.soort === 'kluisfout') {
+      // Je bent gekoppeld, we kwamen alleen niet bij de sleutel. Dat is een ander verhaal dan
+      // "stel je sleutel in", en dat verschil hoort hier te staan.
+      Alert.alert(
+        'Sleutel niet te lezen',
+        `Je eToro-sleutel staat op dit toestel, maar Kader kon er nu niet bij. ${uitkomst.bericht}`,
       );
       return;
     }
