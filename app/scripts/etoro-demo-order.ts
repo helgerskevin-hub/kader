@@ -23,6 +23,8 @@
 //   --leverage=1       standaard 1
 //   --geen-sl          stuur geen stopLossRate/takeProfitRate mee, om te zien of de order zonder
 //                      niveaus wel wordt geaccepteerd (isoleert vraag 1)
+//   (zonder vlaggen)   leest naast het bovenstaande ook de Sell-configs uit: de meetvraag van
+//                      fase 4 (shorts), namelijk of Kader kan shorten en of hefboom verplicht is.
 //   --patch            probeer na de order de stop-loss te wijzigen via PATCH op de positie. Dit is
 //                      geen bevestigd endpoint: het staat niet in eToro's endpoint-index en de
 //                      pagina over positie-informatie noemt zichzelf read-only. Fase 4 van het plan
@@ -180,6 +182,53 @@ async function main() {
   } else {
     noteer('geen x1-long config gevonden in de eligibility-respons; vraag 2 blijft open');
   }
+
+  // ---------- 3c. Sell-configs: kan Kader eigenlijk wel shorten, en tegen welke prijs? ----------
+  // Dit is de meetvraag van fase 4 (shorts) uit TODO.md. kiesLimiet() in engine/etoroLimieten.ts
+  // filtert vandaag bewust op richting Buy en hefboom x1, want Kader rekent overal zonder hefboom.
+  // Laat eToro crypto alleen als CFD met hefboom shorten, dan raakt dat die hele aanname: andere
+  // marginregels, andere stop-loss-grenzen, en een ander risicoprofiel dan de rest van de app.
+  // Puur lezen, er gaat geen order uit.
+  streep('3c. Sell-configs per coin  -> kan Kader shorten, en is hefboom verplicht? (fase 4)');
+  const SHORT_COINS = SYMBOOL === 'BTC' ? ['BTC', 'ETH', 'SOL', 'XRP', 'ADA'] : [SYMBOOL];
+  const shortEligibility = await roep('/trading/info/demo/eligibility', {
+    versie: 'v2',
+    body: { symbols: SHORT_COINS, currency: 'USD' },
+  });
+  const alleInstrumenten: any[] = (shortEligibility.data as any)?.eligibilities ?? [];
+  noteer(`eligibility voor ${SHORT_COINS.join(', ')} gaf ${shortEligibility.status}, ${alleInstrumenten.length} instrument(en) terug`);
+
+  let ergensX1Sell = false;
+  let ergensSell = false;
+  for (const item of alleInstrumenten) {
+    const naam = item?.symbol ?? '?';
+    const cfgs: any[] = item?.leverageConfigs ?? [];
+    const sell = cfgs.filter(c => /sell|short/i.test(c.direction ?? ''));
+    const buy = cfgs.filter(c => /buy|long/i.test(c.direction ?? 'buy'));
+    if (sell.length > 0) ergensSell = true;
+
+    noteer(`${naam}: ${cfgs.length} config(s), waarvan ${sell.length} Sell`);
+    for (const c of sell) {
+      const hefbomen: number[] = c.leverageValues ?? [];
+      if (hefbomen.includes(1)) ergensX1Sell = true;
+      noteer(`  SELL  hefboom=[${hefbomen.join(',')}] settlement=${c.settlementType} minSL%=${c.minStopLossPercentage} maxSL%=${c.maxStopLossPercentage} bewerkbaar=${c.allowEditStopLoss} minBedrag=${c.minPositionAmount}`);
+    }
+    for (const c of buy) {
+      noteer(`  BUY   hefboom=[${(c.leverageValues ?? []).join(',')}] settlement=${c.settlementType} minSL%=${c.minStopLossPercentage} maxSL%=${c.maxStopLossPercentage} bewerkbaar=${c.allowEditStopLoss} minBedrag=${c.minPositionAmount}`);
+    }
+  }
+
+  // De conclusie die fase 4 nodig heeft, expliciet uitgeschreven zodat er niets te duiden valt.
+  if (!ergensSell) {
+    noteer('-> GEEN Sell-config gevonden. Dan kan Kader via deze API niet shorten, valt de order-kant van fase 4 af en blijft alleen het TONEN van shorts over.');
+  } else if (ergensX1Sell) {
+    noteer('-> Er bestaat een Sell-config met hefboom x1. Kader kan dan shorten zonder de x1-aanname los te laten; alleen kiesLimiet() en bepaalStop() moeten richting-bewust worden.');
+  } else {
+    noteer('-> Sell bestaat WEL, maar nergens met hefboom x1: shorten kan alleen met hefboom. Dat is een productbeslissing en geen technische. Hefboom verandert de marginregels en het risicoprofiel, en de winstberekening moet hem meenemen. Eerst overleggen voor er UI gebouwd wordt.');
+  }
+  // De stop-loss-grenzen hierboven zijn de reden dat bepaalStop() richting-bewust moet worden:
+  // verschillen min/max tussen Buy en Sell, dan geeft de long-toets bij een correcte short een
+  // onterechte waarschuwing, en die zet de bevestigknop in NiveausSheet uit.
 
   if (!PLAATS_ORDER) {
     console.log('\nAlleen gelezen. Draai opnieuw met --order om daadwerkelijk een demo-order te plaatsen.');
