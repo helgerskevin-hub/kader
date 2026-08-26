@@ -23,8 +23,10 @@ export type EtoroOmgeving = 'real' | 'demo';
 export interface EtoroSleutels {
   apiKey: string;
   userKey: string;
-  // Ontbreekt = 'real'. Demo- en echte sleutels zijn niet uitwisselbaar: dezelfde sleutel op het
-  // verkeerde pad geeft een 401, geen order op het verkeerde account.
+  // Ontbreekt = 'real'. Gemeten: eToro geeft één sleutel uit die zowel demo als echt mag handelen,
+  // dus dezelfde sleutel wordt op allebei de paden geaccepteerd. Deze waarde kiest via demoPad()
+  // het PAD, en dat pad is het enige dat speelgeld van echt geld scheidt. Een verkeerde waarde hier
+  // levert dus GEEN nette 401 op maar een echte order op je echte account.
   omgeving?: EtoroOmgeving;
 }
 
@@ -171,15 +173,15 @@ async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: Fetch
   }
 
   if (res.status === 401 || res.status === 403) {
-    // Noem de omgeving erbij. eToro geeft 401 op zowel een echt verkeerde sleutel als op een goede
-    // sleutel die naar het pad van de andere omgeving ging, en dat zijn totaal verschillende
-    // problemen. Zonder dit onderscheid stuurt de melding je je sleutel opnieuw laten invoeren
-    // terwijl die nergens fout was en alleen de schakelaar demo/echt verkeerd stond.
+    // Noem de omgeving erbij, maar geef er niet de schuld aan. Eerder zei deze melding dat je
+    // waarschijnlijk op de verkeerde omgeving stond; dat kan niet kloppen, want eToro geeft één
+    // sleutel uit die op allebei de paden werkt (zie de meting verderop in dit bestand). Met een
+    // goede sleutel hoort hier dus geen 401 te staan, ongeacht demo of echt. Wat er dan wél aan de
+    // hand is: de sleutel is bij eToro ingetrokken of opnieuw aangemaakt, of er staat een nieuwe
+    // api-sleutel naast een oude user-sleutel. In beide gevallen moeten beide velden opnieuw.
     const inDemo = (sleutels.omgeving ?? 'real') === 'demo';
     throw new EtoroFout(
-      inDemo
-        ? 'eToro accepteert je sleutel niet op het demo-account. Staat Kader op demo terwijl je alleen een sleutel voor je echte account hebt? Zet de schakelaar bij Instellingen op Echt, of koppel een sleutel onder "eToro-sleutel demo".'
-        : 'eToro accepteert je sleutel niet op je echte account. Controleer je sleutel bij Instellingen. Let op: de User Key laat eToro maar één keer zien, dus na een nieuwe sleutel moet je beide velden opnieuw invullen.',
+      `eToro accepteert je sleutel niet op je ${inDemo ? 'demo-account' : 'echte account'}. Dezelfde sleutel hoort in demo en in echt te werken, dus dit ligt niet aan de schakelaar. Vul je sleutel opnieuw in bij Instellingen. Let op: de User Key laat eToro maar één keer zien, dus na een nieuwe sleutel moet je beide velden opnieuw invullen.`,
       res.status,
     );
   }

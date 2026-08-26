@@ -38,16 +38,27 @@ const OMGEVINGEN: { omgeving: EtoroOmgeving; label: string; Icon: typeof Sun }[]
   { omgeving: 'real', label: 'Echt', Icon: Wallet },
 ];
 
-type SleutelStatus = 'Niet ingesteld' | 'Alleen lezen' | 'Lezen en handelen';
+type SleutelStatus =
+  | 'Niet ingesteld'
+  | 'Alleen lezen'
+  | 'Handelen in demo'
+  | 'Handelen in echt'
+  | 'Handelen in demo en echt';
 
 const SCHRIJFVLAG: Record<EtoroOmgeving, string> = {
   real: SLEUTELS.etoroRealSchrijven,
   demo: SLEUTELS.etoroDemoSchrijven,
 };
 
-async function statusVan(omgeving: EtoroOmgeving): Promise<SleutelStatus> {
-  if (!(await heeftSleutels(omgeving))) return 'Niet ingesteld';
-  return (await laadVlag(SCHRIJFVLAG[omgeving])) ? 'Lezen en handelen' : 'Alleen lezen';
+// Eén sleutel, dus één status. Het handelsrecht blijft wél per omgeving, want eToro kan je sleutel
+// in demo wel en in echt geen schrijfrecht geven, en dat verschil hoort zichtbaar te blijven.
+async function bepaalStatus(): Promise<SleutelStatus> {
+  if (!(await heeftSleutels())) return 'Niet ingesteld';
+  const [real, demo] = await Promise.all([laadVlag(SCHRIJFVLAG.real), laadVlag(SCHRIJFVLAG.demo)]);
+  if (real && demo) return 'Handelen in demo en echt';
+  if (demo) return 'Handelen in demo';
+  if (real) return 'Handelen in echt';
+  return 'Alleen lezen';
 }
 
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
@@ -56,16 +67,12 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   // Meteen ophalen zodra de koppeling is opgeslagen, niet pas bij de volgende app-start.
   const { omgeving, setOmgeving } = usePortfolio();
   const [changelogOpen, setChangelogOpen] = useState(false);
-  const [wizardOmgeving, setWizardOmgeving] = useState<EtoroOmgeving | null>(null);
-  const [statussen, setStatussen] = useState<Record<EtoroOmgeving, SleutelStatus>>({
-    demo: 'Niet ingesteld',
-    real: 'Niet ingesteld',
-  });
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [sleutelStatus, setSleutelStatus] = useState<SleutelStatus>('Niet ingesteld');
   const [bezigWisselen, setBezigWisselen] = useState(false);
 
   async function ververStatussen() {
-    const [demo, real] = await Promise.all([statusVan('demo'), statusVan('real')]);
-    setStatussen({ demo, real });
+    setSleutelStatus(await bepaalStatus());
   }
 
   useEffect(() => {
@@ -102,14 +109,13 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   function naOpslaan() {
     ververStatussen();
     // Zet de actieve omgeving opnieuw: dat leest het schrijfrecht vers van schijf (anders verschijnt
-    // de koopknop pas na een herstart) en synchroniseert meteen. Het legt de omgeving ook vast, zodat
-    // het koppelen van een tweede sleutelpaar je niet stilzwijgend naar de andere omgeving verschuift.
+    // de koopknop pas na een herstart), legt de omgeving vast en synchroniseert meteen.
     setOmgeving(omgeving);
   }
 
   return (
     <>
-    <BottomSheet zichtbaar={zichtbaar && !changelogOpen && wizardOmgeving === null} onSluiten={onSluiten}>
+    <BottomSheet zichtbaar={zichtbaar && !changelogOpen && !wizardOpen} onSluiten={onSluiten}>
       <View style={styles.titelRij}>
         <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Instellingen</Text>
         <Pressable
@@ -224,28 +230,28 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
       </Text>
 
       <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
-        {OMGEVINGEN.map(({ omgeving: rijOmgeving, label }) => {
-          const status = statussen[rijOmgeving];
-          const kleur = status === 'Lezen en handelen'
-            ? colors.winst
-            : status === 'Alleen lezen' ? colors.tekstPrimair : colors.tekstGedimd;
-          return (
-            <Pressable
-              key={rijOmgeving}
-              onPress={() => setWizardOmgeving(rijOmgeving)}
-              accessibilityRole="button"
-              accessibilityLabel={`eToro-sleutel voor ${label.toLowerCase()} instellen, nu ${status.toLowerCase()}`}
-              style={styles.menuKnop}
-            >
-              <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>
-                {rijOmgeving === 'demo' ? 'eToro-sleutel demo' : 'eToro-sleutel echt'}
-              </Text>
-              <Text style={[Type.caption, { color: kleur }]}>{status}</Text>
-              <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
-          );
-        })}
+        <Pressable
+          onPress={() => setWizardOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`eToro-sleutel instellen, nu ${sleutelStatus.toLowerCase()}`}
+          style={styles.menuKnop}
+        >
+          <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+          <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>eToro-sleutel</Text>
+          <Text
+            style={[
+              Type.caption,
+              {
+                color: sleutelStatus === 'Niet ingesteld'
+                  ? colors.tekstGedimd
+                  : sleutelStatus === 'Alleen lezen' ? colors.tekstPrimair : colors.winst,
+              },
+            ]}
+          >
+            {sleutelStatus}
+          </Text>
+          <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </Pressable>
 
         <Pressable
           onPress={() => setChangelogOpen(true)}
@@ -262,9 +268,8 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
 
     <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
     <EtoroKoppelingWizard
-      zichtbaar={wizardOmgeving !== null}
-      omgeving={wizardOmgeving ?? 'real'}
-      onSluiten={() => setWizardOmgeving(null)}
+      zichtbaar={wizardOpen}
+      onSluiten={() => setWizardOpen(false)}
       onOpgeslagen={naOpslaan}
     />
     </>

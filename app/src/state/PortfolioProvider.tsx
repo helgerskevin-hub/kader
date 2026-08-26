@@ -4,7 +4,7 @@ import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving } from '../engine/etoro';
-import { actieveSleutels, haalOmgeving, zetOmgeving, magHandelen as magNuHandelen } from './etoroSleutels';
+import { sleutelUitkomst, haalOmgeving, zetOmgeving, magHandelen as magNuHandelen } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { bronVan } from './portfolioTypes';
 import { checkOpenTrades } from '../notifications/tradeChecks';
@@ -81,7 +81,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [laatsteSync, setLaatsteSync] = useState<number | null>(null);
   const [syncFout, setSyncFout] = useState(false);
   const [etoroFout, setEtoroFout] = useState<string | null>(null);
-  const [omgeving, setOmgevingState] = useState<EtoroOmgeving>('real');
+  // Demo als tussenstand tot haalOmgeving() antwoordt. De omgeving is het enige dat speelgeld van
+  // echt geld scheidt, dus de waarde van voor het laden hoort de onschuldige te zijn: hij stuurt
+  // het DEMO-label in de header aan en het filter op zichtbare trades.
+  const [omgeving, setOmgevingState] = useState<EtoroOmgeving>('demo');
   const [magHandelen, setMagHandelen] = useState(false);
   const [onbekendeOrders, setOnbekendeOrders] = useState<OnbekendeOrder[]>([]);
   const [verlopenOrders, setVerlopenOrders] = useState<OnbekendeOrder[]>([]);
@@ -350,12 +353,20 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     const leeg: SyncResultaat = { gekoppeld: false, toegevoegd: 0, bijgewerkt: 0, gesloten: 0, uitHistorie: 0, overgeslagen: [], fout: null };
     await verversPrijzen();
 
-    const sleutels = await actieveSleutels();
-    if (!sleutels) {
+    const uitkomst = await sleutelUitkomst();
+    if (uitkomst.soort === 'geen') {
       // Geen koppeling is geen fout: een oude foutmelding mag hier niet blijven hangen.
       setEtoroFout(null);
       return leeg;
     }
+    if (uitkomst.soort === 'kluisfout') {
+      // Je bent wél gekoppeld, we konden alleen niet bij de sleutel. Dat stilzwijgend als "geen
+      // koppeling" afdoen was precies waarom de app kon zeggen dat er geen sleutel was terwijl
+      // Instellingen 'm gewoon toonde. Nu gaat de statusindicator hierop oranje staan.
+      setEtoroFout(uitkomst.bericht);
+      return { ...leeg, gekoppeld: true, fout: uitkomst.bericht };
+    }
+    const sleutels = uitkomst.sleutels;
 
     try {
       const { open, historie } = await importeerEtoroAlles(sleutels);
