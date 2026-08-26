@@ -1,4 +1,4 @@
-import { PortfolioTrade } from '../state/portfolioTypes';
+import { PortfolioTrade, richtingVan } from '../state/portfolioTypes';
 import { drempelBijnaOpDoel } from '../state/advies';
 import { voorstelTrailingStop, beoordeelPortfolioRisico } from '../state/afbouw';
 import { Klimaat } from '../engine/marktklimaat';
@@ -9,10 +9,6 @@ import { macd } from '../engine/indicators';
 import { fmtPrijs } from '../engine/format';
 import { stuurTradeMelding } from './meldingen';
 import { MeldingDoel, leesDoel } from './meldingDoel';
-
-// Let op: PortfolioTrade heeft geen richting-veld, en de hele advies-logica in de app gaat uit van
-// long (stop onder de entry, doel erboven). Deze checks doen dat ook. Trades die niet aan die vorm
-// voldoen worden overgeslagen in plaats van verkeerd geadviseerd; shorts zijn een aparte uitbreiding.
 
 type TriggerType = 'verhoogTP' | 'trekStopAan' | 'sterkeKoop' | 'klimaat' | 'portfolioRisico';
 
@@ -135,8 +131,16 @@ async function loggeMeldingen(meldingen: Melding[], nu: number): Promise<void> {
 // terecht zijn; de suppressie beslist daarna pas of ze ook echt verstuurd worden.
 async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   if (trade.stopLoss <= 0 || trade.takeProfit <= 0) return [];
-  // Niet-long (doel onder entry) valt buiten wat deze logica kan beoordelen.
-  if (trade.takeProfit <= trade.entryPrijs) return [];
+
+  const richting = richtingVan(trade);
+  const short = richting === 'short';
+
+  // Vormcontrole per richting, opvolger van de oude long-only test op takeProfit <= entryPrijs.
+  // Een long hoort stop < entry < doel te hebben, een short precies andersom. Klopt dat niet, dan
+  // is de trade niet te beoordelen en sturen we liever geen melding dan een verkeerde.
+  const stopGoed = short ? trade.stopLoss > trade.entryPrijs : trade.stopLoss < trade.entryPrijs;
+  const doelGoed = short ? trade.takeProfit < trade.entryPrijs : trade.takeProfit > trade.entryPrijs;
+  if (!stopGoed || !doelGoed) return [];
 
   const data = await haalData(trade.symbool);
   if (!data) return [];
@@ -152,36 +156,45 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   const n = histogram.length;
   if (n < 2) return [];
   const histogramStijgt = histogram[n - 1] > histogram[n - 2];
+  // Een long wil een stijgend histogram, een short precies het omgekeerde: een dalend histogram.
+  const histogramGunstig = short ? !histogramStijgt : histogramStijgt;
 
   const meldingen: Melding[] = [];
 
   // Doel in zicht en het momentum draagt nog: voorstel om het doel op te rekken naar het verse
-  // ATR-doel. Alleen als dat hoger ligt dan het huidige doel, anders is het geen verhoging.
-  const bijnaOpDoel = koers > drempelBijnaOpDoel(trade.entryPrijs, trade.takeProfit);
-  const momentumSterk = vers.macdBullish && histogramStijgt;
-  if (bijnaOpDoel && momentumSterk && koers < trade.takeProfit && vers.takeProfit > trade.takeProfit) {
-    meldingen.push({
-      sleutel: sleutelVoor(trade.id, 'verhoogTP'),
-      doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
-      titel: `${trade.symbool} nadert je doel`,
-      tekst: `De koers staat op ${fmtPrijs(koers)}, dicht bij je doel van ${fmtPrijs(trade.takeProfit)}, en het momentum is nog sterk. Overweeg je doel te verhogen naar ${fmtPrijs(vers.takeProfit)}.`,
-    });
+  // ATR-doel. Alleen als dat gunstiger ligt dan het huidige doel, anders is het geen verbetering.
+  //
+  // scoorCandles levert vooralsnog alleen long-niveaus (vers.takeProfit ligt altijd boven de
+  // entry), dus voor een short is er nog geen vers doel om naartoe te verhogen. Dat komt met de
+  // short-signalen in PR2; tot die tijd slaan we deze trigger voor shorts over in plaats van een
+  // long-doel op een short te plakken.
+  if (!short) {
+    const bijnaOpDoel = koers > drempelBijnaOpDoel(trade.entryPrijs, trade.takeProfit);
+    const momentumSterk = vers.macdBullish && histogramStijgt;
+    if (bijnaOpDoel && momentumSterk && koers < trade.takeProfit && vers.takeProfit > trade.takeProfit) {
+      meldingen.push({
+        sleutel: sleutelVoor(trade.id, 'verhoogTP'),
+        doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
+        titel: `${trade.symbool} nadert je doel`,
+        tekst: `De koers staat op ${fmtPrijs(koers)}, dicht bij je doel van ${fmtPrijs(trade.takeProfit)}, en het momentum is nog sterk. Overweeg je doel te verhogen naar ${fmtPrijs(vers.takeProfit)}.`,
+      });
+    }
   }
 
-  // In winst maar het momentum vlakt af: stop aantrekken tot break-even of een ATR onder de koers,
-  // welke van die twee het hoogst is. Alleen melden als dat de stop echt omhoog brengt.
-  const inWinst = koers > trade.entryPrijs;
-  const momentumVlaktAf = !histogramStijgt;
+  // In winst maar het momentum vlakt af: stop aantrekken tot break-even of, richtinggevoelig, een
+  // ATR van de koers af. Alleen melden als dat de stop echt richting winst brengt.
+  const inWinst = short ? koers < trade.entryPrijs : koers > trade.entryPrijs;
+  const momentumVlaktAf = !histogramGunstig;
   if (inWinst && momentumVlaktAf) {
     // Zelfde berekening als het afbouwadvies in het Portfolio-scherm, bewust uit één bron: een
     // melding die een ander niveau noemt dan het scherm kost het vertrouwen in allebei.
-    const voorstel = voorstelTrailingStop(trade.entryPrijs, koers, vers.atr, trade.stopLoss);
+    const voorstel = voorstelTrailingStop(trade.entryPrijs, koers, vers.atr, trade.stopLoss, richting);
     if (voorstel !== null) {
       meldingen.push({
         sleutel: sleutelVoor(trade.id, 'trekStopAan'),
         doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
         titel: `${trade.symbool}: momentum vlakt af`,
-        tekst: `Je staat in winst (koers ${fmtPrijs(koers)}), maar het momentum neemt af. Overweeg je stop te verhogen van ${fmtPrijs(trade.stopLoss)} naar ${fmtPrijs(voorstel)} om winst vast te zetten.`,
+        tekst: `Je staat in winst (koers ${fmtPrijs(koers)}), maar het momentum neemt af. Overweeg je stop te ${short ? 'verlagen' : 'verhogen'} van ${fmtPrijs(trade.stopLoss)} naar ${fmtPrijs(voorstel)} om winst vast te zetten.`,
       });
     }
   }
@@ -215,7 +228,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
   if (vorig === null || vorig === nieuw) return null;
 
   const posities = beoordeeld > 0 && zwak > 0
-    ? ` Van je ${beoordeeld} beoordeelde posities ${zwak === 1 ? 'staat er 1' : `staan er ${zwak}`} onder het eigen 50-daags gemiddelde.`
+    ? ` Van je ${beoordeeld} beoordeelde posities ${zwak === 1 ? 'staat er 1' : `staan er ${zwak}`} aan de verkeerde kant van het eigen 50-daags gemiddelde.`
     : '';
 
   if (nieuw === 'ongunstig') {
@@ -273,7 +286,9 @@ async function beoordeelMarkt(
   await bewaarTekst(SLEUTELS.laatsteSterkeKoopScan, String(nu));
 
   const { trades, alle, klimaat } = await analyseerMarkt({ topN: 10 });
-  const openSymbolen = new Set(open.map(t => t.symbool));
+  // Alleen open LONGS onderdrukken een nieuw koopsignaal op diezelfde coin: een open short op een
+  // coin is geen reden om een legitiem koopsignaal daar te verzwijgen, die twee bijten elkaar niet.
+  const openSymbolen = new Set(open.filter(t => richtingVan(t) === 'long').map(t => t.symbool));
 
   const meldingen: Melding[] = trades
     .filter(t => t.highConviction && t.signaal === 'KOOP' && !openSymbolen.has(t.symbool))
@@ -308,7 +323,7 @@ async function beoordeelMarkt(
       sleutel: sleutelVoor('markt', 'portfolioRisico'),
       doel: { soort: 'portfolio' },
       titel: `${risico.zwak} van je ${risico.beoordeeld} posities staan zwak`,
-      tekst: `De markt daalt en ${risico.zwak} van je beoordeelde posities zijn onder hun 50-daags gemiddelde gezakt${risico.dichtBijStop > 0 ? `, waarvan ${risico.dichtBijStop} binnen één dagbeweging van de stop` : ''}. Bekijk in Mijn trades wat je wil afbouwen.`,
+      tekst: `De markt daalt en ${risico.zwak} van je beoordeelde posities staan aan de verkeerde kant van hun 50-daags gemiddelde${risico.dichtBijStop > 0 ? `, waarvan ${risico.dichtBijStop} binnen één dagbeweging van de stop` : ''}. Bekijk in Mijn trades wat je wil afbouwen.`,
     });
   }
 
