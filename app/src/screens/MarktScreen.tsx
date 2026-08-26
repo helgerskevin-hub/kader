@@ -28,6 +28,7 @@ import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
 import { BearModusKaart } from '../components/BearModusKaart';
 import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
+import { ShortSignalenKaart } from '../components/ShortSignalenKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
@@ -209,6 +210,15 @@ export function MarktScreen() {
               ) : (
                 <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
               )}
+              {/* Short-signalen zijn de actionable tegenhanger van de bear-modus-kaart: die legt uit
+                  waarom er geen koopsignaal is, dit is wat er dan wél te doen valt. Leeg zolang het
+                  klimaat niet ongunstig is, want dan levert analyseerMarkt() hier niets voor aan. */}
+              <ShortSignalenKaart
+                signalen={state.shorts}
+                magHandelen={magHandelen}
+                onGetrade={setGetradeteTrade}
+                onKoop={magHandelen ? setKoopTrade : undefined}
+              />
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
                   al waar de kracht zit en zou deze lijst er een tweede rangschikking naast zetten. */}
@@ -277,6 +287,7 @@ export function MarktScreen() {
           entry={koopTrade.entry}
           stop={koopTrade.stopLoss}
           doel={koopTrade.takeProfit}
+          richting={koopTrade.richting}
           onSluiten={() => setKoopTrade(null)}
         />
       )}

@@ -1,4 +1,6 @@
-export type Richting = 'long' | 'short';
+import type { Richting } from '../engine/types';
+
+export type { Richting };
 
 export interface PortfolioTrade {
   id: string;

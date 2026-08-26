@@ -87,12 +87,11 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
   // Kader rekent zijn eigen stop uit, maar eToro accepteert niet elke afstand. Meten we tegen de
   // aankoopprijs die je hier invult, want die wijkt af van de entry uit de analyse zodra de koers
   // is doorgelopen. Zonder eToro-koppeling of bij een API-fout blijft de limiet null en zeggen we
-  // niets: liever geen waarschuwing dan een verzonnen grens. De eligibility-check van eToro is
-  // long-only (fase 3 van de directe koppeling); bij een short slaan we hem daarom over in plaats
-  // van een long-limiet op een short-stop toe te passen.
-  const stopLimiet = useStopLossLimiet(trade?.symbool);
+  // niets: liever geen waarschuwing dan een verzonnen grens. De limiet komt per richting binnen,
+  // dus een short wordt tegen eToro's short-grenzen getoetst en niet tegen de ruimere long-grens.
+  const stopLimiet = useStopLossLimiet(trade?.symbool, richting);
   const ingevuldeEntry = parseFloat(form.entryPrijs.replace(',', '.'));
-  const advies: StopAdvies = trade && !isShort
+  const advies: StopAdvies = trade
     ? bepaalStop(ingevuldeEntry, trade.stopLoss, stopLimiet)
     : { soort: 'ok' };
 

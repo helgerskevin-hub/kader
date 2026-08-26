@@ -275,3 +275,37 @@ Antwoord 200: `{"token":"...","orderId":371855197,"referenceId":"<onze x-request
 - Fase 2: **Opus, hoge effort.** Het geldpad, de onbekend-afhandeling en de bevestiging.
 - Fase 3 en 4: **Sonnet, normale effort.** Zelfde patroon als fase 2, andere endpoints.
 - Fase 5: **Opus, hoge effort.** Eerste echte order, en alle teksten die vandaag beloven dat de app niet kan handelen.
+
+## 10. Meting shorts (26 aug 2026), voor fase 4 van het bearmarkt-plan
+
+Gemeten tegen het demo-account met `npx tsx scripts/etoro-demo-order.ts` (alleen lezen, geen order).
+Vraag was: kan Kader via deze API shorten, en is hefboom daarbij verplicht? In `TODO.md` stond de
+aanname "crypto shorten kan bij eToro alleen als CFD en dus met hefboom". Die is half waar, en de
+helft die niet klopt is de belangrijkste.
+
+`POST /api/v2/trading/info/demo/eligibility` geeft per instrument twee `leverageConfigs`, en dat is
+voor BTC, ETH, SOL, XRP en ADA identiek:
+
+| richting | hefboom | settlementType | min SL | max SL | allowEditStopLoss | minPositionAmount |
+|---|---|---|---|---|---|---|
+| long | [1] | `real` | 10% | 100% | true | 10 |
+| short | [1] | `cfd` | 10% | **50%** | true | 10 |
+
+**Het is inderdaad een CFD, maar de hefboom is x1.** Kader hoeft zijn uitgangspunt (altijd zonder
+hefboom rekenen) dus niet los te laten om te kunnen shorten. Daarmee vervalt de zorg die in het
+bearmarkt-plan als duurste onderdeel van fase 4 stond: er zijn geen afwijkende marginregels en geen
+ander risicoprofiel, alleen een ander `settlementType` in de orderbody.
+
+Wat wel per richting verschilt, en wat dus gebouwd moet worden:
+
+1. **De stop-loss-grens is de helft.** Short mag maximaal 50% van de entry af, long 100%. Vandaag
+   pakt `kiesLimiet()` in `engine/etoroLimieten.ts` altijd de Buy-config, dus een short met een stop
+   van 60% zou door Kader goedgekeurd worden en door eToro geweigerd. `kiesLimiet()` moet de config
+   per richting kiezen en `StopLossLimiet` moet die richting meedragen.
+2. **`bepaalStop()` rekent de afstand onder de entry.** Bij een short ligt de stop erboven, dus de
+   hele functie moet gespiegeld worden, inclusief de teksten ("boven je aankoopprijs").
+3. **`settlementType` moet mee in de orderbody**: `real` voor een long, `cfd` voor een short.
+   `bouwKooporderBody()` heeft `transaction` en `leverage` nu hardgecodeerd.
+
+Nog niet gemeten: of een demo-sell-order daadwerkelijk doorgaat en of `PATCH` op een shortpositie
+werkt. Dat vraagt een echte order en is de laatste stap voor de UI af is.

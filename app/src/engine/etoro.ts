@@ -352,6 +352,8 @@ export async function zoekInstrumentId(symbool: string, sleutels: EtoroSleutels)
 export interface KooporderInvoer {
   instrumentId: number;
   bedragUsd: number;
+  // Long of short. Ontbreekt = long, zodat elke bestaande aanroep exact hetzelfde blijft doen.
+  richting?: Richting;
   // Absolute koersen, geen percentages. Weglaten betekent: geen niveau meesturen, eToro kiest zelf.
   stopLossRate?: number;
   takeProfitRate?: number;
@@ -362,18 +364,30 @@ export interface KooporderInvoer {
 const afgerond = (waarde: number) => Math.round(waarde * 1e8) / 1e8;
 
 // Puur, zodat de samenvatting in de sheet uit dezelfde waarden komt als wat er werkelijk verstuurd
-// wordt. settlementType wordt bewust weggelaten: gemeten werkt dat, en eToro koos zelf het juiste
-// type voor een spot-cryptokoop.
+// wordt. Bij een LONG wordt settlementType bewust weggelaten: dat is gemeten in fase 1, het werkt,
+// en eToro koos zelf het juiste type voor een spot-cryptokoop. Daar blijven we vanaf.
+//
+// Bij een SHORT sturen we het wel mee, als 'cfd'. Reden: uit de eligibility blijkt dat crypto short
+// alleen bestaat als settlementType 'cfd' (long is 'real'), allebei op hefboom x1. Als eToro het
+// type net zo goed zelf afleidt uit transaction 'sell' is dit veld overbodig maar niet fout; laat
+// het weg zodra een demo-sell-order bewijst dat het ook zonder gaat. NOG NIET GEMETEN: er is nog
+// geen echte demo-short geplaatst, dus dit is de best onderbouwde gok en geen vastgesteld feit.
 export function bouwKooporderBody(invoer: KooporderInvoer): Record<string, unknown> {
+  // Gemeten (26 aug 2026, docs/etoro-direct-handelen-plan.md paragraaf 10): crypto short bestaat bij
+  // eToro alleen als settlementType 'cfd', maar wel op hefboom x1. Een short is daar dus wel een
+  // CFD en niet een hefboompositie, en daarom blijft leverage gewoon 1: Kader rekent nergens met
+  // hefboom en hoeft dat voor shorts ook niet te gaan doen.
+  const short = invoer.richting === 'short';
   const body: Record<string, unknown> = {
     action: 'open',
-    transaction: 'buy',
+    transaction: short ? 'sell' : 'buy',
     instrumentId: invoer.instrumentId,
     orderType: 'mkt',
     leverage: 1,
     amount: afgerond(invoer.bedragUsd),
     orderCurrency: 'usd',
   };
+  if (short) body.settlementType = 'cfd';
 
   const stop = invoer.stopLossRate;
   if (typeof stop === 'number' && isFinite(stop) && stop > 0) {
@@ -498,10 +512,16 @@ export async function haalStopLossLimieten(
     body: { symbols: uniek, currency: 'USD' },
   });
 
+  // Beide richtingen uit dezelfde respons: eToro levert de long- en de short-config naast elkaar,
+  // dus dit kost geen extra verzoek en dat is belangrijk, het endpoint heeft maar 20 per minuut.
+  // De sleutel is SYMBOOL:richting, want de grenzen verschillen echt (gemeten: short max 50%,
+  // long max 100%).
   const kaart: Record<string, StopLossLimiet> = {};
   for (const item of data.eligibilities ?? []) {
-    const limiet = kiesLimiet(item);
-    if (limiet) kaart[limiet.symbool] = limiet;
+    for (const richting of ['long', 'short'] as const) {
+      const limiet = kiesLimiet(item, richting);
+      if (limiet) kaart[`${limiet.symbool}:${richting}`] = limiet;
+    }
   }
   return kaart;
 }
@@ -995,6 +1015,24 @@ if (require.main === module) {
     const zonderVeld = { positionID: 1, instrumentID: 2, units: 1, openRate: 100, openDateTime: '2026-01-01T00:00:00Z' } as unknown as Parameters<typeof naarPortfolioTrade>[0];
     const t = naarPortfolioTrade(zonderVeld, 'BTC');
     console.assert(t.richting === 'long', `een positie zonder isBuy moet long zijn, was ${t.richting}`);
+  }
+
+  // De orderbody per richting. Dit is het geldpad, dus expliciet vastleggen wat eToro krijgt.
+  {
+    const lang = bouwKooporderBody({ instrumentId: 100000, bedragUsd: 50 });
+    console.assert(lang.transaction === 'buy', `long moet buy sturen, was ${lang.transaction}`);
+    console.assert(!('settlementType' in lang), 'long laat settlementType weg, precies zoals in fase 1 gemeten');
+    console.assert(lang.leverage === 1, 'Kader rekent nergens met hefboom');
+
+    const kort = bouwKooporderBody({ instrumentId: 100000, bedragUsd: 50, richting: 'short' });
+    console.assert(kort.transaction === 'sell', `short moet sell sturen, was ${kort.transaction}`);
+    // Gemeten: crypto shorten kan bij eToro alleen als CFD, maar wel op hefboom x1.
+    console.assert(kort.settlementType === 'cfd', `short moet settlementType cfd sturen, was ${kort.settlementType}`);
+    console.assert(kort.leverage === 1, 'ook een short gaat op x1, niet met hefboom');
+
+    // Zonder richting exact hetzelfde als voorheen: dat is wat elke bestaande aanroep doet.
+    console.assert(JSON.stringify(lang) === JSON.stringify(bouwKooporderBody({ instrumentId: 100000, bedragUsd: 50, richting: 'long' })),
+      'weglaten van richting hoort identiek te zijn aan long');
   }
 
   console.log('etoro.ts self-check geslaagd');

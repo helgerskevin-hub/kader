@@ -12,6 +12,11 @@ export interface Candle {
 // markt, waarin momentum per constructie niets vindt.
 export type Scoreprofiel = 'momentum' | 'omkeer';
 
+// Long of short. Woont hier en niet in state/portfolioTypes, want het is een eigenschap van de
+// analyse zelf: de engine bepaalt de richting, het portfolio neemt hem over. portfolioTypes
+// exporteert hem door, zodat bestaande imports blijven werken.
+export type Richting = 'long' | 'short';
+
 export interface Trade {
   symbool: string;
   bron: string;
@@ -36,6 +41,10 @@ export interface Trade {
   // gewoon zichtbaar maar wordt het signaal nooit KOOP. Vroeger liet scoorCandles zo'n coin
   // helemaal vallen, waardoor de Markt in een brede markt een leeg scherm gaf zonder uitleg.
   voldoetAanRR: boolean;
+  // Long of short. Zonder dit veld is een short niet van een long te onderscheiden zodra ze in
+  // dezelfde lijst staan, en dan leest elke long-aanname de niveaus verkeerd: bij een short ligt
+  // stopLoss BOVEN entry en takeProfit eronder.
+  richting: Richting;
   // Met welk scoreprofiel deze trade is gescoord. Score, niveaus en redenen betekenen per profiel
   // iets anders, dus zonder dit veld valt een omkeer-trade niet van een momentum-trade te
   // onderscheiden zodra ze in dezelfde lijst staan.
