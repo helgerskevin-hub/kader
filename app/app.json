@@ -20,7 +20,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.kader.app",
       "allowBackup": false,
-      "versionCode": 23
+      "versionCode": 24
     },
     "web": {
       "favicon": "./assets/favicon.png"
