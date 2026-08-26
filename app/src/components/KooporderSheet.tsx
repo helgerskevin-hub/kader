@@ -13,6 +13,7 @@ import { bouwKooporderBody, guid, haalVrijSaldo, KooporderInvoer, plaatsKooporde
 import { actieveSleutels } from '../state/etoroSleutels';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { Richting } from '../state/portfolioTypes';
 import { useInstrumentId } from '../state/useInstrumentId';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { useValuta } from '../state/useValuta';
@@ -21,6 +22,7 @@ import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { OrderBevestigKnop } from './OrderBevestigKnop';
+import { RichtingBadge } from './RichtingBadge';
 
 // eToro rekent orders in dollars af en het bedrag dat je hier intikt gaat letterlijk zo de order in.
 // Daarom blijft dit scherm in dollars, ook als de app op euro's staat: een omgerekend getal naast
@@ -46,13 +48,20 @@ interface Props {
   stop: number;
   doel: number;
   onGeslaagd?: (bericht: string) => void;
+  // Ontbreekt = 'long', dezelfde afspraak als overal elders. Deze sheet plaatst een echte order, dus
+  // een short komt hier alleen aan als de aanroeper 'm expliciet meegeeft: het marktscherm geeft de
+  // richting van de Trade zelf door, die staat al goed op elke short die de engine oplevert.
+  richting?: Richting;
 }
 
-export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onGeslaagd }: Props) {
+export function KooporderSheet({
+  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onGeslaagd, richting = 'long',
+}: Props) {
   const { colors } = useTheme();
+  const isShort = richting === 'short';
   const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
   const instrumentId = useInstrumentId(zichtbaar ? symbool : null);
-  const stopLimiet = useStopLossLimiet(zichtbaar ? symbool : null);
+  const stopLimiet = useStopLossLimiet(zichtbaar ? symbool : null, richting);
   // Staat de app op euro's, dan blijft dit scherm in dollars maar tonen we wel wat je inleg in
   // euro's is. Anders moet je zelf gaan rekenen om te weten wat je uitgeeft.
   const { valuta, eurPerUsd } = useValuta();
@@ -112,6 +121,7 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
   const invoer: KooporderInvoer = {
     instrumentId: instrumentId ?? 0,
     bedragUsd: heeftBedrag ? bedragGetal : 0,
+    richting,
     stopLossRate,
     takeProfitRate: doel,
   };
@@ -125,14 +135,18 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
   const niveauZin = niveaus.length > 0
     ? ` ${niveaus.join(', ').replace(/^./, t => t.toUpperCase())}.`
     : '';
+  // Bij een short verkoop je de coin om de positie te openen, zonder 'm te bezitten: "kopen" zou hier
+  // het tegenovergestelde beweren van wat er werkelijk gebeurt.
   const samenvatting = heeftBedrag
-    ? `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}`
+    ? isShort
+      ? `Je opent een short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} tegen de marktprijs.${niveauZin}`
+      : `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}`
     : '';
 
   // Eén rode melding tegelijk, in de volgorde waarin ze zwaarwegend zijn.
   const blokkade =
     instrumentId === null
-      ? `Kader kan ${symbool} niet eenduidig aan een eToro-instrument koppelen. Kopen via de app is daarom uitgeschakeld.`
+      ? `Kader kan ${symbool} niet eenduidig aan een eToro-instrument koppelen. Handelen via de app is daarom uitgeschakeld.`
     : advies.soort === 'waarschuwing' ? advies.uitleg
     : heeftBedrag && bedragGetal < MINIMUM_USD ? `Het minimum bij eToro is ${fmtBedrag(MINIMUM_USD, DOLLARS)}.`
     : heeftBedrag && vrijSaldo !== null && bedragGetal * KOSTENMARGE > vrijSaldo
@@ -165,7 +179,9 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
         onSluiten();
-        onGeslaagd?.(`Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`);
+        onGeslaagd?.(isShort
+          ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`
+          : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`);
         return;
       }
 
@@ -213,7 +229,7 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
       <View style={stijlen.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{symbool} kopen</Text>
+        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{symbool} {isShort ? 'shorten' : 'kopen'}</Text>
         <Pressable
           onPress={onSluiten}
           accessibilityLabel="Sluiten"
@@ -223,6 +239,19 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
           <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
         </Pressable>
       </View>
+
+      {/* Het onderscheid met een gewone koop moet hier niet te missen zijn: bij een short liggen
+          stop en doel omgekeerd, en wie dit voor een koop aanziet verliest geld op precies het
+          moment dat de koers stijgt. */}
+      {isShort && (
+        <View style={[stijlen.richtingBanner, { backgroundColor: colors.goud + '1A', borderColor: colors.goud }]}>
+          <RichtingBadge richting="short" />
+          <Text style={[Type.caption, stijlen.richtingBannerTekst, { color: colors.goud }]}>
+            Je opent deze positie door te verkopen. Je verdient als de koers van {symbool} daalt,
+            en verliest als hij stijgt.
+          </Text>
+        </View>
+      )}
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={[stijlen.infoBlok, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
@@ -246,8 +275,9 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
             </View>
           </View>
           <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.sm, lineHeight: 18 }]}>
-            De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs, dus je koopt
-            tegen de koers van dat moment.
+            {isShort
+              ? `De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs: bij een short verkoop je ${symbool} zonder het te bezitten, en verdien je zodra de koers daalt.`
+              : 'De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs, dus je koopt tegen de koers van dat moment.'}
           </Text>
         </View>
 
@@ -297,7 +327,7 @@ export function KooporderSheet({ zichtbaar, onSluiten, symbool, naam, entry, sto
         ) : null}
 
         <OrderBevestigKnop
-          label={`${symbool} kopen bij eToro`}
+          label={`${symbool} ${isShort ? 'shorten' : 'kopen'} bij eToro`}
           omgeving={omgeving}
           bezig={bezig}
           uitgeschakeld={!magBevestigen}
@@ -319,6 +349,16 @@ const stijlen = StyleSheet.create({
     marginBottom: spacing.base,
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  richtingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radii.veld,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  richtingBannerTekst: { flex: 1, lineHeight: 18 },
   infoBlok: {
     borderWidth: 1,
     borderRadius: radii.veld,

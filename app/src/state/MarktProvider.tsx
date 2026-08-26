@@ -18,6 +18,8 @@ export type MarktState =
       // te kunnen opzoeken, bijvoorbeeld voor het afbouwadvies bij een open positie die buiten de
       // top 20 valt.
       alle: Trade[];
+      // Short-signalen, sterkste eerst. Alleen gevuld bij een ongunstig klimaat, zie analyzer.ts.
+      shorts: Trade[];
       klimaat: Marktklimaat | null;
       relatieveSterkte: RelatieveSterkte[];
       // Alleen gevuld bij een ongunstig klimaat: sinds wanneer de bear-modus loopt en wat de markt
@@ -34,6 +36,7 @@ type Action =
       type: 'SUCCESS';
       trades: Trade[];
       alle: Trade[];
+      shorts: Trade[];
       klimaat: Marktklimaat | null;
       relatieveSterkte: RelatieveSterkte[];
       bearModus: BearModusStand | null;
@@ -49,6 +52,7 @@ function reducer(state: MarktState, action: Action): MarktState {
       status: 'success',
       trades: action.trades,
       alle: action.alle,
+      shorts: action.shorts,
       klimaat: action.klimaat,
       relatieveSterkte: action.relatieveSterkte,
       bearModus: action.bearModus,
@@ -76,7 +80,7 @@ export function MarktProvider({ children }: { children: React.ReactNode }) {
   const startAnalyse = useCallback(async (stil = false) => {
     if (!stil) dispatch({ type: 'START' });
     try {
-      const { trades, alle, klimaat, relatieveSterkte, bekeken } = await analyseerMarkt({
+      const { trades, alle, shorts, klimaat, relatieveSterkte, bekeken } = await analyseerMarkt({
         onProgress: (current, total, symbool) => {
           if (!stil) dispatch({ type: 'PROGRESS', progress: { current, total, symbool } });
         },
@@ -90,7 +94,7 @@ export function MarktProvider({ children }: { children: React.ReactNode }) {
       } catch {
         bearModus = null;
       }
-      dispatch({ type: 'SUCCESS', trades, alle, klimaat, relatieveSterkte, bearModus, bekeken });
+      dispatch({ type: 'SUCCESS', trades, alle, shorts, klimaat, relatieveSterkte, bearModus, bekeken });
     } catch (e) {
       if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
     }

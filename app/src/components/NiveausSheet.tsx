@@ -41,7 +41,7 @@ const anders = (a: number, b: number) => Math.abs(a - b) > 1e-9;
 export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props) {
   const { colors } = useTheme();
   const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
-  const limiet = useStopLossLimiet(trade.symbool);
+  const limiet = useStopLossLimiet(trade.symbool, richtingVan(trade));
 
   const [stopVeld, setStopVeld] = useState('');
   const [doelVeld, setDoelVeld] = useState('');
@@ -91,14 +91,10 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
 
   // Wissen is geen niveau, dus dan valt er ook niets te toetsen. bepaalStop meet tegen de
   // aankoopprijs van de positie, want dat is waar eToro zijn percentages op rekent.
-  // bepaalStop en de limieten erachter zijn long-only: kiesLimiet pakt bewust de Buy-config met
-  // hefboom x1, en bepaalStop rekent de afstand ONDER de aankoopprijs. Bij een short is een stop
-  // boven de entry juist correct, dus de long-toets zou elke goed ingestelde short afkeuren en de
-  // knop blokkeren. Tot de eToro-limieten per richting opgehaald worden (PR 3, fase 4) toetsen we
-  // een short daarom niet: geen grens is beter dan een verzonnen grens, dezelfde regel die hier al
-  // geldt als er helemaal geen koppeling is.
-  const isShort = richtingVan(trade) === 'short';
-  const advies: StopAdvies = wisStop || isShort
+  // De limiet komt nu per richting binnen, dus een short wordt tegen eToro's short-grenzen getoetst
+  // (gemeten: minimaal 10% en maximaal 50% BOVEN de entry, waar een long tot 100% eronder mag).
+  // Wissen is geen niveau, dus dan valt er niets te toetsen.
+  const advies: StopAdvies = wisStop
     ? { soort: 'ok' }
     : bepaalStop(trade.entryPrijs, ingevuldeStop, limiet);
 

@@ -7,16 +7,27 @@
 import { useEffect, useState } from 'react';
 import { haalStopLossLimieten } from '../engine/etoro';
 import { StopLossLimiet } from '../engine/etoroLimieten';
+import type { Richting } from '../engine/types';
 import { ETORO_TRADABLE } from '../engine/opportunities';
 import { SLEUTELS, bewaarObject, laadObject } from '../storage/opslag';
 import { actieveSleutels } from './etoroSleutels';
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
+// Opgehoogd zodra de vorm van `limieten` wijzigt. Tot versie 2 lag er per symbool één limiet, die
+// altijd de long-config was; sinds fase 4 staat er een per richting, met SYMBOOL:richting als
+// sleutel. Zonder deze controle zou een cache van gisteren gewoon geldig lijken, zouden alle
+// opzoekingen niets vinden en zou de stopvalidatie een dag lang stil uit staan.
+const CACHE_VERSIE = 2;
+
 interface Cache {
+  versie?: number;
   opgehaald: number;
   limieten: Record<string, StopLossLimiet>;
 }
+
+const bruikbaar = (c: Cache | null, nu: number) =>
+  !!c && c.versie === CACHE_VERSIE && nu - c.opgehaald < TTL_MS;
 
 // Module-niveau, niet per component: elk formulier dat opengaat leest anders opnieuw AsyncStorage.
 let geheugen: Cache | null = null;
@@ -24,10 +35,10 @@ let lopend: Promise<Cache | null> | null = null;
 
 async function haalCache(): Promise<Cache | null> {
   const nu = Date.now();
-  if (geheugen && nu - geheugen.opgehaald < TTL_MS) return geheugen;
+  if (bruikbaar(geheugen, nu)) return geheugen;
 
   const opgeslagen = await laadObject<Cache>(SLEUTELS.etoroLimieten);
-  if (opgeslagen && nu - opgeslagen.opgehaald < TTL_MS) {
+  if (bruikbaar(opgeslagen, nu)) {
     geheugen = opgeslagen;
     return geheugen;
   }
@@ -40,13 +51,15 @@ async function haalCache(): Promise<Cache | null> {
 
   try {
     const limieten = await haalStopLossLimieten([...ETORO_TRADABLE], sleutels);
-    geheugen = { opgehaald: nu, limieten };
+    geheugen = { versie: CACHE_VERSIE, opgehaald: nu, limieten };
     await bewaarObject(SLEUTELS.etoroLimieten, geheugen);
     return geheugen;
   } catch {
     // Netwerk- of API-fout. Een verlopen cache is dan nog altijd beter dan niets: eToro wijzigt
     // deze grenzen hooguit een paar keer per jaar.
-    if (opgeslagen) {
+    // Een verlopen cache mag nog, een cache van de VORIGE vorm niet: die zou niets teruggeven en
+    // dat leest als "geen grens", terwijl er wel een grens is.
+    if (opgeslagen && opgeslagen.versie === CACHE_VERSIE) {
       geheugen = opgeslagen;
       return geheugen;
     }
@@ -62,7 +75,10 @@ function cacheBelofte(): Promise<Cache | null> {
   return lopend;
 }
 
-export function useStopLossLimiet(symbool: string | null | undefined): StopLossLimiet | null {
+export function useStopLossLimiet(
+  symbool: string | null | undefined,
+  richting: Richting = 'long',
+): StopLossLimiet | null {
   const [limiet, setLimiet] = useState<StopLossLimiet | null>(null);
 
   useEffect(() => {
@@ -72,10 +88,10 @@ export function useStopLossLimiet(symbool: string | null | undefined): StopLossL
     }
     let actief = true;
     cacheBelofte().then(cache => {
-      if (actief) setLimiet(cache?.limieten[symbool.toUpperCase()] ?? null);
+      if (actief) setLimiet(cache?.limieten[`${symbool.toUpperCase()}:${richting}`] ?? null);
     });
     return () => { actief = false; };
-  }, [symbool]);
+  }, [symbool, richting]);
 
   return limiet;
 }
