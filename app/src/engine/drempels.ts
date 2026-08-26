@@ -6,6 +6,12 @@
 
 // Vanaf hier krijgt een coin het signaal KOOP. Gemeten: ±0,06 R gemiddeld per trade.
 export const DREMPEL_KOOP = 55;
+// Onder deze score komt een coin in aanmerking voor een short. Gemeten (meting F, negen jaar, 5377
+// trades): +0,064 R gemiddeld, en positief in alle vier de dalende jaren (2018 +0,15, 2022 +0,19,
+// 2025 +0,13, 2026 +0,10). Strenger zetten maakt het slechter, score < 25 haalde nog maar +0,026.
+// Bewust een eigen constante en niet DREMPEL_BADGE_MATIG hergebruiken: die is louter visueel en
+// mag los bewegen zonder de strategie te veranderen.
+export const DREMPEL_SHORT = 40;
 
 // "Sterk koop"-label in de tradekaart, een stap onder high conviction.
 export const DREMPEL_STERK_KOOP = 72;
