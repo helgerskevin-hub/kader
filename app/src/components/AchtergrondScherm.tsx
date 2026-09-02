@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import {
   Modal, ScrollView, View, Text, Pressable, StyleSheet,
-  Platform, StatusBar, LayoutAnimation,
+  LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { useTheme } from '../theme/ThemeProvider';
+import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
@@ -23,10 +24,6 @@ interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
 }
-
-// SafeAreaView krijgt geen correcte top-inset binnen een full-screen Modal op Android,
-// dus vullen we die hier handmatig aan met de status bar-hoogte.
-const androidStatusBarPadding = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
 
 // ponytail: vaste demo-reeks in plaats van live data, zodat de uitleg altijd hetzelfde toont
 const DEMO_CANDLES: Candle[] = Array.from({ length: 40 }, (_, i) => {
@@ -64,6 +61,7 @@ type SectieId = typeof SECTIES[number]['id'];
 
 export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
   const { colors } = useTheme();
+  const extraKopruimte = useModalKopruimte();
   const reduceMotion = useReduceMotion();
   const [open, setOpen] = useState<SectieId | null>(null);
 
@@ -79,7 +77,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
   return (
     <Modal visible={zichtbaar} animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
-        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + androidStatusBarPadding }]}>
+        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
           <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Achtergrond informatie</Text>
           <Pressable
             onPress={onSluiten}
