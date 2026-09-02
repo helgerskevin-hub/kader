@@ -38,6 +38,8 @@ const DEMO_KLIMAAT: Marktklimaat = {
   klimaat: 'ongunstig', btcBovenEma50: false, breedte: 0.28, breedteStijgend: false, btcPrijs: 64000,
 };
 
+// Alleen de id's doen ertoe: hieruit komt SectieId. De titels staan erbij als inhoudsopgave voor
+// wie dit bestand leest, de getoonde titel komt uit de `titel`-prop van elke Sectie hieronder.
 const SECTIES = [
   { id: 'score', titel: 'De Kader-score' },
   { id: 'advies', titel: 'Advieslabels' },
@@ -47,13 +49,15 @@ const SECTIES = [
   { id: 'marktklimaat', titel: 'Het marktklimaat' },
   { id: 'bearmodus', titel: 'Bear-modus (dalende markt)' },
   { id: 'shorts', titel: 'Shorts' },
-  { id: 'relatievesterkte', titel: 'Wie houdt stand?' },
+  { id: 'relatievesterkte', titel: 'Wie houdt stand? en VS BTC' },
   { id: 'blootstelling', titel: 'Blootstelling en afbouwen' },
   { id: 'feargreed', titel: 'Fear & Greed' },
   { id: 'kansscore', titel: 'Kansscore (Grote Kansen)' },
   { id: 'statistieken', titel: 'Portfolio-statistieken' },
   { id: 'oordeel', titel: 'Het trader-oordeel' },
   { id: 'etoro', titel: 'Portfolio importeren uit eToro' },
+  { id: 'etorostop', titel: 'Waarom de stop soms opschuift' },
+  { id: 'prijsalerts', titel: 'Prijsalerts' },
 ] as const;
 
 type SectieId = typeof SECTIES[number]['id'];
@@ -228,7 +232,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             </Text>
           </Sectie>
 
-          <Sectie id="relatievesterkte" titel="Wie houdt stand?" open={open === 'relatievesterkte'} onToggle={wisselOpen}>
+          <Sectie id="relatievesterkte" titel="Wie houdt stand? en VS BTC" open={open === 'relatievesterkte'} onToggle={wisselOpen}>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               Deze lijst staat op het marktscherm zodra het klimaat niet gunstig is. Hij toont per coin het rendement
               over 30 dagen min het rendement van bitcoin over diezelfde 30 dagen, in procentpunten. Staat er +8 pt,
@@ -245,6 +249,28 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
               dalende markt kan gewoon blijven dalen. Zie het als een lijst om te volgen, niet om vandaag iets mee te
               doen. Het cijfer telt ook niet mee in de 0-100 score: die is met de backtest gekalibreerd, en er een
               ongemeten onderdeel in mengen zou alle drempels stilzwijgend verschuiven.
+            </Text>
+            <Text style={[Type.sectiekop, styles.subkop, { color: colors.tekstPrimair }]}>
+              Hetzelfde cijfer bij een koopsignaal: VS BTC
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Datzelfde getal staat sinds kort bij elke coin op het marktscherm, als VS BTC, en op het
+              coin-detailscherm als 30D VS BTC. Daar betekent het iets anders dan in de lijst hierboven, en het is
+              gemeten: over negen jaar en 3251 trades deden koopsignalen op coins die waren ACHTERGEBLEVEN op bitcoin
+              het duidelijk beter dan dezelfde signalen op coins die bitcoin al ver voorbij waren gelopen.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Achterblijvers leverden gemiddeld +0,17 op, voorlopers -0,03, en die helling loopt netjes door: hoe
+              verder achter, hoe beter. De uitleg erachter is simpel. Een koopsignaal eist al een stijgende trend en
+              positief momentum. Een coin die daar bovenop ook nog eens 25 procent harder is gestegen dan bitcoin in
+              een maand, heeft het makkelijke deel gehad. Dezelfde coin die juist achterbleef is een terugval binnen
+              een opgaande trend, en dat is precies waar je wil instappen.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Het cijfer is met opzet neutraal gekleurd en filtert niets weg. Een achterblijver is gunstig om IN te
+              stappen, maar het is geen coin die het goed doet, en een groen cijfer zou dat laatste beweren. Of het
+              alsnog een echte regel wordt (bijvoorbeeld: coins die meer dan 25 procent voorliggen nooit meer als
+              KOOP tonen) is een keuze die nog gemaakt moet worden.
             </Text>
           </Sectie>
 
@@ -347,6 +373,59 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             </Text>
           </Sectie>
 
+          <Sectie id="etorostop" titel="Waarom de stop soms opschuift" open={open === 'etorostop'} onToggle={wisselOpen}>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Kader zet zijn stop-loss net onder de laatste steun in de koers, en begrenst die afstand op een halve
+              tot drie keer de ATR. Dat is een niveau dat volgt uit de grafiek. eToro werkt anders: die eist per coin
+              een minimale en maximale afstand tussen je aankoopprijs en je stop, als percentage. Voor bitcoin is dat
+              minimaal 10 procent.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Die twee botsen vaker wel dan niet: de stop van Kader ligt meestal binnen de 10 procent. Ligt jouw
+              niveau buiten wat eToro accepteert, dan schuift Kader het op naar de dichtstbijzijnde waarde die eToro
+              wel neemt, en zet er een klein ETORO-merkje bij het STOP-label. Zo staat er nergens in de app een
+              niveau dat je niet kunt invoeren.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Let op wat dat met de verhouding tussen risico en opbrengst doet. Een stop die van 3 naar 10 procent
+              schuift verdrievoudigt je risico terwijl het doel blijft staan, en dan kan een coin met een prachtige
+              score alsnog onder de 1:2 zakken. Die verhouding staat er daarom bij, en oranje als hij de drempel niet
+              haalt. Dat is geen fout in de berekening: dat is wat de trade werkelijk waard is bij eToro.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Zonder eToro-koppeling weet Kader die grenzen niet en verandert er niets: je ziet dan gewoon het niveau
+              dat Kader zelf berekende. Een verzonnen grens is erger dan geen grens. Laat eToro de stop voor een coin
+              helemaal niet instellen, dan staat het niveau er als "STOP (KADER)": dat is dan het niveau om zelf in de
+              gaten te houden, niet iets om bij eToro in te vullen.
+            </Text>
+          </Sectie>
+
+          <Sectie id="prijsalerts" titel="Prijsalerts" open={open === 'prijsalerts'} onToggle={wisselOpen}>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Het belletje bovenin een coinscherm laat je zelf een prijs kiezen. Kader stuurt een melding zodra de
+              koers daar is. Dit is het enige plek in de app waar jij het niveau bepaalt: al het andere komt uit de
+              analyse.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Of het een boven- of een onder-alert wordt, bepaalt Kader op het moment dat je hem instelt, aan de hand
+              van de koers van dat moment. Ligt je prijs erboven, dan is het "boven"; eronder, dan "onder". Dat ligt
+              daarna vast. Zou de richting later opnieuw uit de koers worden afgeleid, dan draaide hij om zodra de
+              koers erlangs ging en zou de alert nooit afgaan.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Een alert gaat precies één keer af en blijft daarna in de lijst staan, met de koers waarop hij afging.
+              Dat is met opzet: een koers die rond jouw niveau schommelt zou anders elke ronde opnieuw melden. Wil je
+              hem opnieuw, zet hem dan zelf opnieuw. Je wachtende alerts staan bij elkaar onder Meldingen, en er
+              kunnen er twintig tegelijk openstaan.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Kader kijkt elke paar minuten terwijl de app openstaat, en daarbuiten via een achtergrondtaak. Android
+              bepaalt zelf wanneer die draait en houdt een ondergrens van een kwartier aan, dus een alert kan met een
+              vertraging binnenkomen. Staan je meldingen uit onder Instellingen, dan komt er ook geen prijsalert
+              doorheen; je alerts blijven dan gewoon wachten tot je het weer aanzet.
+            </Text>
+          </Sectie>
+
           <Text style={[Type.caption, styles.slotnoot, { color: colors.tekstGedimd }]}>
             Deze uitleg beschrijft hoe de app rekent. Geen financieel advies.
           </Text>
@@ -421,6 +500,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   tekst: { lineHeight: 21 },
+  subkop: { marginTop: spacing.sm },
   badgeRij: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   slotnoot: { paddingHorizontal: spacing.base, paddingTop: spacing.md, textAlign: 'center' },
 });
