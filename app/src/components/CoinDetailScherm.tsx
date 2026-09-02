@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Modal, ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator,
-  Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
@@ -12,6 +11,7 @@ import { infoVoor, genereerKoopadvies, genereerShortadvies } from '../engine/coi
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
+import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { ScoreBadge } from './ScoreBadge';
@@ -35,10 +35,6 @@ interface Props {
   onSluiten: () => void;
 }
 
-// SafeAreaView krijgt geen correcte top-inset binnen een full-screen Modal op Android,
-// dus vullen we die hier handmatig aan met de status bar-hoogte.
-const androidStatusBarPadding = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
-
 type LaadStatus = 'idle' | 'loading' | 'error' | 'success';
 
 export function CoinDetailScherm({ data, onSluiten }: Props) {
@@ -47,6 +43,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   useValutaStand();
 
   const { colors } = useTheme();
+  const extraKopruimte = useModalKopruimte();
   const [status, setStatus] = useState<LaadStatus>('idle');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [indicatoren, setIndicatoren] = useState<VerseIndicatoren | null>(null);
@@ -194,7 +191,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   return (
     <Modal visible animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
-        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + androidStatusBarPadding }]}>
+        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
           <View style={styles.headerLinks}>
             <View style={styles.symboolRij}>
               <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
