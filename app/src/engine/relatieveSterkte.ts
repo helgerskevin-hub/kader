@@ -118,6 +118,22 @@ export function rsUitleg(versusBtc: number): string {
   }
 }
 
+// De keuze die de gebruiker onder Filters maakt. 'alle' is de standaard en verandert niets.
+export type RsFilter = 'alle' | 'geenVoorlopers' | 'achterblijvers';
+
+/**
+ * Laat dit filter deze coin door?
+ *
+ * Een coin zonder cijfer (te weinig historie, of BTC zelf niet opgehaald) valt NOOIT weg. Zonder
+ * cijfer valt er niets te oordelen, en iets wegfilteren op basis van onbekend is erger dan het
+ * laten staan: de gebruiker zou een coin missen zonder te weten waarom.
+ */
+export function magDoorRsFilter(filter: RsFilter, versusBtc: number | undefined): boolean {
+  if (filter === 'alle' || versusBtc === undefined || !isFinite(versusBtc)) return true;
+  if (filter === 'geenVoorlopers') return versusBtc < RS_VOORLOPER_PP;
+  return versusBtc <= RS_ACHTERBLIJVER_PP;
+}
+
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/relatieveSterkte.ts`
 if (require.main === module) {
   const reeks = (start: number, factor: number, n = 60): Candle[] =>
@@ -168,6 +184,20 @@ if (require.main === module) {
   console.assert(rsUitleg(40).includes('slechter'), 'bij een voorloper ook, maar dan andersom');
   // Geen minteken in de tekst bij een achterblijver: die staat er al in het woord "achter".
   console.assert(!rsUitleg(-30).includes('-30'), `dubbel minteken leest raar, was: ${rsUitleg(-30)}`);
+
+  // ---------- magDoorRsFilter ----------
+  console.assert(magDoorRsFilter('alle', 99) && magDoorRsFilter('alle', -99), 'zonder filter valt niets weg');
+  console.assert(magDoorRsFilter('geenVoorlopers', 24), 'net onder de voorloper-grens mag blijven');
+  console.assert(!magDoorRsFilter('geenVoorlopers', RS_VOORLOPER_PP), 'precies op de grens valt weg');
+  console.assert(magDoorRsFilter('geenVoorlopers', -30), 'een achterblijver blijft bij dit filter staan');
+  console.assert(magDoorRsFilter('achterblijvers', RS_ACHTERBLIJVER_PP), 'precies op de grens telt als achterblijver');
+  console.assert(!magDoorRsFilter('achterblijvers', -5), '5% achter is niet genoeg');
+  console.assert(!magDoorRsFilter('achterblijvers', 30), 'een voorloper valt bij dit filter weg');
+
+  // De belangrijkste regel: onbekend mag nooit wegvallen.
+  console.assert(magDoorRsFilter('achterblijvers', undefined), 'zonder cijfer valt een coin niet weg');
+  console.assert(magDoorRsFilter('geenVoorlopers', undefined), 'ook niet bij het andere filter');
+  console.assert(magDoorRsFilter('achterblijvers', NaN), 'een onbruikbaar cijfer telt als onbekend');
 
   console.log('relatieveSterkte.ts self-check geslaagd');
 }

@@ -181,7 +181,7 @@ Dat is het verschil tussen een strategie die werkt en een die niet werkt, over d
 
 **Wat er nu mee is gedaan:** het cijfer is per coin zichtbaar gemaakt op het marktscherm en het coin-detailscherm, met de meting erbij. Het telt bewust NIET mee in de 0-100 score en filtert niets weg.
 
-- [ ] **Keuze voor Kevin en Thom: moet dit in de strategie?** De meting steunt het ruim, en anders dan een drempelverlaging is dit een AANSCHERPING. Drie opties: (a) laten zoals nu, alleen zichtbaar; (b) een filter dat je zelf aanzet onder Filters; (c) coins die meer dan +25% voorliggen op BTC nooit meer als KOOP tonen. Optie (c) is wat de meting het sterkst steunt en meteen de grootste ingreep, want het verandert elk signaal dat de app geeft. Daarom niet eenzijdig gedaan.
+- [ ] **Keuze voor Kevin en Thom: moet dit in de strategie?** De meting steunt het ruim, en anders dan een drempelverlaging is dit een AANSCHERPING. Drie opties: (a) laten zoals nu, alleen zichtbaar; ~~(b) een filter dat je zelf aanzet onder Filters~~ **gebouwd, staat standaard uit**; (c) coins die meer dan +25% voorliggen op BTC nooit meer als KOOP tonen. Optie (c) is wat de meting het sterkst steunt en meteen de grootste ingreep, want het verandert elk signaal dat de app geeft. Daarom niet eenzijdig gedaan.
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging

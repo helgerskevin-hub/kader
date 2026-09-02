@@ -30,6 +30,7 @@ import { BearModusKaart } from '../components/BearModusKaart';
 import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
 import { ShortSignalenKaart } from '../components/ShortSignalenKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
+import { magDoorRsFilter } from '../engine/relatieveSterkte';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
@@ -140,7 +141,8 @@ export function MarktScreen() {
     .filter(t => marktFilters.rsi === 'alle'
       || (marktFilters.rsi === 'oversold' ? t.rsi < 30 : t.rsi > 70))
     .filter(t => t.score >= marktFilters.minScore)
-    .filter(t => t.rr >= marktFilters.minRR);
+    .filter(t => t.rr >= marktFilters.minRR)
+    .filter(t => magDoorRsFilter(marktFilters.rs, rsPerSymbool[t.symbool]));
 
   const bearModus = state.status === 'success' && state.klimaat?.klimaat === 'ongunstig';
 
