@@ -6,19 +6,30 @@ import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { DREMPEL_KOOP, DREMPEL_HOOG } from '../engine/drempels';
+import { RS_ACHTERBLIJVER_PP, RS_VOORLOPER_PP, RsFilter } from '../engine/relatieveSterkte';
 
 export type RsiFilter = 'alle' | 'oversold' | 'overbought';
+
+// Filteren op relatieve sterkte versus BTC. De grenzen komen uit meting H van de backtest (negen
+// jaar, 3251 trades): koopsignalen op coins die achterbleven op bitcoin deden het gemiddeld +0,17,
+// op voorlopers -0,03. Dit is nadrukkelijk een filter dat de gebruiker zelf aanzet en geen regel in
+// de engine: de score blijft ongemoeid en zonder dit filter ziet het scherm er precies zo uit als
+// altijd. Zie de openstaande keuze in TODO.md.
+//
+// RsFilter en magDoorRsFilter staan in engine/relatieveSterkte.ts, bij de grenzen en de self-check.
 
 export interface MarktFilterState {
   rsi: RsiFilter;
   minScore: number; // 0 = alle
   minRR: number; // 0 = alle
+  rs: RsFilter;
 }
 
-export const STANDAARD_FILTERS: MarktFilterState = { rsi: 'alle', minScore: 0, minRR: 0 };
+export const STANDAARD_FILTERS: MarktFilterState = { rsi: 'alle', minScore: 0, minRR: 0, rs: 'alle' };
 
 export function aantalActieveFilters(f: MarktFilterState): number {
-  return (f.rsi !== 'alle' ? 1 : 0) + (f.minScore > 0 ? 1 : 0) + (f.minRR > 0 ? 1 : 0);
+  return (f.rsi !== 'alle' ? 1 : 0) + (f.minScore > 0 ? 1 : 0) + (f.minRR > 0 ? 1 : 0)
+    + (f.rs !== 'alle' ? 1 : 0);
 }
 
 interface Props {
@@ -44,6 +55,12 @@ const RR_OPTIES: { key: number; label: string }[] = [
   { key: 0, label: 'Alle' },
   { key: 2, label: '1:2+' },
   { key: 3, label: '1:3+' },
+];
+
+const RS_OPTIES: { key: RsFilter; label: string }[] = [
+  { key: 'alle', label: 'Alle' },
+  { key: 'geenVoorlopers', label: `Geen voorlopers` },
+  { key: 'achterblijvers', label: 'Alleen achterblijvers' },
 ];
 
 export function MarktFilters({ zichtbaar, waarden, onWijzig, onSluiten }: Props) {
@@ -81,6 +98,19 @@ export function MarktFilters({ zichtbaar, waarden, onWijzig, onSluiten }: Props)
         actief={waarden.minRR}
         onKies={minRR => onWijzig({ ...waarden, minRR })}
       />
+      <FilterRij
+        titel="VS BTC (30 DAGEN)"
+        opties={RS_OPTIES}
+        actief={waarden.rs}
+        onKies={rs => onWijzig({ ...waarden, rs })}
+      />
+      <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
+        {waarden.rs === 'alle'
+          ? `Gemeten over negen jaar: koopsignalen op coins die achterbleven op bitcoin deden het beter dan dezelfde signalen op coins die al ver voorliepen. Deze twee filters gebruiken die grens: voorlopers zijn coins die meer dan ${RS_VOORLOPER_PP}% voorliggen, achterblijvers zitten ${Math.abs(RS_ACHTERBLIJVER_PP)}% of meer achter.`
+          : waarden.rs === 'geenVoorlopers'
+            ? `Coins die meer dan ${RS_VOORLOPER_PP}% voorliggen op bitcoin vallen weg. In de backtest deed die groep het gemiddeld slechter dan de rest.`
+            : `Alleen coins die ${Math.abs(RS_ACHTERBLIJVER_PP)}% of meer achterlopen op bitcoin. Dat was in de backtest de sterkste groep, maar er blijven er weinig over.`}
+      </Text>
 
       <Pressable
         style={styles.wisKnop}
@@ -138,6 +168,7 @@ const styles = StyleSheet.create({
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   sectie: { marginBottom: spacing.base },
+  uitleg: { marginTop: spacing.sm, lineHeight: 18 },
   sectieTitel: { marginBottom: spacing.sm },
   pillRij: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   pill: {
