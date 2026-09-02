@@ -27,6 +27,7 @@ import { usePortfolio } from '../state/PortfolioProvider';
 import { sleutelUitkomst } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
 import { etoroNiveaus } from '../engine/etoroLimieten';
+import { rsUitleg } from '../engine/relatieveSterkte';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
 
 interface Props {
@@ -303,7 +304,20 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
                   kleur={indicatoren.macdBullish ? colors.winst : colors.verlies}
                 />
                 <IndicatorItem label="VOLUME" waarde={`${indicatoren.volumeRatio.toFixed(1)}×`} />
+                {data.versusBtc !== undefined && (
+                  <IndicatorItem
+                    label="30D VS BTC"
+                    waarde={`${data.versusBtc >= 0 ? '+' : ''}${data.versusBtc.toFixed(0)}%`}
+                  />
+                )}
               </View>
+              {/* De duiding staat hier en niet op de kaart: dit is de plek waar ruimte is om te
+                  zeggen wat het cijfer volgens de backtest betekent voor een instap. */}
+              {data.versusBtc !== undefined && rsUitleg(data.versusBtc) ? (
+                <Text style={[Type.caption, styles.rsUitleg, { color: colors.tekstGedimd }]}>
+                  {rsUitleg(data.versusBtc)}
+                </Text>
+              ) : null}
             </View>
 
             {data.context === 'portfolio' && (
@@ -503,6 +517,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   notitie: { marginTop: spacing.md, fontStyle: 'italic' },
+  rsUitleg: { marginTop: spacing.md, lineHeight: 18 },
   coinUitleg: { marginTop: spacing.sm, lineHeight: 22 },
   actiebalk: {
     borderTopWidth: StyleSheet.hairlineWidth,

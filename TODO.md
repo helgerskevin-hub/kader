@@ -143,6 +143,46 @@ _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
 ### Functioneel / inhoud
 - [ ] **Sterker maken van het analyse algoritme**: hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?
 
+#### Meting H (2 sep 2026): de sterkste vondst tot nu toe, en er moet een keuze over gemaakt worden
+
+_(Nieuw in `app/scripts/backtest.ts`, meting H. Reproduceerbaar met `node scripts/haal-historie.mjs 9` en `npm run backtest` vanuit `app/`. De basis reproduceert de bekende cijfers: 3251 trades, +0,088 gemiddelde R, high conviction +0,158. Dat is iets hoger dan de +0,083 in meting C omdat er zeven weken data bij zijn gekomen.)_
+
+Getoetst zijn drie filters op de COIN zelf, waar de poorten uit meting D allemaal naar de MARKT kijken. Twee vielen af, een is groot.
+
+**Afgevallen: boven de eigen EMA100.** +0,195 tegen +0,192 basis, dus niets. De tegenproef laat zien waarom: de helft die het filter wegGOOIT (onder de EMA100) doet +0,143, bijna even goed. Het filter sorteert dus niet. Erger nog, het maakt 2025 slechter (-0,14 naar -0,61).
+
+**Afgevallen: niet te ver uitgerekt boven EMA20.** Bij 2 ATR gebeurt er letterlijk niets (geen enkel KOOP-signaal staat daarboven), bij 1 ATR is het +0,197 tegen +0,192. Op high conviction geeft 2 ATR wel +0,210 tegen +0,193, maar dat kost een derde van de trades en maakt 2026 slechter. Te mager.
+
+**De vondst: relatieve sterkte versus BTC werkt, maar ANDERSOM dan verwacht.** Binnen de koopsignalen van Kader doen coins die de afgelopen 30 dagen zijn ACHTERGEBLEVEN op BTC het fors beter dan coins die BTC al voorbij zijn gelopen.
+
+| relatieve sterkte 30d | n | treffer% | gem R |
+|---|---|---|---|
+| < -20% | 337 | 53 | **+0,775** |
+| -20% tot -10% | 458 | 42 | +0,406 |
+| -10% tot 0% | 732 | 33 | +0,132 |
+| 0% tot +10% | 521 | 25 | -0,146 |
+| +10% tot +25% | 342 | 24 | -0,146 |
+| +25% tot +50% | 188 | 24 | -0,122 |
+| > +50% | 146 | 32 | +0,168 |
+
+Dat is een monotone helling over vrijwel het hele bereik, geen staarteffect: hoe verder achter, hoe beter. Alleen de laatste emmer wijkt af en die is met n=146 de kleinste. Dezelfde vorm komt terug op high conviction (rs < -10%: +0,555, rs 0 tot +25%: +0,045).
+
+Belangrijker nog, het houdt stand **zonder** de marktpoort, dus het is geen artefact van die smalle doorsnede:
+
+| regel | n | gem R | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| basis (KOOP + R/R) | 3251 | +0,088 | -0,34 | 0,07 | 0,59 | 0,41 | -0,33 | 0,30 | -0,01 | -0,24 | -0,05 |
+| + zwakker dan BTC | 1879 | **+0,168** | -0,69 | -0,10 | 0,90 | 0,53 | -0,27 | 0,34 | 0,16 | -0,18 | 0,04 |
+| + sterker dan BTC | 1862 | -0,032 | -0,11 | 0,07 | 0,24 | 0,34 | -0,45 | 0,21 | -0,19 | -0,36 | -0,23 |
+
+Dat is het verschil tussen een strategie die werkt en een die niet werkt, over de halve steekproef en negen jaar.
+
+**Hoe het te lezen:** een KOOP-signaal eist al een opwaartse trend en bullish MACD. Een coin die daarbij ook nog eens 25% harder is gestegen dan BTC in een maand, heeft het makkelijke deel gehad. Een coin met hetzelfde signaal die juist is achtergebleven, is een terugval binnen een opgaande trend. Kader koopt dus beter de dip in een sterke coin dan de doorgeschoten winnaar.
+
+**Wat er nu mee is gedaan:** het cijfer is per coin zichtbaar gemaakt op het marktscherm en het coin-detailscherm, met de meting erbij. Het telt bewust NIET mee in de 0-100 score en filtert niets weg.
+
+- [ ] **Keuze voor Kevin en Thom: moet dit in de strategie?** De meting steunt het ruim, en anders dan een drempelverlaging is dit een AANSCHERPING. Drie opties: (a) laten zoals nu, alleen zichtbaar; (b) een filter dat je zelf aanzet onder Filters; (c) coins die meer dan +25% voorliggen op BTC nooit meer als KOOP tonen. Optie (c) is wat de meting het sterkst steunt en meteen de grootste ingreep, want het verandert elk signaal dat de app geeft. Daarom niet eenzijdig gedaan.
+
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging
 

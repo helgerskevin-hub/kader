@@ -76,6 +76,48 @@ export function berekenRelatieveSterkte(
   return uit;
 }
 
+// Wat het cijfer betekent voor een INSTAP, gemeten in meting H van de backtest (2 sep 2026, negen
+// jaar, 3251 trades). De verwachting was dat voorlopers het beter zouden doen; het tegendeel bleek
+// waar en de helling loopt monotoon:
+//
+//   rs < -20%      +0,775 R      rs 0 tot +10%    -0,146 R
+//   -20 tot -10%   +0,406 R      +10 tot +25%     -0,146 R
+//   -10 tot 0%     +0,132 R      +25 tot +50%     -0,122 R
+//
+// Zonder de marktpoort houdt het ook stand: "zwakker dan BTC" geeft +0,168 over 1879 trades,
+// "sterker dan BTC" -0,032 over 1862. Te lezen als: een koopsignaal eist al een opwaartse trend en
+// bullish MACD, dus een coin die daarbovenop veel harder steeg dan BTC heeft het makkelijke deel
+// gehad. Dezelfde coin die juist achterbleef is een terugval binnen een opgaande trend.
+//
+// Dit oordeel is puur informatief. Het telt niet mee in de 0-100 score en filtert niets weg: die
+// score is met de backtest gekalibreerd en er een component in mengen verschuift stilzwijgend alle
+// drempels in drempels.ts. Zie de openstaande keuze in TODO.md.
+export type RsOordeel = 'achterblijver' | 'gelijk' | 'voorloper';
+
+// Grenzen uit de emmers hierboven: vanaf -10pp kantelt het gemiddelde duidelijk naar positief,
+// vanaf +25pp is het al twee emmers lang negatief. Daartussen zegt het cijfer weinig.
+export const RS_ACHTERBLIJVER_PP = -10;
+export const RS_VOORLOPER_PP = 25;
+
+export function oordeelRs(versusBtc: number): RsOordeel {
+  if (!isFinite(versusBtc)) return 'gelijk';
+  if (versusBtc <= RS_ACHTERBLIJVER_PP) return 'achterblijver';
+  if (versusBtc >= RS_VOORLOPER_PP) return 'voorloper';
+  return 'gelijk';
+}
+
+/** Eén regel uitleg bij het cijfer, of leeg als er niets bijzonders aan de hand is. */
+export function rsUitleg(versusBtc: number): string {
+  switch (oordeelRs(versusBtc)) {
+    case 'achterblijver':
+      return `Deze coin bleef ${Math.abs(versusBtc).toFixed(0)}% achter op bitcoin in 30 dagen. In de backtest deden koopsignalen op achterblijvers het beter dan op coins die al voorliepen: een terugval binnen een opgaande trend, in plaats van een beweging die al grotendeels geweest is.`;
+    case 'voorloper':
+      return `Deze coin liep ${versusBtc.toFixed(0)}% voor op bitcoin in 30 dagen. In de backtest deden koopsignalen op zulke voorlopers het gemiddeld slechter dan op achterblijvers: het makkelijke deel van de beweging is dan vaak geweest. Dit weegt niet mee in de score.`;
+    default:
+      return '';
+  }
+}
+
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/relatieveSterkte.ts`
 if (require.main === module) {
   const reeks = (start: number, factor: number, n = 60): Candle[] =>
@@ -109,6 +151,23 @@ if (require.main === module) {
     ], 30).length === 0,
     'een coin met te weinig candles hoort weg te vallen',
   );
+
+  // ---------- oordeelRs ----------
+  console.assert(oordeelRs(-30) === 'achterblijver', 'ver achter hoort achterblijver te zijn');
+  console.assert(oordeelRs(RS_ACHTERBLIJVER_PP) === 'achterblijver', 'precies op de grens telt mee');
+  console.assert(oordeelRs(-5) === 'gelijk', 'tussen de grenzen zegt het cijfer weinig');
+  console.assert(oordeelRs(0) === 'gelijk', 'gelijk aan BTC is gelijk');
+  console.assert(oordeelRs(10) === 'gelijk', '+10pp valt nog in de middenmoot');
+  console.assert(oordeelRs(RS_VOORLOPER_PP) === 'voorloper', 'precies op de bovengrens telt mee');
+  console.assert(oordeelRs(60) === 'voorloper', 'ver voor hoort voorloper te zijn');
+  console.assert(oordeelRs(NaN) === 'gelijk', 'een onbruikbaar cijfer mag niets beweren');
+
+  console.assert(rsUitleg(-5) === '', 'de middenmoot krijgt geen uitleg');
+  console.assert(rsUitleg(-30).includes('30%'), `de uitleg noemt het cijfer, was: ${rsUitleg(-30)}`);
+  console.assert(rsUitleg(-30).includes('beter'), 'bij een achterblijver hoort de gemeten uitkomst te staan');
+  console.assert(rsUitleg(40).includes('slechter'), 'bij een voorloper ook, maar dan andersom');
+  // Geen minteken in de tekst bij een achterblijver: die staat er al in het woord "achter".
+  console.assert(!rsUitleg(-30).includes('-30'), `dubbel minteken leest raar, was: ${rsUitleg(-30)}`);
 
   console.log('relatieveSterkte.ts self-check geslaagd');
 }
