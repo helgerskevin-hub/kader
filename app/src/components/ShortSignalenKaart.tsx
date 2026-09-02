@@ -18,6 +18,10 @@ interface Props {
   magHandelen: boolean;
   onGetrade: (trade: Trade) => void;
   onKoop?: (trade: Trade) => void;
+  // Tik op een rij opent het coin-detailscherm. Dat scherm is sinds genereerShortadvies
+  // richting-bewust, dus een short krijgt daar short-onderbouwing en niet de bullish tekst die er
+  // eerder onder zou komen te staan.
+  onOpenDetail?: (trade: Trade) => void;
   // De stop-loss-grenzen van eToro, opgehaald door het scherm. Voor een short zijn die de helft van
   // die voor een long (max 50% in plaats van 100%), dus de regel zoekt op met richting 'short'.
   limieten?: Record<string, StopLossLimiet> | null;
@@ -28,7 +32,7 @@ interface Props {
 // geen hergebruik van TradeCard: die kleurt de score op long-schaal (hoog = goed), terwijl een short
 // juist onder DREMPEL_SHORT vuurt en een lage score hier het sterke signaal is. Diezelfde kleur op
 // een short-rij plakken zou precies het omgekeerde beweren van wat de score betekent.
-export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop, limieten = null }: Props) {
+export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop, onOpenDetail, limieten = null }: Props) {
   const { colors } = useTheme();
 
   if (signalen.length === 0) return null;
@@ -54,6 +58,7 @@ export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop, l
             magHandelen={magHandelen}
             onGetrade={onGetrade}
             onKoop={onKoop}
+            onOpenDetail={onOpenDetail}
             limiet={limietVoor(limieten, trade.symbool, 'short')}
           />
         ))}
@@ -62,11 +67,12 @@ export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop, l
   );
 }
 
-function ShortRegel({ trade, magHandelen, onGetrade, onKoop, limiet }: {
+function ShortRegel({ trade, magHandelen, onGetrade, onKoop, onOpenDetail, limiet }: {
   trade: Trade;
   magHandelen: boolean;
   onGetrade: (trade: Trade) => void;
   onKoop?: (trade: Trade) => void;
+  onOpenDetail?: (trade: Trade) => void;
   limiet: StopLossLimiet | null;
 }) {
   const { colors } = useTheme();
@@ -75,6 +81,12 @@ function ShortRegel({ trade, magHandelen, onGetrade, onKoop, limiet }: {
 
   return (
     <View style={[styles.regel, { backgroundColor: colors.verhoogd }]}>
+      <Pressable
+        onPress={() => onOpenDetail?.(trade)}
+        disabled={!onOpenDetail}
+        accessibilityRole="button"
+        accessibilityLabel={`${trade.symbool} short-detail bekijken`}
+      >
       <View style={styles.regelKop}>
         <View style={styles.regelKopLinks}>
           <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
@@ -98,6 +110,7 @@ function ShortRegel({ trade, magHandelen, onGetrade, onKoop, limiet }: {
       {niveaus.uitleg ? (
         <Text style={[Type.caption, { color: colors.letOp, lineHeight: 18 }]}>{niveaus.uitleg}</Text>
       ) : null}
+      </Pressable>
 
       <View style={[styles.actiesRij, { borderTopColor: colors.rand }]}>
         <Pressable

@@ -8,13 +8,14 @@ import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
 import { haalData } from '../engine/marketData';
-import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
+import { infoVoor, genereerKoopadvies, genereerShortadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { ScoreBadge } from './ScoreBadge';
+import { RichtingBadge } from './RichtingBadge';
 import { LevelRow } from './LevelRow';
 import { PrijsGrafiek } from './PrijsGrafiek';
 import { OfflineMelding } from './OfflineMelding';
@@ -103,13 +104,26 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
     data.takeProfit !== undefined ? { waarde: data.takeProfit, kleur: colors.winst } : null,
   ].filter((n): n is { waarde: number; kleur: string } => n !== null);
 
-  const advies = indicatoren ? genereerKoopadvies({
-    score: data.score,
-    rsi: indicatoren.rsi,
-    trendOp: indicatoren.trendOp,
-    macdBullish: indicatoren.macdBullish,
-    volumeRatio: indicatoren.volumeRatio,
-  }) : null;
+  // Bij een short draait elk argument om: een dalende trend is dan een plus en niet een
+  // waarschuwing, en een hoge score juist een reden om het NIET te doen. Het koopadvies onder een
+  // short zetten zou precies het tegenovergestelde beweren van het signaal erboven.
+  const advies = indicatoren
+    ? (data.richting === 'short'
+      ? genereerShortadvies({
+        score: data.score,
+        rsi: indicatoren.rsi,
+        trendOp: indicatoren.trendOp,
+        macdBullish: indicatoren.macdBullish,
+        volumeRatio: indicatoren.volumeRatio,
+      })
+      : genereerKoopadvies({
+        score: data.score,
+        rsi: indicatoren.rsi,
+        trendOp: indicatoren.trendOp,
+        macdBullish: indicatoren.macdBullish,
+        volumeRatio: indicatoren.volumeRatio,
+      }))
+    : null;
   const adviesKleur = advies?.kleur === 'groen' ? colors.winst : advies?.kleur === 'rood' ? colors.verlies : colors.letOp;
 
   const isOpen = data.status === 'open';
@@ -181,7 +195,12 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
         <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + androidStatusBarPadding }]}>
           <View style={styles.headerLinks}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
+            <View style={styles.symboolRij}>
+              <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
+              {/* Alleen bij een short. Vrijwel alles is long, dus daar hoort geen label bij; bij een
+                  short moet je het meteen zien, want stop en doel liggen omgekeerd. */}
+              {data.richting === 'short' && <RichtingBadge richting="short" />}
+            </View>
             <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{data.naam}</Text>
           </View>
           <View style={styles.headerRechts}>
@@ -257,7 +276,9 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
             {advies && (
               <View style={styles.sectie}>
-                <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Waarom</Text>
+                <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>
+                  {data.richting === 'short' ? 'Waarom short' : 'Waarom'}
+                </Text>
                 <View style={[styles.waaromBadge, { backgroundColor: adviesKleur + '1A', borderColor: adviesKleur }]}>
                   <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
                 </View>
@@ -450,6 +471,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   headerLinks: { gap: 2, flex: 1 },
+  symboolRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerRechts: { alignItems: 'flex-end', gap: 6 },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', marginTop: -spacing.xs },
   midden: { flex: 1, alignItems: 'center', justifyContent: 'center' },
