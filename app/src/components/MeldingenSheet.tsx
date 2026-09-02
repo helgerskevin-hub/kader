@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
-import { X, ChevronRight } from 'lucide-react-native';
+import { X, ChevronRight, Bell, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
-import { relatieveTijd } from '../engine/format';
+import { fmtPrijs, relatieveTijd } from '../engine/format';
+import { Prijsalert, bewaarAlerts, laadAlerts, wacht } from '../state/prijsalerts';
+import { useValutaStand } from '../state/useValuta';
 import { MeldingLogEntry } from '../notifications/tradeChecks';
 import { MeldingDoel } from '../notifications/meldingDoel';
 
@@ -31,6 +33,35 @@ function bestemming(doel: MeldingDoel): string {
 
 export function MeldingenSheet({ zichtbaar, onSluiten, log, onKies }: Props) {
   const { colors } = useTheme();
+  // De formatters lezen de valuta uit een gewone module; zonder dit abonnement blijven de
+  // alertniveaus na het omzetten in de oude valuta staan.
+  useValutaStand();
+
+  // Wachtende prijsalerts horen hier en niet alleen op het coinscherm: zet je er een op ICP en
+  // kijk je drie weken later, dan is "open elke coin apart" de enige manier om ze terug te vinden.
+  // Afgegane alerts staan er niet bij, die zijn als melding al langsgekomen en staan in het log
+  // hieronder.
+  const [alerts, setAlerts] = useState<Prijsalert[]>([]);
+
+  useEffect(() => {
+    if (!zichtbaar) return;
+    let actief = true;
+    laadAlerts().then(geladen => { if (actief) setAlerts(geladen.filter(wacht)); });
+    return () => { actief = false; };
+  }, [zichtbaar]);
+
+  async function verwijder(id: string) {
+    try {
+      // Vers van schijf, niet uit de state hierboven: de achtergrondcheck kan ondertussen een
+      // alert op afgegaan hebben gezet en die wijziging mogen we niet overschrijven.
+      const actueel = await laadAlerts();
+      const volgende = actueel.filter(a => a.id !== id);
+      await bewaarAlerts(volgende);
+      setAlerts(volgende.filter(wacht));
+    } catch {
+      // Mislukt: de alert blijft staan en de knop doet het de volgende keer gewoon weer.
+    }
+  }
 
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={styles.vel}>
@@ -46,21 +77,67 @@ export function MeldingenSheet({ zichtbaar, onSluiten, log, onKies }: Props) {
         </Pressable>
       </View>
 
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+      {alerts.length > 0 && (
+        <View style={styles.alertBlok}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd, marginBottom: spacing.sm }]}>
+            PRIJSALERTS DIE WACHTEN ({alerts.length})
+          </Text>
+          {alerts.map(alert => (
+            <View
+              key={alert.id}
+              style={[styles.alertRegel, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}
+            >
+              <Pressable
+                style={styles.alertTekst}
+                onPress={() => onKies({ soort: 'coin', symbool: alert.symbool })}
+                accessibilityRole="button"
+                accessibilityLabel={`${alert.symbool} ${alert.richting} ${fmtPrijs(alert.prijs)}, naar de coin op de Markt`}
+              >
+                <View style={styles.alertKop}>
+                  <Bell size={13} color={colors.tekstGedimd} strokeWidth={1.75} />
+                  <Text style={[Type.body, { color: colors.tekstPrimair }]}>
+                    {alert.symbool} {alert.richting === 'boven' ? 'boven' : 'onder'} {fmtPrijs(alert.prijs)}
+                  </Text>
+                </View>
+                <View style={styles.bestemmingRij}>
+                  <Text style={[Type.caption, { color: colors.cta }]}>Naar {alert.symbool} op de Markt</Text>
+                  <ChevronRight size={13} color={colors.cta} strokeWidth={2} />
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => verwijder(alert.id)}
+                style={styles.wisKnop}
+                accessibilityRole="button"
+                accessibilityLabel={`Alert op ${alert.symbool} verwijderen`}
+                hitSlop={8}
+              >
+                <Trash2 size={17} color={colors.verlies} strokeWidth={1.75} />
+              </Pressable>
+            </View>
+          ))}
+          <Text style={[Type.overline, { color: colors.tekstGedimd, marginTop: spacing.base }]}>
+            VERSTUURD
+          </Text>
+        </View>
+      )}
+
       {log.length === 0 ? (
-        <Text style={[Type.body, { color: colors.tekstGedimd }]}>
-          Nog geen meldingen. Zodra Kader iets over je trades te melden heeft, verschijnt het hier.
+        <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
+          {alerts.length > 0
+            ? 'Nog geen verstuurde meldingen. Zodra een van je alerts geraakt wordt, staat hij hier.'
+            : 'Nog geen meldingen. Zodra Kader iets over je trades te melden heeft, verschijnt het hier. Zelf een prijs in de gaten laten houden kan ook: tik op het belletje bovenin een coinscherm.'}
         </Text>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
-          {log.map((entry, i) => (
-            <Regel
-              key={`${entry.tijd}-${i}`}
-              entry={entry}
-              onKies={onKies}
-            />
-          ))}
-        </ScrollView>
+        log.map((entry, i) => (
+          <Regel
+            key={`${entry.tijd}-${i}`}
+            entry={entry}
+            onKies={onKies}
+          />
+        ))
       )}
+      </ScrollView>
     </BottomSheet>
   );
 }
@@ -134,6 +211,20 @@ const styles = StyleSheet.create({
     gap: 2,
     marginTop: spacing.xs,
   },
+  alertBlok: { marginBottom: spacing.sm },
+  alertRegel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: radii.veld,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  alertTekst: { flex: 1, gap: 2, minHeight: 44, justifyContent: 'center' },
+  alertKop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  wisKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
   entryKop: {
     flexDirection: 'row',
     justifyContent: 'space-between',

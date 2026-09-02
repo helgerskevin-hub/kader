@@ -107,14 +107,16 @@ export function MarktScreen() {
 
     const trade = state.alle.find(t => t.symbool === navigatieDoel.symbool);
     if (trade) {
-      setDetailCoin(vanTrade(trade));
+      setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
     } else {
       setMeldingNotitie(
         `${navigatieDoel.symbool} zat niet in de laatste analyse. Ververs de markt en probeer het opnieuw.`,
       );
     }
     wisDoel();
-  }, [navigatieDoel, state, startAnalyse, wisDoel]);
+    // rsPerSymbool hangt af van state en verandert dus mee, maar hij staat er expliciet bij:
+    // anders leest een lezer (en een linter) dit als een vergeten afhankelijkheid.
+  }, [navigatieDoel, state, rsPerSymbool, startAnalyse, wisDoel]);
 
   async function handleVervers() {
     if (ververst) return;
@@ -148,7 +150,7 @@ export function MarktScreen() {
   function openCoinDetail(symbool: string) {
     if (state.status !== 'success') return;
     const trade = state.alle.find(t => t.symbool === symbool);
-    if (trade) setDetailCoin(vanTrade(trade));
+    if (trade) setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
   }
 
   return (
