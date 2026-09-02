@@ -95,3 +95,10 @@ export async function stuurTradeMelding(titel: string, tekst: string): Promise<b
   });
   return true;
 }
+
+// Wist alles wat er bij Android in de wachtrij staat, vandaag alleen de dagelijkse herinnering.
+// Nodig voor de meldingen-uit-schakelaar: die herinnering is al ingepland en gaat af zonder dat de
+// app er nog aan te pas komt, dus een vlag zetten is niet genoeg.
+export async function wisAlleGeplandeMeldingen(): Promise<void> {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+}

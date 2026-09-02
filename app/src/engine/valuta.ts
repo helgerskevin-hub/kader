@@ -51,3 +51,14 @@ export function naarWeergave(bedragUsd: number, forceer?: Valuta): { waarde: num
   }
   return { waarde: bedragUsd, teken: VALUTA_TEKEN.USD };
 }
+
+// De andere kant op: een bedrag zoals de gebruiker het intikt terug naar dollars. Nodig zodra een
+// scherm een bedrag laat INVULLEN in plaats van tonen (de prijsalerts), want alles wat we opslaan
+// en met marktdata vergelijken is in dollars. Staat de app in dollars, of ontbreekt de koers, dan
+// is dit de identiteit.
+export function vanWeergave(bedrag: number): number {
+  if (actieveValuta() === 'EUR' && stand.eurPerUsd !== null && stand.eurPerUsd > 0) {
+    return bedrag / stand.eurPerUsd;
+  }
+  return bedrag;
+}
