@@ -1,5 +1,5 @@
 import { CoinInfo, KoopAdvies } from './types';
-import { DREMPEL_KOOP, DREMPEL_STERK_KOOP, DREMPEL_BADGE_MATIG, HIGH_CONVICTION_VOLUME_MIN } from './drempels';
+import { DREMPEL_KOOP, DREMPEL_STERK_KOOP, DREMPEL_BADGE_MATIG, DREMPEL_SHORT, HIGH_CONVICTION_VOLUME_MIN } from './drempels';
 
 export const COIN_INFO: Record<string, CoinInfo> = {
   BTC: { naam: 'Bitcoin', categorie: 'Large-cap · digitaal goud', wat: 'De eerste en grootste cryptomunt; schaars (max 21M) en wordt gezien als waardeopslag. De minst risicovolle crypto, maar ook de traagste groeier.' },
@@ -76,4 +76,96 @@ export function genereerKoopadvies(opts: {
   if (plus.length) uitleg += plus.join(', ') + '. ';
   if (aandacht.length) uitleg += 'Let op: ' + aandacht.join(', ') + '.';
   return { label, kleur, uitleg: uitleg.trim() };
+}
+
+// Het spiegelbeeld van genereerKoopadvies, voor een short. Bewust een eigen functie en geen vlag in
+// de bestaande: elke regel draait om, en dan wordt één functie met overal een "als short"-tak
+// moeilijker te lezen dan twee die je naast elkaar kunt houden.
+//
+// Waarom dit nodig was: het coin-detailscherm bouwt zijn "Waarom" met genereerKoopadvies, en dat
+// kent alleen bullish onderbouwing. Een short die daar zou openen kreeg dus tekst als "geen
+// opwaartse trend, let op" onder een signaal dat juist op die dalende trend instapt, en een rood
+// "Zwak: nu niet kopen" boven een positie die je aan het openen bent. Daarom kon je een short tot
+// nu toe niet aantikken.
+//
+// De grens is DREMPEL_SHORT (40), dezelfde die de engine gebruikt om een short te laten vuren, en
+// niet een eigen visuele drempel: het label mag niet groen staan waar de engine niet vuurt.
+export function genereerShortadvies(opts: {
+  score?: number | null;
+  rsi?: number;
+  trendOp?: boolean;
+  macdBullish?: boolean;
+  volumeRatio?: number;
+}): KoopAdvies {
+  const { score, rsi = 50, trendOp = true, macdBullish = true, volumeRatio = 1.0 } = opts;
+  const plus: string[] = [];
+  const aandacht: string[] = [];
+
+  // Bij een short is een dalende trend het argument vóór, niet tegen.
+  if (!trendOp) plus.push('neerwaartse trend (EMA20 onder EMA50)');
+  else aandacht.push('de trend is nog opwaarts (EMA20 boven EMA50)');
+
+  if (!macdBullish) plus.push('negatief momentum (MACD bearish)');
+  else aandacht.push('het momentum is nog positief (MACD bullish)');
+
+  // Ruimte om te dalen is wat een short nodig heeft. Diep oversold is juist gevaarlijk: dan is de
+  // beweging grotendeels geweest en is een terugveer waarschijnlijker dan verder zakken.
+  if (rsi < 30) aandacht.push(`diep oversold RSI (${rsi.toFixed(0)}), grote kans op een terugveer omhoog`);
+  else if (rsi <= 55) plus.push(`RSI met ruimte omlaag (${rsi.toFixed(0)})`);
+  else if (rsi > 68) aandacht.push(`overbought RSI (${rsi.toFixed(0)}), de koers is nog sterk aan het stijgen`);
+
+  // Volume bevestigt de beweging, ongeacht de richting.
+  if (volumeRatio >= 1.5) plus.push(`sterke volume-spike (${volumeRatio.toFixed(1)}×)`);
+  else if (volumeRatio >= 1.2) plus.push(`verhoogd volume (${volumeRatio.toFixed(1)}×)`);
+
+  // Bij een short is een LAGE score het sterke signaal, dus de schaal draait om.
+  const s = score != null ? score :
+    (trendOp ? 25 : 0) + (macdBullish ? 20 : 0) + (rsi >= 45 && rsi <= 68 ? 20 : 0) + (volumeRatio >= HIGH_CONVICTION_VOLUME_MIN ? 15 : 0);
+
+  let label: string;
+  let kleur: 'groen' | 'oranje' | 'rood';
+  if (s < DREMPEL_SHORT / 2) { label = 'Sterk short-signaal'; kleur = 'groen'; }
+  else if (s < DREMPEL_SHORT) { label = 'Short-waardig'; kleur = 'groen'; }
+  else if (s < DREMPEL_KOOP) { label = 'Neutraal: te sterk om te shorten'; kleur = 'oranje'; }
+  else { label = 'Te sterk: nu niet shorten'; kleur = 'rood'; }
+
+  let uitleg = '';
+  if (plus.length) uitleg += plus.join(', ') + '. ';
+  if (aandacht.length) uitleg += 'Let op: ' + aandacht.join(', ') + '.';
+  return { label, kleur, uitleg: uitleg.trim() };
+}
+
+// ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/coinInfo.ts`
+if (require.main === module) {
+  // Een tekstboek-short: alles wijst omlaag, score ver onder de drempel.
+  const sterk = genereerShortadvies({ score: 15, rsi: 45, trendOp: false, macdBullish: false, volumeRatio: 1.6 });
+  console.assert(sterk.label === 'Sterk short-signaal', `score 15 hoort sterk te zijn, was ${sterk.label}`);
+  console.assert(sterk.kleur === 'groen', 'een sterk short-signaal is groen, net als een sterke koop');
+  console.assert(sterk.uitleg.includes('neerwaartse trend'), 'een dalende trend is bij een short een plus');
+  console.assert(sterk.uitleg.includes('negatief momentum'), 'bearish MACD is bij een short een plus');
+  console.assert(!sterk.uitleg.includes('Let op'), `niets aan te merken hier, was: ${sterk.uitleg}`);
+
+  // Precies op de drempel waar de engine vuurt: 40 vuurt NIET (score < 40), dus het label mag hier
+  // niet groen staan.
+  console.assert(genereerShortadvies({ score: DREMPEL_SHORT }).kleur === 'oranje',
+    'precies op de short-drempel vuurt de engine niet, dus geen groen label');
+  console.assert(genereerShortadvies({ score: DREMPEL_SHORT - 1 }).kleur === 'groen',
+    'net onder de drempel vuurt hij wel');
+
+  // Een sterke coin is een slechte short, en dat moet er ook staan.
+  const sterkeCoin = genereerShortadvies({ score: 90, rsi: 60, trendOp: true, macdBullish: true, volumeRatio: 1.0 });
+  console.assert(sterkeCoin.kleur === 'rood' && sterkeCoin.label.includes('niet shorten'),
+    `score 90 hoort een rood short-oordeel te geven, was ${sterkeCoin.label}`);
+  console.assert(sterkeCoin.uitleg.includes('trend is nog opwaarts'), 'een stijgende trend is bij een short een waarschuwing');
+
+  // Diep oversold: de val is grotendeels geweest, dat hoort een waarschuwing te zijn en geen plus.
+  const oversold = genereerShortadvies({ score: 20, rsi: 22, trendOp: false, macdBullish: false });
+  console.assert(oversold.uitleg.includes('terugveer'), `diep oversold hoort te waarschuwen, was: ${oversold.uitleg}`);
+
+  // De koopkant mag niet veranderd zijn.
+  const koop = genereerKoopadvies({ score: 90, rsi: 60, trendOp: true, macdBullish: true, volumeRatio: 1.6 });
+  console.assert(koop.label === 'Sterke koop' && koop.kleur === 'groen', 'het koopadvies blijft ongewijzigd');
+  console.assert(genereerKoopadvies({ score: 20 }).kleur === 'rood', 'een zwakke coin blijft rood aan de koopkant');
+
+  console.log('coinInfo.ts self-check geslaagd');
 }

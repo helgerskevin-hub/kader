@@ -225,6 +225,7 @@ export function MarktScreen() {
                 magHandelen={magHandelen}
                 onGetrade={setGetradeteTrade}
                 onKoop={magHandelen ? setKoopTrade : undefined}
+                onOpenDetail={t => setDetailCoin(vanTrade(t))}
               />
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
