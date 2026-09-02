@@ -18,6 +18,9 @@ export interface CoinDetailData {
   takeProfit?: number;
   rr?: number;
   score?: number | null;
+  // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het marktscherm,
+  // want daar draait de scan die het uitrekent.
+  versusBtc?: number;
   // alleen relevant voor context 'portfolio'
   entryPrijs?: number;
   bedragUsd?: number;
@@ -28,7 +31,7 @@ export interface CoinDetailData {
   slotDatum?: string;
 }
 
-export function vanTrade(trade: Trade): CoinDetailData {
+export function vanTrade(trade: Trade, versusBtc?: number): CoinDetailData {
   return {
     symbool: trade.symbool,
     naam: infoVoor(trade.symbool).naam,
@@ -43,6 +46,7 @@ export function vanTrade(trade: Trade): CoinDetailData {
     takeProfit: trade.takeProfit,
     rr: trade.rr,
     score: trade.score,
+    versusBtc,
   };
 }
 

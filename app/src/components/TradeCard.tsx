@@ -14,6 +14,7 @@ import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
 import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
+import { oordeelRs, rsUitleg } from '../engine/relatieveSterkte';
 import { useValutaStand } from '../state/useValuta';
 
 interface Props {
@@ -31,6 +32,10 @@ interface Props {
   // keer los abonneren. Met een grens tonen we de stop die je bij eToro werkelijk kunt zetten in
   // plaats van het niveau dat Kader zelf berekende, plus de R/R die daarbij hoort.
   limiet?: StopLossLimiet | null;
+  // Rendement over 30 dagen min dat van BTC, in procentpunten. Ontbreekt als de scan het niet kon
+  // uitrekenen (te weinig historie, of BTC zelf niet opgehaald); dan blijft de kolom gewoon weg.
+  // Gemeten in meting H van de backtest: achterblijvers doen het als instap beter dan voorlopers.
+  versusBtc?: number;
 }
 
 type AdviesLabel = 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
@@ -47,7 +52,7 @@ function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>
   return colors.letOp;
 }
 
-export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null }: Props) {
+export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -147,6 +152,22 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
           <Text style={[Type.prijs, styles.metaWaarde, { color: colors.tekstPrimair }]}>{Math.round(trade.rsi)}</Text>
         </View>
+        {/* Neutraal gekleurd, met opzet. Een achterblijver is voor een instap gunstig maar het is
+            geen coin die het goed doet, en groen zou dat laatste beweren. De duiding staat in de
+            uitklap en op het detailscherm, waar er ruimte is om het uit te leggen. */}
+        {versusBtc !== undefined && (
+          <View style={styles.metaItem}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VS BTC</Text>
+            <Text style={[Type.prijs, styles.metaWaarde, { color: colors.tekstPrimair }]}>
+              {versusBtc >= 0 ? '+' : ''}{versusBtc.toFixed(0)}%
+            </Text>
+            {oordeelRs(versusBtc) !== 'gelijk' && (
+              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+                {oordeelRs(versusBtc) === 'achterblijver' ? 'achterblijver' : 'voorloper'}
+              </Text>
+            )}
+          </View>
+        )}
         <View style={styles.metaItem}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>SCORE</Text>
           <Text style={[Type.prijs, styles.metaWaarde, { color: colors.tekstPrimair }]}>{Math.round(trade.score)}</Text>
@@ -174,6 +195,11 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           {niveaus.uitleg ? (
             <Text style={[Type.caption, styles.koopadviesUitleg, { color: colors.letOp }]}>
               {niveaus.uitleg}
+            </Text>
+          ) : null}
+          {versusBtc !== undefined && rsUitleg(versusBtc) ? (
+            <Text style={[Type.caption, styles.koopadviesUitleg, { color: colors.tekstGedimd }]}>
+              {rsUitleg(versusBtc)}
             </Text>
           ) : null}
         </View>
