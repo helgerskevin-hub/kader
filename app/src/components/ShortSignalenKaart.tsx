@@ -10,12 +10,17 @@ import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { LevelRow } from './LevelRow';
 import { RichtingBadge } from './RichtingBadge';
+import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
+import { limietVoor } from '../state/useStopLossLimiet';
 
 interface Props {
   signalen: Trade[];
   magHandelen: boolean;
   onGetrade: (trade: Trade) => void;
   onKoop?: (trade: Trade) => void;
+  // De stop-loss-grenzen van eToro, opgehaald door het scherm. Voor een short zijn die de helft van
+  // die voor een long (max 50% in plaats van 100%), dus de regel zoekt op met richting 'short'.
+  limieten?: Record<string, StopLossLimiet> | null;
 }
 
 // De actionable tegenhanger van "Wie houdt stand?": short-signalen, alleen zichtbaar zolang het
@@ -23,7 +28,7 @@ interface Props {
 // geen hergebruik van TradeCard: die kleurt de score op long-schaal (hoog = goed), terwijl een short
 // juist onder DREMPEL_SHORT vuurt en een lage score hier het sterke signaal is. Diezelfde kleur op
 // een short-rij plakken zou precies het omgekeerde beweren van wat de score betekent.
-export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop }: Props) {
+export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop, limieten = null }: Props) {
   const { colors } = useTheme();
 
   if (signalen.length === 0) return null;
@@ -49,6 +54,7 @@ export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop }:
             magHandelen={magHandelen}
             onGetrade={onGetrade}
             onKoop={onKoop}
+            limiet={limietVoor(limieten, trade.symbool, 'short')}
           />
         ))}
       </View>
@@ -56,14 +62,16 @@ export function ShortSignalenKaart({ signalen, magHandelen, onGetrade, onKoop }:
   );
 }
 
-function ShortRegel({ trade, magHandelen, onGetrade, onKoop }: {
+function ShortRegel({ trade, magHandelen, onGetrade, onKoop, limiet }: {
   trade: Trade;
   magHandelen: boolean;
   onGetrade: (trade: Trade) => void;
   onKoop?: (trade: Trade) => void;
+  limiet: StopLossLimiet | null;
 }) {
   const { colors } = useTheme();
   const naam = infoVoor(trade.symbool).naam;
+  const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
 
   return (
     <View style={[styles.regel, { backgroundColor: colors.verhoogd }]}>
@@ -77,10 +85,19 @@ function ShortRegel({ trade, magHandelen, onGetrade, onKoop }: {
       <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{naam}</Text>
 
       <View style={styles.niveaus}>
-        <LevelRow stop={trade.stopLoss} entry={trade.entry} doel={trade.takeProfit} richting="short" />
+        <LevelRow
+          stop={niveaus.stop}
+          entry={trade.entry}
+          doel={trade.takeProfit}
+          richting="short"
+          stopAangepast={niveaus.aangepast}
+        />
       </View>
 
-      <Text style={[Type.caption, { color: colors.tekstGedimd }]}>R/R {fmtRR(trade.rr)}</Text>
+      <Text style={[Type.caption, { color: colors.tekstGedimd }]}>R/R {fmtRR(niveaus.rr)}</Text>
+      {niveaus.uitleg ? (
+        <Text style={[Type.caption, { color: colors.letOp, lineHeight: 18 }]}>{niveaus.uitleg}</Text>
+      ) : null}
 
       <View style={[styles.actiesRij, { borderTopColor: colors.rand }]}>
         <Pressable

@@ -13,6 +13,7 @@ import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
+import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
 import { useValutaStand } from '../state/useValuta';
 
 interface Props {
@@ -25,6 +26,11 @@ interface Props {
   // schrijfrecht), dan blijft de kaart precies zoals hij was: twee knoppen, geen koopknop.
   // De knop plaatst zelf nooit een order, hij opent alleen de sheet.
   onKoop?: (trade: Trade) => void;
+  // De stop-loss-grens van eToro voor deze coin, of null als die er niet is (geen koppeling, of een
+  // API-fout). Het scherm haalt de hele kaart in één keer op, zodat twintig kaarten niet twintig
+  // keer los abonneren. Met een grens tonen we de stop die je bij eToro werkelijk kunt zetten in
+  // plaats van het niveau dat Kader zelf berekende, plus de R/R die daarbij hoort.
+  limiet?: StopLossLimiet | null;
 }
 
 type AdviesLabel = 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
@@ -41,7 +47,7 @@ function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>
   return colors.letOp;
 }
 
-export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop }: Props) {
+export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -52,6 +58,11 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
   const randKleur = adviesRandKleur(advies, colors);
+  const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
+  // Boven de drempel blijft de kleur neutraal. Schuift eToro de stop op, dan zakt de R/R mee en is
+  // die drempel het enige eerlijke oordeel: de score kan nog zo hoog zijn, met een stop van 10% en
+  // een doel van 9% verdien je er niets aan.
+  const haaltRr = niveaus.aangepast ? niveaus.rr >= MIN_RISK_REWARD : trade.voldoetAanRR;
   const koopadvies = genereerKoopadvies({
     score: trade.score,
     rsi: trade.rsi,
@@ -112,7 +123,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
 
       {/* Niveaus */}
       <View style={styles.sectie}>
-        <LevelRow stop={trade.stopLoss} entry={trade.entry} doel={trade.takeProfit} />
+        <LevelRow stop={niveaus.stop} entry={trade.entry} doel={trade.takeProfit} stopAangepast={niveaus.aangepast} />
       </View>
       </Pressable>
 
@@ -124,11 +135,11 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
               de reden dat hij geen KOOP wordt. Zonder markering lijkt het een willekeurig getal. */}
           <Text style={[
             Type.prijs, styles.metaWaarde,
-            { color: trade.voldoetAanRR ? colors.tekstPrimair : colors.letOp },
+            { color: haaltRr ? colors.tekstPrimair : colors.letOp },
           ]}>
-            {fmtRR(trade.rr)}
+            {fmtRR(niveaus.rr)}
           </Text>
-          {!trade.voldoetAanRR && (
+          {!haaltRr && (
             <Text style={[Type.caption, { color: colors.letOp }]}>onder 1:{MIN_RISK_REWARD}</Text>
           )}
         </View>
@@ -156,6 +167,13 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           {koopadvies.uitleg ? (
             <Text style={[Type.caption, styles.koopadviesUitleg, { color: colors.tekstGedimd }]}>
               {koopadvies.uitleg}
+            </Text>
+          ) : null}
+          {/* Staat de stop op eToro's grens in plaats van op die van Kader, dan hoort hier te staan
+              waarom. Anders lijkt het getal een rekenfout. */}
+          {niveaus.uitleg ? (
+            <Text style={[Type.caption, styles.koopadviesUitleg, { color: colors.letOp }]}>
+              {niveaus.uitleg}
             </Text>
           ) : null}
         </View>

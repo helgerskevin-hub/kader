@@ -34,6 +34,7 @@ import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { limietVoor, useStopLossLimieten } from '../state/useStopLossLimiet';
 
 type Progress = { current: number; total: number; symbool: string };
 type Filter = 'alle' | 'favorieten';
@@ -56,6 +57,10 @@ export function MarktScreen() {
   const [filter, setFilter] = useState<Filter>('alle');
   const [marktFilters, setMarktFilters] = useState<MarktFilterState>(STANDAARD_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Eén keer per scherm, niet per kaart: de stop-loss-grenzen van eToro voor alle coins. Ze bepalen
+  // welke stop er op de kaarten staat, want Kaders eigen niveau is voor de meeste coins krapper dan
+  // eToro toestaat en dan is het een niveau dat je niet kunt zetten.
+  const stopLimieten = useStopLossLimieten();
 
   function soepelWisselen() {
     if (!reduceMotion) {
@@ -180,6 +185,7 @@ export function MarktScreen() {
               favoriet={isFavoriet(item.symbool)}
               onToggleFavoriet={wisselFavoriet}
               onKoop={magHandelen ? setKoopTrade : undefined}
+              limiet={limietVoor(stopLimieten, item.symbool)}
             />
           )}
           contentContainerStyle={styles.lijst}
@@ -215,6 +221,7 @@ export function MarktScreen() {
                   klimaat niet ongunstig is, want dan levert analyseerMarkt() hier niets voor aan. */}
               <ShortSignalenKaart
                 signalen={state.shorts}
+                limieten={stopLimieten}
                 magHandelen={magHandelen}
                 onGetrade={setGetradeteTrade}
                 onKoop={magHandelen ? setKoopTrade : undefined}

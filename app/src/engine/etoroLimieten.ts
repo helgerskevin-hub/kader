@@ -143,6 +143,65 @@ export function bepaalStop(entry: number, stop: number, limiet: StopLossLimiet |
   return { soort: 'ok' };
 }
 
+// De stop van Kader is een structuurniveau (net onder de swing low), de grenzen van eToro zijn een
+// percentage van je entry. Die twee botsen vaker wel dan niet: voor BTC x1 eist eToro minimaal 10%
+// en Kaders ATR-stop ligt daar meestal ruim binnen. Tot nu toe corrigeerde alleen de kooporder-sheet
+// dat, dus de rest van de app toonde een stop die je bij eToro nooit kon zetten, met een R/R die
+// daarop gebaseerd was.
+//
+// Deze functie is het gedeelde antwoord: geef 'm Kaders eigen niveaus en de grens van eToro, en je
+// krijgt terug wat er werkelijk te zetten valt, met de R/R die daarbij hoort. Zonder limiet (geen
+// koppeling, of een API-fout) komt Kaders eigen stop er onveranderd uit.
+export interface EtoroNiveaus {
+  // De stop zoals hij bij eToro te zetten is. Gelijk aan de eigen stop als er niets te corrigeren viel.
+  stop: number;
+  // Risico tegenover beloning bij DIE stop. Verschilt van trade.rr zodra de stop verschoven is.
+  rr: number;
+  // Is de stop verschoven ten opzichte van wat Kader zelf berekende?
+  aangepast: boolean;
+  // eToro laat de stop voor deze coin helemaal niet instellen; het niveau blijft dat van Kader.
+  vast: boolean;
+  // Eén regel uitleg, of leeg als er niets te melden valt.
+  uitleg: string;
+}
+
+export function etoroNiveaus(
+  entry: number,
+  eigenStop: number,
+  doel: number,
+  limiet: StopLossLimiet | null,
+): EtoroNiveaus {
+  const risico = Math.abs(entry - eigenStop);
+  const beloning = Math.abs(doel - entry);
+  const eigen: EtoroNiveaus = {
+    stop: eigenStop,
+    rr: risico > 0 ? beloning / risico : 0,
+    aangepast: false,
+    vast: false,
+    uitleg: '',
+  };
+
+  const advies = bepaalStop(entry, eigenStop, limiet);
+
+  // 'waarschuwing' betekent dat de stop aan de verkeerde kant van de entry ligt. Dat komt uit de
+  // engine niet voor, en als het toch gebeurt is Kaders eigen niveau tonen eerlijker dan een
+  // verzonnen correctie.
+  if (advies.soort === 'ok' || advies.soort === 'waarschuwing') return eigen;
+
+  if (advies.soort === 'vast') {
+    return { ...eigen, vast: true, uitleg: advies.uitleg };
+  }
+
+  const nieuwRisico = Math.abs(entry - advies.stop);
+  return {
+    stop: advies.stop,
+    rr: nieuwRisico > 0 ? beloning / nieuwRisico : 0,
+    aangepast: true,
+    vast: false,
+    uitleg: advies.uitleg,
+  };
+}
+
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/etoroLimieten.ts`
 if (require.main === module) {
   const ruw: EtoroEligibility = {
@@ -269,6 +328,47 @@ if (require.main === module) {
   // hele reden dat kiesLimiet richting-bewust moest worden.
   console.assert(bepaalStop(100, 40, lang).soort === 'ok', '60% onder de entry mag bij een long, max is daar 100%');
   console.assert(bepaalStop(100, 160, kort).soort === 'aangepast', '60% boven de entry mag NIET bij een short, max is daar 50%');
+
+  // ---------- etoroNiveaus ----------
+  // De hele reden dat deze functie bestaat: entry 100, Kaders stop op 97 (3%), doel op 109. Op
+  // papier is dat R/R 3,0. Bij eToro mag de stop niet dichter dan 10%, dus de stop wordt 90 en de
+  // werkelijke R/R is 0,9. Dat verschil hoorde de gebruiker te zien vóór hij de trade doet.
+  const btcLimiet = { symbool: 'BTC', richting: 'long' as const, bewerkbaar: true, minPct: 10, maxPct: 100 };
+  const geklemd = etoroNiveaus(100, 97, 109, btcLimiet);
+  console.assert(geklemd.aangepast, 'een stop van 3% moet bij een minimum van 10% aangepast worden');
+  console.assert(Math.abs(geklemd.stop - 90) < 1e-9, `de stop moet naar 90, was ${geklemd.stop}`);
+  console.assert(Math.abs(geklemd.rr - 0.9) < 1e-9, `de R/R hoort met de stop mee te bewegen, was ${geklemd.rr}`);
+  console.assert(geklemd.uitleg !== '', 'een aangepaste stop hoort uitleg te dragen');
+
+  // Past de eigen stop wel, dan blijft alles exact zoals Kader het berekende.
+  const past = etoroNiveaus(100, 85, 130, btcLimiet);
+  console.assert(!past.aangepast && past.stop === 85, 'een stop van 15% valt binnen 10-100% en blijft staan');
+  console.assert(Math.abs(past.rr - 2) < 1e-9, `R/R van 30 op 15 is 2,0, was ${past.rr}`);
+
+  // Zonder limiet (geen koppeling of een API-fout) veranderen we niets en beweren we niets.
+  const geen = etoroNiveaus(100, 97, 109, null);
+  console.assert(!geen.aangepast && geen.stop === 97 && geen.uitleg === '', 'zonder limiet blijft alles van Kader');
+  console.assert(Math.abs(geen.rr - 3) < 1e-9, `zonder limiet is de R/R die van Kader, was ${geen.rr}`);
+
+  // Een short is gespiegeld: stop boven de entry, doel eronder, en de R/R blijft positief.
+  const shortLimiet = { symbool: 'BTC', richting: 'short' as const, bewerkbaar: true, minPct: 10, maxPct: 50 };
+  const kortNiveaus = etoroNiveaus(100, 103, 91, shortLimiet);
+  console.assert(Math.abs(kortNiveaus.stop - 110) < 1e-9, `een short-stop van 3% moet naar 110, was ${kortNiveaus.stop}`);
+  console.assert(Math.abs(kortNiveaus.rr - 0.9) < 1e-9, `short-R/R van 9 op 10 is 0,9, was ${kortNiveaus.rr}`);
+
+  // Laat eToro de stop niet zetten, dan blijft het niveau van Kader staan, maar wel met de melding.
+  const vastNiveaus = etoroNiveaus(100, 97, 109, { symbool: 'DOGE', richting: 'long' as const, bewerkbaar: false, minPct: 10, maxPct: 100 });
+  console.assert(vastNiveaus.vast && vastNiveaus.stop === 97 && !vastNiveaus.aangepast,
+    'een vaste stop verschuift niet, hij krijgt alleen een melding');
+  console.assert(vastNiveaus.uitleg !== '', 'een vaste stop hoort uitleg te dragen');
+
+  // Een stop aan de verkeerde kant van de entry: liever Kaders eigen niveau tonen dan een verzonnen
+  // correctie. Dit hoort uit de engine niet te komen, maar het scherm mag er niet op stuklopen.
+  const fout = etoroNiveaus(100, 105, 109, btcLimiet);
+  console.assert(!fout.aangepast && fout.stop === 105, 'een stop aan de verkeerde kant blijft ongemoeid');
+
+  // Entry gelijk aan de stop geeft risico 0. Delen door nul moet geen Infinity op het scherm zetten.
+  console.assert(etoroNiveaus(100, 100, 109, null).rr === 0, 'risico 0 geeft R/R 0, geen Infinity');
 
   console.log('etoroLimieten.ts self-check geslaagd');
 }

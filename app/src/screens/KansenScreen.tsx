@@ -12,6 +12,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { LevelRow } from '../components/LevelRow';
+import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
+import { limietVoor, useStopLossLimieten } from '../state/useStopLossLimiet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
@@ -48,16 +50,19 @@ function reducer(state: KansenState, action: Action): KansenState {
 }
 
 // ---------- OpportunityCard ----------
-function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop }: {
+function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null }: {
   kans: Opportunity;
   onOpenDetail: (kans: Opportunity) => void;
   onGetrade: (kans: Opportunity) => void;
   // Ontbreekt zonder schrijfrecht; dan is de kaart identiek aan vroeger.
   onKoop?: (kans: Opportunity) => void;
+  // De stop-loss-grens van eToro voor deze coin. Zonder grens blijft het niveau van Kader staan.
+  limiet?: StopLossLimiet | null;
 }) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
+  const niveaus = etoroNiveaus(kans.entry, kans.stopLoss, kans.takeProfit, limiet);
 
   const randKleur = kans.trendOp === true ? colors.winst
     : kans.trendOp === false ? colors.verlies
@@ -134,7 +139,17 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop }: {
       {/* Niveaus */}
       {kans.heeftTechnisch && (
         <View style={cardStyles.sectie}>
-          <LevelRow stop={kans.stopLoss} entry={kans.entry} doel={kans.takeProfit} />
+          <LevelRow
+            stop={niveaus.stop}
+            entry={kans.entry}
+            doel={kans.takeProfit}
+            stopAangepast={niveaus.aangepast}
+          />
+          {niveaus.uitleg ? (
+            <Text style={[Type.caption, { color: colors.letOp, lineHeight: 18, marginTop: 4 }]}>
+              {niveaus.uitleg}
+            </Text>
+          ) : null}
         </View>
       )}
 
@@ -143,7 +158,7 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop }: {
         {kans.heeftTechnisch && (
           <View style={cardStyles.rrItem}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(kans.rr)}</Text>
+            <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(niveaus.rr)}</Text>
           </View>
         )}
         <View style={cardStyles.rrItem}>
@@ -288,6 +303,8 @@ export function KansenScreen() {
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
   const [getradeteKans, setGetradeteKans] = useState<Opportunity | null>(null);
   const [koopKans, setKoopKans] = useState<Opportunity | null>(null);
+  // Eén keer per scherm de stop-loss-grenzen van eToro, zie MarktScreen voor het waarom.
+  const stopLimieten = useStopLossLimieten();
   const { magHandelen } = usePortfolio();
 
   // stil = true (pull-to-refresh): de bestaande lijst blijft zichtbaar terwijl er ververst wordt,
@@ -393,6 +410,7 @@ export function KansenScreen() {
               onOpenDetail={k => setDetailCoin(vanOpportunity(k))}
               onGetrade={setGetradeteKans}
               onKoop={magHandelen ? setKoopKans : undefined}
+              limiet={limietVoor(stopLimieten, item.symbool)}
             />
           )}
           contentContainerStyle={screenStyles.lijst}

@@ -4,6 +4,13 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Zijn er meer coins tegelijk met een sterk koopsignaal, dan zie je ze nu allemaal. Het blauwe vak "Wat moet ik nu kopen?" toonde er altijd maar een, de hoogst scorende, en de rest verdween zonder dat je wist dat hij er was. Je veegt er nu horizontaal doorheen; de puntjes eronder laten zien hoeveel er zijn en waar je bent. Is er maar een kans, dan blijft het vak precies zoals het was
+- De stop-loss die Kader toont is nu de stop die je bij eToro werkelijk kunt zetten. eToro eist per coin een minimale afstand tussen je aankoopprijs en je stop (bij bitcoin 10%), en Kaders eigen stop ligt daar meestal ruim binnen. Tot nu toe corrigeerde alleen de kooporder-sheet dat, dus op het marktscherm, bij Grote Kansen en op het coin-detailscherm stond een niveau dat je nergens kon invoeren. Die schermen tonen nu de bijgestelde stop met een klein ETORO-merkje erbij, plus de verhouding tussen risico en opbrengst die daar echt bij hoort. Dat cijfer valt vaak lager uit dan voorheen, en dat is het punt: met een stop van 10% en een doel van 9% verdien je niets, hoe hoog de score ook is. Zonder eToro-koppeling verandert er niets, dan blijft het niveau van Kader staan
+- Op het coin-detailscherm staat nu altijd een knop "Trade via eToro". Die stond er alleen als je sleutel handelsrechten had, en anders was er niets: geen knop, geen uitleg, en geen manier om te weten of Kader dit uberhaupt kon. Tik je hem zonder koppeling of zonder handelsrecht, dan staat er nu wat er ontbreekt en waar je het oplost
+- In het orderscherm staat je te besteden saldo nu boven het bedragveld in plaats van als voetnoot eronder, dus je weet wat er in kan voor je begint te tikken. Lukt het ophalen bij eToro niet, dan zegt de app dat ook. Stop-loss en take-profit vult Kader zelf in en stuurt hij mee met de order; het bedrag is het enige dat je nog invult
+
 ## 0.1.15
 
 - Shortposities uit eToro komen nu gewoon in de app. Tot nu toe sloeg de import ze over met de melding "short, nog niet ondersteund", want Kader ging er overal van uit dat een trade een koop was: stop eronder, doel erboven. Een short staat nu met de juiste richting in Mijn trades, met een kloppende winst- en verliesberekening, een kloppende verhouding tussen risico en opbrengst en een balk die de goede kant op leest. Ook de meldingen en het afbouwadvies weten nu welke kant een positie op staat, dus een short die in de winst loopt krijgt het voorstel om zijn stop te verlagen in plaats van te verhogen. Een short zelf invoeren kan ook

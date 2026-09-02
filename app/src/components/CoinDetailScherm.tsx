@@ -22,7 +22,10 @@ import { Disclaimer } from './Disclaimer';
 import { GetradeFormulier, GetradeBron } from './GetradeFormulier';
 import { KooporderSheet } from './KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { sleutelUitkomst } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
+import { etoroNiveaus } from '../engine/etoroLimieten';
+import { useStopLossLimiet } from '../state/useStopLossLimiet';
 
 interface Props {
   data: CoinDetailData | null;
@@ -47,9 +50,14 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   const [foutTijd, setFoutTijd] = useState<Date>(new Date());
   const [getradeOpen, setGetradeOpen] = useState(false);
   const [koopOpen, setKoopOpen] = useState(false);
-  const { magHandelen } = usePortfolio();
+  // Waarom handelen nu niet kan. Leeg zolang er niets te melden valt. De knop staat er altijd: hem
+  // weglaten liet de gebruiker in het ongewisse of Kader dit überhaupt kan.
+  const [handelReden, setHandelReden] = useState('');
+  const { magHandelen, omgeving } = usePortfolio();
+  const stopLimiet = useStopLossLimiet(data ? data.symbool : null, data?.richting ?? 'long');
 
   useEffect(() => {
+    setHandelReden('');
     if (data) laadData(data.symbool);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -77,8 +85,18 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0, richting: data.richting }
     : null;
 
+  // Wat er bij eToro werkelijk te zetten valt. Kaders stop ligt op een swing low en is voor de
+  // meeste coins krapper dan eToro's minimum (bij BTC 10%), en dan is het niveau uit de analyse een
+  // getal waar je niets mee kunt. Zonder koppeling of grens blijft alles precies zoals Kader het
+  // berekende.
+  const etoro = heeftNiveaus
+    ? etoroNiveaus(data.entry!, data.stopLoss!, data.takeProfit!, stopLimiet)
+    : null;
+  const getoondeStop = etoro ? etoro.stop : data.stopLoss;
+  const getoondeRr = etoro && etoro.aangepast ? etoro.rr : data.rr;
+
   const niveaus = [
-    data.stopLoss !== undefined ? { waarde: data.stopLoss, kleur: colors.verlies } : null,
+    getoondeStop !== undefined ? { waarde: getoondeStop, kleur: colors.verlies } : null,
     data.entry !== undefined ? { waarde: data.entry, kleur: colors.cta } : null,
     data.takeProfit !== undefined ? { waarde: data.takeProfit, kleur: colors.winst } : null,
   ].filter((n): n is { waarde: number; kleur: string } => n !== null);
@@ -134,6 +152,28 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
   const statusLabel = data.status === 'gewonnen' ? 'Gewonnen' : data.status === 'verloren' ? 'Verloren' : 'Open';
 
+  const isShort = data.richting === 'short';
+
+  // De knop opent de order-sheet, of legt uit waarom dat niet kan. Wat er ontbreekt weten we pas na
+  // een lezing van de sleutelopslag, dus dat gebeurt hier bij de tik en niet bij elke render.
+  async function openHandel() {
+    if (magHandelen) {
+      setHandelReden('');
+      setKoopOpen(true);
+      return;
+    }
+    const uitkomst = await sleutelUitkomst();
+    if (uitkomst.soort === 'geen') {
+      setHandelReden('Je hebt nog geen eToro-sleutel gekoppeld. Dat doe je via de drie puntjes rechtsboven, bij Instellingen.');
+      return;
+    }
+    if (uitkomst.soort === 'kluisfout') {
+      setHandelReden(`Kader kan de beveiligde opslag van je toestel nu niet bereiken, dus je sleutel is onbruikbaar. ${uitkomst.bericht}`);
+      return;
+    }
+    setHandelReden(`Je eToro-sleutel mag in ${omgeving === 'demo' ? 'demo' : 'je echte account'} wel lezen maar niet handelen. Maak bij eToro een sleutel met handelsrechten aan en koppel die opnieuw via de drie puntjes rechtsboven, bij Instellingen.`);
+  }
+
   return (
     <Modal visible animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
@@ -183,10 +223,21 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
             {heeftNiveaus && (
               <View style={styles.sectie}>
-                <LevelRow stop={data.stopLoss!} entry={data.entry!} doel={data.takeProfit!} richting={data.richting} />
-                {data.rr !== undefined && (
-                  <Text style={[Type.caption, styles.rrTekst, { color: colors.tekstGedimd }]}>R/R {fmtRR(data.rr)}</Text>
+                <LevelRow
+                  stop={getoondeStop!}
+                  entry={data.entry!}
+                  doel={data.takeProfit!}
+                  richting={data.richting}
+                  stopAangepast={etoro?.aangepast ?? false}
+                />
+                {getoondeRr !== undefined && (
+                  <Text style={[Type.caption, styles.rrTekst, { color: colors.tekstGedimd }]}>R/R {fmtRR(getoondeRr)}</Text>
                 )}
+                {etoro?.uitleg ? (
+                  <Text style={[Type.caption, styles.rrTekst, { color: colors.letOp, lineHeight: 18 }]}>
+                    {etoro.uitleg}
+                  </Text>
+                ) : null}
               </View>
             )}
 
@@ -298,35 +349,36 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
         )}
 
         {kanGetrade && (
-          <View style={[styles.actiebalk, styles.actiebalkRij, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
-            {/* Met een schrijfsleutel wordt Getrade secundair: direct kopen is dan de hoofdactie,
-                en zelf overtikken de uitzondering. Zonder schrijfsleutel blijft de balk zoals hij was. */}
-            <Pressable
-              style={[
-                styles.getradeKnop,
-                magHandelen
-                  ? { borderColor: colors.rand, borderWidth: 1.5 }
-                  : { backgroundColor: colors.cta },
-              ]}
-              onPress={() => setGetradeOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Getrade"
-            >
-              <CheckCircle size={16} color={magHandelen ? colors.tekstGedimd : 'white'} strokeWidth={1.75} />
-              <Text style={[Type.body, styles.getradeTekst, magHandelen && { color: colors.tekstGedimd }]}>Getrade</Text>
-            </Pressable>
+          <View style={[styles.actiebalk, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
+            {/* De reden staat boven de balk en niet in plaats van de knop: een knop die er niet is
+                laat je raden of Kader dit überhaupt kan. */}
+            {handelReden ? (
+              <Text style={[Type.caption, styles.handelReden, { color: colors.letOp }]}>{handelReden}</Text>
+            ) : null}
+            <View style={styles.actiebalkRij}>
+              {/* Traden is de hoofdactie, Getrade (zelf overtikken) is de uitzondering ernaast. */}
+              <Pressable
+                style={[styles.getradeKnop, { borderColor: colors.rand, borderWidth: 1.5 }]}
+                onPress={() => setGetradeOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Zelf ingevoerde trade opslaan"
+              >
+                <CheckCircle size={16} color={colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.body, styles.getradeTekst, { color: colors.tekstGedimd }]}>Getrade</Text>
+              </Pressable>
 
-            {magHandelen && (
               <Pressable
                 style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
-                onPress={() => setKoopOpen(true)}
+                onPress={openHandel}
                 accessibilityRole="button"
-                accessibilityLabel={`${data.symbool} kopen via eToro`}
+                accessibilityLabel={`${data.symbool} ${isShort ? 'shorten' : 'kopen'} via eToro`}
               >
                 <ShoppingCart size={16} color="white" strokeWidth={1.75} />
-                <Text style={[Type.body, styles.getradeTekst]}>Koop via eToro</Text>
+                <Text style={[Type.body, styles.getradeTekst]}>
+                  {isShort ? 'Short via eToro' : 'Trade via eToro'}
+                </Text>
               </Pressable>
-            )}
+            </View>
           </View>
         )}
       </SafeAreaView>
@@ -345,6 +397,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
           entry={data.entry}
           stop={data.stopLoss}
           doel={data.takeProfit}
+          richting={data.richting}
           onSluiten={() => setKoopOpen(false)}
         />
       )}
@@ -412,7 +465,9 @@ const styles = StyleSheet.create({
     padding: spacing.base,
   },
   actiebalkRij: { flexDirection: 'row', gap: spacing.sm },
+  handelReden: { marginBottom: spacing.sm, lineHeight: 18 },
   getradeKnop: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
