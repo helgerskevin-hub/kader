@@ -83,6 +83,12 @@ export const SLEUTELS = {
   // Laatst opgehaalde euro-per-dollar-koers met tijdstip. Gecachet zodat de app ook zonder
   // netwerk direct in euro's kan openen; ververst zodra hij ouder is dan een halve dag.
   wisselkoers: 'wisselkoers_eur_per_usd',
+  // Zelf ingestelde prijsalerts ("meld het als BTC boven 80.000 komt"). Niveaus in dollars, net
+  // als alle marktdata. Geen geheim, dus gewoon AsyncStorage.
+  prijsalerts: 'prijsalerts',
+  // Staan Kaders meldingen aan? 'aan' of 'uit'. Ontbreekt de waarde, dan staan ze aan: dat is het
+  // gedrag van elke versie tot nu toe.
+  meldingenAan: 'meldingen_aan',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

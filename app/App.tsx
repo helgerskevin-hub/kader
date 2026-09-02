@@ -25,6 +25,7 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { laadVlag, bewaarVlag, laadTekst, bewaarTekst, SLEUTELS } from './src/storage/opslag';
 import { heeftEnigeSleutel } from './src/state/etoroSleutels';
 import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
+import { meldingenAan } from './src/state/meldingVoorkeur';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
 import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
@@ -123,10 +124,14 @@ function AppInhoud() {
     laadVlag(SLEUTELS.onboarding).then(klaar => {
       setOnboardingKlaar(klaar);
       setOnboardingGeladen(true);
-      if (klaar) {
+      // Alleen als de gebruiker meldingen aan heeft staan. Zonder deze controle zou elke app-start
+      // de dagelijkse herinnering opnieuw inplannen en de achtergrondtaak weer registreren, en dan
+      // is de knop in Instellingen tot de volgende start uit en daarna weer aan.
+      if (klaar) meldingenAan().then(aan => {
+        if (!aan) return;
         stelDagelijkseMeldingIn();
         registreerAchtergrondtaak();
-      }
+      });
     });
   }, []);
 

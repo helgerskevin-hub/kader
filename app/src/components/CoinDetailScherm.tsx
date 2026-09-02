@@ -4,7 +4,7 @@ import {
   Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, CheckCircle, ShoppingCart } from 'lucide-react-native';
+import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
 import { haalData } from '../engine/marketData';
@@ -21,6 +21,7 @@ import { OfflineMelding } from './OfflineMelding';
 import { Disclaimer } from './Disclaimer';
 import { GetradeFormulier, GetradeBron } from './GetradeFormulier';
 import { KooporderSheet } from './KooporderSheet';
+import { PrijsalertSheet } from './PrijsalertSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { sleutelUitkomst } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
@@ -50,6 +51,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   const [foutTijd, setFoutTijd] = useState<Date>(new Date());
   const [getradeOpen, setGetradeOpen] = useState(false);
   const [koopOpen, setKoopOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
   // Waarom handelen nu niet kan. Leeg zolang er niets te melden valt. De knop staat er altijd: hem
   // weglaten liet de gebruiker in het ongewisse of Kader dit überhaupt kan.
   const [handelReden, setHandelReden] = useState('');
@@ -188,6 +190,18 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
             )}
             {typeof data.score === 'number' && <ScoreBadge score={data.score} />}
           </View>
+          {/* Een alert kan op elke coin, ook op een die je al hebt en ook zonder eToro-koppeling:
+              het is een melding, geen order. Daarom in de header en niet in de actiebalk onderin,
+              die staat er alleen bij een coin met niveaus. */}
+          <Pressable
+            onPress={() => setAlertOpen(true)}
+            style={styles.sluitKnop}
+            accessibilityRole="button"
+            accessibilityLabel={`Prijsalert instellen voor ${data.symbool}`}
+            hitSlop={8}
+          >
+            <Bell size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+          </Pressable>
           <Pressable
             onPress={onSluiten}
             style={styles.sluitKnop}
@@ -382,6 +396,14 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
           </View>
         )}
       </SafeAreaView>
+
+      <PrijsalertSheet
+        zichtbaar={alertOpen}
+        onSluiten={() => setAlertOpen(false)}
+        symbool={data.symbool}
+        naam={data.naam}
+        huidigePrijs={data.prijs}
+      />
 
       <GetradeFormulier
         zichtbaar={getradeOpen}

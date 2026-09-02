@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import {
   X, Smartphone, Sun, Moon, FileText, Link2, ChevronRight, FlaskConical, Wallet,
-  DollarSign, Euro,
+  DollarSign, Euro, Bell, BellOff,
 } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -16,6 +16,8 @@ import { EtoroOmgeving } from '../engine/etoro';
 import { SLEUTELS, laadVlag } from '../storage/opslag';
 import { useValuta } from '../state/useValuta';
 import { Valuta } from '../engine/valuta';
+import { meldingenAan } from '../state/meldingVoorkeur';
+import { zetMeldingen } from '../state/meldingSchakelaar';
 
 interface Props {
   zichtbaar: boolean;
@@ -31,6 +33,11 @@ const OPTIES: { modus: ThemaModus; label: string; Icon: typeof Sun }[] = [
 const VALUTAS: { valuta: Valuta; label: string; Icon: typeof Sun }[] = [
   { valuta: 'USD', label: 'Dollar', Icon: DollarSign },
   { valuta: 'EUR', label: 'Euro', Icon: Euro },
+];
+
+const MELDINGKEUZES: { aan: boolean; label: string; Icon: typeof Sun }[] = [
+  { aan: true, label: 'Aan', Icon: Bell },
+  { aan: false, label: 'Uit', Icon: BellOff },
 ];
 
 const OMGEVINGEN: { omgeving: EtoroOmgeving; label: string; Icon: typeof Sun }[] = [
@@ -70,9 +77,29 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [sleutelStatus, setSleutelStatus] = useState<SleutelStatus>('Niet ingesteld');
   const [bezigWisselen, setBezigWisselen] = useState(false);
+  const [meldingen, setMeldingen] = useState(true);
+  const [bezigMeldingen, setBezigMeldingen] = useState(false);
 
   async function ververStatussen() {
-    setSleutelStatus(await bepaalStatus());
+    const [status, aan] = await Promise.all([bepaalStatus(), meldingenAan()]);
+    setSleutelStatus(status);
+    setMeldingen(aan);
+  }
+
+  // De schakelaar doet meteen wat hij belooft: uit wist de geplande dagelijkse herinnering en
+  // schrijft de achtergrondtaak uit. Mislukt dat, dan zetten we de knop terug in plaats van een
+  // stand te tonen die niet klopt.
+  async function kiesMeldingen(aan: boolean) {
+    if (aan === meldingen || bezigMeldingen) return;
+    setBezigMeldingen(true);
+    setMeldingen(aan);
+    try {
+      await zetMeldingen(aan);
+    } catch {
+      setMeldingen(!aan);
+    } finally {
+      setBezigMeldingen(false);
+    }
   }
 
   useEffect(() => {
@@ -191,6 +218,43 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
           : valuta === 'EUR' && eurPerUsd !== null
             ? `Koersen en bedragen worden omgerekend tegen €${eurPerUsd.toFixed(4)} per dollar. Orders reken je bij eToro in dollars af, dus die schermen blijven in dollars.`
             : 'Marktdata en eToro rekenen allebei in dollars. Kies euro als je liever ziet wat een bedrag in je eigen valuta is.'}
+      </Text>
+
+      <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
+        MELDINGEN
+      </Text>
+      <View style={styles.opties}>
+        {MELDINGKEUZES.map(({ aan, label, Icon }) => {
+          const actief = meldingen === aan;
+          return (
+            <Pressable
+              key={label}
+              onPress={() => kiesMeldingen(aan)}
+              disabled={bezigMeldingen}
+              accessibilityRole="button"
+              accessibilityState={{ selected: actief, disabled: bezigMeldingen }}
+              accessibilityLabel={aan ? 'Meldingen aan' : 'Meldingen uit'}
+              style={[
+                styles.optie,
+                {
+                  backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
+                  borderColor: actief ? colors.cta : colors.rand,
+                  opacity: bezigMeldingen ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
+              <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
+        {meldingen
+          ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open trade aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
+          : 'Kader stuurt geen enkele melding meer, ook geen prijsalerts. Je alerts blijven staan en gaan weer werken zodra je dit aanzet.'}
       </Text>
 
       <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
