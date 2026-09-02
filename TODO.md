@@ -181,7 +181,30 @@ Dat is het verschil tussen een strategie die werkt en een die niet werkt, over d
 
 **Wat er nu mee is gedaan:** het cijfer is per coin zichtbaar gemaakt op het marktscherm en het coin-detailscherm, met de meting erbij. Het telt bewust NIET mee in de 0-100 score en filtert niets weg.
 
-- [ ] **Keuze voor Kevin en Thom: moet dit in de strategie?** De meting steunt het ruim, en anders dan een drempelverlaging is dit een AANSCHERPING. Drie opties: (a) laten zoals nu, alleen zichtbaar; ~~(b) een filter dat je zelf aanzet onder Filters~~ **gebouwd, staat standaard uit**; (c) coins die meer dan +25% voorliggen op BTC nooit meer als KOOP tonen. Optie (c) is wat de meting het sterkst steunt en meteen de grootste ingreep, want het verandert elk signaal dat de app geeft. Daarom niet eenzijdig gedaan.
+- [ ] **Keuze voor Kevin en Thom: moet dit in de strategie?** De meting steunt het ruim, en anders dan een drempelverlaging is dit een AANSCHERPING. Optie (a) laten zoals nu (alleen zichtbaar) en ~~(b) een filter dat je zelf aanzet~~ **is gebouwd en staat standaard uit**. Blijft over: (c) het in de engine zetten. Meting H2e is er specifiek voor gedraaid, zie hieronder.
+
+#### H2e: wat optie (c) precies kost en oplevert
+
+_(Zelfde run, `npm run backtest`. De laatste kolom is nieuw en het belangrijkst: hoeveel dagen houdt de app nog iets te melden? Gemiddelde R zegt niets over of het scherm nog gevuld is.)_
+
+| variant | n | gem R | 2022 | 2025 | 2026 | dagen met signaal |
+|---|---|---|---|---|---|---|
+| **wat de app vandaag doet** | 1919 | +0,192 | -0,46 | -0,14 | +0,09 | 714 |
+| zonder voorlopers boven +25% | 1703 | +0,207 | -0,41 | -0,11 | +0,10 | 686 |
+| **zonder voorlopers boven +10%** | 1512 | **+0,243** | -0,34 | -0,07 | +0,10 | **670** |
+| alleen achterblijvers (-10% of meer) | 666 | **+0,574** | **+0,01** | **+0,73** | +0,20 | 468 |
+
+Twee dingen springen eruit.
+
+**De grens van +10% is bijna gratis.** Hij tilt het gemiddelde met een kwart op (+0,192 naar +0,243) en kost 44 van de 714 signaaldagen, dus 6 procent. Dat is een betere ruil dan de +25% die eerder werd voorgesteld; die is nauwelijks strenger dan niets.
+
+**"Alleen achterblijvers" repareert precies de jaren die stuk zijn.** 2022 van -0,46 naar +0,01, 2025 van -0,14 naar +0,73. Dat zijn de bearmarkten waar dit hele project al twee plannen aan besteed heeft. Maar het kost een derde van de signaaldagen (714 naar 468), en in een jaar waarin de poort toch al vaak dicht staat is dat het verschil tussen weinig signalen en geen signalen.
+
+Zonder de marktpoort (H2f) wijst het dezelfde kant op: "alleen achterblijvers" geeft +0,362 tegen +0,088, met 2025 op +0,03 en 2026 op +0,14 in plaats van -0,24 en -0,05.
+
+**Aanbeveling:** de +10%-grens als harde regel (dus voorlopers boven +10% krijgen geen KOOP meer), en "alleen achterblijvers" laten waar het nu staat, als filter dat je zelf aanzet. Dan pakt de app de goedkope winst zonder dat het scherm een derde van de tijd leeg blijft, en wie strenger wil kan dat met een tik. Maar dit verandert wel elk signaal dat de app geeft, dus het wacht op jullie akkoord.
+
+- [ ] **Kanttekening bij het bovenstaande:** dit is één harness op één dataset, zonder aparte out-of-sample-periode. Wat het geloofwaardig maakt is dat de helling monotoon is over zeven emmers, dat hij standhoudt zonder de marktpoort, en dat hij in acht van de negen jaren dezelfde kant op wijst. Wat het niet wegneemt: er zijn nu drie hypotheses en een handvol drempels getoetst op dezelfde negen jaar. Voordat (c) erin gaat is het de moeite waard om de meting één keer opnieuw te draaien op verse data.
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging

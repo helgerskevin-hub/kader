@@ -766,6 +766,47 @@ jaarRegel('basis, geen poort', draai(kaal));
 jaarRegel('+ zwakker dan BTC', draai(s => kaal(s) && s.rs30 !== null && s.rs30 <= 0));
 jaarRegel('+ sterker dan BTC', draai(s => kaal(s) && s.rs30 !== null && s.rs30 > 0));
 
+// H2e is de vraag die na H2 openbleef: wat kóst en levert optie (c) nu precies op? Dat is de
+// variant waarin de app coins die ver voorliggen op BTC nooit meer als KOOP toont. Hier staat hij
+// naast wat de app vandaag doet, in de twee doorsnedes die ertoe doen: de volledige strategie en
+// high conviction, allebei met de marktpoort erbij zoals de app hem draait.
+//
+// De kolom die het meest telt is n. Een filter dat de gemiddelde R optilt door de helft van de
+// trades weg te gooien maakt de app óók de helft stiller, en in een jaar waarin de poort al vaak
+// dicht staat is dat het verschil tussen "weinig signalen" en "geen signalen".
+jaarKop('H2e, wat optie (c) zou doen (poort open, doel 3x ATR / 30 dagen):');
+jaarRegel('KOOP + R/R (vandaag)', draai(basisKoop));
+jaarRegel('  zonder voorlopers >25%', draai(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.25)));
+jaarRegel('  zonder voorlopers >10%', draai(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.10)));
+jaarRegel('  alleen achterblijvers', draai(s => basisKoop(s) && s.rs30 !== null && s.rs30 <= -0.10));
+jaarRegel('high conviction (vandaag)', draai(basisHc));
+jaarRegel('  zonder voorlopers >25%', draai(s => basisHc(s) && (s.rs30 === null || s.rs30 <= 0.25)));
+jaarRegel('  zonder voorlopers >10%', draai(s => basisHc(s) && (s.rs30 === null || s.rs30 <= 0.10)));
+jaarRegel('  alleen achterblijvers', draai(s => basisHc(s) && s.rs30 !== null && s.rs30 <= -0.10));
+
+// En hetzelfde zonder poort, want de poort staat lang niet altijd open en een regel in de engine
+// werkt ook op de dagen dat hij dicht is.
+jaarKop('H2f, idem maar zonder marktpoort:');
+jaarRegel('KOOP + R/R (vandaag)', draai(kaal));
+jaarRegel('  zonder voorlopers >25%', draai(s => kaal(s) && (s.rs30 === null || s.rs30 <= 0.25)));
+jaarRegel('  zonder voorlopers >10%', draai(s => kaal(s) && (s.rs30 === null || s.rs30 <= 0.10)));
+jaarRegel('  alleen achterblijvers', draai(s => kaal(s) && s.rs30 !== null && s.rs30 <= -0.10));
+
+// Hoeveel signalen raken we kwijt, uitgedrukt in dagen met minstens een signaal? Gemiddelde R zegt
+// niets over of de app nog iets te melden heeft.
+const dagenMet = (kiest: (s: Signaal) => boolean) => {
+  const dagen = new Set<string>();
+  for (const symbool of coins) {
+    for (const s of signalenPerCoin[symbool] ?? []) if (kiest(s)) dagen.add(s.datum);
+  }
+  return dagen.size;
+};
+console.log('\n  Dagen met minstens een KOOP-signaal (poort open):');
+console.log(`    vandaag                 ${dagenMet(basisKoop)}`);
+console.log(`    zonder voorlopers >25%  ${dagenMet(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.25))}`);
+console.log(`    zonder voorlopers >10%  ${dagenMet(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.10))}`);
+console.log(`    alleen achterblijvers   ${dagenMet(s => basisKoop(s) && s.rs30 !== null && s.rs30 <= -0.10)}`);
+
 // --- wegschrijven -----------------------------------------------------------------------
 
 mkdirSync(UIT, { recursive: true });
