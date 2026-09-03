@@ -38,6 +38,49 @@ export function kiesSleutelbron(
   return null;
 }
 
+// Wat er met het User Key-veld moet gebeuren zodra iemand de publieke sleutel aanpast.
+//
+// eToro geeft bij een nieuwe sleutel ook een nieuwe User Key, en toont die precies één keer. De
+// wizard vulde allebei de velden voor met wat er op het toestel stond, dus wie een nieuwe publieke
+// sleutel plakte hield de oude User Key eronder staan, gemaskeerd als bolletjes en dus ogenschijnlijk
+// gewoon ingevuld. Dat is precies de combinatie die eToro met een 401 weigert, en de melding daarbij
+// adviseerde je te doen wat je net gedaan dacht te hebben.
+//
+// Hier als pure functie omdat het een sleutelbeslissing is, net als kiesSleutelbron hierboven: het
+// gaat over een User Key die je niet opnieuw kunt opvragen, dus het moet toetsbaar zijn.
+export interface Sleutelwissel {
+  userKey: string;
+  // Staat het veld leeg omdat de publieke sleutel veranderde? Dan moet de wizard uitleggen waarom,
+  // anders leest een leeg veld als een bug.
+  gewist: boolean;
+}
+
+export function userKeyBijApiKeyWijziging(
+  geladen: Sleutelpaar | null,
+  nieuweApiKey: string,
+  huidigeUserKey: string,
+  eerderGewist: boolean,
+): Sleutelwissel {
+  // Niets voorgevuld: er is ook niets dat niet meer bij elkaar kan horen.
+  if (!geladen) return { userKey: huidigeUserKey, gewist: eerderGewist };
+
+  const anders = nieuweApiKey.trim() !== geladen.apiKey.trim();
+
+  // Andere publieke sleutel terwijl de voorgevulde User Key er nog staat: die hoort er niet meer bij.
+  if (anders && huidigeUserKey === geladen.userKey && huidigeUserKey !== '') {
+    return { userKey: '', gewist: true };
+  }
+
+  // Weer terug op de oude publieke sleutel: dan mag de oude User Key ook terug. Zonder dit sta je
+  // met een leeg veld terwijl er per saldo niets veranderd is, en eToro laat hem je niet nog eens
+  // zien. Alleen als het veld nog leeg is, zodat een zelf ingetypte User Key nooit overschreven wordt.
+  if (!anders && eerderGewist && huidigeUserKey === '') {
+    return { userKey: geladen.userKey, gewist: false };
+  }
+
+  return { userKey: huidigeUserKey, gewist: eerderGewist };
+}
+
 // Op welke omgeving hoort iemand te starten die nog nooit expliciet gekozen heeft? Dit houdt precies
 // het gedrag aan van voor deze wijziging (echt && !demo ? 'real' : 'demo'): alleen een sleutel die
 // uitsluitend in het echte vakje stond hoort bij een bestaande echte koppeling van voor 0.1.13, en
@@ -98,6 +141,47 @@ if (require.main === module) {
   const bronnen: Sleutelbron[] = ['echt', 'demo', 'beide', null];
   console.assert(bronnen.filter(x => standaardOmgeving(x) === 'real').length === 1,
     'maar een van de vier bronnen mag op het echte account uitkomen');
+
+  // ---------- Wat gebeurt er met de User Key als de publieke sleutel verandert ----------
+  const opgeslagen: Sleutelpaar = { apiKey: 'API-OUD', userKey: 'USER-OUD' };
+
+  // Het geval van Kevin: nieuwe sleutel bij eToro gemaakt, publieke sleutel geplakt, en de oude
+  // User Key bleef eronder staan. Die moet nu weg, met uitleg.
+  const geplakt = userKeyBijApiKeyWijziging(opgeslagen, 'API-NIEUW', 'USER-OUD', false);
+  console.assert(geplakt.userKey === '' && geplakt.gewist,
+    'een nieuwe publieke sleutel maakt de voorgevulde User Key leeg');
+
+  // Tussentijds tikken mag de al ingevulde nieuwe User Key niet opeten.
+  const zelfIngevuld = userKeyBijApiKeyWijziging(opgeslagen, 'API-NIEUW', 'USER-NIEUW', true);
+  console.assert(zelfIngevuld.userKey === 'USER-NIEUW' && zelfIngevuld.gewist,
+    'een zelf ingetypte User Key blijft staan');
+
+  // Terug naar de oude sleutel: de oude User Key hoort terug te komen, want eToro toont hem niet
+  // nog een keer.
+  const teruggezet = userKeyBijApiKeyWijziging(opgeslagen, 'API-OUD', '', true);
+  console.assert(teruggezet.userKey === 'USER-OUD' && !teruggezet.gewist,
+    'de oude sleutel terugzetten geeft de oude User Key terug');
+
+  // Maar niet over iets heen dat de gebruiker zelf heeft ingevuld.
+  const terugMaarIngevuld = userKeyBijApiKeyWijziging(opgeslagen, 'API-OUD', 'USER-NIEUW', true);
+  console.assert(terugMaarIngevuld.userKey === 'USER-NIEUW',
+    'terugzetten overschrijft nooit een zelf ingevulde User Key');
+
+  // Witruimte bij het plakken is geen andere sleutel.
+  const metSpaties = userKeyBijApiKeyWijziging(opgeslagen, '  API-OUD  ', 'USER-OUD', false);
+  console.assert(metSpaties.userKey === 'USER-OUD' && !metSpaties.gewist,
+    'spaties rond dezelfde sleutel tellen niet als wijziging');
+
+  // Wie nog niet gekoppeld was heeft niets te verliezen.
+  const nietGekoppeld = userKeyBijApiKeyWijziging(null, 'API-NIEUW', 'USER-GETYPT', false);
+  console.assert(nietGekoppeld.userKey === 'USER-GETYPT' && !nietGekoppeld.gewist,
+    'zonder opgeslagen paar verandert er niets');
+
+  // Halverwege het plakken van een lange sleutel mag het veld niet blijven flikkeren: is de User Key
+  // eenmaal leeg, dan blijft hij leeg zolang de publieke sleutel afwijkt.
+  const nogSteedsAnders = userKeyBijApiKeyWijziging(opgeslagen, 'API-NIEUWER', '', true);
+  console.assert(nogSteedsAnders.userKey === '' && nogSteedsAnders.gewist,
+    'blijft leeg zolang de publieke sleutel afwijkt');
 
   console.log('sleutelKeuze.ts self-check geslaagd');
 }
