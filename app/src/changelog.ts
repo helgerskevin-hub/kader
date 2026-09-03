@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.18',
+    datum: '2026-09-03',
+    punten: [
+      'De koersgrafiek op een coinscherm heeft nu knoppen voor de periode: 1M, 3M, 6M en Alles. De grafiek stond altijd vast op ongeveer drie maanden, dus een langere trend was er niet uit te lezen en een recente beweging verdronk in de rest. Drie maanden blijft de stand waarin het scherm opent. Er staan alleen knoppen die echt iets veranderen: geeft de bron voor die coin maar een maand geschiedenis terug, dan zou elke knop dezelfde lijn tonen en verdwijnt de rij helemaal. Kies je een periode die langer is dan wat er beschikbaar is, dan valt de grafiek terug op Alles in plaats van leeg te blijven',
+      'De melding "nieuw in deze versie" en het scherm Wijzigingen onder Instellingen waren niet te scrollen: alles onder de eerste paar punten was simpelweg niet te bereiken. De lijst kon niet krimpen binnen het venster en liep er dus onderuit voorbij, waar hij werd afgekapt. Dat gold ook voor het meldingenoverzicht, dat sinds de prijsalerts lang genoeg kan worden om hetzelfde te raken',
+      'Het menu rechtsboven noemt de uitleg nu "Informatie" in plaats van "Achtergrond", en het scherm zelf heet ook zo. "Achtergrond" leest als iets dat op de achtergrond draait, terwijl het gewoon de uitleg bij de app is',
+    ],
+  },
+  {
     versie: '0.1.17',
     datum: '2026-09-03',
     punten: [
