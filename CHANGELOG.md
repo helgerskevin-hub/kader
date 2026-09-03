@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.18
+
+- De koersgrafiek op een coinscherm heeft nu knoppen voor de periode: 1M, 3M, 6M en Alles. De grafiek stond altijd vast op ongeveer drie maanden, dus een langere trend was er niet uit te lezen en een recente beweging verdronk in de rest. Drie maanden blijft de stand waarin het scherm opent. Er staan alleen knoppen die echt iets veranderen: geeft de bron voor die coin maar een maand geschiedenis terug, dan zou elke knop dezelfde lijn tonen en verdwijnt de rij helemaal. Kies je een periode die langer is dan wat er beschikbaar is, dan valt de grafiek terug op Alles in plaats van leeg te blijven
+- De melding "nieuw in deze versie" en het scherm Wijzigingen onder Instellingen waren niet te scrollen: alles onder de eerste paar punten was simpelweg niet te bereiken. De lijst kon niet krimpen binnen het venster en liep er dus onderuit voorbij, waar hij werd afgekapt. Dat gold ook voor het meldingenoverzicht, dat sinds de prijsalerts lang genoeg kan worden om hetzelfde te raken
+- Het menu rechtsboven noemt de uitleg nu "Informatie" in plaats van "Achtergrond", en het scherm zelf heet ook zo. "Achtergrond" leest als iets dat op de achtergrond draait, terwijl het gewoon de uitleg bij de app is
+
 ## 0.1.17
 
 - Maakte je bij eToro een nieuwe API-sleutel aan, dan bleef Kader je oude User Key voorgevuld tonen. Gemaskeerd als bolletjes, dus stap 2 van de koppelwizard zag er ingevuld uit en je klikte eroverheen. Je koppelde daarmee een nieuwe publieke sleutel aan een oude User Key, en dat is precies de combinatie die eToro weigert. De verbindingstest zei dan dat je je sleutel opnieuw moest invullen, wat je net gedaan dacht te hebben. Vul je nu een andere publieke sleutel in, dan maakt Kader het User Key-veld leeg en legt uit waarom: eToro geeft bij een nieuwe sleutel ook een nieuwe User Key, en toont die maar een keer. Zet je de oude sleutel terug, dan komt de oude User Key ook weer terug

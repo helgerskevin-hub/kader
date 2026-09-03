@@ -77,7 +77,7 @@ export function MeldingenSheet({ zichtbaar, onSluiten, log, onKies }: Props) {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false}>
       {alerts.length > 0 && (
         <View style={styles.alertBlok}>
           <Text style={[Type.overline, { color: colors.tekstGedimd, marginBottom: spacing.sm }]}>
@@ -194,7 +194,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.base,
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  scroll: { flexGrow: 0 },
   entry: {
     paddingBottom: spacing.sm,
     marginBottom: spacing.sm,

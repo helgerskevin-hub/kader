@@ -1,12 +1,13 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, LayoutChangeEvent, PanResponder } from 'react-native';
+import { View, Text, Pressable, StyleSheet, LayoutChangeEvent, PanResponder } from 'react-native';
 import Svg, { Defs, LinearGradient, Stop, Polygon, Polyline, Line, Circle } from 'react-native-svg';
 import { Candle } from '../engine/types';
 import { fmtPrijs } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing } from '../theme/tokens';
+import { spacing, radii } from '../theme/tokens';
 import { useValutaStand } from '../state/useValuta';
+import { BereikId, STANDAARD_BEREIK, beschikbareBereiken, geldigBereik, reeksVoorBereik } from '../engine/grafiekBereik';
 
 interface Niveau {
   waarde: number;
@@ -17,9 +18,11 @@ interface Props {
   candles: Candle[];
   niveaus?: Niveau[];
   hoogte?: number;
+  // Uit voor de voorbeeldgrafiek onder het informatie-scherm: dat is een plaatje bij een uitleg,
+  // geen coin waar je doorheen wilt bladeren.
+  toonPeriodes?: boolean;
 }
 
-const MAX_PUNTEN = 90;
 const PAD = 10;
 
 function fmtDatumKort(tijd?: number): string {
@@ -27,7 +30,7 @@ function fmtDatumKort(tijd?: number): string {
   return new Date(tijd).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
 }
 
-export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180 }: Props) {
+export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes = true }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -35,6 +38,7 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180 }: Props) {
   const { colors } = useTheme();
   const [breedte, setBreedte] = useState(0);
   const [actief, setActief] = useState<number | null>(null);
+  const [periode, setPeriode] = useState<BereikId>(STANDAARD_BEREIK);
   const breedteRef = useRef(0);
 
   function opLayout(e: LayoutChangeEvent) {
@@ -42,8 +46,21 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180 }: Props) {
     breedteRef.current = e.nativeEvent.layout.width;
   }
 
-  const reeks = candles.slice(-MAX_PUNTEN);
+  const periodes = toonPeriodes ? beschikbareBereiken(candles) : [];
+  // Niet op de keuze zelf markeren maar op wat er echt getoond wordt: heeft deze coin te weinig
+  // historie voor de gekozen periode, dan valt hij terug op Alles en hoort die knop op te lichten.
+  const actievePeriode = geldigBereik(candles, periode);
+  const reeks = reeksVoorBereik(candles, periode);
   const sluitkoersen = reeks.map(c => c.close);
+
+  // De aanwijzer wijst een index in `reeks` aan, en die reeks krimpt als je een korter bereik kiest.
+  // Zonder deze grens leest de tooltip na het wisselen buiten de rij en valt het scherm om.
+  const actiefVeilig = actief !== null && actief < sluitkoersen.length ? actief : null;
+
+  function kiesPeriode(id: BereikId) {
+    setActief(null);
+    setPeriode(id);
+  }
 
   const panResponder = useRef(
     PanResponder.create({
@@ -85,8 +102,8 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180 }: Props) {
   const laatsteX = xVoor(sluitkoersen.length - 1);
   const laatsteY = yVoor(sluitkoersen[sluitkoersen.length - 1]);
 
-  const actiefX = actief !== null ? xVoor(actief) : null;
-  const actiefY = actief !== null ? yVoor(sluitkoersen[actief]) : null;
+  const actiefX = actiefVeilig !== null ? xVoor(actiefVeilig) : null;
+  const actiefY = actiefVeilig !== null ? yVoor(sluitkoersen[actiefVeilig]) : null;
   const tooltipBreedte = 130;
   const tooltipLinks = actiefX !== null
     ? Math.min(Math.max(actiefX - tooltipBreedte / 2, 0), Math.max(breedte - tooltipBreedte, 0))
@@ -138,10 +155,10 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180 }: Props) {
         <Text style={[Type.label, styles.prijsLabelBoven, { color: colors.tekstGedimd }]}>{fmtPrijs(max)}</Text>
         <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd }]}>{fmtPrijs(min)}</Text>
 
-        {actief !== null && (
+        {actiefVeilig !== null && (
           <View style={[styles.tooltip, { left: tooltipLinks, backgroundColor: colors.kaart, borderColor: colors.rand }]}>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[actief].tijd)}</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(sluitkoersen[actief])}</Text>
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[actiefVeilig].tijd)}</Text>
+            <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(sluitkoersen[actiefVeilig])}</Text>
           </View>
         )}
       </View>
@@ -150,6 +167,33 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180 }: Props) {
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[0].tijd)}</Text>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[reeks.length - 1].tijd)}</Text>
       </View>
+
+      {/* Alleen tonen als er iets te kiezen valt: bij een bron die maar een maand teruggaat zou elke
+          knop dezelfde grafiek geven, en dat leest als een kapotte app. */}
+      {periodes.length > 0 && (
+        <View style={styles.bereikRij}>
+          {periodes.map(b => {
+            const aan = b.id === actievePeriode;
+            return (
+              <Pressable
+                key={b.id}
+                onPress={() => kiesPeriode(b.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: aan }}
+                accessibilityLabel={`Toon ${b.label}`}
+                style={[
+                  styles.bereikPil,
+                  { backgroundColor: aan ? colors.cta : colors.verhoogd },
+                ]}
+              >
+                <Text style={[Type.caption, { color: aan ? 'white' : colors.tekstGedimd, fontWeight: '600' }]}>
+                  {b.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -173,5 +217,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: spacing.xs,
+  },
+  bereikRij: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  bereikPil: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    minHeight: 32,
+    minWidth: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

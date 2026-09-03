@@ -53,7 +53,7 @@ export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldinge
           />
           <Rij
             icoon={<BookOpen size={18} color={colors.tekstGedimd} strokeWidth={1.75} />}
-            label="Achtergrond"
+            label="Informatie"
             rand={colors.rand}
             tekstKleur={colors.tekstPrimair}
             onPress={() => uitvoeren(onAchtergrond)}

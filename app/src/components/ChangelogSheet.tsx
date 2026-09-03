@@ -37,7 +37,7 @@ export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) 
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false}>
         {entries.map(entry => (
           <View key={entry.versie} style={styles.entry}>
             <View style={styles.entryKop}>
@@ -75,7 +75,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.base,
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  scroll: { flexGrow: 0 },
   entry: { marginBottom: spacing.base },
   entryKop: {
     flexDirection: 'row',

@@ -78,7 +78,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
     <Modal visible={zichtbaar} animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
         <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
-          <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Achtergrond informatie</Text>
+          <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Informatie</Text>
           <Pressable
             onPress={onSluiten}
             style={styles.sluitKnop}
@@ -133,6 +133,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             </Text>
             <PrijsGrafiek
               candles={DEMO_CANDLES}
+              toonPeriodes={false}
               niveaus={[
                 { waarde: 85, kleur: colors.verlies },
                 { waarde: 100, kleur: colors.cta },
