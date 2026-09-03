@@ -12,9 +12,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    // Nog niet uitgebracht: versie en datum worden pas ingevuld als er een release-APK gebouwd wordt.
-    versie: 'Nog niet uitgebracht',
-    datum: '',
+    versie: '0.1.16',
+    datum: '2026-09-03',
     punten: [
       'De schermen die over het hele beeld openen (coin-detail, achtergrond, historie en de eToro-wizard) hadden bovenin een lege band van ruim honderd punten. De statusbalk werd twee keer gecompenseerd: de app telde de hoogte ervan er handmatig bij op terwijl de veilige-zone er al rekening mee hield. Dat kostte op elk van die schermen ongeveer een hele sectie aan zichtbare inhoud. De band is weg, en op toestellen waar die veilige zone er niet is vult Kader hem nog steeds zelf aan, zodat de titel daar niet alsnog onder de klok verdwijnt',
       'Nieuw filter op het marktscherm: VS BTC. Kies "Geen voorlopers" om coins weg te laten die meer dan 25 procent voorliggen op bitcoin, of "Alleen achterblijvers" voor coins die 10 procent of meer achterlopen. Dat zijn precies de grenzen uit de meting: koopsignalen op achterblijvers deden het over negen jaar beter dan dezelfde signalen op coins die al ver voorliepen. Onder het filter staat wat je ermee wegfiltert. Standaard staat het uit en verandert er niets aan de lijst, en een coin waarvan Kader het cijfer niet kent valt nooit weg',
