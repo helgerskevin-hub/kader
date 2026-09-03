@@ -4,6 +4,13 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.17
+
+- Maakte je bij eToro een nieuwe API-sleutel aan, dan bleef Kader je oude User Key voorgevuld tonen. Gemaskeerd als bolletjes, dus stap 2 van de koppelwizard zag er ingevuld uit en je klikte eroverheen. Je koppelde daarmee een nieuwe publieke sleutel aan een oude User Key, en dat is precies de combinatie die eToro weigert. De verbindingstest zei dan dat je je sleutel opnieuw moest invullen, wat je net gedaan dacht te hebben. Vul je nu een andere publieke sleutel in, dan maakt Kader het User Key-veld leeg en legt uit waarom: eToro geeft bij een nieuwe sleutel ook een nieuwe User Key, en toont die maar een keer. Zet je de oude sleutel terug, dan komt de oude User Key ook weer terug
+- Zegt eToro bij een geweigerde sleutel iets specifieks, dan staat dat er nu bij. Die uitleg werd weggegooid terwijl de app hem bij elke andere fout wel doorgaf. Gemeten antwoordt eToro op een geweigerde sleutel overigens alleen met "Unauthorized", ongeacht of je publieke sleutel fout is of je User Key; dat voegt niets toe aan de melding eromheen, dus in dat geval blijft het er bewust af. Gaat het om ontbrekende rechten, of zegt eToro ooit wel welk veld fout is, dan lees je het
+- "Sleutel klopt niet" en "sleutel mag dit niet" zijn nu twee verschillende meldingen. Bij een geweigerde sleutel helpt opnieuw invullen; ontbreken alleen de rechten, dan is overtikken zinloos en moet je bij eToro een sleutel met leesrecht voor die omgeving maken. Tot nu toe kreeg je in beide gevallen het advies om over te tikken
+- Werkte je sleutel in geen van beide omgevingen, dan toonde de test alleen de fout van je echte account, met de mededeling dat het niet aan de schakelaar lag. Dat las als een probleem met een omgeving terwijl er twee weigerden. Nu staat erbij dat het er twee waren, en als demo iets anders meldt dan echt staan ze allebei
+
 ## 0.1.16
 
 - De schermen die over het hele beeld openen (coin-detail, achtergrond, historie en de eToro-wizard) hadden bovenin een lege band van ruim honderd punten. De statusbalk werd twee keer gecompenseerd: de app telde de hoogte ervan er handmatig bij op terwijl de veilige-zone er al rekening mee hield. Dat kostte op elk van die schermen ongeveer een hele sectie aan zichtbare inhoud. De band is weg, en op toestellen waar die veilige zone er niet is vult Kader hem nog steeds zelf aan, zodat de titel daar niet alsnog onder de klok verdwijnt

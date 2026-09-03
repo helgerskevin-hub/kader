@@ -123,6 +123,34 @@ export function demoPad(pad: string): string {
   return beste[1] + kaal.slice(beste[0].length) + staart;
 }
 
+// Haalt uit een foutbody de reden die een gebruiker verder helpt, of '' als eToro niets zegt wat we
+// niet al in de melding zetten. eToro antwoordt op een 401 steevast met errorCode en errorMessage
+// allebei op "Unauthorized" (gemeten, zie etoroFetch), en dat is precies de mededeling die de
+// melding eromheen al veel uitgebreider doet.
+//
+// Geëxporteerd omdat dit de enige regel is die bepaalt of er rauwe API-tekst in beeld komt; los te
+// toetsen met de self-check onderaan dit bestand.
+export function eigenlijkeFoutreden(body: string): string {
+  const kaal = body.trim();
+  if (!kaal) return '';
+
+  let reden = kaal;
+  try {
+    const ontleed = JSON.parse(kaal) as { errorMessage?: unknown; message?: unknown };
+    const uitJson = ontleed.errorMessage ?? ontleed.message;
+    // Geen bruikbaar veld: dan liever niets tonen dan een stuk rauwe JSON.
+    if (typeof uitJson !== 'string' || !uitJson.trim()) return '';
+    reden = uitJson.trim();
+  } catch {
+    // Geen JSON. Een korte platte tekst mag door, een brok HTML (een gateway-pagina) niet.
+    if (kaal.startsWith('<')) return '';
+  }
+
+  // "Unauthorized" en "Forbidden" zijn de statuscode in woorden, geen reden.
+  if (/^(unauthorized|forbidden|access denied)\.?$/i.test(reden)) return '';
+  return reden.slice(0, 200);
+}
+
 // status null = we hebben nooit een antwoord gezien (netwerkfout of timeout).
 export class EtoroFout extends Error {
   constructor(bericht: string, readonly status: number | null, readonly afgebroken = false) {
@@ -179,9 +207,31 @@ async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: Fetch
     // goede sleutel hoort hier dus geen 401 te staan, ongeacht demo of echt. Wat er dan wél aan de
     // hand is: de sleutel is bij eToro ingetrokken of opnieuw aangemaakt, of er staat een nieuwe
     // api-sleutel naast een oude user-sleutel. In beide gevallen moeten beide velden opnieuw.
+    //
+    // De foutbody hoort hier net zo goed bij als bij elke andere status hieronder; die stond er
+    // eerder niet, dus eToro's eigen woorden bleven onzichtbaar op precies de fout waar iemand op
+    // vastloopt.
+    //
+    // Gemeten op 2026-09-03 tegen public-api.etoro.com: op een 401 antwoordt eToro ALTIJD met
+    // {"errorCode":"Unauthorized","errorMessage":"Unauthorized"}, of je nu een verzonnen api-sleutel
+    // stuurt, de user-sleutel weglaat of helemaal geen sleutels meestuurt. Die tekst er blind bij
+    // plakken maakt de melding dus alleen langer en enger zonder iets toe te voegen. Daarom alleen
+    // tonen wat verder gaat dan dat ene woord: zegt eToro ooit wél welk veld fout is (of geeft een
+    // 403 een echte reden), dan staat het er, en anders blijft het weg.
+    const tekst = await res.text().catch(() => '');
+    const detail = eigenlijkeFoutreden(tekst);
     const inDemo = (sleutels.omgeving ?? 'real') === 'demo';
+    const waar = inDemo ? 'demo-account' : 'echte account';
+    // 401 en 403 zijn verschillende verhalen en verdienen verschillend advies. 401 = eToro kent
+    // deze sleutelcombinatie niet, dus opnieuw invullen helpt. 403 = de sleutel klopt maar mag dit
+    // niet, en dan is opnieuw invullen zinloos: dan mist de scope en moet je bij eToro een sleutel
+    // met de juiste rechten maken.
+    const uitleg =
+      res.status === 403
+        ? `eToro kent je sleutel wel, maar geeft hem geen toegang tot je ${waar}. Dat is een kwestie van rechten, niet van overtikken: maak bij eToro een sleutel aan met leesrecht (en, als je wilt handelen, schrijfrecht) voor deze omgeving.`
+        : `eToro accepteert je sleutel niet op je ${waar}. Dezelfde sleutel hoort in demo en in echt te werken, dus dit ligt niet aan de schakelaar. Meestal staat er een nieuwe publieke sleutel naast een oude User Key: eToro toont die User Key maar één keer, dus na het aanmaken van een nieuwe sleutel moet je beide velden opnieuw invullen.`;
     throw new EtoroFout(
-      `eToro accepteert je sleutel niet op je ${inDemo ? 'demo-account' : 'echte account'}. Dezelfde sleutel hoort in demo en in echt te werken, dus dit ligt niet aan de schakelaar. Vul je sleutel opnieuw in bij Instellingen. Let op: de User Key laat eToro maar één keer zien, dus na een nieuwe sleutel moet je beide velden opnieuw invullen.`,
+      `${uitleg}${detail ? ` eToro zegt: ${detail}` : ''}`,
       res.status,
     );
   }

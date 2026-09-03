@@ -13,6 +13,7 @@ import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { EtoroOmgeving, EtoroSleutels, haalAccountInfo, haalEtoroPortfolio, magHandelenVolgensScopes } from '../engine/etoro';
 import { bewaarSleutels, haalSleutels, wisSleutels, Sleutelpaar } from '../state/etoroSleutels';
+import { userKeyBijApiKeyWijziging } from '../engine/sleutelKeuze';
 import { StapOvergang } from './StapOvergang';
 
 interface Props {
@@ -54,6 +55,12 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
   const [testFout, setTestFout] = useState('');
   const [bezigOpslaan, setBezigOpslaan] = useState(false);
   const [bestondKoppeling, setBestondKoppeling] = useState(false);
+  // Het paar zoals het bij het openen op het toestel stond. Nodig om te zien of iemand een NIEUWE
+  // publieke sleutel plakt, want dan hoort de opgeslagen User Key er niet meer bij.
+  const [geladen, setGeladen] = useState<Sleutelpaar | null>(null);
+  // Is de voorgevulde User Key weggehaald omdat de publieke sleutel veranderde? Dan moet stap 2
+  // uitleggen waarom het veld ineens leeg is, anders lijkt het een bug.
+  const [userKeyGewist, setUserKeyGewist] = useState(false);
   // Wat de sleutel volgens eToro mag, uit de scopes van /api/v1/me. Per omgeving, want één sleutel
   // kan schrijfrecht op de ene omgeving dragen en alleen leesrecht op de andere. Pas bekend na een
   // geslaagde test.
@@ -71,12 +78,27 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     setUitslag(null);
     setToonApiKey(false);
     setToonUserKey(false);
+    setUserKeyGewist(false);
     haalSleutels().then(s => {
       setApiKey(s?.apiKey ?? '');
       setUserKey(s?.userKey ?? '');
       setBestondKoppeling(s !== null);
+      setGeladen(s);
     });
   }, [zichtbaar]);
+
+  // Plak je een andere publieke sleutel dan die er stond, dan hoort de opgeslagen User Key daar niet
+  // meer bij: eToro geeft bij een nieuwe sleutel ook een nieuwe User Key, en toont die precies één
+  // keer. Tot nu toe bleef de oude User Key gewoon voorgevuld staan, gemaskeerd als bolletjes, dus
+  // stap 2 zag er ingevuld uit en je klikte eroverheen. Het resultaat was een nieuwe api-sleutel
+  // naast een oude User Key, en dus een 401 die pas bij de verbindingstest opdook met een melding
+  // die je vertelde te doen wat je net gedaan dacht te hebben. Nu maakt de app het veld leeg.
+  function wijzigApiKey(waarde: string) {
+    setApiKey(waarde);
+    const wissel = userKeyBijApiKeyWijziging(geladen, waarde, userKey, userKeyGewist);
+    setUserKey(wissel.userKey);
+    setUserKeyGewist(wissel.gewist);
+  }
 
   const isLaatste = stap === AANTAL_STAPPEN - 1;
   const kanVolgende =
@@ -132,9 +154,17 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     const [real, demo] = await Promise.all([toetsOmgeving(paar, 'real'), toetsOmgeving(paar, 'demo')]);
     setUitslag({ real, demo });
 
-    // Werkt er geen enkele omgeving, dan is er niets om op te slaan.
+    // Werkt er geen enkele omgeving, dan is er niets om op te slaan. Toon dat het er ook echt twee
+    // waren: hiervoor stond hier alleen real.fout, en die tekst noemt je "echte account" en zegt dat
+    // het niet aan de schakelaar ligt. Dat las als een probleem met één omgeving terwijl allebei
+    // weigerden, en het verzweeg een demo-fout die iets anders kon zeggen dan de echte.
     if (!real.ok && !demo.ok) {
-      setTestFout(real.fout);
+      const zelfde = real.fout === demo.fout;
+      setTestFout(
+        zelfde
+          ? `Geen van beide omgevingen accepteert deze sleutel. ${real.fout}`
+          : `Geen van beide omgevingen accepteert deze sleutel.\n\nEcht: ${real.fout}\n\nDemo: ${demo.fout}`,
+      );
       setTestStatus('fout');
       return;
     }
@@ -273,7 +303,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
               </Text>
               <SleutelVeld
                 waarde={apiKey}
-                onChange={setApiKey}
+                onChange={wijzigApiKey}
                 placeholder="plak hier je publieke sleutel / api key"
                 zichtbaar={toonApiKey}
                 onToggle={() => setToonApiKey(v => !v)}
@@ -287,6 +317,17 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
               <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
                 Aan jouw account gekoppeld, door eToro "User Key" of "privésleutel" genoemd. Plak hem hieronder.
               </Text>
+              {userKeyGewist && (
+                <View style={[styles.infoBlok, { backgroundColor: colors.verhoogd }]}>
+                  <ShieldCheck size={18} color={colors.cta} strokeWidth={1.75} />
+                  <Text style={[Type.caption, { color: colors.tekstGedimd, flex: 1, lineHeight: 18 }]}>
+                    Je hebt een andere publieke sleutel ingevuld, dus je oude User Key is weggehaald: die
+                    hoort bij de vorige sleutel. Plak de User Key die eToro liet zien toen je deze sleutel
+                    aanmaakte. Heb je hem niet bewaard, maak dan bij eToro een nieuwe sleutel aan en
+                    kopieer beide velden meteen.
+                  </Text>
+                </View>
+              )}
               <SleutelVeld
                 waarde={userKey}
                 onChange={setUserKey}
