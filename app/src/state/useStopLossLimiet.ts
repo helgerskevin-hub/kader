@@ -95,3 +95,29 @@ export function useStopLossLimiet(
 
   return limiet;
 }
+
+// Dezelfde cache, maar dan de hele kaart in één keer. Bedoeld voor schermen met een lijst: het
+// marktscherm rendert twintig kaarten en die zouden anders twintig keer los abonneren op precies
+// dezelfde gedeelde belofte. Zoek per rij op met limietVoor().
+export function useStopLossLimieten(): Record<string, StopLossLimiet> | null {
+  const [kaart, setKaart] = useState<Record<string, StopLossLimiet> | null>(null);
+
+  useEffect(() => {
+    let actief = true;
+    cacheBelofte().then(cache => {
+      if (actief) setKaart(cache?.limieten ?? null);
+    });
+    return () => { actief = false; };
+  }, []);
+
+  return kaart;
+}
+
+export function limietVoor(
+  kaart: Record<string, StopLossLimiet> | null,
+  symbool: string | null | undefined,
+  richting: Richting = 'long',
+): StopLossLimiet | null {
+  if (!kaart || !symbool) return null;
+  return kaart[`${symbool.toUpperCase()}:${richting}`] ?? null;
+}

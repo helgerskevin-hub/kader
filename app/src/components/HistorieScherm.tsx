@@ -1,10 +1,11 @@
 import React from 'react';
 import {
-  Modal, ScrollView, View, Text, Pressable, StyleSheet, Platform, StatusBar,
+  Modal, ScrollView, View, Text, Pressable, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, CheckCircle, XCircle, History } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
+import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
@@ -20,14 +21,13 @@ interface Props {
   onVerwijder: (id: string) => void;
 }
 
-const androidStatusBarPadding = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
-
 export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onVerwijder }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
 
   const { colors } = useTheme();
+  const extraKopruimte = useModalKopruimte();
 
   const gesloten = trades
     .filter(t => t.status !== 'open')
@@ -37,7 +37,7 @@ export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onV
   return (
     <Modal visible={zichtbaar} animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
-        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + androidStatusBarPadding }]}>
+        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
           <View style={styles.headerLinks}>
             <History size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
             <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Historie</Text>

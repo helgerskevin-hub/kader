@@ -1,37 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import {
   Modal, ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator,
-  Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, CheckCircle, ShoppingCart } from 'lucide-react-native';
+import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
 import { haalData } from '../engine/marketData';
-import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
+import { infoVoor, genereerKoopadvies, genereerShortadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
+import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { ScoreBadge } from './ScoreBadge';
+import { RichtingBadge } from './RichtingBadge';
 import { LevelRow } from './LevelRow';
 import { PrijsGrafiek } from './PrijsGrafiek';
 import { OfflineMelding } from './OfflineMelding';
 import { Disclaimer } from './Disclaimer';
 import { GetradeFormulier, GetradeBron } from './GetradeFormulier';
 import { KooporderSheet } from './KooporderSheet';
+import { PrijsalertSheet } from './PrijsalertSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { sleutelUitkomst } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
+import { etoroNiveaus } from '../engine/etoroLimieten';
+import { rsUitleg } from '../engine/relatieveSterkte';
+import { useStopLossLimiet } from '../state/useStopLossLimiet';
 
 interface Props {
   data: CoinDetailData | null;
   onSluiten: () => void;
 }
-
-// SafeAreaView krijgt geen correcte top-inset binnen een full-screen Modal op Android,
-// dus vullen we die hier handmatig aan met de status bar-hoogte.
-const androidStatusBarPadding = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
 
 type LaadStatus = 'idle' | 'loading' | 'error' | 'success';
 
@@ -41,15 +43,22 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   useValutaStand();
 
   const { colors } = useTheme();
+  const extraKopruimte = useModalKopruimte();
   const [status, setStatus] = useState<LaadStatus>('idle');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [indicatoren, setIndicatoren] = useState<VerseIndicatoren | null>(null);
   const [foutTijd, setFoutTijd] = useState<Date>(new Date());
   const [getradeOpen, setGetradeOpen] = useState(false);
   const [koopOpen, setKoopOpen] = useState(false);
-  const { magHandelen } = usePortfolio();
+  const [alertOpen, setAlertOpen] = useState(false);
+  // Waarom handelen nu niet kan. Leeg zolang er niets te melden valt. De knop staat er altijd: hem
+  // weglaten liet de gebruiker in het ongewisse of Kader dit überhaupt kan.
+  const [handelReden, setHandelReden] = useState('');
+  const { magHandelen, omgeving } = usePortfolio();
+  const stopLimiet = useStopLossLimiet(data ? data.symbool : null, data?.richting ?? 'long');
 
   useEffect(() => {
+    setHandelReden('');
     if (data) laadData(data.symbool);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -77,19 +86,42 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0, richting: data.richting }
     : null;
 
+  // Wat er bij eToro werkelijk te zetten valt. Kaders stop ligt op een swing low en is voor de
+  // meeste coins krapper dan eToro's minimum (bij BTC 10%), en dan is het niveau uit de analyse een
+  // getal waar je niets mee kunt. Zonder koppeling of grens blijft alles precies zoals Kader het
+  // berekende.
+  const etoro = heeftNiveaus
+    ? etoroNiveaus(data.entry!, data.stopLoss!, data.takeProfit!, stopLimiet)
+    : null;
+  const getoondeStop = etoro ? etoro.stop : data.stopLoss;
+  const getoondeRr = etoro && etoro.aangepast ? etoro.rr : data.rr;
+
   const niveaus = [
-    data.stopLoss !== undefined ? { waarde: data.stopLoss, kleur: colors.verlies } : null,
+    getoondeStop !== undefined ? { waarde: getoondeStop, kleur: colors.verlies } : null,
     data.entry !== undefined ? { waarde: data.entry, kleur: colors.cta } : null,
     data.takeProfit !== undefined ? { waarde: data.takeProfit, kleur: colors.winst } : null,
   ].filter((n): n is { waarde: number; kleur: string } => n !== null);
 
-  const advies = indicatoren ? genereerKoopadvies({
-    score: data.score,
-    rsi: indicatoren.rsi,
-    trendOp: indicatoren.trendOp,
-    macdBullish: indicatoren.macdBullish,
-    volumeRatio: indicatoren.volumeRatio,
-  }) : null;
+  // Bij een short draait elk argument om: een dalende trend is dan een plus en niet een
+  // waarschuwing, en een hoge score juist een reden om het NIET te doen. Het koopadvies onder een
+  // short zetten zou precies het tegenovergestelde beweren van het signaal erboven.
+  const advies = indicatoren
+    ? (data.richting === 'short'
+      ? genereerShortadvies({
+        score: data.score,
+        rsi: indicatoren.rsi,
+        trendOp: indicatoren.trendOp,
+        macdBullish: indicatoren.macdBullish,
+        volumeRatio: indicatoren.volumeRatio,
+      })
+      : genereerKoopadvies({
+        score: data.score,
+        rsi: indicatoren.rsi,
+        trendOp: indicatoren.trendOp,
+        macdBullish: indicatoren.macdBullish,
+        volumeRatio: indicatoren.volumeRatio,
+      }))
+    : null;
   const adviesKleur = advies?.kleur === 'groen' ? colors.winst : advies?.kleur === 'rood' ? colors.verlies : colors.letOp;
 
   const isOpen = data.status === 'open';
@@ -134,12 +166,39 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
   const statusLabel = data.status === 'gewonnen' ? 'Gewonnen' : data.status === 'verloren' ? 'Verloren' : 'Open';
 
+  const isShort = data.richting === 'short';
+
+  // De knop opent de order-sheet, of legt uit waarom dat niet kan. Wat er ontbreekt weten we pas na
+  // een lezing van de sleutelopslag, dus dat gebeurt hier bij de tik en niet bij elke render.
+  async function openHandel() {
+    if (magHandelen) {
+      setHandelReden('');
+      setKoopOpen(true);
+      return;
+    }
+    const uitkomst = await sleutelUitkomst();
+    if (uitkomst.soort === 'geen') {
+      setHandelReden('Je hebt nog geen eToro-sleutel gekoppeld. Dat doe je via de drie puntjes rechtsboven, bij Instellingen.');
+      return;
+    }
+    if (uitkomst.soort === 'kluisfout') {
+      setHandelReden(`Kader kan de beveiligde opslag van je toestel nu niet bereiken, dus je sleutel is onbruikbaar. ${uitkomst.bericht}`);
+      return;
+    }
+    setHandelReden(`Je eToro-sleutel mag in ${omgeving === 'demo' ? 'demo' : 'je echte account'} wel lezen maar niet handelen. Maak bij eToro een sleutel met handelsrechten aan en koppel die opnieuw via de drie puntjes rechtsboven, bij Instellingen.`);
+  }
+
   return (
     <Modal visible animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
-        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + androidStatusBarPadding }]}>
+        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
           <View style={styles.headerLinks}>
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
+            <View style={styles.symboolRij}>
+              <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
+              {/* Alleen bij een short. Vrijwel alles is long, dus daar hoort geen label bij; bij een
+                  short moet je het meteen zien, want stop en doel liggen omgekeerd. */}
+              {data.richting === 'short' && <RichtingBadge richting="short" />}
+            </View>
             <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{data.naam}</Text>
           </View>
           <View style={styles.headerRechts}>
@@ -148,6 +207,18 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
             )}
             {typeof data.score === 'number' && <ScoreBadge score={data.score} />}
           </View>
+          {/* Een alert kan op elke coin, ook op een die je al hebt en ook zonder eToro-koppeling:
+              het is een melding, geen order. Daarom in de header en niet in de actiebalk onderin,
+              die staat er alleen bij een coin met niveaus. */}
+          <Pressable
+            onPress={() => setAlertOpen(true)}
+            style={styles.sluitKnop}
+            accessibilityRole="button"
+            accessibilityLabel={`Prijsalert instellen voor ${data.symbool}`}
+            hitSlop={8}
+          >
+            <Bell size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+          </Pressable>
           <Pressable
             onPress={onSluiten}
             style={styles.sluitKnop}
@@ -183,16 +254,29 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
             {heeftNiveaus && (
               <View style={styles.sectie}>
-                <LevelRow stop={data.stopLoss!} entry={data.entry!} doel={data.takeProfit!} richting={data.richting} />
-                {data.rr !== undefined && (
-                  <Text style={[Type.caption, styles.rrTekst, { color: colors.tekstGedimd }]}>R/R {fmtRR(data.rr)}</Text>
+                <LevelRow
+                  stop={getoondeStop!}
+                  entry={data.entry!}
+                  doel={data.takeProfit!}
+                  richting={data.richting}
+                  stopAangepast={etoro?.aangepast ?? false}
+                />
+                {getoondeRr !== undefined && (
+                  <Text style={[Type.caption, styles.rrTekst, { color: colors.tekstGedimd }]}>R/R {fmtRR(getoondeRr)}</Text>
                 )}
+                {etoro?.uitleg ? (
+                  <Text style={[Type.caption, styles.rrTekst, { color: colors.letOp, lineHeight: 18 }]}>
+                    {etoro.uitleg}
+                  </Text>
+                ) : null}
               </View>
             )}
 
             {advies && (
               <View style={styles.sectie}>
-                <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Waarom</Text>
+                <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>
+                  {data.richting === 'short' ? 'Waarom short' : 'Waarom'}
+                </Text>
                 <View style={[styles.waaromBadge, { backgroundColor: adviesKleur + '1A', borderColor: adviesKleur }]}>
                   <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
                 </View>
@@ -217,7 +301,20 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
                   kleur={indicatoren.macdBullish ? colors.winst : colors.verlies}
                 />
                 <IndicatorItem label="VOLUME" waarde={`${indicatoren.volumeRatio.toFixed(1)}×`} />
+                {data.versusBtc !== undefined && (
+                  <IndicatorItem
+                    label="30D VS BTC"
+                    waarde={`${data.versusBtc >= 0 ? '+' : ''}${data.versusBtc.toFixed(0)}%`}
+                  />
+                )}
               </View>
+              {/* De duiding staat hier en niet op de kaart: dit is de plek waar ruimte is om te
+                  zeggen wat het cijfer volgens de backtest betekent voor een instap. */}
+              {data.versusBtc !== undefined && rsUitleg(data.versusBtc) ? (
+                <Text style={[Type.caption, styles.rsUitleg, { color: colors.tekstGedimd }]}>
+                  {rsUitleg(data.versusBtc)}
+                </Text>
+              ) : null}
             </View>
 
             {data.context === 'portfolio' && (
@@ -298,38 +395,47 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
         )}
 
         {kanGetrade && (
-          <View style={[styles.actiebalk, styles.actiebalkRij, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
-            {/* Met een schrijfsleutel wordt Getrade secundair: direct kopen is dan de hoofdactie,
-                en zelf overtikken de uitzondering. Zonder schrijfsleutel blijft de balk zoals hij was. */}
-            <Pressable
-              style={[
-                styles.getradeKnop,
-                magHandelen
-                  ? { borderColor: colors.rand, borderWidth: 1.5 }
-                  : { backgroundColor: colors.cta },
-              ]}
-              onPress={() => setGetradeOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Getrade"
-            >
-              <CheckCircle size={16} color={magHandelen ? colors.tekstGedimd : 'white'} strokeWidth={1.75} />
-              <Text style={[Type.body, styles.getradeTekst, magHandelen && { color: colors.tekstGedimd }]}>Getrade</Text>
-            </Pressable>
+          <View style={[styles.actiebalk, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
+            {/* De reden staat boven de balk en niet in plaats van de knop: een knop die er niet is
+                laat je raden of Kader dit überhaupt kan. */}
+            {handelReden ? (
+              <Text style={[Type.caption, styles.handelReden, { color: colors.letOp }]}>{handelReden}</Text>
+            ) : null}
+            <View style={styles.actiebalkRij}>
+              {/* Traden is de hoofdactie, Getrade (zelf overtikken) is de uitzondering ernaast. */}
+              <Pressable
+                style={[styles.getradeKnop, { borderColor: colors.rand, borderWidth: 1.5 }]}
+                onPress={() => setGetradeOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Zelf ingevoerde trade opslaan"
+              >
+                <CheckCircle size={16} color={colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.body, styles.getradeTekst, { color: colors.tekstGedimd }]}>Getrade</Text>
+              </Pressable>
 
-            {magHandelen && (
               <Pressable
                 style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
-                onPress={() => setKoopOpen(true)}
+                onPress={openHandel}
                 accessibilityRole="button"
-                accessibilityLabel={`${data.symbool} kopen via eToro`}
+                accessibilityLabel={`${data.symbool} ${isShort ? 'shorten' : 'kopen'} via eToro`}
               >
                 <ShoppingCart size={16} color="white" strokeWidth={1.75} />
-                <Text style={[Type.body, styles.getradeTekst]}>Koop via eToro</Text>
+                <Text style={[Type.body, styles.getradeTekst]}>
+                  {isShort ? 'Short via eToro' : 'Trade via eToro'}
+                </Text>
               </Pressable>
-            )}
+            </View>
           </View>
         )}
       </SafeAreaView>
+
+      <PrijsalertSheet
+        zichtbaar={alertOpen}
+        onSluiten={() => setAlertOpen(false)}
+        symbool={data.symbool}
+        naam={data.naam}
+        huidigePrijs={data.prijs}
+      />
 
       <GetradeFormulier
         zichtbaar={getradeOpen}
@@ -345,6 +451,7 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
           entry={data.entry}
           stop={data.stopLoss}
           doel={data.takeProfit}
+          richting={data.richting}
           onSluiten={() => setKoopOpen(false)}
         />
       )}
@@ -375,6 +482,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   headerLinks: { gap: 2, flex: 1 },
+  symboolRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerRechts: { alignItems: 'flex-end', gap: 6 },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', marginTop: -spacing.xs },
   midden: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -406,13 +514,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   notitie: { marginTop: spacing.md, fontStyle: 'italic' },
+  rsUitleg: { marginTop: spacing.md, lineHeight: 18 },
   coinUitleg: { marginTop: spacing.sm, lineHeight: 22 },
   actiebalk: {
     borderTopWidth: StyleSheet.hairlineWidth,
     padding: spacing.base,
   },
   actiebalkRij: { flexDirection: 'row', gap: spacing.sm },
+  handelReden: { marginBottom: spacing.sm, lineHeight: 18 },
   getradeKnop: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

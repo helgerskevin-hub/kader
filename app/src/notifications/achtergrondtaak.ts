@@ -1,6 +1,6 @@
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
-import { checkOpenTrades } from './tradeChecks';
+import { checkOpenTrades, checkPrijsalerts } from './tradeChecks';
 
 export const TRADE_CHECK_TAAK = 'kader-trade-check';
 
@@ -14,6 +14,13 @@ const INTERVAL_MINUTEN = 15;
 // importeert dit bestand daarom bovenaan.
 TaskManager.defineTask(TRADE_CHECK_TAAK, async () => {
   try {
+    // De prijsalerts eerst en apart: die hebben hun eigen (goedkope) prijsverzoeken en mogen niet
+    // uitvallen als de zwaardere trade-check op een netwerkfout stukloopt.
+    try {
+      await checkPrijsalerts();
+    } catch {
+      // Volgende ronde opnieuw. Een alert blijft wachten tot hij geraakt is, dus er gaat niets verloren.
+    }
     await checkOpenTrades();
     return BackgroundTask.BackgroundTaskResult.Success;
   } catch {

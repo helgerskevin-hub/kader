@@ -7,7 +7,7 @@ import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving } from '..
 import { sleutelUitkomst, haalOmgeving, zetOmgeving, magHandelen as magNuHandelen } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { bronVan } from './portfolioTypes';
-import { checkOpenTrades } from '../notifications/tradeChecks';
+import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
 
 export interface SyncResultaat {
   gekoppeld: boolean;                          // false = geen eToro-sleutels ingesteld
@@ -175,6 +175,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       // in het geheugen is per definitie de verste. Fouten stilhouden, net als bij verversPrijzen:
       // dit is een achtergrondklusje, geen actie van de gebruiker.
       checkOpenTrades({ trades: tradesRef.current }).catch(() => {});
+      // Prijsalerts op dezelfde cadans, maar als eigen aanroep: ze hebben hun eigen goedkope
+      // prijsverzoeken (alleen de coins met een wachtende alert) en delen de uur-cooldown van
+      // checkOpenTrades bewust niet, want de gebruiker koos dat niveau zelf.
+      checkPrijsalerts().catch(() => {});
     }, VERVERS_INTERVAL_MS);
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);

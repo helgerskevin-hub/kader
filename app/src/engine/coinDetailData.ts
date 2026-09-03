@@ -9,8 +9,8 @@ export interface CoinDetailData {
   symbool: string;
   naam: string;
   context: CoinDetailContext;
-  // De marktscan en de kansen-scanner leveren vooralsnog alleen long-signalen; alleen een
-  // portfolio-trade kan hier 'short' zijn.
+  // Kan overal 'short' zijn: een portfolio-positie, en sinds de short-signalen ook een trade uit
+  // de marktscan. De kansen-scanner levert nog uitsluitend longs.
   richting: Richting;
   prijs?: number;
   entry?: number;
@@ -18,6 +18,9 @@ export interface CoinDetailData {
   takeProfit?: number;
   rr?: number;
   score?: number | null;
+  // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het marktscherm,
+  // want daar draait de scan die het uitrekent.
+  versusBtc?: number;
   // alleen relevant voor context 'portfolio'
   entryPrijs?: number;
   bedragUsd?: number;
@@ -28,18 +31,22 @@ export interface CoinDetailData {
   slotDatum?: string;
 }
 
-export function vanTrade(trade: Trade): CoinDetailData {
+export function vanTrade(trade: Trade, versusBtc?: number): CoinDetailData {
   return {
     symbool: trade.symbool,
     naam: infoVoor(trade.symbool).naam,
     context: 'markt',
-    richting: 'long',
+    // De richting van de trade zelf, niet hardgecodeerd long: analyseerMarkt levert short-signalen
+    // in een eigen lijst en die dragen richting 'short'. Zonder dit zou een short opengaan met de
+    // stop en het doel omgewisseld en met bullish onderbouwing eronder.
+    richting: trade.richting,
     prijs: trade.prijs,
     entry: trade.entry,
     stopLoss: trade.stopLoss,
     takeProfit: trade.takeProfit,
     rr: trade.rr,
     score: trade.score,
+    versusBtc,
   };
 }
 

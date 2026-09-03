@@ -14,9 +14,12 @@ interface Props {
   // andersom (stop boven de entry, doel eronder), dus zowel de balk als de STOP/DOEL-volgorde moeten
   // meedraaien.
   richting?: Richting;
+  // De stop is opgeschoven omdat eToro Kaders eigen niveau niet accepteert. Dan komt er een klein
+  // eToro-merkje bij het STOP-label, zodat het getal niet als Kaders berekening gelezen wordt.
+  stopAangepast?: boolean;
 }
 
-export function LevelRow({ stop, entry, doel, richting = 'long' }: Props) {
+export function LevelRow({ stop, entry, doel, richting = 'long', stopAangepast = false }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -43,9 +46,17 @@ export function LevelRow({ stop, entry, doel, richting = 'long' }: Props) {
     <View style={styles.container}>
       {/* Labels */}
       <View style={styles.labelsRij}>
-        <Text style={[Type.overline, { color: laagKleur }]}>{laagLabel}</Text>
+        {/* Het merkje hoort altijd bij het STOP-label, en dat staat bij een long links en bij een
+            short rechts. */}
+        <View style={styles.labelMetMerk}>
+          <Text style={[Type.overline, { color: laagKleur }]}>{laagLabel}</Text>
+          {!isShort && stopAangepast && <Text style={[Type.overline, { color: colors.letOp }]}>ETORO</Text>}
+        </View>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
-        <Text style={[Type.overline, { color: hoogKleur }]}>{hoogLabel}</Text>
+        <View style={styles.labelMetMerk}>
+          {isShort && stopAangepast && <Text style={[Type.overline, { color: colors.letOp }]}>ETORO</Text>}
+          <Text style={[Type.overline, { color: hoogKleur }]}>{hoogLabel}</Text>
+        </View>
       </View>
 
       {/* Balk */}
@@ -69,6 +80,7 @@ export function LevelRow({ stop, entry, doel, richting = 'long' }: Props) {
 const styles = StyleSheet.create({
   container: { gap: 4 },
   labelsRij: { flexDirection: 'row', justifyContent: 'space-between' },
+  labelMetMerk: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   balkContainer: {
     height: 6,
     borderRadius: 3,

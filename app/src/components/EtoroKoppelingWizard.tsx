@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   Modal, ScrollView, View, Text, Pressable, TextInput, StyleSheet,
-  ActivityIndicator, Platform, StatusBar, Alert,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   X, ArrowRight, Eye, EyeOff, CheckCircle, XCircle, Link2, ShieldCheck, Trash2,
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
+import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { EtoroOmgeving, EtoroSleutels, haalAccountInfo, haalEtoroPortfolio, magHandelenVolgensScopes } from '../engine/etoro';
@@ -19,10 +20,6 @@ interface Props {
   onSluiten: () => void;
   onOpgeslagen?: () => void;
 }
-
-// SafeAreaView krijgt geen correcte top-inset binnen een full-screen Modal op Android,
-// dus vullen we die hier handmatig aan met de status bar-hoogte.
-const androidStatusBarPadding = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
 
 type TestStatus = 'idle' | 'testing' | 'ok' | 'fout';
 
@@ -47,6 +44,7 @@ const GEEN_SCHRIJFRECHT: Record<EtoroOmgeving, boolean> = { real: false, demo: f
 
 export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Props) {
   const { colors } = useTheme();
+  const extraKopruimte = useModalKopruimte();
   const [stap, setStap] = useState(0);
   const [apiKey, setApiKey] = useState('');
   const [userKey, setUserKey] = useState('');
@@ -191,7 +189,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     <Modal visible={zichtbaar} animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
       <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + androidStatusBarPadding }]}>
+        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
           <View style={styles.headerLinks}>
             <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
             <Text style={[Type.titel, { color: colors.tekstPrimair }]}>eToro-koppeling</Text>

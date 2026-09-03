@@ -6,7 +6,7 @@
 // verschijnt er nergens een knop die het verzoek opnieuw verstuurt.
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { X } from 'lucide-react-native';
+import { Wallet, X } from 'lucide-react-native';
 import { fmtBedrag, fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { bouwKooporderBody, guid, haalVrijSaldo, KooporderInvoer, plaatsKooporder } from '../engine/etoro';
@@ -68,6 +68,7 @@ export function KooporderSheet({
 
   const [bedrag, setBedrag] = useState('');
   const [vrijSaldo, setVrijSaldo] = useState<number | null>(null);
+  const [saldoBezig, setSaldoBezig] = useState(true);
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState('');
   const [onbekend, setOnbekend] = useState('');
@@ -85,6 +86,7 @@ export function KooporderSheet({
     setOnbekend('');
     setBezig(false);
     setVrijSaldo(null);
+    setSaldoBezig(true);
   }, [zichtbaar]);
 
   // Het saldo bewijst meteen dat de sleutels van deze omgeving werken. Lukt het ophalen niet, dan
@@ -101,6 +103,8 @@ export function KooporderSheet({
         if (actief) setVrijSaldo(saldo);
       } catch {
         // Zonder saldo verder, zie hierboven.
+      } finally {
+        if (actief) setSaldoBezig(false);
       }
     })();
     return () => { actief = false; };
@@ -287,7 +291,18 @@ export function KooporderSheet({
           </View>
         ) : null}
 
-        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>BEDRAG IN $</Text>
+        {/* Het bedrag is het enige dat de gebruiker zelf invult, dus hoort er te staan hoeveel er
+            te besteden is voordat hij begint te tikken en niet als voetnoot eronder. */}
+        <View style={stijlen.labelRij}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEDRAG IN $</Text>
+          <View style={stijlen.saldoRij}>
+            <Wallet size={13} color={colors.tekstGedimd} strokeWidth={1.75} />
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Te besteden</Text>
+            <Text style={[Type.prijs, stijlen.saldoBedrag, { color: colors.tekstPrimair }]}>
+              {vrijSaldo !== null ? fmtBedrag(vrijSaldo, DOLLARS) : saldoBezig ? 'ophalen...' : 'onbekend'}
+            </Text>
+          </View>
+        </View>
         <TextInput
           style={inputStyle}
           value={bedrag}
@@ -302,9 +317,10 @@ export function KooporderSheet({
             Dat is ongeveer €{(bedragGetal * eurPerUsd).toFixed(2)}. eToro rekent in dollars af.
           </Text>
         ) : null}
-        {vrijSaldo !== null ? (
+        {vrijSaldo === null && !saldoBezig ? (
           <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
-            Beschikbaar: {fmtBedrag(vrijSaldo, DOLLARS)}
+            Kader kon je saldo niet bij eToro ophalen. Controleer zelf of dit bedrag past voor je
+            bevestigt.
           </Text>
         ) : null}
 
@@ -377,7 +393,15 @@ const stijlen = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  label: { marginTop: spacing.md, marginBottom: spacing.xs },
+  labelRij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  saldoRij: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  saldoBedrag: { fontSize: 14 },
   input: {
     borderWidth: 1,
     borderRadius: radii.veld,

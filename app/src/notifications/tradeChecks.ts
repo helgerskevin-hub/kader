@@ -3,12 +3,14 @@ import { drempelBijnaOpDoel } from '../state/advies';
 import { voorstelTrailingStop, beoordeelPortfolioRisico } from '../state/afbouw';
 import { Klimaat } from '../engine/marktklimaat';
 import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
-import { haalData } from '../engine/marketData';
+import { haalData, haalLaatstePrijzen } from '../engine/marketData';
 import { scoorCandles, analyseerMarkt } from '../engine/analyzer';
 import { macd } from '../engine/indicators';
 import { fmtPrijs } from '../engine/format';
 import { stuurTradeMelding } from './meldingen';
 import { MeldingDoel, leesDoel } from './meldingDoel';
+import { bewaarAlerts, geraakteAlerts, laadAlerts, wachtendeSymbolen } from '../state/prijsalerts';
+import { meldingenAan } from '../state/meldingVoorkeur';
 
 type TriggerType = 'verhoogTP' | 'trekStopAan' | 'sterkeKoop' | 'klimaat' | 'portfolioRisico';
 
@@ -338,6 +340,61 @@ async function beoordeelMarkt(
 }
 
 /**
+ * Checkt de zelf ingestelde prijsalerts en meldt wat geraakt is.
+ *
+ * Staat bewust LOS van checkOpenTrades en dus buiten de uur-cooldown daar. Reden: die cooldown
+ * hoort bij meldingen die Kader zelf bedenkt, en die mogen best een uur wachten. Een prijsalert is
+ * het omgekeerde: de gebruiker heeft zelf een niveau gekozen en wil het op dat moment weten. De rem
+ * zit hier ingebouwd doordat elke alert precies één keer afgaat, dus er kan per alert nooit meer
+ * dan één melding uit komen.
+ *
+ * Kost alleen verzoeken als er echt iets te wachten staat: een ticker-call per coin met een
+ * wachtende alert, en nul als de lijst leeg is.
+ *
+ * @returns Het aantal afgegane alerts.
+ */
+export async function checkPrijsalerts(): Promise<number> {
+  if (!await meldingenAan()) return 0;
+  const alerts = await laadAlerts();
+  const symbolen = wachtendeSymbolen(alerts);
+  if (symbolen.length === 0) return 0;
+
+  const prijzen = await haalLaatstePrijzen(symbolen);
+  const geraakt = geraakteAlerts(alerts, prijzen);
+  if (geraakt.length === 0) return 0;
+
+  const nu = Date.now();
+  const meldingen: Melding[] = geraakt.map(({ alert, koers }) => ({
+    // De alert-id in de sleutel, niet het symbool: twee alerts op dezelfde coin zijn twee
+    // verschillende meldingen. De suppressie van checkOpenTrades raakt dit sowieso niet.
+    sleutel: `alert:${alert.id}`,
+    doel: { soort: 'coin', symbool: alert.symbool },
+    titel: `${alert.symbool} ${alert.richting === 'boven' ? 'boven' : 'onder'} ${fmtPrijs(alert.prijs)}`,
+    tekst: `Je prijsalert is geraakt: ${alert.symbool} staat op ${fmtPrijs(koers)}.`,
+  }));
+
+  const [eerste] = meldingen;
+  const titel = meldingen.length === 1 ? eerste.titel : `${meldingen.length} prijsalerts geraakt`;
+  const tekst = meldingen.length === 1
+    ? eerste.tekst
+    : `${meldingen.map(m => m.titel).join(', ')}. Open de app voor details.`;
+
+  // Eerst sturen, dan pas wegschrijven dat hij af is. Andersom zou een app-kill tussen die twee in
+  // de alert stilletjes opeten en dan mis je het niveau waar je op wachtte. Nu is het ergste geval
+  // dezelfde melding nog een keer, en dat is bij een alert die je zelf zette het minst erge.
+  if (!await stuurTradeMelding(titel, tekst)) return 0;
+
+  const geraakteKoersen = new Map(geraakt.map(g => [g.alert.id, g.koers]));
+  await bewaarAlerts(alerts.map(a => {
+    const koers = geraakteKoersen.get(a.id);
+    return koers === undefined ? a : { ...a, afgegaanOp: nu, afgegaanBij: koers };
+  }));
+  await loggeMeldingen(meldingen, nu);
+
+  return meldingen.length;
+}
+
+/**
  * Checkt de open trades en stuurt waar nodig één gebundelde melding. Wordt aangeroepen door de
  * achtergrondtaak en, wat vaker maar afgeknepen, door de prijs-poll op de voorgrond. Beide delen
  * dezelfde suppressie-state en dezelfde cooldown, zodat dezelfde melding niet twee keer binnenkomt
@@ -348,6 +405,9 @@ async function beoordeelMarkt(
  * @returns Het aantal verstuurde meldingen.
  */
 export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): Promise<number> {
+  // Bovenaan, vóór de cooldown-claim: staan de meldingen uit, dan hoeft er ook niets geclaimd of
+  // opgehaald te worden.
+  if (!await meldingenAan()) return 0;
   const nu = Date.now();
 
   // De rem staat bewust vóór alles: binnen het uur mag er toch niets gestuurd worden, dus dan

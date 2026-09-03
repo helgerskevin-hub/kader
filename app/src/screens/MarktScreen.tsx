@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl, LayoutAnimation,
 } from 'react-native';
@@ -30,10 +30,12 @@ import { BearModusKaart } from '../components/BearModusKaart';
 import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
 import { ShortSignalenKaart } from '../components/ShortSignalenKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
+import { magDoorRsFilter } from '../engine/relatieveSterkte';
 import { haalFearGreed } from '../engine/marketData';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
 import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { limietVoor, useStopLossLimieten } from '../state/useStopLossLimiet';
 
 type Progress = { current: number; total: number; symbool: string };
 type Filter = 'alle' | 'favorieten';
@@ -56,6 +58,19 @@ export function MarktScreen() {
   const [filter, setFilter] = useState<Filter>('alle');
   const [marktFilters, setMarktFilters] = useState<MarktFilterState>(STANDAARD_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Eén keer per scherm, niet per kaart: de stop-loss-grenzen van eToro voor alle coins. Ze bepalen
+  // welke stop er op de kaarten staat, want Kaders eigen niveau is voor de meeste coins krapper dan
+  // eToro toestaat en dan is het een niveau dat je niet kunt zetten.
+  const stopLimieten = useStopLossLimieten();
+  // Relatieve sterkte per symbool, uit dezelfde scan die de kaarten vult. Kost dus niets extra.
+  // Los van de "Wie houdt stand?"-lijst hieronder, die alleen bij een niet-gunstig klimaat
+  // verschijnt: dit cijfer hoort bij elke coin, in elk klimaat.
+  // state is een union: relatieveSterkte bestaat alleen in de success-tak, dus eerst toetsen.
+  const rsLijst = state.status === 'success' ? state.relatieveSterkte : null;
+  const rsPerSymbool = useMemo(
+    () => Object.fromEntries((rsLijst ?? []).map(r => [r.symbool, r.versusBtc])),
+    [rsLijst],
+  );
 
   function soepelWisselen() {
     if (!reduceMotion) {
@@ -93,14 +108,16 @@ export function MarktScreen() {
 
     const trade = state.alle.find(t => t.symbool === navigatieDoel.symbool);
     if (trade) {
-      setDetailCoin(vanTrade(trade));
+      setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
     } else {
       setMeldingNotitie(
         `${navigatieDoel.symbool} zat niet in de laatste analyse. Ververs de markt en probeer het opnieuw.`,
       );
     }
     wisDoel();
-  }, [navigatieDoel, state, startAnalyse, wisDoel]);
+    // rsPerSymbool hangt af van state en verandert dus mee, maar hij staat er expliciet bij:
+    // anders leest een lezer (en een linter) dit als een vergeten afhankelijkheid.
+  }, [navigatieDoel, state, rsPerSymbool, startAnalyse, wisDoel]);
 
   async function handleVervers() {
     if (ververst) return;
@@ -124,7 +141,8 @@ export function MarktScreen() {
     .filter(t => marktFilters.rsi === 'alle'
       || (marktFilters.rsi === 'oversold' ? t.rsi < 30 : t.rsi > 70))
     .filter(t => t.score >= marktFilters.minScore)
-    .filter(t => t.rr >= marktFilters.minRR);
+    .filter(t => t.rr >= marktFilters.minRR)
+    .filter(t => magDoorRsFilter(marktFilters.rs, rsPerSymbool[t.symbool]));
 
   const bearModus = state.status === 'success' && state.klimaat?.klimaat === 'ongunstig';
 
@@ -134,7 +152,7 @@ export function MarktScreen() {
   function openCoinDetail(symbool: string) {
     if (state.status !== 'success') return;
     const trade = state.alle.find(t => t.symbool === symbool);
-    if (trade) setDetailCoin(vanTrade(trade));
+    if (trade) setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
   }
 
   return (
@@ -176,10 +194,12 @@ export function MarktScreen() {
             <TradeCard
               trade={item}
               onGetrade={setGetradeteTrade}
-              onOpenDetail={t => setDetailCoin(vanTrade(t))}
+              onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))}
               favoriet={isFavoriet(item.symbool)}
               onToggleFavoriet={wisselFavoriet}
               onKoop={magHandelen ? setKoopTrade : undefined}
+              limiet={limietVoor(stopLimieten, item.symbool)}
+              versusBtc={rsPerSymbool[item.symbool]}
             />
           )}
           contentContainerStyle={styles.lijst}
@@ -208,16 +228,18 @@ export function MarktScreen() {
               {bearModus ? (
                 <BearModusKaart stand={state.bearModus} />
               ) : (
-                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t))} />
+                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))} />
               )}
               {/* Short-signalen zijn de actionable tegenhanger van de bear-modus-kaart: die legt uit
                   waarom er geen koopsignaal is, dit is wat er dan wél te doen valt. Leeg zolang het
                   klimaat niet ongunstig is, want dan levert analyseerMarkt() hier niets voor aan. */}
               <ShortSignalenKaart
                 signalen={state.shorts}
+                limieten={stopLimieten}
                 magHandelen={magHandelen}
                 onGetrade={setGetradeteTrade}
                 onKoop={magHandelen ? setKoopTrade : undefined}
+                onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))}
               />
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score

@@ -122,7 +122,7 @@ _(Meting F uit fase 0 is de go: shorts op score < 40 leverden in alle drie de be
 - [x] **eToro-beperking uitgezocht (26 aug 2026): meevaller, hefboom is niet verplicht.** Gemeten tegen het demo-account. eToro geeft per crypto twee configs: long op `settlementType: real` met hefboom x1 en een stop tot 100% van de entry, en short op `settlementType: cfd` **ook met hefboom x1** maar met een stop tot maximaal 50%. Voor BTC, ETH, SOL, XRP en ADA identiek. Het is dus wel een CFD, maar niet met hefboom, dus Kader hoeft zijn uitgangspunt "altijd x1, nooit hefboom" niet los te laten en er zijn geen afwijkende marginregels. Daarmee valt het duurste deel van fase 4 weg. Wat wel moet: `kiesLimiet()` de config per richting laten kiezen (anders keurt Kader een short met een stop van 60% goed die eToro weigert), `bepaalStop()` spiegelen, en `settlementType` meesturen in de orderbody. Volledige meting in [docs/etoro-direct-handelen-plan.md](docs/etoro-direct-handelen-plan.md) paragraaf 10.
 - [x] **UI: gedaan.** Nieuwe kaart "Short-signalen" op het marktscherm, alleen zichtbaar zolang er short-signalen zijn (en dus alleen bij een ongunstig klimaat), met een gouden accent zodat hij niet met een koopkaart te verwarren is. Per coin de score, de gespiegelde niveaus (doel links, stop rechts) en de R/R, plus knoppen Getrade en Short. De kooporder-sheet kan nu ook een short plaatsen, met een gouden balk onder de titel die uitlegt dat je opent door te verkopen, en die balk staat buiten de scrollruimte zodat hij niet weg te scrollen is. De bevestiging per order is ongewijzigd streng gebleven. Verder een hoofdstuk Shorts onder het boek-icoon en een changelogregel.
   - Geverifieerd op de emulator: bij het echte klimaat (gunstig, breedte 88%) is de lijst leeg, precies zoals de poort voorschrijft. Met de poort en de drempel tijdelijk geforceerd verschijnt de kaart met kloppende niveaus (ETH: doel 2283,21 onder entry 2470,04 onder stop 2556,12, R/R 1:2,2). Beide tijdelijke wijzigingen zijn daarna teruggedraaid.
-  - Bewust NIET gedaan: een short opent geen coin-detailscherm. Dat scherm bouwt zijn "waarom" op met `genereerKoopadvies()`, dat alleen bullish onderbouwing kent. Doorklikken zou dus bullish tekst onder een short zetten. Aparte taak als we het willen.
+  - ~~Bewust NIET gedaan: een short opent geen coin-detailscherm.~~ **Alsnog gedaan.** `genereerShortadvies()` staat naast `genereerKoopadvies()` in `engine/coinInfo.ts`, met een eigen self-check: dalende trend en bearish MACD zijn daar een plus, diep oversold RSI een waarschuwing (de val is dan grotendeels geweest), en de labelgrens is `DREMPEL_SHORT` zelf, zodat het label nooit groen staat waar de engine niet vuurt. Bewust twee functies en geen vlag in de bestaande: elke regel draait om. `vanTrade()` neemt de richting van de trade over in plaats van 'long' te hardcoden, en het detailscherm draagt een SHORT-badge, de kop "Waarom short" en de knop "Short via eToro". Geverifieerd op de emulator met de short-poort en de R/R-drempel tijdelijk geforceerd, allebei teruggedraaid.
   - **Nog niet gemeten: er is nog geen echte demo-short geplaatst.** Dat `settlementType: cfd` in de orderbody hoort is afgeleid uit de eligibility-respons, niet bewezen met een order. Dat staat ook als zodanig in de code.
 
 #### Waar we vanaf blijven
@@ -134,14 +134,77 @@ _(Meting F uit fase 0 is de go: shorts op score < 40 leverden in alle drie de be
 - [x] **Meldingen aantikbaar**: tik in het meldingenoverzicht op een melding en je komt uit bij de trade in Mijn trades of de coin op het marktscherm. Onder elke melding staat waar je uitkomt. Oude meldingen zonder verwijzing blijven leesbaar maar zijn geen knop.
 _(Alles wat achtergrond-sync en pushmeldingen nodig heeft, hoort hier samen.)_
 
-- [ ] Prijsalerts instellen: notificatie als een coin een zelf gekozen prijs bereikt. De achtergrond-sync hiervoor staat er nu (`notifications/achtergrondtaak.ts`), dus dit is nog een kwestie van een prijs per coin kunnen instellen en die in `tradeChecks.ts` meenemen.
-- [ ] Meldingen aan/uit kunnen zetten in Instellingen: nu staan de trade-meldingen altijd aan zodra je meldingen toestaat. `stopAchtergrondtaak()` in `notifications/achtergrondtaak.ts` bestaat al, er is alleen nog geen knop die 'm aanroept.
+- [x] **Prijsalerts instellen: gedaan.** Belletje in de header van het coinscherm, een sheet met een prijsveld en snelknoppen voor 5/10 procent, en een lijst van je alerts per coin. De regels staan puur en getoetst in `state/prijsalerts.ts`; `checkPrijsalerts()` in `tradeChecks.ts` haalt alleen koersen op voor coins met een wachtende alert en staat bewust BUITEN de uur-cooldown van `checkOpenTrades`, want de gebruiker koos dat niveau zelf. Een alert vuurt precies een keer. Geverifieerd op de emulator, inclusief de eenmaligheid en het uitzetten.
+- [x] **Meldingen aan/uit in Instellingen: gedaan.** Een Aan/Uit-keuze in dezelfde vorm als Weergave en Valuta. Uit wist de geplande dagelijkse herinnering (die staat al bij Android in de wachtrij en gaat anders gewoon door) en schrijft de achtergrondtaak uit; de vlag staat in `state/meldingVoorkeur.ts` en wordt bovenaan `checkOpenTrades` en `checkPrijsalerts` gelezen. Let op: dat bestand importeert met opzet niets uit `notifications/`, anders ontstaat er een require-cycle via `achtergrondtaak.ts`, en dat is precies het bestand dat op module-niveau de Android-taak registreert. Het daadwerkelijke schakelen staat daarom in `state/meldingSchakelaar.ts`.
 - [x] Shorts in de meldingen: de trade-checks zijn richting-bewust. Een short trailt zijn stop omlaag in plaats van omhoog, en een open short onderdrukt geen koopsignaal meer op dezelfde coin. De "verhoog je doel"-melding blijft bij een short nog achterwege tot er short-niveaus zijn.
 
 ## 🛠️ Te doen
 
 ### Functioneel / inhoud
 - [ ] **Sterker maken van het analyse algoritme**: hoe kan dit algoritme nog sterker en beter worden en zich echt onderscheiden?
+
+#### Meting H (2 sep 2026): de sterkste vondst tot nu toe, en er moet een keuze over gemaakt worden
+
+_(Nieuw in `app/scripts/backtest.ts`, meting H. Reproduceerbaar met `node scripts/haal-historie.mjs 9` en `npm run backtest` vanuit `app/`. De basis reproduceert de bekende cijfers: 3251 trades, +0,088 gemiddelde R, high conviction +0,158. Dat is iets hoger dan de +0,083 in meting C omdat er zeven weken data bij zijn gekomen.)_
+
+Getoetst zijn drie filters op de COIN zelf, waar de poorten uit meting D allemaal naar de MARKT kijken. Twee vielen af, een is groot.
+
+**Afgevallen: boven de eigen EMA100.** +0,195 tegen +0,192 basis, dus niets. De tegenproef laat zien waarom: de helft die het filter wegGOOIT (onder de EMA100) doet +0,143, bijna even goed. Het filter sorteert dus niet. Erger nog, het maakt 2025 slechter (-0,14 naar -0,61).
+
+**Afgevallen: niet te ver uitgerekt boven EMA20.** Bij 2 ATR gebeurt er letterlijk niets (geen enkel KOOP-signaal staat daarboven), bij 1 ATR is het +0,197 tegen +0,192. Op high conviction geeft 2 ATR wel +0,210 tegen +0,193, maar dat kost een derde van de trades en maakt 2026 slechter. Te mager.
+
+**De vondst: relatieve sterkte versus BTC werkt, maar ANDERSOM dan verwacht.** Binnen de koopsignalen van Kader doen coins die de afgelopen 30 dagen zijn ACHTERGEBLEVEN op BTC het fors beter dan coins die BTC al voorbij zijn gelopen.
+
+| relatieve sterkte 30d | n | treffer% | gem R |
+|---|---|---|---|
+| < -20% | 337 | 53 | **+0,775** |
+| -20% tot -10% | 458 | 42 | +0,406 |
+| -10% tot 0% | 732 | 33 | +0,132 |
+| 0% tot +10% | 521 | 25 | -0,146 |
+| +10% tot +25% | 342 | 24 | -0,146 |
+| +25% tot +50% | 188 | 24 | -0,122 |
+| > +50% | 146 | 32 | +0,168 |
+
+Dat is een monotone helling over vrijwel het hele bereik, geen staarteffect: hoe verder achter, hoe beter. Alleen de laatste emmer wijkt af en die is met n=146 de kleinste. Dezelfde vorm komt terug op high conviction (rs < -10%: +0,555, rs 0 tot +25%: +0,045).
+
+Belangrijker nog, het houdt stand **zonder** de marktpoort, dus het is geen artefact van die smalle doorsnede:
+
+| regel | n | gem R | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| basis (KOOP + R/R) | 3251 | +0,088 | -0,34 | 0,07 | 0,59 | 0,41 | -0,33 | 0,30 | -0,01 | -0,24 | -0,05 |
+| + zwakker dan BTC | 1879 | **+0,168** | -0,69 | -0,10 | 0,90 | 0,53 | -0,27 | 0,34 | 0,16 | -0,18 | 0,04 |
+| + sterker dan BTC | 1862 | -0,032 | -0,11 | 0,07 | 0,24 | 0,34 | -0,45 | 0,21 | -0,19 | -0,36 | -0,23 |
+
+Dat is het verschil tussen een strategie die werkt en een die niet werkt, over de halve steekproef en negen jaar.
+
+**Hoe het te lezen:** een KOOP-signaal eist al een opwaartse trend en bullish MACD. Een coin die daarbij ook nog eens 25% harder is gestegen dan BTC in een maand, heeft het makkelijke deel gehad. Een coin met hetzelfde signaal die juist is achtergebleven, is een terugval binnen een opgaande trend. Kader koopt dus beter de dip in een sterke coin dan de doorgeschoten winnaar.
+
+**Wat er nu mee is gedaan:** het cijfer is per coin zichtbaar gemaakt op het marktscherm en het coin-detailscherm, met de meting erbij. Het telt bewust NIET mee in de 0-100 score en filtert niets weg.
+
+- [ ] **Keuze voor Kevin en Thom: moet dit in de strategie?** De meting steunt het ruim, en anders dan een drempelverlaging is dit een AANSCHERPING. Optie (a) laten zoals nu (alleen zichtbaar) en ~~(b) een filter dat je zelf aanzet~~ **is gebouwd en staat standaard uit**. Blijft over: (c) het in de engine zetten. Meting H2e is er specifiek voor gedraaid, zie hieronder.
+
+#### H2e: wat optie (c) precies kost en oplevert
+
+_(Zelfde run, `npm run backtest`. De laatste kolom is nieuw en het belangrijkst: hoeveel dagen houdt de app nog iets te melden? Gemiddelde R zegt niets over of het scherm nog gevuld is.)_
+
+| variant | n | gem R | 2022 | 2025 | 2026 | dagen met signaal |
+|---|---|---|---|---|---|---|
+| **wat de app vandaag doet** | 1919 | +0,192 | -0,46 | -0,14 | +0,09 | 714 |
+| zonder voorlopers boven +25% | 1703 | +0,207 | -0,41 | -0,11 | +0,10 | 686 |
+| **zonder voorlopers boven +10%** | 1512 | **+0,243** | -0,34 | -0,07 | +0,10 | **670** |
+| alleen achterblijvers (-10% of meer) | 666 | **+0,574** | **+0,01** | **+0,73** | +0,20 | 468 |
+
+Twee dingen springen eruit.
+
+**De grens van +10% is bijna gratis.** Hij tilt het gemiddelde met een kwart op (+0,192 naar +0,243) en kost 44 van de 714 signaaldagen, dus 6 procent. Dat is een betere ruil dan de +25% die eerder werd voorgesteld; die is nauwelijks strenger dan niets.
+
+**"Alleen achterblijvers" repareert precies de jaren die stuk zijn.** 2022 van -0,46 naar +0,01, 2025 van -0,14 naar +0,73. Dat zijn de bearmarkten waar dit hele project al twee plannen aan besteed heeft. Maar het kost een derde van de signaaldagen (714 naar 468), en in een jaar waarin de poort toch al vaak dicht staat is dat het verschil tussen weinig signalen en geen signalen.
+
+Zonder de marktpoort (H2f) wijst het dezelfde kant op: "alleen achterblijvers" geeft +0,362 tegen +0,088, met 2025 op +0,03 en 2026 op +0,14 in plaats van -0,24 en -0,05.
+
+**Aanbeveling:** de +10%-grens als harde regel (dus voorlopers boven +10% krijgen geen KOOP meer), en "alleen achterblijvers" laten waar het nu staat, als filter dat je zelf aanzet. Dan pakt de app de goedkope winst zonder dat het scherm een derde van de tijd leeg blijft, en wie strenger wil kan dat met een tik. Maar dit verandert wel elk signaal dat de app geeft, dus het wacht op jullie akkoord.
+
+- [ ] **Kanttekening bij het bovenstaande:** dit is één harness op één dataset, zonder aparte out-of-sample-periode. Wat het geloofwaardig maakt is dat de helling monotoon is over zeven emmers, dat hij standhoudt zonder de marktpoort, en dat hij in acht van de negen jaren dezelfde kant op wijst. Wat het niet wegneemt: er zijn nu drie hypotheses en een handvol drempels getoetst op dezelfde negen jaar. Voordat (c) erin gaat is het de moeite waard om de meting één keer opnieuw te draaien op verse data.
 
 ### Kwaliteit & stabiliteit
 - [ ] Handmatige smoke-test uitvoeren na elke grote wijziging

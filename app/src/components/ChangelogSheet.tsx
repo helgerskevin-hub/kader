@@ -14,10 +14,14 @@ interface Props {
   alleenNieuwste?: boolean;
 }
 
+// Tussen twee releases staat er "Nog niet uitgebracht" in plaats van een nummer, en daar hoort geen
+// v voor: "vNog niet uitgebracht" leest als een fout in de app.
+const versieLabel = (versie: string) => (/^\d/.test(versie) ? `v${versie}` : versie);
+
 export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) {
   const { colors } = useTheme();
   const entries = alleenNieuwste ? CHANGELOG.slice(0, 1) : CHANGELOG;
-  const titel = alleenNieuwste ? `Nieuw in v${CHANGELOG[0]?.versie}` : 'Wijzigingen';
+  const titel = alleenNieuwste ? `Nieuw: ${versieLabel(CHANGELOG[0]?.versie ?? '')}` : 'Wijzigingen';
 
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={styles.vel}>
@@ -37,7 +41,7 @@ export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) 
         {entries.map(entry => (
           <View key={entry.versie} style={styles.entry}>
             <View style={styles.entryKop}>
-              <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>v{entry.versie}</Text>
+              <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{versieLabel(entry.versie)}</Text>
               <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{entry.datum}</Text>
             </View>
             {entry.punten.map((punt, i) => (

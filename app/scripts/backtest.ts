@@ -137,6 +137,11 @@ for (let i = 0; i < btcCandles.length; i++) {
   btcRiskOnPerDag[datumVan(btcCandles[i].tijd)] = btcCandles[i].close > btcEma200[i];
 }
 
+// BTC-slotkoers per dag, voor de relatieve sterkte in meting H. Opzoeken op datum in plaats van
+// op index, want niet elke coin heeft evenveel candles als BTC.
+const btcCloseOpDag: Record<string, number> = {};
+for (const c of btcCandles) btcCloseOpDag[datumVan(c.tijd)] = c.close;
+
 // Marktbreedte per datum: welk deel van het universum staat boven zijn eigen EMA50?
 // BTC boven zijn EMA200 bleek niets te zeggen over de altmarkt (goede en slechte kwartalen
 // zaten in beide regimes), dus meten we die altmarkt hier rechtstreeks. Ook dit is causaal:
@@ -193,6 +198,12 @@ type Signaal = {
   // Omkeerprofiel (mean reversion), voor meting G. Losse velden i.p.v. een sub-object, zodat
   // de rest van het script (draai, jaarRegel) simpel Signaal-velden kan blijven lezen.
   scoreOmkeer: number; entryOmkeer: number; stopOmkeer: number; koopOmkeer: boolean; rrOkOmkeer: boolean;
+  // Voor meting H: eigenschappen van de COIN zelf op dat moment, los van de markt eromheen.
+  // De poorten uit meting D kijken allemaal naar de markt (BTC, breedte); deze drie kijken naar
+  // wat de coin zelf doet. Alle drie causaal: ze gebruiken alleen candles[0..i].
+  bovenEma100: boolean | null;   // staat de coin boven zijn eigen EMA100?
+  rs30: number | null;           // rendement over 30 dagen min dat van BTC over dezelfde dagen
+  uitgerekt: number;             // (prijs - EMA20) / ATR: hoe laat je instapt in de beweging
 };
 
 // Alles wat de markt op een gegeven dag over zichzelf zei. Een poort mag hier alleen uit putten,
@@ -204,11 +215,36 @@ const marktOp = (datum: string) => ({
   breedteStijgt: breedteStijgend[datum],    // breedte hoger dan 20 dagen geleden
   fng: fng[datum],                          // Fear & Greed
 });
+// Relatieve sterkte: het rendement van de coin over 30 dagen min dat van BTC over exact dezelfde
+// dagen. Positief = de coin houdt beter stand dan de markt. Dezelfde grootheid die de app al toont
+// in bear-modus (engine/relatieveSterkte.ts), hier voor het eerst gemeten als instapfilter.
+//
+// Op datum opzoeken en niet op index: coins hebben verschillende startdatums, dus index i bij ADA
+// is een andere dag dan index i bij BTC.
+const RS_DAGEN = 30;
+function rsVoor(candles: Candle[], i: number): number | null {
+  if (i < RS_DAGEN) return null;
+  const toen = candles[i - RS_DAGEN];
+  const nu = candles[i];
+  if (!toen.close || !nu.close) return null;
+  const btcNu = btcCloseOpDag[datumVan(nu.tijd)];
+  const btcToen = btcCloseOpDag[datumVan(toen.tijd)];
+  if (!btcNu || !btcToen) return null;
+  return (nu.close / toen.close - 1) - (btcNu / btcToen - 1);
+}
+
 const signalenPerCoin: Record<string, Signaal[]> = {};
 
 for (const symbool of coins) {
   const candles = laadCandles(symbool);
   if (candles.length < MIN_CANDLES + 2) continue;
+
+  // Eén keer per coin over de hele reeks: een EMA is causaal, de waarde op bar i hangt alleen af
+  // van bars 0..i. De app ziet per coin 200 candles en kan een EMA100 daarbinnen dus ook
+  // uitrekenen; na ~100 bars is hij ingelopen en is het verschil met deze berekening te klein om
+  // een beslissing te kantelen.
+  const closes = candles.map(c => c.close);
+  const ema100 = ema(closes, 100);
 
   let bezetTot = -1; // voor meting B: geen overlappende trades in dezelfde coin
   signalenPerCoin[symbool] = [];
@@ -238,6 +274,11 @@ for (const symbool of coins) {
       stopOmkeer: tOmkeer?.stopLoss ?? 0,
       koopOmkeer: tOmkeer ? tOmkeer.signaal === 'KOOP' : false,
       rrOkOmkeer: tOmkeer ? tOmkeer.rr >= MIN_RISK_REWARD - 1e-9 : false,
+      // Pas vanaf bar 100 zegt een EMA100 iets; daarvoor null, en dan telt de coin niet mee in de
+      // regels die erop filteren (net als bij btcRiskOn vóór bar 200).
+      bovenEma100: i >= 100 ? candles[i].close > ema100[i] : null,
+      rs30: rsVoor(candles, i),
+      uitgerekt: t.atr > 0 ? (t.entry - t.ema20) / t.atr : 0,
     });
     const sim: Simulatie = {
       symbool,
@@ -627,6 +668,144 @@ jaarKop('G3b, poort dicht EN BTC onder EMA200 (echte bearmarkt):');
 jaarRegel('nulmeting (willekeurig)', draai(echteBear, { doelAtr: 2.0, maxBars: 20 }));
 jaarRegel('momentum (KOOP + R/R)', draai(s => s.koop && s.rrOk && echteBear(s), { doelAtr: 2.0, maxBars: 20 }));
 jaarRegel('omkeer (KOOP + R/R)', draai(s => s.koopOmkeer && s.rrOkOmkeer && echteBear(s), { doelAtr: 2.0, maxBars: 20, bron: 'omkeer' }));
+
+// --- meting H: filters op de COIN zelf, bovenop wat de app al doet -----------------------
+//
+// Meting D vond de beste poort (BTC boven EMA50 en een stijgende breedte, +0,193 op high
+// conviction), maar die kijkt naar de MARKT. 2025 en 2026 blijven daar negatief. De vraag hier is
+// een andere: als de poort openstaat, zijn er dan coin-eigenschappen die de goede instappen van
+// de slechte scheiden?
+//
+// Drie kandidaten, alle drie al aanwezig in de app of goedkoop uit dezelfde 200 candles:
+//
+//   H1  De coin boven zijn eigen EMA100. De engine kijkt niet verder dan EMA50, dus een coin die
+//       structureel daalt maar kortstondig opveert haalt nu gewoon een KOOP.
+//   H2  Relatieve sterkte over 30 dagen versus BTC. De app rekent dit al uit en toont het in
+//       bear-modus, maar het telt nergens mee in de instapbeslissing.
+//   H3  Niet te ver uitgerekt boven EMA20, gemeten in ATR. Een coin die al 3 ATR boven zijn
+//       gemiddelde staat is een late instap: het doel ligt op 3x ATR en de helft is dan geweest.
+//
+// De vergelijking is telkens tegen dezelfde basis, en n staat er nadrukkelijk bij: een filter dat
+// de gemiddelde R optilt door 90% van de trades weg te gooien is geen verbetering maar een kleinere
+// steekproef.
+
+console.log('\n\n' + '='.repeat(72));
+console.log('METING H: filters op de coin zelf, bovenop de bestaande strategie');
+console.log('='.repeat(72));
+console.log('\nDe poorten uit meting D kijken naar de markt. Deze drie kijken naar de coin.');
+console.log('Basis is telkens de regel eronder, zodat elk filter zijn eigen bijdrage toont.');
+
+// De poort die meting D als beste aanwees. Alle H-regels draaien hierbinnen, want dat is wat de
+// app vandaag doet: bepaalKlimaat() sluit de poort op precies deze twee voorwaarden.
+const poortOpenNu = (s: Signaal) => M(s).btc50 === true && M(s).breedteStijgt === true;
+
+const basisKoop = (s: Signaal) => s.koop && s.rrOk && poortOpenNu(s);
+const basisHc = (s: Signaal) => s.hc && poortOpenNu(s);
+
+jaarKop('H1/H2/H3 op KOOP + R/R, poort open, doel 3x ATR / 30 dagen:');
+jaarRegel('basis (KOOP + R/R)', draai(basisKoop));
+jaarRegel('+ boven eigen EMA100', draai(s => basisKoop(s) && s.bovenEma100 === true));
+jaarRegel('+ sterker dan BTC (30d)', draai(s => basisKoop(s) && s.rs30 !== null && s.rs30 > 0));
+jaarRegel('+ niet uitgerekt (< 2 ATR)', draai(s => basisKoop(s) && s.uitgerekt < 2));
+jaarRegel('+ niet uitgerekt (< 1 ATR)', draai(s => basisKoop(s) && s.uitgerekt < 1));
+
+jaarKop('Dezelfde drie op high conviction (de sterkste bucket), poort open:');
+jaarRegel('basis (high conviction)', draai(basisHc));
+jaarRegel('+ boven eigen EMA100', draai(s => basisHc(s) && s.bovenEma100 === true));
+jaarRegel('+ sterker dan BTC (30d)', draai(s => basisHc(s) && s.rs30 !== null && s.rs30 > 0));
+jaarRegel('+ niet uitgerekt (< 2 ATR)', draai(s => basisHc(s) && s.uitgerekt < 2));
+
+// De omgekeerde kant van elk filter. Als een filter echt onderscheid maakt, hoort de weggelaten
+// helft het slechter te doen dan de basis. Doet die het even goed, dan sorteert het filter niets
+// en is de winst in de regel hierboven toeval.
+jaarKop('Tegenproef: wat gooien de filters weg? (KOOP + R/R, poort open)');
+jaarRegel('ONDER eigen EMA100', draai(s => basisKoop(s) && s.bovenEma100 === false));
+jaarRegel('ZWAKKER dan BTC (30d)', draai(s => basisKoop(s) && s.rs30 !== null && s.rs30 <= 0));
+jaarRegel('WEL uitgerekt (>= 2 ATR)', draai(s => basisKoop(s) && s.uitgerekt >= 2));
+
+// Combinaties, maar alleen van de filters die op zichzelf iets deden. Meer filters stapelen is
+// makkelijk en bijna altijd een manier om op ruis te passen, dus n blijft hier de belangrijkste
+// kolom: zakt hij onder een paar honderd, dan zegt het gemiddelde niets meer.
+jaarKop('Combinaties (KOOP + R/R, poort open):');
+jaarRegel('EMA100 + sterker dan BTC', draai(s => basisKoop(s) && s.bovenEma100 === true && s.rs30 !== null && s.rs30 > 0));
+jaarRegel('EMA100 + niet uitgerekt', draai(s => basisKoop(s) && s.bovenEma100 === true && s.uitgerekt < 2));
+jaarRegel('alle drie', draai(s => basisKoop(s) && s.bovenEma100 === true && s.rs30 !== null && s.rs30 > 0 && s.uitgerekt < 2));
+
+// H2 verdiende een tweede blik. De binaire split (sterker of zwakker dan BTC) gaf het
+// tegenovergestelde van wat verwacht werd: juist de ACHTERBLIJVERS deden het beter. Een binaire
+// split kan echter door een staart gedreven worden. Als het effect echt is, hoort het monotoon te
+// zijn: hoe verder achter, hoe beter. Is het dat niet, dan is de winst hierboven toeval.
+jaarKop('H2b, relatieve sterkte in emmers (KOOP + R/R, poort open):');
+const rsEmmer = (laag: number, hoog: number) => (s: Signaal) =>
+  basisKoop(s) && s.rs30 !== null && s.rs30 > laag && s.rs30 <= hoog;
+jaarRegel('rs < -20%', draai(s => basisKoop(s) && s.rs30 !== null && s.rs30 <= -0.20));
+jaarRegel('rs -20% tot -10%', draai(rsEmmer(-0.20, -0.10)));
+jaarRegel('rs -10% tot 0%', draai(rsEmmer(-0.10, 0)));
+jaarRegel('rs 0% tot +10%', draai(rsEmmer(0, 0.10)));
+jaarRegel('rs +10% tot +25%', draai(rsEmmer(0.10, 0.25)));
+jaarRegel('rs +25% tot +50%', draai(rsEmmer(0.25, 0.50)));
+jaarRegel('rs > +50%', draai(s => basisKoop(s) && s.rs30 !== null && s.rs30 > 0.50));
+
+// En dezelfde emmers op high conviction, want dat is de bucket waar de app zijn uitgelichte advies
+// op baseert. Werkt het daar niet, dan raakt het de belangrijkste plek in de app niet.
+jaarKop('H2c, dezelfde emmers op high conviction:');
+const rsEmmerHc = (laag: number, hoog: number) => (s: Signaal) =>
+  basisHc(s) && s.rs30 !== null && s.rs30 > laag && s.rs30 <= hoog;
+jaarRegel('rs < -10%', draai(s => basisHc(s) && s.rs30 !== null && s.rs30 <= -0.10));
+jaarRegel('rs -10% tot 0%', draai(rsEmmerHc(-0.10, 0)));
+jaarRegel('rs 0% tot +25%', draai(rsEmmerHc(0, 0.25)));
+jaarRegel('rs +25% tot +50%', draai(rsEmmerHc(0.25, 0.50)));
+jaarRegel('rs > +50%', draai(s => basisHc(s) && s.rs30 !== null && s.rs30 > 0.50));
+
+// Een drempel is pas bruikbaar als hij ook zonder de marktpoort standhoudt: de poort staat lang
+// niet altijd open, en een filter dat alleen binnen die smalle doorsnede werkt is te veel op maat
+// van deze steekproef gesneden.
+jaarKop('H2d, zonder marktpoort (alleen KOOP + R/R), controle:');
+const kaal = (s: Signaal) => s.koop && s.rrOk;
+jaarRegel('basis, geen poort', draai(kaal));
+jaarRegel('+ zwakker dan BTC', draai(s => kaal(s) && s.rs30 !== null && s.rs30 <= 0));
+jaarRegel('+ sterker dan BTC', draai(s => kaal(s) && s.rs30 !== null && s.rs30 > 0));
+
+// H2e is de vraag die na H2 openbleef: wat kóst en levert optie (c) nu precies op? Dat is de
+// variant waarin de app coins die ver voorliggen op BTC nooit meer als KOOP toont. Hier staat hij
+// naast wat de app vandaag doet, in de twee doorsnedes die ertoe doen: de volledige strategie en
+// high conviction, allebei met de marktpoort erbij zoals de app hem draait.
+//
+// De kolom die het meest telt is n. Een filter dat de gemiddelde R optilt door de helft van de
+// trades weg te gooien maakt de app óók de helft stiller, en in een jaar waarin de poort al vaak
+// dicht staat is dat het verschil tussen "weinig signalen" en "geen signalen".
+jaarKop('H2e, wat optie (c) zou doen (poort open, doel 3x ATR / 30 dagen):');
+jaarRegel('KOOP + R/R (vandaag)', draai(basisKoop));
+jaarRegel('  zonder voorlopers >25%', draai(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.25)));
+jaarRegel('  zonder voorlopers >10%', draai(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.10)));
+jaarRegel('  alleen achterblijvers', draai(s => basisKoop(s) && s.rs30 !== null && s.rs30 <= -0.10));
+jaarRegel('high conviction (vandaag)', draai(basisHc));
+jaarRegel('  zonder voorlopers >25%', draai(s => basisHc(s) && (s.rs30 === null || s.rs30 <= 0.25)));
+jaarRegel('  zonder voorlopers >10%', draai(s => basisHc(s) && (s.rs30 === null || s.rs30 <= 0.10)));
+jaarRegel('  alleen achterblijvers', draai(s => basisHc(s) && s.rs30 !== null && s.rs30 <= -0.10));
+
+// En hetzelfde zonder poort, want de poort staat lang niet altijd open en een regel in de engine
+// werkt ook op de dagen dat hij dicht is.
+jaarKop('H2f, idem maar zonder marktpoort:');
+jaarRegel('KOOP + R/R (vandaag)', draai(kaal));
+jaarRegel('  zonder voorlopers >25%', draai(s => kaal(s) && (s.rs30 === null || s.rs30 <= 0.25)));
+jaarRegel('  zonder voorlopers >10%', draai(s => kaal(s) && (s.rs30 === null || s.rs30 <= 0.10)));
+jaarRegel('  alleen achterblijvers', draai(s => kaal(s) && s.rs30 !== null && s.rs30 <= -0.10));
+
+// Hoeveel signalen raken we kwijt, uitgedrukt in dagen met minstens een signaal? Gemiddelde R zegt
+// niets over of de app nog iets te melden heeft.
+const dagenMet = (kiest: (s: Signaal) => boolean) => {
+  const dagen = new Set<string>();
+  for (const symbool of coins) {
+    for (const s of signalenPerCoin[symbool] ?? []) if (kiest(s)) dagen.add(s.datum);
+  }
+  return dagen.size;
+};
+console.log('\n  Dagen met minstens een KOOP-signaal (poort open):');
+console.log(`    vandaag                 ${dagenMet(basisKoop)}`);
+console.log(`    zonder voorlopers >25%  ${dagenMet(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.25))}`);
+console.log(`    zonder voorlopers >10%  ${dagenMet(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.10))}`);
+console.log(`    alleen achterblijvers   ${dagenMet(s => basisKoop(s) && s.rs30 !== null && s.rs30 <= -0.10)}`);
 
 // --- wegschrijven -----------------------------------------------------------------------
 
