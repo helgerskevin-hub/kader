@@ -253,7 +253,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
       </View>
       <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
         {meldingen
-          ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open trade aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
+          ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open positie aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
           : 'Kader stuurt geen enkele melding meer, ook geen prijsalerts. Je alerts blijven staan en gaan weer werken zodra je dit aanzet.'}
       </Text>
 

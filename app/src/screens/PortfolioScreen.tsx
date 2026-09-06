@@ -1041,7 +1041,7 @@ export function PortfolioScreen() {
       />
 
       {/* Eén keer per app-start, tot de trades uit de opslag binnen zijn: skeleton-kaarten in
-          plaats van de statuskaart en de lege "Geen open trades"-staat, anders knippert die
+          plaats van de statuskaart en de lege "Geen open posities"-staat, anders knippert die
           eerst leeg voordat de echte trades verschijnen. Ververst je daarna (swipe of eToro-
           import), dan blijft de bestaande lijst gewoon staan; dat gebeurt hier niet opnieuw. */}
       {!geladen ? (
@@ -1171,7 +1171,7 @@ export function PortfolioScreen() {
           <View style={portfolioStyles.leeg}>
             <Wallet size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
             <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
-              Geen open trades
+              Geen open posities
             </Text>
             <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24 }]}>
               Voeg een trade toe vanuit het Markt-scherm of via de knop rechtsboven{afgeslotenCount > 0 ? ', of bekijk je afgesloten trades in de historie' : ''}.
