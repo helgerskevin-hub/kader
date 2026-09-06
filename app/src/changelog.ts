@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.19',
+    datum: '2026-09-06',
+    punten: [
+      'Skeleton-laadschermen pulseren nu zachtjes in plaats van een statisch grijs blok te tonen, zodat duidelijker is dat de app nog aan het laden is en niet is vastgelopen. Het coin-detailscherm toont tijdens het laden nu een skeleton in de vorm van de grafiek en de niveaus in plaats van alleen een spinner, en Portfolio en eToro-traders tonen bij de allereerste keer laden na het openen van de app skeleton-kaarten in plaats van eventjes de lege staat te tonen voordat de echte data verschijnt. Ververs je daarna (swipe of de eToro-knop), dan blijft de bestaande data gewoon staan; dat gedrag verandert niet. Staat verminderde beweging aan op je toestel, dan blijft het statische blok van vroeger staan',
+      '"Mijn trades" heet vanaf nu Portfolio, en de kop boven je open posities heet "Open posities" in plaats van "Open trades". Dat geldt overal: de schermtitel, de meldingen die naar je trades verwijzen, en de uitleg onder het boek-icoon',
+      'Stond er precies één sterk koopadvies in het vak "Wat moet ik nu kopen?", dan plakte die kaart tegen de linkerrand terwijl er rechts 32 punten ruimte wegviel. Bij twee of meer kandidaten, de swipe-carrousel, stonden de marges wel goed. Een enkele kaart krijgt nu dezelfde marges als een kaart in de carrousel',
+    ],
+  },
+  {
     versie: '0.1.18',
     datum: '2026-09-03',
     punten: [

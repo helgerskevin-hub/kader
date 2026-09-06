@@ -14,6 +14,7 @@ import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
+import { SkeletonCard } from '../components/SkeletonCard';
 import { HistorieScherm } from '../components/HistorieScherm';
 import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
 import { TradeActiesSheet } from '../components/TradeActiesSheet';
@@ -853,7 +854,7 @@ export function PortfolioScreen() {
   const { colors } = useTheme();
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
-    syncing, laatsteSync, syncFout, etoroFout, synchroniseer,
+    syncing, laatsteSync, syncFout, etoroFout, synchroniseer, geladen,
     omgeving, magHandelen, verlopenOrders, controleerOnbekendeOrders,
   } = usePortfolio();
   const [verkoopTrade, setVerkoopTrade] = useState<PortfolioTrade | null>(null);
@@ -1025,7 +1026,7 @@ export function PortfolioScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
-        titel="Mijn trades"
+        titel="Portfolio"
         rechts={
           <Pressable
             style={[portfolioStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
@@ -1039,6 +1040,17 @@ export function PortfolioScreen() {
         }
       />
 
+      {/* Eén keer per app-start, tot de trades uit de opslag binnen zijn: skeleton-kaarten in
+          plaats van de statuskaart en de lege "Geen open trades"-staat, anders knippert die
+          eerst leeg voordat de echte trades verschijnen. Ververst je daarna (swipe of eToro-
+          import), dan blijft de bestaande lijst gewoon staan; dat gebeurt hier niet opnieuw. */}
+      {!geladen ? (
+        <View style={portfolioStyles.laadWrapper}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : (
       <FlatList
         data={lijstData}
         keyExtractor={item => item.soort === 'kop' ? `kop-${item.bron}` : item.trade.id}
@@ -1148,7 +1160,7 @@ export function PortfolioScreen() {
             {openTrades.length > 0 && (
               <View style={portfolioStyles.weergaveRij}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                  {openTrades.length} {openTrades.length === 1 ? 'OPEN TRADE' : 'OPEN TRADES'}
+                  {openTrades.length} {openTrades.length === 1 ? 'OPEN POSITIE' : 'OPEN POSITIES'}
                 </Text>
                 <WeergaveSchakelaar actief={weergave} onWijzig={setWeergave} />
               </View>
@@ -1176,6 +1188,7 @@ export function PortfolioScreen() {
         }
         ListFooterComponent={<Disclaimer metRand={openTrades.length > 0} />}
       />
+      )}
 
       <TradeFormulier
         zichtbaar={formulierZichtbaar || bewerkTrade !== null}
@@ -1247,6 +1260,7 @@ export function PortfolioScreen() {
 
 const portfolioStyles = StyleSheet.create({
   root: { flex: 1 },
+  laadWrapper: { paddingTop: spacing.md },
   onbevestigd: {
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,

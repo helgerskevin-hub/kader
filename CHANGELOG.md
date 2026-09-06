@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.1.19
+
+- Skeleton-laadschermen pulseren nu zachtjes in plaats van een statisch grijs blok te tonen, zodat duidelijker is dat de app nog aan het laden is en niet is vastgelopen. Het coin-detailscherm toont tijdens het laden nu een skeleton in de vorm van de grafiek en de niveaus in plaats van alleen een spinner, en Portfolio en eToro-traders tonen bij de allereerste keer laden na het openen van de app skeleton-kaarten in plaats van eventjes de lege staat te tonen voordat de echte data verschijnt. Ververs je daarna (swipe of de eToro-knop), dan blijft de bestaande data gewoon staan; dat gedrag verandert niet. Staat verminderde beweging aan op je toestel, dan blijft het statische blok van vroeger staan
+- "Mijn trades" heet vanaf nu Portfolio, en de kop boven je open posities heet "Open posities" in plaats van "Open trades". Dat geldt overal: de schermtitel, de meldingen die naar je trades verwijzen, en de uitleg onder het boek-icoon
+- Stond er precies één sterk koopadvies in het vak "Wat moet ik nu kopen?", dan plakte die kaart tegen de linkerrand terwijl er rechts 32 punten ruimte wegviel. Bij twee of meer kandidaten, de swipe-carrousel, stonden de marges wel goed. Een enkele kaart krijgt nu dezelfde marges als een kaart in de carrousel
+
 ## 0.1.18
 
 - De koersgrafiek op een coinscherm heeft nu knoppen voor de periode: 1M, 3M, 6M en Alles. De grafiek stond altijd vast op ongeveer drie maanden, dus een langere trend was er niet uit te lezen en een recente beweging verdronk in de rest. Drie maanden blijft de stand waarin het scherm opent. Er staan alleen knoppen die echt iets veranderen: geeft de bron voor die coin maar een maand geschiedenis terug, dan zou elke knop dezelfde lijn tonen en verdwijnt de rij helemaal. Kies je een periode die langer is dan wat er beschikbaar is, dan valt de grafiek terug op Alles in plaats van leeg te blijven

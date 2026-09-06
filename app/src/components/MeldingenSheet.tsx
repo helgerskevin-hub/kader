@@ -24,9 +24,9 @@ interface Props {
 // waar je uitkomt; een pijl alleen zegt dat je érgens heen gaat, niet waarheen.
 function bestemming(doel: MeldingDoel): string {
   switch (doel.soort) {
-    case 'trade': return `Naar ${doel.symbool} in Mijn trades`;
+    case 'trade': return `Naar ${doel.symbool} in Portfolio`;
     case 'coin': return `Naar ${doel.symbool} op de Markt`;
-    case 'portfolio': return 'Naar Mijn trades';
+    case 'portfolio': return 'Naar Portfolio';
     case 'markt': return 'Naar de Markt';
   }
 }

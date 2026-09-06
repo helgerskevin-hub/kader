@@ -50,10 +50,13 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
     );
   }
 
-  // Eén kandidaat: dan is er niets te swipen en hoeft er ook geen puntenrij onder te staan.
+  // Eén kandidaat: dan is er niets te swipen en hoeft er ook geen puntenrij onder te staan. De
+  // kaart zelf krijgt hier dezelfde marges als in de carrousel: die zit in een ScrollView met
+  // paddingHorizontal, hier moet de wrapper die marge zelf leveren, anders plakt de kaart links
+  // tegen de rand terwijl hij wel op de breedte van de carrousel-kaart is berekend.
   if (kandidaten.length === 1) {
     return (
-      <View style={styles.wrapper}>
+      <View style={[styles.wrapper, styles.enkele]}>
         <Kaart trade={kandidaten[0]} onOpenDetail={onOpenDetail} breedte={width - spacing.base * 2} />
       </View>
     );
@@ -159,6 +162,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.kaart,
     padding: spacing.base,
     gap: spacing.sm,
+  },
+  // Zelfde marge als de carrousel z'n ScrollView-padding, voor de kaart bij precies één kandidaat.
+  enkele: {
+    marginHorizontal: spacing.base,
   },
   spoor: { paddingHorizontal: spacing.base, gap: spacing.sm },
   kaart: {

@@ -186,7 +186,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
               Wat Kader in die modus níet doet, is zijn drempels verlagen om toch iets te kunnen tonen. De score, de
               minimale risk/reward van 1:2 en de klimaatpoort blijven precies zoals ze zijn. De analyse per coin blijft
               gewoon zichtbaar in de lijst, alleen zonder koopsignaal. Wat er wel bijkomt is de lijst "Wie houdt stand?"
-              op het marktscherm, en per open positie een advies over afbouwen in Mijn trades.
+              op het marktscherm, en per open positie een advies over afbouwen in Portfolio.
             </Text>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               De dagenteller loopt vanaf het moment dat Kader het ongunstige klimaat voor het eerst zag, niet vanaf het
@@ -275,7 +275,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
 
           <Sectie id="blootstelling" titel="Blootstelling en afbouwen" open={open === 'blootstelling'} onToggle={wisselOpen}>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
-              Op het scherm Mijn trades staat hoeveel van je kapitaal er in de markt zit, afgezet tegen wat bij het
+              Op het scherm Portfolio staat hoeveel van je kapitaal er in de markt zit, afgezet tegen wat bij het
               huidige klimaat past: geen plafond bij een gunstig klimaat, de helft bij gemengd, een vijfde bij
               ongunstig. Dat plafond is een risicorichtlijn en geen uitkomst van de backtest. Die meet losse trades en
               kan dus niets zeggen over hoeveel geld er in totaal in de markt hoort te staan. De redenering erachter is

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Modal, ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator,
+  Modal, ScrollView, View, Text, Pressable, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
@@ -19,6 +19,8 @@ import { RichtingBadge } from './RichtingBadge';
 import { LevelRow } from './LevelRow';
 import { PrijsGrafiek } from './PrijsGrafiek';
 import { OfflineMelding } from './OfflineMelding';
+import { SkeletonGrafiek } from './SkeletonGrafiek';
+import { SkeletonRegel } from './SkeletonRegel';
 import { Disclaimer } from './Disclaimer';
 import { GetradeFormulier, GetradeBron } from './GetradeFormulier';
 import { KooporderSheet } from './KooporderSheet';
@@ -230,10 +232,22 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
           </Pressable>
         </View>
 
+        {/* Skeleton in de vorm van het uiteindelijke scherm (grafiek, niveaus, indicatoren) in
+            plaats van een kale spinner: dat scheelt een sprong zodra de data binnen is. */}
         {status === 'loading' && (
-          <View style={styles.midden}>
-            <ActivityIndicator color={colors.cta} />
-          </View>
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.sectie}>
+              <SkeletonGrafiek />
+            </View>
+            {heeftNiveaus && (
+              <View style={styles.sectie}>
+                <SkeletonRegel aantal={3} />
+              </View>
+            )}
+            <View style={styles.sectie}>
+              <SkeletonRegel aantal={5} />
+            </View>
+          </ScrollView>
         )}
 
         {status === 'error' && (
@@ -485,7 +499,6 @@ const styles = StyleSheet.create({
   symboolRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerRechts: { alignItems: 'flex-end', gap: 6 },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', marginTop: -spacing.xs },
-  midden: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingBottom: spacing.xl },
   sectie: {
     paddingHorizontal: spacing.base,
