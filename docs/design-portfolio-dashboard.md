@@ -450,13 +450,17 @@ Het bedrag met `fmtBedrag(bedragGetal, DOLLARS)`, precies zoals de sheet dat nu 
 ### 3.3 Verkoop
 
 `VerkoopOrderSheet.tsx`, in plaats van regel 110 tot 112. De sheet heeft `resultaat` al staan
-(regel 88 tot 90) en `aantal` (regel 86). Reken het percentage er in dezelfde stijl bij uit:
+(regel 88 tot 90, richtingbewust en in dollars) en `aantal` (regel 86, met terugval op
+`bedragUsd / entryPrijs`). Leid het percentage daaruit af, zodat er maar één bron van waarheid is:
 
 ```ts
-const resultaatPct = huidigePrijs !== undefined && trade.entryPrijs > 0
-  ? (huidigePrijs - trade.entryPrijs) / trade.entryPrijs * 100 * tekenVan(trade)
+const inleg = aantal !== undefined ? trade.entryPrijs * aantal : undefined;
+const resultaatPct = resultaat !== undefined && inleg !== undefined && inleg > 0
+  ? (resultaat / inleg) * 100
   : undefined;
 ```
+
+Er zijn drie afloopen, en alle drie krijgen een dialoog. Ze staan hieronder op volgorde.
 
 ```
 variant: 'gelukt'
@@ -467,7 +471,7 @@ knop:   'Oké'
 
 Plus een `resultaat`-blok in de dialoog, tussen de tekst en de knoppen. Twee varianten.
 
-**Resultaat bekend** (`resultaat !== undefined` en `resultaatPct !== undefined`):
+**Variant 1, resultaat bekend als schatting** (`resultaat !== undefined` en `resultaatPct !== undefined`):
 
 ```
 marginTop spacing.base, padding spacing.md, borderRadius radii.veld, backgroundColor colors.verhoogd
@@ -485,7 +489,7 @@ Daaronder, buiten het blok, `marginTop: spacing.sm`, `Type.caption`, `colors.tek
 > Schatting op de koers van dit moment. eToro sluit op zijn eigen koers en rekent kosten, dus het
 > definitieve bedrag kan afwijken. Kader zet het echte resultaat in je historie na de volgende sync.
 
-**Resultaat onbekend** (aantal of live koers ontbreekt):
+**Variant 2, resultaat onbekend** (`aantal` of `huidigePrijs` ontbreekt, dus `resultaat === undefined`):
 
 ```
 zelfde blok, maar:
@@ -502,6 +506,41 @@ En eronder:
 icoonschijf blijft dus groen en alleen het bedrag kleurt `colors.verlies`. De schaalpuls uit 2.3
 slaat over als het bedrag negatief is; je feliciteert niemand met een verlies.
 
+**Variant 3, we weten niet of de order is doorgegaan** (`uitkomst.soort === 'onbekend'`, regel 105
+tot 124). Dit is een andere afloop dan de twee hierboven: hier is de opdracht misschien wel en
+misschien niet uitgevoerd.
+
+```
+variant: 'waarschuwing'
+titel:  'We weten niet of je verkoop is doorgegaan'
+tekst:  'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.'
+knop:   'Oké'
+```
+
+Plus een blok in plaats van het resultaatblok, met dezelfde maten maar met
+`borderWidth: 1`, `borderColor: colors.letOp`, tekst in `Type.caption`, `colors.letOp`:
+
+> Stuur de verkoop niet opnieuw voordat je bij eToro hebt gekeken.
+
+**Hier staat met opzet geen bedrag en geen percentage**, ook niet als `resultaat` gewoon berekend
+kan worden. Een resultaat tonen bij een order waarvan we niet weten of hij is uitgevoerd, doet
+alsof we weten wat er gebeurd is. Dat is dezelfde regel als bij het vrije saldo in punt 1.
+
+Deze dialoog komt ná `await noteerOnbekendeOrder(order)` en na `onSluiten()`. De aantekening op
+schijf is wat de verzoening straks oppakt, en `PortfolioScreen` toont zelf al een blok voor orders
+die na een kwartier nog onbevestigd zijn (regel 1108 tot 1132). De dialoog vervangt daar niets van,
+hij vertelt alleen op het moment zelf wat er aan de hand is. De regel `setOnbekend(...)` en de
+`onbekend === ''`-voorwaarde in `magBevestigen` mogen daarmee weg uit de sheet.
+
+Dezelfde variant 3 geldt voor `KooporderSheet.tsx` (regel 195 tot 217) en `NiveausSheet.tsx`
+(regel 157 tot 168), met alleen een andere titel en actieregel:
+
+| Sheet | Titel | Actieregel |
+|-------|-------|-----------|
+| Koop | `We weten niet of je order is doorgegaan` | `Koop niet opnieuw voordat je bij eToro hebt gekeken. Anders open je mogelijk een tweede positie.` |
+| Verkoop | `We weten niet of je verkoop is doorgegaan` | `Stuur de verkoop niet opnieuw voordat je bij eToro hebt gekeken.` |
+| Niveaus | `We weten niet of je wijziging is doorgegaan` | `Stuur de niveaus niet opnieuw voordat je bij eToro hebt gekeken.` |
+
 ### 3.4 Niveaus
 
 `NiveausSheet.tsx` regel 147: dezelfde `gelukt`-dialoog zonder resultaatblok.
@@ -514,10 +553,17 @@ knop:  'Oké'
 
 ### 3.5 Wat niet verandert
 
-De foutafhandeling en de onbekend-afhandeling in alle drie de sheets blijven inline in de sheet
-staan, precies zoals nu. Die horen bij het formulier waar je nog iets aan kunt doen, en een dialoog
-zou je juist wegduwen van het veld dat je moet aanpassen. Alleen de geslaagde afloop krijgt een
-dialoog, want dan is de sheet toch al gesloten.
+De **foutafhandeling** (`uitkomst.soort === 'fout'`) blijft inline in de sheet staan, precies zoals
+nu, in alle drie de sheets. Bij een afgewezen order is er zeker niets gebeurd en kun je in het
+formulier nog iets aanpassen; een dialoog zou je juist wegduwen van het veld dat je moet wijzigen.
+De sheet blijft daarbij dus ook open.
+
+Twee afloopen sluiten de sheet en krijgen een dialoog: geslaagd en onbekend. Bij allebei valt er in
+het formulier niets meer te doen.
+
+Verder blijft de hele order-invariant staan: geen retry, geen backoff, `noteerOnbekendeOrder` vóór
+de melding, en `verzoenNaOrder()` bij een geslaagde order. Aan `engine/etoro.ts` verandert alleen
+`EtoroSyncResultaat` uit punt 1.2, niets aan de orderfuncties.
 
 ---
 
@@ -702,7 +748,9 @@ Er is geen testsuite. Loop na de implementatie met de `run-android`-skill deze l
    instellingen-sheet zonder dat de app hangt.
 5. Instellingen, omschakelen naar echt: de waarschuwing-dialoog met twee knoppen, tik naast de kaart
    sluit hem niet.
-6. Demo-order plaatsen en weer verkopen: koopbevestiging, verkoopbevestiging met resultaat.
+6. Demo-order plaatsen en weer verkopen: koopbevestiging, verkoopbevestiging met resultaat. Zet
+   daarna eens vliegtuigmodus aan halverwege een order om de onbekend-dialoog te zien, en
+   controleer dat er in die dialoog géén bedrag staat.
 7. NiveausSheet openen, een schakelaar aanzetten en weer uit: de sheet verspringt geen pixel.
 8. De schakelaar is grijs, niet groen, en de stop-loss-rij kleurt oranje als hij aanstaat.
 9. Marktscherm: HIGH CONVICTION springt eruit, AFWACHTEN ligt plat, nergens meer een gekleurde
