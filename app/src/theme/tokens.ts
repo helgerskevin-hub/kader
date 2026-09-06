@@ -17,6 +17,14 @@ export interface ColorTokens {
   verlies: string;
   letOp: string;
   goud: string;
+  // Schakelaars: neutraal grijs. De aan-stand van een schakelaar is geen goedkeuring, dus hij
+  // hoort niet groen te worden. Android kleurt de duim anders zelf in.
+  schakelaarAan: string;
+  schakelaarDuim: string;
+  // Categorische kleuren voor het cirkeldiagram op Portfolio. Bewust geen groen of rood: die twee
+  // betekenen in Kader winst en verlies, en een segment van je verdeling is geen resultaat.
+  verdeling: readonly string[];
+  verdelingOverig: string;
 }
 
 export const lightTokens: ColorTokens = {
@@ -32,6 +40,10 @@ export const lightTokens: ColorTokens = {
   verlies: '#DC2626',
   letOp: '#D97706',
   goud: '#A16207',
+  schakelaarAan: '#94A3B8',
+  schakelaarDuim: '#FFFFFF',
+  verdeling: ['#1E3A8A', '#2563EB', '#0E7490', '#6D28D9', '#A21CAF', '#B45309'],
+  verdelingOverig: '#94A3B8',
 };
 
 export const darkTokens: ColorTokens = {
@@ -47,6 +59,10 @@ export const darkTokens: ColorTokens = {
   verlies: '#EF4444',
   letOp: '#F59E0B',
   goud: '#D4A24E',
+  schakelaarAan: '#6B7280',
+  schakelaarDuim: '#E6EDF3',
+  verdeling: ['#93C5FD', '#3B82F6', '#22D3EE', '#A78BFA', '#F0ABFC', '#FCD34D'],
+  verdelingOverig: '#64748B',
 };
 
 // 8px-basis spacing-schaal
