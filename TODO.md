@@ -154,4 +154,14 @@ Doorlopen na elke grote wijziging, er is geen testsuite.
 
 ## 🐛 Bugs
 
-_(Leeg. Werkt iets niet, schrijf het hier op, ook als je nog niet weet waarom.)_
+- [ ] **Verifiëren: hoe heet de lijst met wachtende orders in eToro's portfolio-respons?**
+      `bepaalSaldoStand()` in `engine/etoro.ts` trekt het gereserveerde bedrag van wachtende orders af
+      van je vrije saldo, maar de veldnamen zijn niet tegen een echte respons bevestigd. De code
+      probeert `orders`, `entryOrders` en `pendingOrders`, en per order `amount`,
+      `initialAmountInDollars`, `investmentAmount` en `totalAmount`. Staat de lijst onder een andere
+      naam, dan trekt Kader niets af en zijn we terug bij de oude situatie: hij faalt dus veilig,
+      maar de bug is dan niet opgelost. Te toetsen met een echte sleutel en een wachtende order:
+      dumpen wat `/trading/info/portfolio` teruggeeft en de namen hier vastleggen.
+      Ook nog open: trekt eToro het gereserveerde bedrag misschien zelf al van `credit` af? Dan
+      wordt het nu dubbel afgetrokken. De regel onder het bedrag maakt zichtbaar wat er is
+      afgetrokken, dus dat valt op zodra iemand met een wachtende order kijkt.
