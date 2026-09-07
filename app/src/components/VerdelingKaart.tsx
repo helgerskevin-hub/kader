@@ -1,13 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Svg, { G, Circle } from 'react-native-svg';
-import { ChevronDown, ChevronUp } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { useReduceMotion } from '../theme/useReduceMotion';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { fmtBedrag, fmtPct } from '../engine/format';
-import { berekenVerdeling, OVERIG_SLEUTEL, Segment } from '../engine/verdeling';
+import { fmtBedrag } from '../engine/format';
+import { aandeelTekst, berekenVerdeling, OVERIG_SLEUTEL, Segment, spreekAandeel } from '../engine/verdeling';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { useValutaStand } from '../state/useValuta';
 
@@ -22,34 +21,20 @@ const DIKTE = 22;
 const OMTREK = 2 * Math.PI * STRAAL;   // 364.42
 // De visuele naad tussen twee segmenten, in dezelfde eenheid als de omtrek.
 const NAAD = 2;
-// Hoeveel leden van Overig er uitgeklapt met naam verschijnen; de rest wordt één regel.
-const MAX_ZICHTBARE_LEDEN = 4;
 
 interface Props {
   trades: PortfolioTrade[];
   livePrijzen: Record<string, number>;
+  // Opent het volledige overzicht. De hele kaart is de knop, want alles erop gaat over hetzelfde
+  // onderwerp; een losse knop binnen een aantikbare kaart zou twee raakvlakken over elkaar leggen.
+  onOpenDetail: () => void;
 }
 
-// fmtPct zet er een expliciet plusteken voor, want hij is gemaakt voor een verandering. Een aandeel
-// in je portfolio verandert niets, dus dat teken gaat eraf. De rest van de opmaak blijft van fmtPct,
-// zodat percentages er in de hele app hetzelfde uitzien.
-function fmtAandeel(aandeel: number): string {
-  return fmtPct(aandeel * 100).replace('+', '');
-}
-
-// Voor de schermlezer, die "34.3%" als "vierendertig punt drie" voorleest. Uitgeschreven met een
-// komma en het woord procent leest dat wél als een Nederlands percentage.
-function spreekAandeel(aandeel: number): string {
-  return `${(aandeel * 100).toFixed(1).replace('.', ',')} procent`;
-}
-
-export function VerdelingKaart({ trades, livePrijzen }: Props) {
+export function VerdelingKaart({ trades, livePrijzen, onOpenDetail }: Props) {
   const { colors } = useTheme();
-  const reduceMotion = useReduceMotion();
   // De formatters lezen de gekozen valuta uit een gewone module. Zonder dit abonnement blijft deze
   // kaart na het omzetten in de oude valuta staan.
   useValutaStand();
-  const [uitgeklapt, setUitgeklapt] = useState(false);
 
   const verdeling = useMemo(() => berekenVerdeling(trades, livePrijzen), [trades, livePrijzen]);
   const { segmenten, totaalUsd, gewaardeerd, zonderLivePrijs } = verdeling;
@@ -65,15 +50,7 @@ export function VerdelingKaart({ trades, livePrijzen }: Props) {
   // Geen open posities: geen kaart. PortfolioScreen heeft daar zijn eigen lege staat voor.
   if (gewaardeerd + zonderLivePrijs === 0) return null;
 
-  function wisselUitgeklapt() {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
-    setUitgeklapt(v => !v);
-  }
-
   const overig = segmenten.find(s => s.sleutel === OVERIG_SLEUTEL);
-  const aantalSymbolen = segmenten.length - (overig ? 1 : 0) + (overig?.leden?.length ?? 0);
 
   // Cumulatief aandeel vóór elk segment: dat is waar de streep begint.
   let gelopen = 0;
@@ -91,8 +68,17 @@ export function VerdelingKaart({ trades, livePrijzen }: Props) {
   ].join(', ') + '.';
 
   return (
-    <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
-      {/* Kop. De rechterkant blijft leeg: daar komt later de Nu/Doel-schakelaar. */}
+    <Pressable
+      onPress={onOpenDetail}
+      accessibilityRole="button"
+      accessibilityLabel="Verdeling in detail bekijken"
+      accessibilityHint="Opent het volledige overzicht per coin en per platform."
+      style={({ pressed }) => [
+        styles.kaart,
+        shadow.kaart,
+        { backgroundColor: colors.kaart, opacity: pressed ? 0.96 : 1 },
+      ]}
+    >
       <View style={styles.kop}>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VERDELING VAN JE POSITIES</Text>
       </View>
@@ -173,64 +159,38 @@ export function VerdelingKaart({ trades, livePrijzen }: Props) {
             </View>
           </View>
 
+          {/* Eén kolom, drie rechte kolommen per rij. De percentages stonden eerder achter de naam
+              en dus op een wisselende horizontale plek: je kon ze niet met je oog vergelijken. Nu
+              staan ze recht onder elkaar tegen de rechtermarge, en dat is het getal waar de kaart
+              om draait. Twee kolommen naast elkaar maakten van vijf getallen twee lijstjes. */}
           <View style={styles.legenda}>
             {segmenten.map((s, i) => (
-              <View key={s.sleutel} style={[styles.cel, uitgeklapt && styles.celVol]}>
-                <View style={styles.celRij}>
-                  <View style={[styles.vierkantje, { backgroundColor: kleurVoor(s, i) }]} />
-                  <Text
-                    style={[Type.caption, styles.celLabel, { color: colors.tekstPrimair }]}
-                    numberOfLines={1}
-                  >
-                    {s.label}
-                  </Text>
-                  <Text style={[Type.label, { color: colors.tekstGedimd }]}>
-                    {fmtAandeel(s.aandeel)}
-                  </Text>
-                </View>
-                <Text style={[Type.prijs, styles.celWaarde, { color: colors.tekstGedimd }]}>
+              <View
+                key={s.sleutel}
+                style={styles.rij}
+                accessible
+                accessibilityLabel={`${s.label}, ${fmtBedrag(s.waardeUsd)}, ${spreekAandeel(s.aandeel)} van je posities.`}
+              >
+                <View
+                  style={[styles.vierkantje, { backgroundColor: kleurVoor(s, i) }]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                />
+                <Text
+                  style={[Type.caption, styles.naam, { color: colors.tekstPrimair }]}
+                  numberOfLines={1}
+                >
+                  {s.label}
+                </Text>
+                <Text style={[Type.prijs, styles.bedrag, { color: colors.tekstGedimd }]}>
                   {fmtBedrag(s.waardeUsd)}
                 </Text>
-
-                {/* De leden van Overig delen de kleur van Overig, dus geen eigen vierkantje. */}
-                {uitgeklapt && s.leden !== undefined && (
-                  <>
-                    {s.leden.slice(0, MAX_ZICHTBARE_LEDEN).map(lid => (
-                      <View key={lid.symbool} style={styles.lidRij}>
-                        <Text style={[Type.caption, styles.lidLabel, { color: colors.tekstGedimd }]}>
-                          {lid.symbool}
-                        </Text>
-                        <Text style={[Type.label, { color: colors.tekstGedimd }]}>
-                          {fmtAandeel(lid.aandeel)}
-                        </Text>
-                      </View>
-                    ))}
-                    {s.leden.length > MAX_ZICHTBARE_LEDEN && (
-                      <Text style={[Type.caption, styles.lidRest, { color: colors.tekstGedimd }]}>
-                        en {s.leden.length - MAX_ZICHTBARE_LEDEN} kleinere posities
-                      </Text>
-                    )}
-                  </>
-                )}
+                <Text style={[Type.label, styles.aandeel, { color: colors.tekstPrimair }]}>
+                  {aandeelTekst(s.aandeel)}
+                </Text>
               </View>
             ))}
           </View>
-
-          {overig !== undefined && (
-            <Pressable
-              onPress={wisselUitgeklapt}
-              accessibilityRole="button"
-              accessibilityLabel={uitgeklapt ? 'Toon minder posities' : `Toon alle ${aantalSymbolen} posities`}
-              style={styles.uitklapKnop}
-            >
-              <Text style={[Type.caption, styles.uitklapLabel, { color: colors.cta }]}>
-                {uitgeklapt ? 'Toon minder' : `Toon alle ${aantalSymbolen}`}
-              </Text>
-              {uitgeklapt
-                ? <ChevronUp size={12} color={colors.cta} strokeWidth={2} />
-                : <ChevronDown size={12} color={colors.cta} strokeWidth={2} />}
-            </Pressable>
-          )}
         </>
       )}
 
@@ -239,7 +199,16 @@ export function VerdelingKaart({ trades, livePrijzen }: Props) {
           {zonderLivePrijs} {zonderLivePrijs === 1 ? 'positie telt' : 'posities tellen'} niet mee in de verdeling (geen aantal of live koers).
         </Text>
       )}
-    </View>
+
+      {/* Zelfde vorm als de historie-knop in PortfolioStatusKaart, zodat de twee ingangen op dit
+          scherm er hetzelfde uitzien. Hij is zelf geen knop: de hele kaart is dat al. */}
+      <View style={[styles.ingang, { borderTopColor: colors.rand }]}>
+        <Text style={[Type.caption, styles.ingangLabel, { color: colors.cta }]}>
+          Alle posities en platforms
+        </Text>
+        <ChevronRight size={16} color={colors.cta} strokeWidth={1.75} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -280,65 +249,48 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   legenda: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: spacing.md,
     rowGap: 10,
     marginTop: spacing.base,
   },
-  // Twee kolommen: twee cellen van minstens 45% passen naast elkaar, een derde niet meer.
-  cel: {
-    flexGrow: 1,
-    flexBasis: 0,
-    minWidth: '45%',
-  },
-  // Uitgeklapt wordt het één kolom, zodat de leden van Overig eronder passen.
-  celVol: {
-    minWidth: '100%',
-  },
-  celRij: {
+  rij: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.sm,
   },
   vierkantje: {
     width: 9,
     height: 9,
     borderRadius: 2,
   },
-  celLabel: {
+  naam: {
     flex: 1,
     fontWeight: '600',
   },
-  // 15 = het vierkantje van 9 plus de tussenruimte van 6, zodat het bedrag onder het label staat.
-  celWaarde: {
+  // 78 is genoeg voor $12,480.00 op 12px mono. Loopt een bedrag daaroverheen, dan groeit deze
+  // kolom en krimpt de naam: een symbool van vier letters mag inleveren, een bedrag niet.
+  bedrag: {
     fontSize: 12,
-    marginLeft: 15,
+    minWidth: 78,
+    textAlign: 'right',
   },
-  lidRij: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 15,
-    marginTop: 2,
-  },
-  lidLabel: {
-    flex: 1,
-  },
-  lidRest: {
-    paddingLeft: 15,
-    marginTop: 2,
-  },
-  uitklapKnop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    minHeight: 44,
-  },
-  uitklapLabel: {
-    fontWeight: '600',
+  // Vast en niet flexibel: dit is de kolom die recht moet staan. 46 past 100.0%.
+  aandeel: {
+    width: 46,
+    textAlign: 'right',
   },
   zonderPrijs: {
     marginTop: spacing.sm,
+  },
+  ingang: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    minHeight: 44,
+  },
+  ingangLabel: {
+    fontWeight: '600',
   },
 });

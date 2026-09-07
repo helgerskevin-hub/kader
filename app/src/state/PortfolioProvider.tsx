@@ -39,6 +39,13 @@ interface PortfolioContextWaarde {
   // aan en een verzonnen bedrag is erger dan geen bedrag. Bij een mislukte sync blijft de vorige
   // waarde staan.
   vrijSaldoUsd: number | null;
+  // Wat er van je cash vastzit in orders die eToro nog niet gevuld heeft (een limietorder, of een
+  // marktorder op een aandeel terwijl de beurs dicht is). Dat bedrag zit al NIET meer in
+  // vrijSaldoUsd; deze twee velden zijn er om te kunnen uitleggen waarom je beschikbare bedrag
+  // lager is dan de cash die eToro zelf toont. 0 = niets in de wacht, null = er wachten orders maar
+  // Kader kan het bedrag niet lezen.
+  gereserveerdUsd: number | null;
+  wachtendeOrders: number;
   // Staat er een eToro-sleutel op dit toestel? Los van magHandelen, dat ook schrijfrecht eist.
   // Bepaalt welke uitleg de portfoliokaart geeft als het vrije saldo onbekend is: koppelen, of
   // wachten tot eToro het veld meestuurt.
@@ -94,6 +101,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // Blijft staan tussen syncs door: een mislukte sync maakt het saldo niet onbekend, hij maakt het
   // alleen ouder. Alleen een geslaagde sync die géén credit meekreeg zet 'm terug op null.
   const [vrijSaldoUsd, setVrijSaldoUsd] = useState<number | null>(null);
+  const [gereserveerdUsd, setGereserveerdUsd] = useState<number | null>(0);
+  const [wachtendeOrders, setWachtendeOrders] = useState(0);
   const [etoroGekoppeld, setEtoroGekoppeld] = useState(false);
   // Demo als tussenstand tot haalOmgeving() antwoordt. De omgeving is het enige dat speelgeld van
   // echt geld scheidt, dus de waarde van voor het laden hoort de onschuldige te zijn: hij stuurt
@@ -393,10 +402,13 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setEtoroGekoppeld(true);
 
     try {
-      const { open, historie, vrijSaldoUsd: saldo } = await importeerEtoroAlles(sleutels);
+      const { open, historie, vrijSaldoUsd: saldo, gereserveerdUsd: vast, wachtendeOrders: wachtend } =
+        await importeerEtoroAlles(sleutels);
       // Alleen na een geslaagde ophaal bijwerken. Mislukt de sync, dan blijft de vorige waarde in
       // beeld: die is oud, maar hij is echt geweest.
       setVrijSaldoUsd(saldo);
+      setGereserveerdUsd(vast);
+      setWachtendeOrders(wachtend);
       const toegevoegd = importeerEtoroTrades(open.trades);
       const { afgesloten, toegevoegd: uitHistorie } = verwerkEtoroHistorie(historie.trades);
 
@@ -529,14 +541,14 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // die alleen synchroniseer gebruikt) zich daardoor op elke wijziging, inclusief de 60s-prijzenpoll.
   const waarde = useMemo<PortfolioContextWaarde>(() => ({
     trades: zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
-    vrijSaldoUsd, etoroGekoppeld,
+    vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,
     omgeving, setOmgeving, magHandelen, onbekendeOrders, verlopenOrders,
     noteerOnbekendeOrder, controleerOnbekendeOrders, verzoenNaOrder,
   }), [
     zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
-    vrijSaldoUsd, etoroGekoppeld,
+    vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,
     omgeving, setOmgeving, magHandelen, onbekendeOrders, verlopenOrders,

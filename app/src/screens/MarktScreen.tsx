@@ -9,6 +9,7 @@ import { useMarkt } from '../state/MarktProvider';
 import { useNavigatie } from '../state/navigatie';
 import { MeldingNotitie } from '../components/MeldingNotitie';
 import { MIN_RISK_REWARD } from '../engine/analyzer';
+import { fmtRR } from '../engine/format';
 import { useFavorieten } from '../state/useFavorieten';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -336,7 +337,7 @@ function RrWaarschuwing({ bekeken }: { bekeken: number }) {
       <View style={styles.waarschuwingKop}>
         <TriangleAlert size={16} color={colors.letOp} strokeWidth={2} />
         <Text style={[Type.overline, { color: colors.letOp }]}>
-          GEEN COIN HAALT NU 1:{MIN_RISK_REWARD}
+          GEEN COIN HAALT NU {fmtRR(MIN_RISK_REWARD)}
         </Text>
       </View>
       <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>

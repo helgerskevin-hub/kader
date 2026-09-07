@@ -60,6 +60,21 @@ Hier komt de eerste echte uitbreiding: een tweede activaklasse en dus een tweede
       en toont wat het tot nu toe heeft gedaan
 - [ ] DeGiro-posities meenemen in het dashboard en de doelverdeling van fase 2
 
+### Fase 4b: kiezen op welk platform je handelt
+Volgt uit fase 3 en 4: zodra er meer dan één platform is, moet je kunnen kiezen waar een order heen gaat.
+
+- [ ] **Platform-indicatie op de tradekaart.** Rechtsboven op elke kaart staan de logo's van de platforms
+      waarop die coin verhandelbaar is, meerdere naast elkaar. De eerste stap hiervan is gebouwd
+      (alleen eToro); zodra er een tweede platform bij komt moet de rij meegroeien
+- [ ] **Platformkeuze bij het kopen.** Een dropdown waarin je kiest via welk platform je de order plaatst,
+      met het platform waar je het meeste vrije saldo hebt als voorstel. Nu gaat elke order blind naar
+      eToro. Randvoorwaarden: per platform een eigen minimumbedrag, een eigen vrij saldo en eigen
+      stop-loss-grenzen (`etoroLimieten.ts` is nu eToro-specifiek en moet per platform), en de keuze moet
+      op de bevestigingsknop zichtbaar blijven, want een order op het verkeerde account is niet terug te
+      draaien
+- [ ] **Coins die maar op één platform staan.** De keuze mag dan geen dropdown zijn maar een vaste regel,
+      anders kies je een platform dat die coin niet heeft
+
 ### Fase 5: Kader bewaakt je posities zelf
 Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft te kijken.
 
@@ -139,4 +154,14 @@ Doorlopen na elke grote wijziging, er is geen testsuite.
 
 ## 🐛 Bugs
 
-_(Leeg. Werkt iets niet, schrijf het hier op, ook als je nog niet weet waarom.)_
+- [ ] **Verifiëren: hoe heet de lijst met wachtende orders in eToro's portfolio-respons?**
+      `bepaalSaldoStand()` in `engine/etoro.ts` trekt het gereserveerde bedrag van wachtende orders af
+      van je vrije saldo, maar de veldnamen zijn niet tegen een echte respons bevestigd. De code
+      probeert `orders`, `entryOrders` en `pendingOrders`, en per order `amount`,
+      `initialAmountInDollars`, `investmentAmount` en `totalAmount`. Staat de lijst onder een andere
+      naam, dan trekt Kader niets af en zijn we terug bij de oude situatie: hij faalt dus veilig,
+      maar de bug is dan niet opgelost. Te toetsen met een echte sleutel en een wachtende order:
+      dumpen wat `/trading/info/portfolio` teruggeeft en de namen hier vastleggen.
+      Ook nog open: trekt eToro het gereserveerde bedrag misschien zelf al van `credit` af? Dan
+      wordt het nu dubbel afgetrokken. De regel onder het bedrag maakt zichtbaar wat er is
+      afgetrokken, dus dat valt op zodra iemand met een wachtende order kijkt.

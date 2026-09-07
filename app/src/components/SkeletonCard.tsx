@@ -15,9 +15,13 @@ export function SkeletonCard() {
           vervaagde ook het witte kaartvlak en de schaduw, en loste de kaart half op in de
           achtergrond in plaats van dat de grijze blokjes ademden. */}
       <Animated.View style={{ opacity, gap: spacing.md }}>
-      {/* Op de plek waar de adviesbadge komt te staan, zodat de kaart niet verspringt zodra de
-          echte data er is. */}
-      <View style={[styles.blok, { width: 84, height: 22, backgroundColor: bg, borderRadius: radii.pill }]} />
+      {/* Op de plek waar de adviesbadge en de platformmerkjes komen te staan, zodat de kaart niet
+          verspringt zodra de echte data er is. De badge is breder dan vroeger, want het scorecijfer
+          staat er nu in. */}
+      <View style={styles.badgeRij}>
+        <View style={[styles.blok, { width: 108, height: 22, backgroundColor: bg, borderRadius: radii.pill }]} />
+        <View style={[styles.blok, { width: 20, height: 20, backgroundColor: bg, borderRadius: radii.pill }]} />
+      </View>
       <View style={styles.kop}>
         <View style={styles.kopLinks}>
           <View style={[styles.blok, { width: 64, height: 16, backgroundColor: bg }]} />
@@ -25,7 +29,6 @@ export function SkeletonCard() {
         </View>
         <View style={styles.kopRechts}>
           <View style={[styles.blok, { width: 80, height: 20, backgroundColor: bg }]} />
-          <View style={[styles.blok, { width: 48, height: 18, backgroundColor: bg, borderRadius: radii.pill }]} />
         </View>
       </View>
       <View style={styles.niveauRij}>
@@ -51,6 +54,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     padding: spacing.base,
     gap: spacing.md,
+  },
+  badgeRij: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   kop: {
     flexDirection: 'row',

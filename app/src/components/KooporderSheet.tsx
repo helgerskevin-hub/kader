@@ -9,13 +9,14 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { Wallet, X } from 'lucide-react-native';
 import { fmtBedrag, fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
-import { bouwKooporderBody, guid, haalVrijSaldo, KooporderInvoer, plaatsKooporder } from '../engine/etoro';
+import { bouwKooporderBody, guid, haalSaldoStand, KooporderInvoer, plaatsKooporder, SaldoStand } from '../engine/etoro';
 import { actieveSleutels } from '../state/etoroSleutels';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
 import { Richting } from '../state/portfolioTypes';
 import { useInstrumentId } from '../state/useInstrumentId';
+import { useNavigatie } from '../state/navigatie';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { useValuta } from '../state/useValuta';
 import { useTheme } from '../theme/ThemeProvider';
@@ -52,13 +53,18 @@ interface Props {
   // een short komt hier alleen aan als de aanroeper 'm expliciet meegeeft: het marktscherm geeft de
   // richting van de Trade zelf door, die staat al goed op elke short die de engine oplevert.
   richting?: Richting;
+  // Staat deze sheet boven een full-screen scherm (het coin-detailscherm), dan moet dat scherm
+  // eerst dicht voordat "Naar portfolio" ergens naartoe kan: een tabwissel eronder is niet te zien
+  // zolang die Modal er nog overheen ligt. Schermen die zelf een tab zijn laten dit weg.
+  onVerlaatScherm?: () => void;
 }
 
 export function KooporderSheet({
-  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, richting = 'long',
+  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, richting = 'long', onVerlaatScherm,
 }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
+  const { gaNaar } = useNavigatie();
   const isShort = richting === 'short';
   const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
   const instrumentId = useInstrumentId(zichtbaar ? symbool : null);
@@ -68,8 +74,13 @@ export function KooporderSheet({
   const { valuta, eurPerUsd } = useValuta();
 
   const [bedrag, setBedrag] = useState('');
-  const [vrijSaldo, setVrijSaldo] = useState<number | null>(null);
+  const [saldo, setSaldo] = useState<SaldoStand | null>(null);
   const [saldoBezig, setSaldoBezig] = useState(true);
+  // Wat er werkelijk te besteden is: eToro's `credit` min wat er vastzit in orders die nog niet
+  // gevuld zijn. Een wachtende kooporder (een limietorder, of een marktorder op een aandeel terwijl
+  // de beurs dicht is) houdt geld vast dat wél in `credit` blijft staan. Zonder die aftrek toonde
+  // Kader dat geld als beschikbaar en werd de order die je erop baseerde door eToro geweigerd.
+  const vrijSaldo = saldo?.besteedbaarUsd ?? null;
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState('');
 
@@ -84,7 +95,7 @@ export function KooporderSheet({
     setBedrag('');
     setFout('');
     setBezig(false);
-    setVrijSaldo(null);
+    setSaldo(null);
     setSaldoBezig(true);
   }, [zichtbaar]);
 
@@ -98,8 +109,8 @@ export function KooporderSheet({
       try {
         const sleutels = await actieveSleutels();
         if (!sleutels) return;
-        const saldo = await haalVrijSaldo(sleutels);
-        if (actief) setVrijSaldo(saldo);
+        const stand = await haalSaldoStand(sleutels);
+        if (actief) setSaldo(stand);
       } catch {
         // Zonder saldo verder, zie hierboven.
       } finally {
@@ -146,6 +157,17 @@ export function KooporderSheet({
       : `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}`
     : '';
 
+  // Wat er van je saldo vastzit in orders die nog wachten. Staat er niets in de wacht, dan komt er
+  // ook geen zin bij: een regel over nul gereserveerde dollars is ruis.
+  const wachtend = saldo?.wachtendeOrders ?? 0;
+  const gereserveerd = saldo?.gereserveerdUsd ?? null;
+  const orderWoord = wachtend === 1 ? 'order' : 'orders';
+  const gereserveerdZin = wachtend === 0
+    ? ''
+    : gereserveerd !== null && gereserveerd > 0
+      ? ` Er staat ${fmtBedrag(gereserveerd, DOLLARS)} vast in ${wachtend} wachtende ${orderWoord} bij eToro.`
+      : ` Er ${wachtend === 1 ? 'wacht' : 'wachten'} ${wachtend} ${orderWoord} bij eToro; Kader weet niet hoeveel daarvan vaststaat.`;
+
   // Eén rode melding tegelijk, in de volgorde waarin ze zwaarwegend zijn.
   const blokkade =
     instrumentId === null
@@ -153,7 +175,7 @@ export function KooporderSheet({
     : advies.soort === 'waarschuwing' ? advies.uitleg
     : heeftBedrag && bedragGetal < MINIMUM_USD ? `Het minimum bij eToro is ${fmtBedrag(MINIMUM_USD, DOLLARS)}.`
     : heeftBedrag && vrijSaldo !== null && bedragGetal * KOSTENMARGE > vrijSaldo
-      ? `Dit past niet in je vrije saldo van ${fmtBedrag(vrijSaldo, DOLLARS)}. eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
+      ? `Dit past niet in je vrije saldo van ${fmtBedrag(vrijSaldo, DOLLARS)}.${gereserveerdZin} eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
     : null;
 
   const magBevestigen = heeftBedrag && blokkade === null;
@@ -188,7 +210,20 @@ export function KooporderSheet({
           tekst: isShort
             ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`
             : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`,
-          knoppen: [{ label: 'Oké' }],
+          // De tekst wijst naar je portfolio, dus daar hoort ook een knop naartoe te gaan. Eerst het
+          // scherm eronder sluiten als daarom gevraagd is, anders wisselt de tab onzichtbaar onder
+          // een openstaande Modal.
+          knoppen: [
+            { label: 'Oké' },
+            {
+              label: 'Naar portfolio',
+              soort: 'omlijnd',
+              onDruk: () => {
+                onVerlaatScherm?.();
+                gaNaar({ soort: 'portfolio' });
+              },
+            },
+          ],
         });
         return;
       }
@@ -335,6 +370,14 @@ export function KooporderSheet({
           <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
             Kader kon je saldo niet bij eToro ophalen. Controleer zelf of dit bedrag past voor je
             bevestigt.
+          </Text>
+        ) : null}
+        {/* Staat er geld vast in een order die nog niet gevuld is, dan hoort dat hier en niet pas
+            in de rode melding: het verklaart waarom "te besteden" lager is dan het bedrag dat je
+            bij eToro als cash ziet staan. */}
+        {gereserveerdZin ? (
+          <Text style={[Type.caption, { color: colors.letOp, marginTop: spacing.xs }]}>
+            {gereserveerdZin.trim()}
           </Text>
         ) : null}
 
