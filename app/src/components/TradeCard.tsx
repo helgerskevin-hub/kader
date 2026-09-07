@@ -9,7 +9,6 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
-import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
@@ -136,8 +135,10 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{info.naam}</Text>
         </View>
         <View style={styles.kopRechts}>
+          {/* Het scorecijfer stond hier als badge en verderop nog eens als SCORE in de metarij.
+              Eén keer is genoeg, en een derde kleuroordeel naast de adviesbadge maakte de kaart
+              alleen maar drukker. */}
           <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(trade.prijs)}</Text>
-          <ScoreBadge score={trade.score} />
         </View>
       </View>
 
