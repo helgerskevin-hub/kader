@@ -325,7 +325,7 @@ async function beoordeelMarkt(
       sleutel: sleutelVoor('markt', 'portfolioRisico'),
       doel: { soort: 'portfolio' },
       titel: `${risico.zwak} van je ${risico.beoordeeld} posities staan zwak`,
-      tekst: `De markt daalt en ${risico.zwak} van je beoordeelde posities staan aan de verkeerde kant van hun 50-daags gemiddelde${risico.dichtBijStop > 0 ? `, waarvan ${risico.dichtBijStop} binnen één dagbeweging van de stop` : ''}. Bekijk in Mijn trades wat je wil afbouwen.`,
+      tekst: `De markt daalt en ${risico.zwak} van je beoordeelde posities staan aan de verkeerde kant van hun 50-daags gemiddelde${risico.dichtBijStop > 0 ? `, waarvan ${risico.dichtBijStop} binnen één dagbeweging van de stop` : ''}. Bekijk in Portfolio wat je wil afbouwen.`,
     });
   }
 

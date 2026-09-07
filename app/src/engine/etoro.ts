@@ -821,6 +821,9 @@ function bouwGeslotenTrades(
 export interface EtoroSyncResultaat {
   open: EtoroImportResultaat;       // wat er nu open staat op eToro
   historie: EtoroImportResultaat;   // wat er het afgelopen jaar is gesloten
+  // clientPortfolio.credit, of null als eToro het veld niet meestuurt. Nooit 0 invullen: een
+  // verzonnen saldo is erger dan geen saldo, want er wordt een totaal vermogen op gebaseerd.
+  vrijSaldoUsd: number | null;
 }
 
 // Open posities en gesloten historie in één keer. Bewust één functie en niet twee losse imports:
@@ -847,9 +850,16 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
   // echte, en zou de verkoopknop een demo-ID naar het echte endpoint kunnen sturen.
   const omgeving = sleutels.omgeving ?? 'real';
 
+  // Het vrije saldo komt uit dezelfde portfolio-respons die we hierboven al hebben. haalVrijSaldo()
+  // zou hem opnieuw ophalen, en dat is een extra request per sync op een endpoint met een quotum
+  // van 60 per minuut. Die functie blijft bestaan voor KooporderSheet, die geen sync doet.
+  const credit = portfolio.clientPortfolio?.credit;
+  const vrijSaldoUsd = typeof credit === 'number' && isFinite(credit) ? credit : null;
+
   return {
     open: bouwOpenTrades(posities, instrumentKaart, cryptoTypeIds, omgeving),
     historie: bouwGeslotenTrades(regels, instrumentKaart, cryptoTypeIds, omgeving),
+    vrijSaldoUsd,
   };
 }
 

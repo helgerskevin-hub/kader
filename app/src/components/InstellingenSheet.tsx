@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import {
   X, Smartphone, Sun, Moon, FileText, Link2, ChevronRight, FlaskConical, Wallet,
   DollarSign, Euro, Bell, BellOff,
@@ -12,6 +12,7 @@ import { ChangelogSheet } from './ChangelogSheet';
 import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
 import { heeftSleutels } from '../state/etoroSleutels';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useDialoog } from '../state/DialoogProvider';
 import { EtoroOmgeving } from '../engine/etoro';
 import { SLEUTELS, laadVlag } from '../storage/opslag';
 import { useValuta } from '../state/useValuta';
@@ -70,6 +71,7 @@ async function bepaalStatus(): Promise<SleutelStatus> {
 
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
+  const { toonDialoog } = useDialoog();
   const { valuta, eurPerUsd, koersOntbreekt, kiesValuta } = useValuta();
   // Meteen ophalen zodra de koppeling is opgeslagen, niet pas bij de volgende app-start.
   const { omgeving, setOmgeving } = usePortfolio();
@@ -123,14 +125,15 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
       wissel('demo');
       return;
     }
-    Alert.alert(
-      'Overschakelen naar echt',
-      'Orders die je hierna bevestigt gaan naar je echte eToro-account, met je eigen geld. Je portfolio in Kader toont vanaf dan alleen je echte posities.',
-      [
-        { text: 'Annuleren', style: 'cancel' },
-        { text: 'Naar echt', style: 'destructive', onPress: () => wissel('real') },
+    toonDialoog({
+      variant: 'waarschuwing',
+      titel: 'Overschakelen naar echt',
+      tekst: 'Orders die je hierna bevestigt gaan naar je echte eToro-account, met je eigen geld. Je portfolio in Kader toont vanaf dan alleen je echte posities.',
+      knoppen: [
+        { label: 'Naar echt', soort: 'destructief', onDruk: () => wissel('real') },
+        { label: 'Annuleren', soort: 'secundair' },
       ],
-    );
+    });
   }
 
   function naOpslaan() {
@@ -253,7 +256,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
       </View>
       <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
         {meldingen
-          ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open trade aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
+          ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open positie aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
           : 'Kader stuurt geen enkele melding meer, ook geen prijsalerts. Je alerts blijven staan en gaan weer werken zodra je dit aanzet.'}
       </Text>
 

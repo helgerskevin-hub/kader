@@ -4,7 +4,7 @@ import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving } from '../engine/etoro';
-import { sleutelUitkomst, haalOmgeving, zetOmgeving, magHandelen as magNuHandelen } from './etoroSleutels';
+import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { bronVan } from './portfolioTypes';
 import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
@@ -33,6 +33,16 @@ interface PortfolioContextWaarde {
   // van syncFout: de koersen kunnen prima ververst zijn terwijl juist eToro faalde, en dan mag de
   // status niet groen melden dat alles actueel is.
   etoroFout: string | null;
+  // Vrij te besteden saldo van de actieve eToro-omgeving, uit de portfolio-respons van de laatste
+  // geslaagde sync. null = we weten het niet: geen koppeling, nog geen geslaagde sync, of eToro gaf
+  // het veld niet mee. Nooit 0 als vervanging voor onbekend, want hier hangt het totale vermogen
+  // aan en een verzonnen bedrag is erger dan geen bedrag. Bij een mislukte sync blijft de vorige
+  // waarde staan.
+  vrijSaldoUsd: number | null;
+  // Staat er een eToro-sleutel op dit toestel? Los van magHandelen, dat ook schrijfrecht eist.
+  // Bepaalt welke uitleg de portfoliokaart geeft als het vrije saldo onbekend is: koppelen, of
+  // wachten tot eToro het veld meestuurt.
+  etoroGekoppeld: boolean;
   voegTradeToe: (trade: PortfolioTrade) => void;
   wijzigTrade: (trade: PortfolioTrade) => void;
   sluitTrade: (id: string, status: 'gewonnen' | 'verloren', exitPrijs: number) => void;
@@ -81,6 +91,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [laatsteSync, setLaatsteSync] = useState<number | null>(null);
   const [syncFout, setSyncFout] = useState(false);
   const [etoroFout, setEtoroFout] = useState<string | null>(null);
+  // Blijft staan tussen syncs door: een mislukte sync maakt het saldo niet onbekend, hij maakt het
+  // alleen ouder. Alleen een geslaagde sync die géén credit meekreeg zet 'm terug op null.
+  const [vrijSaldoUsd, setVrijSaldoUsd] = useState<number | null>(null);
+  const [etoroGekoppeld, setEtoroGekoppeld] = useState(false);
   // Demo als tussenstand tot haalOmgeving() antwoordt. De omgeving is het enige dat speelgeld van
   // echt geld scheidt, dus de waarde van voor het laden hoort de onschuldige te zijn: hij stuurt
   // het DEMO-label in de header aan en het filter op zichtbare trades.
@@ -361,6 +375,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     if (uitkomst.soort === 'geen') {
       // Geen koppeling is geen fout: een oude foutmelding mag hier niet blijven hangen.
       setEtoroFout(null);
+      setEtoroGekoppeld(false);
+      // Zonder koppeling is er geen saldo om te kennen. Een bedrag van een verwijderde koppeling
+      // laten staan zou een totaal vermogen opleveren dat nergens meer op slaat.
+      setVrijSaldoUsd(null);
       return leeg;
     }
     if (uitkomst.soort === 'kluisfout') {
@@ -368,12 +386,17 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       // koppeling" afdoen was precies waarom de app kon zeggen dat er geen sleutel was terwijl
       // Instellingen 'm gewoon toonde. Nu gaat de statusindicator hierop oranje staan.
       setEtoroFout(uitkomst.bericht);
+      setEtoroGekoppeld(true);
       return { ...leeg, gekoppeld: true, fout: uitkomst.bericht };
     }
     const sleutels = uitkomst.sleutels;
+    setEtoroGekoppeld(true);
 
     try {
-      const { open, historie } = await importeerEtoroAlles(sleutels);
+      const { open, historie, vrijSaldoUsd: saldo } = await importeerEtoroAlles(sleutels);
+      // Alleen na een geslaagde ophaal bijwerken. Mislukt de sync, dan blijft de vorige waarde in
+      // beeld: die is oud, maar hij is echt geweest.
+      setVrijSaldoUsd(saldo);
       const toegevoegd = importeerEtoroTrades(open.trades);
       const { afgesloten, toegevoegd: uitHistorie } = verwerkEtoroHistorie(historie.trades);
 
@@ -434,9 +457,12 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // Omgeving en schrijfrecht komen van schijf. Ook aan te roepen na koppelen of wisselen, want
   // allebei kunnen dan veranderen.
   const ververHandelStatus = useCallback(async () => {
-    const [nieuweOmgeving, mag] = await Promise.all([haalOmgeving(), magNuHandelen()]);
+    const [nieuweOmgeving, mag, gekoppeld] = await Promise.all([
+      haalOmgeving(), magNuHandelen(), heeftSleutels(),
+    ]);
     setOmgevingState(nieuweOmgeving);
     setMagHandelen(mag);
+    setEtoroGekoppeld(gekoppeld);
   }, []);
 
   useEffect(() => {
@@ -446,6 +472,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   const setOmgeving = useCallback(async (nieuw: EtoroOmgeving) => {
     await zetOmgeving(nieuw);
+    // Het saldo hoort bij de omgeving die je net verlaat. Meteen wissen: mislukt de sync hieronder,
+    // dan zou het saldo van je oefenaccount anders onder je echte posities blijven staan.
+    setVrijSaldoUsd(null);
     await ververHandelStatus();
     // De zichtbare lijst hangt aan de omgeving, en de posities van de nieuwe omgeving zijn nog niet
     // opgehaald. Meteen synchroniseren, anders staat het portfolio leeg tot de volgende ronde.
@@ -500,12 +529,14 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // die alleen synchroniseer gebruikt) zich daardoor op elke wijziging, inclusief de 60s-prijzenpoll.
   const waarde = useMemo<PortfolioContextWaarde>(() => ({
     trades: zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    vrijSaldoUsd, etoroGekoppeld,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,
     omgeving, setOmgeving, magHandelen, onbekendeOrders, verlopenOrders,
     noteerOnbekendeOrder, controleerOnbekendeOrders, verzoenNaOrder,
   }), [
     zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    vrijSaldoUsd, etoroGekoppeld,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,
     omgeving, setOmgeving, magHandelen, onbekendeOrders, verlopenOrders,

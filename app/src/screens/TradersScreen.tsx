@@ -13,6 +13,7 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { SkeletonCard } from '../components/SkeletonCard';
 import { laadLijst, bewaarLijst, SLEUTELS } from '../storage/opslag';
 
 // ---------- Helpers ----------
@@ -494,7 +495,15 @@ export function TradersScreen() {
         }
       />
 
-      {traders.length === 0 ? (
+      {!geladen ? (
+        // Zolang de opgeslagen traders nog niet zijn ingelezen: skeleton-kaarten in plaats van de
+        // "Geen traders beoordeeld"-lege staat, anders knippert die eerst leeg voordat een eerder
+        // beoordeelde trader verschijnt.
+        <View style={tradersStyles.lijst}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : traders.length === 0 ? (
         <View style={tradersStyles.leeg}>
           <Users size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
           <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>

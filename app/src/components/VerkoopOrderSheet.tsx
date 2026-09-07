@@ -10,6 +10,7 @@ import { X } from 'lucide-react-native';
 import { fmtPrijs, fmtResultaatUsd } from '../engine/format';
 import { guid, sluitPositie } from '../engine/etoro';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useDialoog } from '../state/DialoogProvider';
 import { actieveSleutels } from '../state/etoroSleutels';
 import { PortfolioTrade, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { OnbekendeOrder } from '../state/lopendeOrders';
@@ -25,15 +26,15 @@ interface Props {
   onSluiten: () => void;
   trade: PortfolioTrade;
   huidigePrijs?: number;
-  onGeslaagd?: (bericht: string) => void;
 }
 
-export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, onGeslaagd }: Props) {
+export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
 
   const { colors } = useTheme();
+  const { toonDialoog } = useDialoog();
   const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
 
   // Bij een short heb je de positie geopend door te verkopen; sluiten gebeurt dan door terug te
@@ -49,7 +50,6 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState('');
-  const [onbekend, setOnbekend] = useState('');
 
   // Eén id per keer dat de sheet opengaat, niet per klik. Probeer je het na een fout opnieuw, dan
   // gaat dezelfde x-request-id de deur uit. Sluiten en heropenen is een bewuste nieuwe order.
@@ -58,7 +58,6 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
     setVerzoekId(guid());
     setBezig(false);
     setFout('');
-    setOnbekend('');
   }, [zichtbaar, trade.id]);
 
   // Fail-closed poort. Een positie-ID uit de ene omgeving naar het endpoint van de andere sturen is
@@ -90,8 +89,21 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
     ? (huidigePrijs - trade.entryPrijs) * aantal * tekenVan(trade)
     : undefined;
 
+  // Het percentage wordt uit resultaat en de inleg afgeleid, niet apart uitgerekend: zo is er maar
+  // één bron van waarheid en kan het percentage nooit iets anders beweren dan het bedrag ernaast.
+  const inleg = aantal !== undefined ? trade.entryPrijs * aantal : undefined;
+  const resultaatPct = resultaat !== undefined && inleg !== undefined && inleg > 0
+    ? (resultaat / inleg) * 100
+    : undefined;
+
+  // Zonder overbodige nullen: 1,371400 leest slechter dan 1,3714, en de komma hoort bij het
+  // Nederlands van de rest van de app.
+  const aantalTekst = aantal !== undefined
+    ? aantal.toFixed(6).replace(/\.?0+$/, '').replace('.', ',')
+    : '';
+
   async function bevestig() {
-    if (!mag || bezig || onbekend || positionId === undefined || instrumentId === undefined) return;
+    if (!mag || bezig || positionId === undefined || instrumentId === undefined) return;
     setBezig(true);
     setFout('');
 
@@ -108,7 +120,26 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
         onSluiten();
-        onGeslaagd?.(`Je ${opdrachtTekst} staat bij eToro. Kader werkt je portfolio bij zodra de positie gesloten is.`);
+        toonDialoog({
+          variant: 'gelukt',
+          titel: isShort ? 'Sluitorder staat bij eToro' : 'Verkoop staat bij eToro',
+          tekst: `Je ${opdrachtTekst} is doorgegeven. Kader werkt je portfolio bij zodra de positie gesloten is.`,
+          resultaat: resultaat !== undefined && resultaatPct !== undefined
+            ? {
+              soort: 'bedrag',
+              bedragUsd: resultaat,
+              procent: resultaatPct,
+              detail: huidigePrijs !== undefined
+                ? `${aantalTekst} ${trade.symbool} · aankoop ${fmtPrijs(trade.entryPrijs)} · nu ${fmtPrijs(huidigePrijs)}`
+                : undefined,
+              toelichting: 'Schatting op de koers van dit moment. eToro sluit op zijn eigen koers en rekent kosten, dus het definitieve bedrag kan afwijken. Kader zet het echte resultaat in je historie na de volgende sync.',
+            }
+            : {
+              soort: 'onbekend',
+              toelichting: 'Kader kent het aantal coins of de live koers van deze positie niet, dus een bedrag zou gokwerk zijn. Zodra eToro de verkoop heeft verwerkt staat het echte resultaat in je historie.',
+            },
+          knoppen: [{ label: 'Oké' }],
+        });
         return;
       }
 
@@ -129,7 +160,24 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
         tijd: Date.now(),
       };
       await noteerOnbekendeOrder(order);
-      setOnbekend('We weten niet of je opdracht is doorgegaan. Kader kijkt nu bij eToro.');
+      onSluiten();
+      // Hier staat met opzet geen bedrag en geen percentage, ook al kunnen we ze uitrekenen. Een
+      // resultaat tonen bij een order waarvan we niet weten of hij is uitgevoerd doet alsof we
+      // weten wat er gebeurd is.
+      toonDialoog({
+        variant: 'waarschuwing',
+        titel: isShort
+          ? 'We weten niet of je sluitorder is doorgegaan'
+          : 'We weten niet of je verkoop is doorgegaan',
+        tekst: 'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.',
+        resultaat: {
+          soort: 'waarschuwing',
+          tekst: isShort
+            ? 'Stuur de sluitorder niet opnieuw voordat je bij eToro hebt gekeken.'
+            : 'Stuur de verkoop niet opnieuw voordat je bij eToro hebt gekeken.',
+        },
+        knoppen: [{ label: 'Oké' }],
+      });
     } finally {
       setBezig(false);
     }
@@ -202,19 +250,11 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs, o
           </View>
         ) : null}
 
-        {onbekend ? (
-          <View style={[stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
-            <Text style={[Type.caption, { color: colors.tekstPrimair, lineHeight: 18 }]}>{onbekend}</Text>
-          </View>
-        ) : null}
-
         <OrderBevestigKnop
           label={`${trade.symbool} ${werkwoord}`}
           omgeving={omgeving}
           bezig={bezig}
-          // Na een onbekende uitkomst blijft de knop uit: opnieuw versturen kan een tweede order
-          // opleveren terwijl de eerste misschien gelukt is.
-          uitgeschakeld={!mag || onbekend !== ''}
+          uitgeschakeld={!mag}
           onBevestig={bevestig}
           echtWaarschuwing={`Dit ${werkwoordVervoegd} een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen.`}
         />

@@ -13,6 +13,7 @@ import { bouwKooporderBody, guid, haalVrijSaldo, KooporderInvoer, plaatsKooporde
 import { actieveSleutels } from '../state/etoroSleutels';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useDialoog } from '../state/DialoogProvider';
 import { Richting } from '../state/portfolioTypes';
 import { useInstrumentId } from '../state/useInstrumentId';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
@@ -47,7 +48,6 @@ interface Props {
   entry: number;
   stop: number;
   doel: number;
-  onGeslaagd?: (bericht: string) => void;
   // Ontbreekt = 'long', dezelfde afspraak als overal elders. Deze sheet plaatst een echte order, dus
   // een short komt hier alleen aan als de aanroeper 'm expliciet meegeeft: het marktscherm geeft de
   // richting van de Trade zelf door, die staat al goed op elke short die de engine oplevert.
@@ -55,9 +55,10 @@ interface Props {
 }
 
 export function KooporderSheet({
-  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onGeslaagd, richting = 'long',
+  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, richting = 'long',
 }: Props) {
   const { colors } = useTheme();
+  const { toonDialoog } = useDialoog();
   const isShort = richting === 'short';
   const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
   const instrumentId = useInstrumentId(zichtbaar ? symbool : null);
@@ -71,7 +72,6 @@ export function KooporderSheet({
   const [saldoBezig, setSaldoBezig] = useState(true);
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState('');
-  const [onbekend, setOnbekend] = useState('');
 
   // Eén verzoekId per keer dat de sheet opengaat, zodat een handmatige herhaling na een afwijzing
   // dezelfde x-request-id draagt. Sluiten en opnieuw openen geeft een nieuwe id: dat is een bewuste
@@ -83,7 +83,6 @@ export function KooporderSheet({
     verzoekId.current = guid();
     setBedrag('');
     setFout('');
-    setOnbekend('');
     setBezig(false);
     setVrijSaldo(null);
     setSaldoBezig(true);
@@ -157,7 +156,7 @@ export function KooporderSheet({
       ? `Dit past niet in je vrije saldo van ${fmtBedrag(vrijSaldo, DOLLARS)}. eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
     : null;
 
-  const magBevestigen = heeftBedrag && blokkade === null && onbekend === '';
+  const magBevestigen = heeftBedrag && blokkade === null;
 
   async function bevestig() {
     if (!magBevestigen || instrumentId === null) return;
@@ -183,9 +182,14 @@ export function KooporderSheet({
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
         onSluiten();
-        onGeslaagd?.(isShort
-          ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`
-          : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} staat bij eToro. Hij verschijnt in je portfolio zodra de order gevuld is.`);
+        toonDialoog({
+          variant: 'gelukt',
+          titel: isShort ? 'Short staat bij eToro' : 'Koop staat bij eToro',
+          tekst: isShort
+            ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`
+            : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`,
+          knoppen: [{ label: 'Oké' }],
+        });
         return;
       }
 
@@ -212,8 +216,18 @@ export function KooporderSheet({
         // Wegschrijven mislukte. De melding hieronder klopt hoe dan ook, en opnieuw versturen is
         // ook nu geen optie.
       }
-      setOnbekend('We weten niet of je order is doorgegaan. Kader kijkt nu bij eToro.');
       setBezig(false);
+      onSluiten();
+      toonDialoog({
+        variant: 'waarschuwing',
+        titel: 'We weten niet of je order is doorgegaan',
+        tekst: 'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.',
+        resultaat: {
+          soort: 'waarschuwing',
+          tekst: 'Koop niet opnieuw voordat je bij eToro hebt gekeken. Anders open je mogelijk een tweede positie.',
+        },
+        knoppen: [{ label: 'Oké' }],
+      });
     } catch (e) {
       setFout(e instanceof Error ? e.message : 'Er ging iets mis bij het plaatsen van de order.');
       setBezig(false);
@@ -310,7 +324,7 @@ export function KooporderSheet({
           placeholder={`minimaal ${MINIMUM_USD}`}
           placeholderTextColor={colors.tekstGedimd}
           keyboardType="decimal-pad"
-          editable={!bezig && onbekend === ''}
+          editable={!bezig}
         />
         {valuta === 'EUR' && eurPerUsd !== null && heeftBedrag ? (
           <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
@@ -332,13 +346,7 @@ export function KooporderSheet({
           <Text style={[Type.caption, stijlen.melding, { color: colors.verlies }]}>{fout}</Text>
         ) : null}
 
-        {onbekend ? (
-          <View style={[stijlen.waarschuwing, stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
-            <Text style={[Type.body, { color: colors.tekstPrimair, lineHeight: 22 }]}>{onbekend}</Text>
-          </View>
-        ) : null}
-
-        {samenvatting && onbekend === '' ? (
+        {samenvatting ? (
           <Text style={[Type.body, stijlen.samenvatting, { color: colors.tekstGedimd }]}>{samenvatting}</Text>
         ) : null}
 

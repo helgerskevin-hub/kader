@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Pressable, FlatList, TextInput, ScrollView,
-  StyleSheet, Alert, RefreshControl, LayoutAnimation,
+  StyleSheet, RefreshControl, LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3, ChevronDown, ChevronRight } from 'lucide-react-native';
@@ -14,6 +14,8 @@ import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
+import { VerdelingKaart } from '../components/VerdelingKaart';
+import { SkeletonCard } from '../components/SkeletonCard';
 import { HistorieScherm } from '../components/HistorieScherm';
 import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
 import { TradeActiesSheet } from '../components/TradeActiesSheet';
@@ -24,6 +26,7 @@ import { omschrijfOnbekendeOrder } from '../state/lopendeOrders';
 import { PortfolioTrade, Richting, bronVan, nieuweId, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { RichtingBadge } from '../components/RichtingBadge';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useDialoog } from '../state/DialoogProvider';
 import { bepaalAdvies } from '../state/advies';
 import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
 import { AfbouwRegel } from '../components/AfbouwRegel';
@@ -121,10 +124,21 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
       ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
       : colors.tekstGedimd;
 
-  const randKleur = trade.status === 'open' ? adviesKleur : statusKleur;
+  // De gekleurde linkerstreep is weg, net als op het marktscherm. Een open positie houdt zijn
+  // schaduw en zweeft, een afgesloten positie verliest hem en krijgt een rand, zodat je historie
+  // visueel wegzakt achter wat nog loopt.
+  const open = trade.status === 'open';
 
   return (
-    <View style={[tradeStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }]}>
+    <View style={[
+      tradeStyles.kaart,
+      open ? shadow.kaart : null,
+      {
+        backgroundColor: colors.kaart,
+        borderWidth: open ? 0 : 1,
+        borderColor: open ? 'transparent' : colors.rand,
+      },
+    ]}>
       <Pressable
         onPress={() => onOpenDetail(trade)}
         accessibilityRole="button"
@@ -146,9 +160,10 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
         </View>
       </View>
 
-      {/* Adviesveld */}
+      {/* Adviesveld. Het bolletje draagt hier de kleur die eerst in de linkerstreep zat. */}
       <View style={[tradeStyles.advies, { backgroundColor: colors.verhoogd }]}>
-        <Text style={[Type.caption, { color: trade.status === 'open' ? adviesKleur : behaaldKleur, lineHeight: 18 }]}>
+        <View style={[tradeStyles.adviesStip, { backgroundColor: open ? adviesKleur : behaaldKleur }]} />
+        <Text style={[Type.caption, tradeStyles.adviesTekst, { color: open ? adviesKleur : behaaldKleur, lineHeight: 18, fontWeight: '600' }]}>
           {trade.status === 'open'
             ? advies.tekst
             : `Gesloten op ${fmtPrijs(trade.exitPrijs ?? trade.entryPrijs)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
@@ -305,10 +320,11 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
 const tradeStyles = StyleSheet.create({
   kaart: {
     borderRadius: radii.kaart,
-    borderLeftWidth: 4,
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,
   },
+  adviesStip: { width: 8, height: 8, borderRadius: radii.pill, marginTop: 5 },
+  adviesTekst: { flex: 1 },
   kop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -320,6 +336,9 @@ const tradeStyles = StyleSheet.create({
   symboolRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   kopRechts: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   advies: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     marginHorizontal: spacing.base,
     marginBottom: spacing.sm,
     borderRadius: radii.veld,
@@ -851,10 +870,12 @@ export function PortfolioScreen() {
   useValutaStand();
 
   const { colors } = useTheme();
+  const { toonDialoog } = useDialoog();
   const {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
-    syncing, laatsteSync, syncFout, etoroFout, synchroniseer,
+    syncing, laatsteSync, syncFout, etoroFout, synchroniseer, geladen,
     omgeving, magHandelen, verlopenOrders, controleerOnbekendeOrders,
+    vrijSaldoUsd, etoroGekoppeld,
   } = usePortfolio();
   const [verkoopTrade, setVerkoopTrade] = useState<PortfolioTrade | null>(null);
   const [niveausTrade, setNiveausTrade] = useState<PortfolioTrade | null>(null);
@@ -939,26 +960,36 @@ export function PortfolioScreen() {
   async function importerenUitEtoro() {
     const uitkomst = await sleutelUitkomst();
     if (uitkomst.soort === 'geen') {
-      Alert.alert(
-        'Nog geen eToro-koppeling',
-        'Stel je API-sleutel in via Instellingen (het tandwiel rechtsboven) voordat je kunt importeren.',
-      );
+      toonDialoog({
+        variant: 'informatie',
+        titel: 'Nog geen eToro-koppeling',
+        tekst: 'Stel je API-sleutel in via Instellingen (het tandwiel rechtsboven) voordat je kunt importeren.',
+        knoppen: [{ label: 'Oké' }],
+      });
       return;
     }
     if (uitkomst.soort === 'kluisfout') {
       // Je bent gekoppeld, we kwamen alleen niet bij de sleutel. Dat is een ander verhaal dan
       // "stel je sleutel in", en dat verschil hoort hier te staan.
-      Alert.alert(
-        'Sleutel niet te lezen',
-        `Je eToro-sleutel staat op dit toestel, maar Kader kon er nu niet bij. ${uitkomst.bericht}`,
-      );
+      toonDialoog({
+        variant: 'informatie',
+        titel: 'Sleutel niet te lezen',
+        tekst: `Je eToro-sleutel staat op dit toestel, maar Kader kon er nu niet bij. ${uitkomst.bericht}`,
+        knoppen: [{ label: 'Oké' }],
+      });
       return;
     }
     setEtoroBezig(true);
     try {
       const uitkomst = await synchroniseer();
       if (uitkomst.fout) {
-        Alert.alert('Import mislukt', uitkomst.fout);
+        toonDialoog({
+          variant: 'fout',
+          titel: 'Import mislukt',
+          tekst: 'Kader kon je posities niet bij eToro ophalen.',
+          details: uitkomst.fout,
+          knoppen: [{ label: 'Oké' }],
+        });
         return;
       }
       const delen = [`${uitkomst.toegevoegd} nieuw`];
@@ -966,13 +997,18 @@ export function PortfolioScreen() {
       if (uitkomst.gesloten > 0) delen.push(`${uitkomst.gesloten} automatisch gesloten`);
       if (uitkomst.uitHistorie > 0) delen.push(`${uitkomst.uitHistorie} uit je eToro-historie`);
       if (uitkomst.overgeslagen.length > 0) delen.push(`${uitkomst.overgeslagen.length} overgeslagen`);
-      let bericht = delen.join(', ') + '.';
-      if (uitkomst.overgeslagen.length > 0) {
-        // Shorts komen nu gewoon binnen; wat hier nog overblijft is geen crypto-instrument.
-        const regels = uitkomst.overgeslagen.map(o => `- ${o.naam} (geen crypto)`);
-        bericht += '\n\nOvergeslagen:\n' + regels.join('\n');
-      }
-      Alert.alert('Import voltooid', bericht);
+      // Shorts komen nu gewoon binnen; wat hier nog overblijft is geen crypto-instrument. De lijst
+      // gaat in het detailblok en niet achter de tekst aan: hij kan lang worden.
+      const overgeslagen = uitkomst.overgeslagen.length > 0
+        ? 'Overgeslagen:\n' + uitkomst.overgeslagen.map(o => `- ${o.naam} (geen crypto)`).join('\n')
+        : undefined;
+      toonDialoog({
+        variant: 'gelukt',
+        titel: 'Import voltooid',
+        tekst: delen.join(', ') + '.',
+        details: overgeslagen,
+        knoppen: [{ label: 'Oké' }],
+      });
     } finally {
       setEtoroBezig(false);
     }
@@ -1025,7 +1061,7 @@ export function PortfolioScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
-        titel="Mijn trades"
+        titel="Portfolio"
         rechts={
           <Pressable
             style={[portfolioStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
@@ -1039,6 +1075,17 @@ export function PortfolioScreen() {
         }
       />
 
+      {/* Eén keer per app-start, tot de trades uit de opslag binnen zijn: skeleton-kaarten in
+          plaats van de statuskaart en de lege "Geen open posities"-staat, anders knippert die
+          eerst leeg voordat de echte trades verschijnen. Ververst je daarna (swipe of eToro-
+          import), dan blijft de bestaande lijst gewoon staan; dat gebeurt hier niet opnieuw. */}
+      {!geladen ? (
+        <View style={portfolioStyles.laadWrapper}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : (
       <FlatList
         data={lijstData}
         keyExtractor={item => item.soort === 'kop' ? `kop-${item.bron}` : item.trade.id}
@@ -1089,6 +1136,8 @@ export function PortfolioScreen() {
           <>
             <PortfolioStatusKaart
               waarde={waarde}
+              vrijSaldoUsd={vrijSaldoUsd}
+              etoroGekoppeld={etoroGekoppeld}
               // Ook tijdens een swipe- of knop-sync bezig tonen: verversPrijzen zet `syncing` alleen
               // als er open posities zijn, dus met een lege portfolio bleef de knop anders indrukbaar.
               syncing={syncing || ververst}
@@ -1101,6 +1150,9 @@ export function PortfolioScreen() {
               onImporteren={importerenUitEtoro}
               onOpenHistorie={() => setHistorieOpen(true)}
             />
+
+            {/* Rendert zichzelf niet als er geen open posities zijn, dus geen voorwaarde nodig. */}
+            <VerdelingKaart trades={trades} livePrijzen={livePrijzen} />
 
             {/* Orders waarvan we na een kwartier nog steeds niet weten of ze zijn doorgegaan. Er
                 staat bewust maar één knop: opnieuw controleren. Nergens iets dat opnieuw verstuurt,
@@ -1148,7 +1200,7 @@ export function PortfolioScreen() {
             {openTrades.length > 0 && (
               <View style={portfolioStyles.weergaveRij}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                  {openTrades.length} {openTrades.length === 1 ? 'OPEN TRADE' : 'OPEN TRADES'}
+                  {openTrades.length} {openTrades.length === 1 ? 'OPEN POSITIE' : 'OPEN POSITIES'}
                 </Text>
                 <WeergaveSchakelaar actief={weergave} onWijzig={setWeergave} />
               </View>
@@ -1159,7 +1211,7 @@ export function PortfolioScreen() {
           <View style={portfolioStyles.leeg}>
             <Wallet size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
             <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
-              Geen open trades
+              Geen open posities
             </Text>
             <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24 }]}>
               Voeg een trade toe vanuit het Markt-scherm of via de knop rechtsboven{afgeslotenCount > 0 ? ', of bekijk je afgesloten trades in de historie' : ''}.
@@ -1176,6 +1228,7 @@ export function PortfolioScreen() {
         }
         ListFooterComponent={<Disclaimer metRand={openTrades.length > 0} />}
       />
+      )}
 
       <TradeFormulier
         zichtbaar={formulierZichtbaar || bewerkTrade !== null}
@@ -1247,6 +1300,7 @@ export function PortfolioScreen() {
 
 const portfolioStyles = StyleSheet.create({
   root: { flex: 1 },
+  laadWrapper: { paddingTop: spacing.md },
   onbevestigd: {
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,

@@ -32,6 +32,7 @@ import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
 import { MarktProvider } from './src/state/MarktProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
+import { DialoogProvider } from './src/state/DialoogProvider';
 import { NavigatieProvider } from './src/state/navigatie';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
 import { WelkomFeest } from './src/components/WelkomFeest';
@@ -251,7 +252,10 @@ export default function App() {
       <ThemeProvider>
         <MarktProvider>
           <PortfolioProvider>
-            <AppInhoud />
+            {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
+            <DialoogProvider>
+              <AppInhoud />
+            </DialoogProvider>
           </PortfolioProvider>
         </MarktProvider>
       </ThemeProvider>
