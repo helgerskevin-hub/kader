@@ -12,7 +12,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.1.20',
     datum: '2026-09-07',
     punten: [
       'De melding "nieuw in deze versie" is eindelijk te scrollen, en met hem elke andere sheet met een lijst erin, zoals het formulier om een trade bij te houden. Daar viel de knop onderaan buiten beeld. Er waren twee dingen aan de hand. De lijst had geen eigen hoogte, en in React Native krimpt een lijst niet vanzelf binnen een venster: hij groeide door tot zijn volle inhoud en liep er onderaan uit, waar hij werd afgekapt. En het vel van een sheet zat zelf in een aantikbaar vlak, dat op Android de veeg opving voordat de lijst hem kon zien. Dat vlak ligt nu naast het vel in plaats van eromheen, en de lijst heeft een uitgerekende hoogte met een scrollbalk ernaast',

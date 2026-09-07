@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.1.20
 
 - De melding "nieuw in deze versie" is eindelijk te scrollen, en met hem elke andere sheet met een lijst erin, zoals het formulier om een trade bij te houden. Daar viel de knop onderaan buiten beeld. Er waren twee dingen aan de hand. De lijst had geen eigen hoogte, en in React Native krimpt een lijst niet vanzelf binnen een venster: hij groeide door tot zijn volle inhoud en liep er onderaan uit, waar hij werd afgekapt. En het vel van een sheet zat zelf in een aantikbaar vlak, dat op Android de veeg opving voordat de lijst hem kon zien. Dat vlak ligt nu naast het vel in plaats van eromheen, en de lijst heeft een uitgerekende hoogte met een scrollbalk ernaast
 - De verdelingskaart in Portfolio zet de percentages in een rechte kolom aan de rechterkant, in plaats van achter de naam van de coin. Ze stonden daardoor per rij op een andere plek, en juist dat getal is waar de kaart om draait: nu kun je met je oog van boven naar beneden lopen
