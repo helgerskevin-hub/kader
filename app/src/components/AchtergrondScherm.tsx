@@ -382,7 +382,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               Die twee botsen vaker wel dan niet: de stop van Kader ligt meestal binnen de 10 procent. Ligt jouw
               niveau buiten wat eToro accepteert, dan schuift Kader het op naar de dichtstbijzijnde waarde die eToro
-              wel neemt, en zet er een klein ETORO-merkje bij het STOP-label. Zo staat er nergens in de app een
+              wel neemt, en zet er een pil AANGEPAST bij het STOP-label. Zo staat er nergens in de app een
               niveau dat je niet kunt invoeren.
             </Text>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>

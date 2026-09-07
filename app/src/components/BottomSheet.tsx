@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Modal, ViewStyle, StyleProp } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Modal, View, ViewStyle, StyleProp } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 import { radii, shadow, spacing } from '../theme/tokens';
@@ -10,7 +10,6 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 // maxHeight in procenten op hun velStijl, en een percentage rekent tegen de hoogte van de ouder:
 // met een tussenliggende wrapper zonder eigen hoogte valt die maxHeight weg en groeit een lange
 // sheet voorbij het scherm.
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface Props {
   zichtbaar: boolean;
@@ -60,8 +59,22 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
 
   return (
     <Modal visible={zichtbaar} animationType="fade" transparent onRequestClose={onSluiten}>
-      <Pressable style={styles.overlay} onPress={onSluiten} accessibilityLabel="Sluiten">
-        <AnimatedPressable
+      <View style={styles.overlay}>
+        {/* De achtergrond is een BROER van het vel en geen ouder ervan. Dat is geen stijlkeuze maar
+            de reden dat een lijst in een sheet überhaupt scrollt: als het vel binnen een Pressable
+            zat, greep die de aanraking op Android en kwam een veeg nooit bij de ScrollView aan. De
+            changeloglijst stond daardoor stil, ook nadat hij netjes binnen het venster paste.
+
+            Een broer werkt omdat een aanraking niet naar een broer doorvalt: het bovenste vlak op
+            dat punt vangt hem. Op het vel is dat het vel zelf (het heeft een achtergrondkleur),
+            ernaast deze laag, en die sluit. Precies het gedrag van hiervoor, zonder de greep. */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onSluiten}
+          accessibilityLabel="Sluiten"
+          accessibilityRole="button"
+        />
+        <Animated.View
           style={[
             styles.vel,
             shadow.modal,
@@ -81,11 +94,10 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
             },
             velStijl,
           ]}
-          onPress={() => {}}
         >
           {children}
-        </AnimatedPressable>
-      </Pressable>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }

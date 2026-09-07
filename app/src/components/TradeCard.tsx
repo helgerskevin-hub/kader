@@ -15,6 +15,8 @@ import { DREMPEL_STERK_KOOP } from '../engine/drempels';
 import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
 import { oordeelRs, rsUitleg } from '../engine/relatieveSterkte';
 import { useValutaStand } from '../state/useValuta';
+import { handelbaarOp, noemPlatforms } from '../engine/platforms';
+import { PlatformChips } from './PlatformChip';
 
 interface Props {
   trade: Trade;
@@ -45,18 +47,41 @@ function adviesLabel(trade: Trade): AdviesLabel {
   return trade.score >= DREMPEL_STERK_KOOP ? 'STERK KOOP' : 'KOOPZONE';
 }
 
-// De gekleurde linkerstreep is weg. Hij zei hetzelfde als de badge en het scorecijfer, en stond
-// ook op AFWACHTEN, waardoor elke kaart in de lijst even hard riep. Het onderscheid zit nu in
-// hoogte: high conviction krijgt als enige een rand rondom, afwachten verliest zijn schaduw en
-// ligt daardoor plat op de achtergrond terwijl de rest zweeft.
+// De gekleurde linkerstreep komt niet terug. Die zei vier keer hetzelfde en stond ook op
+// AFWACHTEN, waar niets aan de hand is, waardoor elke kaart in de lijst even hard riep. Maar met
+// alleen een randje van anderhalve pixel en een schaduw van 6 procent was het onderscheid in een
+// lijst van twintig kaarten te weinig: je moest de badge lézen om te weten wat er speelde.
+//
+// Het verschil loopt nu over vier assen tegelijk, oplopend in sterkte: achtergrond, rand, schaduw
+// en de kopgrootte van het symbool. AFWACHTEN krijgt de achtergrond van het scherm zelf en geen
+// schaduw, en ligt daarmee letterlijk plat op de pagina; HIGH CONVICTION krijgt als enige een volle
+// rand plus een gevulde badge. De positieve kant werkt dus via gewicht, de negatieve via wegvallen.
+// Zouden alle vier de niveaus iets extra's krijgen, dan roept de lijst weer even hard als eerst.
 function niveauOpmaak(label: AdviesLabel, colors: ReturnType<typeof useTheme>['colors']) {
   if (label === 'HIGH CONVICTION') {
-    return { borderWidth: 1.5, borderColor: colors.primair, schaduw: true };
+    return {
+      borderWidth: 1.5, borderColor: colors.primair, schaduw: true,
+      achtergrond: colors.kaart, groteKop: true, prijsKleur: colors.tekstPrimair,
+    };
+  }
+  if (label === 'STERK KOOP') {
+    // 20 procent dekking: net genoeg om de kaart een tint te geven, niet genoeg om met high
+    // conviction te concurreren.
+    return {
+      borderWidth: 1, borderColor: colors.winst + '33', schaduw: true,
+      achtergrond: colors.kaart, groteKop: true, prijsKleur: colors.tekstPrimair,
+    };
   }
   if (label === 'AFWACHTEN') {
-    return { borderWidth: 1, borderColor: colors.rand, schaduw: false };
+    return {
+      borderWidth: 1, borderColor: colors.rand, schaduw: false,
+      achtergrond: colors.achtergrond, groteKop: false, prijsKleur: colors.tekstGedimd,
+    };
   }
-  return { borderWidth: 0, borderColor: 'transparent', schaduw: true };
+  return {
+    borderWidth: 0, borderColor: 'transparent', schaduw: true,
+    achtergrond: colors.kaart, groteKop: false, prijsKleur: colors.tekstPrimair,
+  };
 }
 
 export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
@@ -71,6 +96,10 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   const advies = adviesLabel(trade);
   const opmaak = niveauOpmaak(advies, colors);
   const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
+  // Waar deze coin te koop is. Dat is kennis uit Kaders eigen lijsten en hangt niet af van een
+  // koppeling, dus het klopt ook zonder eToro-sleutel. Kent Kader geen enkel platform, dan tekent
+  // PlatformChips niets: een lege plek is eerlijk, een grijze chip zou een platform beloven.
+  const platforms = handelbaarOp(trade.symbool);
   // Boven de drempel blijft de kleur neutraal. Schuift eToro de stop op, dan zakt de R/R mee en is
   // die drempel het enige eerlijke oordeel: de score kan nog zo hoog zijn, met een stop van 10% en
   // een doel van 9% verdien je er niets aan.
@@ -96,7 +125,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
       styles.kaart,
       opmaak.schaduw ? shadow.kaart : null,
       {
-        backgroundColor: colors.kaart,
+        backgroundColor: opmaak.achtergrond,
         borderWidth: opmaak.borderWidth,
         borderColor: opmaak.borderColor,
       },
@@ -107,15 +136,27 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
         accessibilityLabel={`${trade.symbool} detail bekijken`}
         disabled={!onOpenDetail}
       >
-      {/* Het oordeel staat boven de cijfers, want dat is wat je als eerste wil lezen. */}
+      {/* Het oordeel staat boven de cijfers, want dat is wat je als eerste wil lezen. Rechts
+          ernaast op welke platforms deze coin te koop is. Dat stond eerder als het woord ETORO
+          naast STOP, waar het iets heel anders betekende (zie LevelRow) en waar het als een
+          merklogo op een rare plek las. */}
       <View style={styles.badgeRij}>
-        <AdviceBadge advies={advies} />
+        <AdviceBadge advies={advies} score={trade.score} />
+        <PlatformChips
+          platforms={platforms}
+          maat={20}
+          label={platforms.length > 0 ? `Verhandelbaar op ${noemPlatforms(platforms)}` : undefined}
+        />
       </View>
       {/* Koptekst */}
       <View style={styles.kop}>
         <View style={styles.kopLinks}>
           <View style={styles.symboolRij}>
-            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
+            {/* Een kop van 21px tegenover 16px is op afstand zichtbaar zonder dat er kleur aan
+                te pas komt, en maakt de kaart die je moet lezen ook fysiek zwaarder. */}
+            <Text style={[opmaak.groteKop ? Type.titel : Type.sectiekop, { color: colors.tekstPrimair }]}>
+              {trade.symbool}
+            </Text>
             {onToggleFavoriet && (
               <Pressable
                 onPress={() => onToggleFavoriet(trade.symbool)}
@@ -135,10 +176,10 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{info.naam}</Text>
         </View>
         <View style={styles.kopRechts}>
-          {/* Het scorecijfer stond hier als badge en verderop nog eens als SCORE in de metarij.
-              Eén keer is genoeg, en een derde kleuroordeel naast de adviesbadge maakte de kaart
-              alleen maar drukker. */}
-          <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(trade.prijs)}</Text>
+          {/* Het scorecijfer stond hier als losse badge en verderop nog eens als SCORE-kolom.
+              Allebei weg: het staat nu in de adviesbadge zelf, dus één element draagt het oordeel
+              en de maat ervan, en de metarij houdt drie kolommen over die ruimer kunnen staan. */}
+          <Text style={[Type.prijsGroot, { color: opmaak.prijsKleur }]}>{fmtPrijs(trade.prijs)}</Text>
         </View>
       </View>
 
@@ -193,10 +234,6 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
             )}
           </View>
         )}
-        <View style={styles.metaItem}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>SCORE</Text>
-          <Text style={[Type.prijs, styles.metaWaarde, { color: colors.tekstPrimair }]}>{Math.round(trade.score)}</Text>
-        </View>
       </View>
 
       {/* Uitklapbare redenen + waarom-kopen onderbouwing */}
@@ -281,9 +318,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   badgeRij: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingTop: spacing.md,
     paddingHorizontal: spacing.base,
-    alignSelf: 'flex-start',
   },
   kop: {
     flexDirection: 'row',

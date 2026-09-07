@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
+import { radii } from '../theme/tokens';
 import { fmtPrijs } from '../engine/format';
 import { useValutaStand } from '../state/useValuta';
 import { Richting } from '../state/portfolioTypes';
@@ -14,8 +15,8 @@ interface Props {
   // andersom (stop boven de entry, doel eronder), dus zowel de balk als de STOP/DOEL-volgorde moeten
   // meedraaien.
   richting?: Richting;
-  // De stop is opgeschoven omdat eToro Kaders eigen niveau niet accepteert. Dan komt er een klein
-  // eToro-merkje bij het STOP-label, zodat het getal niet als Kaders berekening gelezen wordt.
+  // De stop is opgeschoven omdat eToro Kaders eigen niveau niet accepteert. Dan komt er een pil
+  // AANGEPAST bij het STOP-label, zodat het getal niet als Kaders berekening gelezen wordt.
   stopAangepast?: boolean;
 }
 
@@ -50,11 +51,11 @@ export function LevelRow({ stop, entry, doel, richting = 'long', stopAangepast =
             short rechts. */}
         <View style={styles.labelMetMerk}>
           <Text style={[Type.overline, { color: laagKleur }]}>{laagLabel}</Text>
-          {!isShort && stopAangepast && <Text style={[Type.overline, { color: colors.letOp }]}>ETORO</Text>}
+          {!isShort && stopAangepast && <AangepastPil />}
         </View>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
         <View style={styles.labelMetMerk}>
-          {isShort && stopAangepast && <Text style={[Type.overline, { color: colors.letOp }]}>ETORO</Text>}
+          {isShort && stopAangepast && <AangepastPil />}
           <Text style={[Type.overline, { color: hoogKleur }]}>{hoogLabel}</Text>
         </View>
       </View>
@@ -77,8 +78,36 @@ export function LevelRow({ stop, entry, doel, richting = 'long', stopAangepast =
   );
 }
 
+// Hier stond het woord ETORO. Dat betekent iets anders dan het lijkt: niet "verhandelbaar op
+// eToro" maar "deze stop is opgeschoven naar het niveau dat eToro nog accepteert". Als merknaam
+// naast een prijsniveau las het als een logo op een rare plek, en sinds de tradekaart rechtsboven
+// echte platformmerkjes draagt zou het daar helemaal mee verward worden.
+//
+// Een pil met een woord kan onmogelijk voor een merkje doorgaan, en AANGEPAST zegt wat er met het
+// getal is gebeurd. Het waaróm staat voluit in de uitklap van de kaart, in niveaus.uitleg; daar is
+// ruimte voor een hele zin, hier niet. De kleur blijft letOp: dit is een let-op en geen fout, en
+// kleur is niet het enige signaal want er staat een woord in.
+function AangepastPil() {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[styles.pil, { backgroundColor: colors.letOp + '1A' }]}
+      accessible
+      accessibilityLabel="Stop-loss aangepast naar de grens die eToro toestaat"
+    >
+      <Text style={[Type.label, styles.pilTekst, { color: colors.letOp }]}>AANGEPAST</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { gap: 4 },
+  pil: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  pilTekst: { fontSize: 9, letterSpacing: 0.4 },
   labelsRij: { flexDirection: 'row', justifyContent: 'space-between' },
   labelMetMerk: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   balkContainer: {

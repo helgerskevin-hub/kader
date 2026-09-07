@@ -17,6 +17,7 @@ import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
 import { VerdelingKaart } from '../components/VerdelingKaart';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { HistorieScherm } from '../components/HistorieScherm';
+import { VerdelingScherm } from '../components/VerdelingScherm';
 import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
 import { TradeActiesSheet } from '../components/TradeActiesSheet';
 import { VerkoopOrderSheet } from '../components/VerkoopOrderSheet';
@@ -887,6 +888,7 @@ export function PortfolioScreen() {
   const [etoroBezig, setEtoroBezig] = useState(false);
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
+  const [verdelingOpen, setVerdelingOpen] = useState(false);
   const [actiesVoor, setActiesVoor] = useState<PortfolioTrade | null>(null);
   const [kapitaalOpen, setKapitaalOpen] = useState(false);
   const { kapitaal, zetKapitaal } = useHandelskapitaal();
@@ -1154,7 +1156,11 @@ export function PortfolioScreen() {
             />
 
             {/* Rendert zichzelf niet als er geen open posities zijn, dus geen voorwaarde nodig. */}
-            <VerdelingKaart trades={trades} livePrijzen={livePrijzen} />
+            <VerdelingKaart
+              trades={trades}
+              livePrijzen={livePrijzen}
+              onOpenDetail={() => setVerdelingOpen(true)}
+            />
 
             {/* Orders waarvan we na een kwartier nog steeds niet weten of ze zijn doorgegaan. Er
                 staat bewust maar één knop: opnieuw controleren. Nergens iets dat opnieuw verstuurt,
@@ -1288,6 +1294,13 @@ export function PortfolioScreen() {
         onSluiten={() => setHistorieOpen(false)}
         onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
         onVerwijder={verwijderTrade}
+      />
+
+      <VerdelingScherm
+        zichtbaar={verdelingOpen}
+        trades={trades}
+        livePrijzen={livePrijzen}
+        onSluiten={() => setVerdelingOpen(false)}
       />
 
       <KapitaalSheet

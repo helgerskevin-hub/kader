@@ -12,6 +12,23 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-09-07',
+    punten: [
+      'De melding "nieuw in deze versie" is eindelijk te scrollen, en met hem elke andere sheet met een lijst erin, zoals het formulier om een trade bij te houden. Daar viel de knop onderaan buiten beeld. Er waren twee dingen aan de hand. De lijst had geen eigen hoogte, en in React Native krimpt een lijst niet vanzelf binnen een venster: hij groeide door tot zijn volle inhoud en liep er onderaan uit, waar hij werd afgekapt. En het vel van een sheet zat zelf in een aantikbaar vlak, dat op Android de veeg opving voordat de lijst hem kon zien. Dat vlak ligt nu naast het vel in plaats van eromheen, en de lijst heeft een uitgerekende hoogte met een scrollbalk ernaast',
+      'De verdelingskaart in Portfolio zet de percentages in een rechte kolom aan de rechterkant, in plaats van achter de naam van de coin. Ze stonden daardoor per rij op een andere plek, en juist dat getal is waar de kaart om draait: nu kun je met je oog van boven naar beneden lopen',
+      'Tik op de verdelingskaart en je krijgt het volledige overzicht op een eigen scherm. Alle coins zonder samenvouwing tot Overig, met een staafje per coin. Daaronder je verdeling per platform, dus hoeveel er bij eToro staat en hoeveel je zelf hebt ingevoerd, en welke coin op meer dan één plek staat. Onderaan een blok "Wat opvalt" met feitelijke observaties over je concentratie, en een blok met de posities die Kader niet kon wegen, met de reden erbij. Nu zijn dat twee bronnen; het scherm is gebouwd om er platforms bij te krijgen',
+      'Na een geplaatste order staat er naast Oké een tweede knop, "Naar portfolio", die je meteen naar je posities brengt. De tekst van die melding verwees al naar je portfolio, dus er hoorde ook een knop naartoe te gaan',
+      'Bij een coin die de risico-opbrengstverhouding niet haalt stond onder "1 : 1.3" de melding "onder 1:2". Dat las als "onder 1,2", een grens die het getal erboven ruim haalt. Er staat nu "onder 1 : 2.0", in dezelfde schaal als de waarde zelf',
+      'De kaarten op Markt laten hun niveau weer zien zonder dat je de badge hoeft te lezen. Sinds de gekleurde streep weg is verschilden ze alleen nog in een randje en een schaduw, en dat was in een lijst van twintig kaarten te weinig. Het verschil loopt nu over vier dingen tegelijk: high conviction krijgt een volle rand en als enige een gevulde badge, sterk koop een groene haarlijn, koopzone is de gewone kaart, en afwachten krijgt de achtergrond van het scherm zelf en geen schaduw, en ligt daarmee plat op de pagina. Bij de bovenste twee staat het symbool ook groter',
+      'Het scorecijfer staat nu in de adviesbadge zelf, als "STERK KOOP · 74". Het stond onderaan in de rij naast R/R en RSI, in dezelfde grootte en kleur, terwijl het het cijfer is dat het meest zegt. Zo draagt een element zowel het oordeel als de maat ervan, en staat het nog steeds maar een keer op de kaart',
+      'Rechtsboven op elke kaart staat nu op welke platforms die coin te koop is, als klein merkje. Er kunnen er meerdere naast elkaar staan zodra er een tweede platform bij komt',
+      'Het woord ETORO naast STOP is vervangen door een pil AANGEPAST. Dat woord betekende namelijk niet "verhandelbaar op eToro" maar "deze stop is opgeschoven naar het niveau dat eToro nog accepteert", en als merknaam naast een prijs las het als een logo op een rare plek. Waarom hij is opgeschoven staat nog steeds voluit in de uitklap van de kaart',
+      'De aanwijzer op de koersgrafiek volgt je vinger nu op elke periode. Hij liep alleen goed op 3M: op 1M schoot de lijn bijna drie keer zo hard als je vinger en viel hij na een derde van de breedte weg, op 6M en Alles kroop hij er juist achteraan. De grafiek bleef namelijk rekenen met het aantal punten van de periode waarin het scherm was geopend',
+      'Geld dat vastzit in een order die eToro nog niet heeft gevuld telt niet meer mee als beschikbaar. Staat er bijvoorbeeld een kooporder op een aandeel terwijl de beurs dicht is, dan houdt eToro dat bedrag vast maar toont het nog gewoon als cash. Kader liet je daardoor kopen met geld dat er niet was, en eToro weigerde die order. Zowel de kooporder als de portfoliokaart trekken dat bedrag er nu af, met een regel erbij waarom je beschikbare bedrag lager is dan de cash die eToro toont. Kan Kader het bedrag van zo\'n order niet lezen, dan trekt hij niets af en meldt hij alleen dat er iets in de wacht staat',
+    ],
+  },
+  {
     versie: '0.1.19',
     datum: '2026-09-06',
     punten: [
