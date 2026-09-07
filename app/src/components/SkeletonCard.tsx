@@ -10,7 +10,10 @@ export function SkeletonCard() {
   const opacity = useSkeletonPuls();
 
   return (
-    <Animated.View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: bg, opacity }]}>
+    <Animated.View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, opacity }]}>
+      {/* Op de plek waar de adviesbadge komt te staan, zodat de kaart niet verspringt zodra de
+          echte data er is. */}
+      <View style={[styles.blok, { width: 84, height: 22, backgroundColor: bg, borderRadius: radii.pill }]} />
       <View style={styles.kop}>
         <View style={styles.kopLinks}>
           <View style={[styles.blok, { width: 64, height: 16, backgroundColor: bg }]} />
@@ -39,7 +42,6 @@ export function SkeletonCard() {
 const styles = StyleSheet.create({
   kaart: {
     borderRadius: radii.kaart,
-    borderLeftWidth: 4,
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,
     padding: spacing.base,

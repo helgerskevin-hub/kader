@@ -5,11 +5,12 @@
 // gebruikerservaring dan een knop die uit staat met de reden erbij.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { X } from 'lucide-react-native';
+import { AlertTriangle, X } from 'lucide-react-native';
 import { fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { guid, wijzigNiveaus, NiveauWijziging } from '../engine/etoro';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { useDialoog } from '../state/DialoogProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { actieveSleutels } from '../state/etoroSleutels';
 import { PortfolioTrade, richtingVan } from '../state/portfolioTypes';
@@ -29,7 +30,6 @@ interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
   trade: PortfolioTrade;
-  onGeslaagd?: (bericht: string) => void;
 }
 
 const getal = (tekst: string): number => parseFloat(tekst.replace(',', '.'));
@@ -38,8 +38,9 @@ const getal = (tekst: string): number => parseFloat(tekst.replace(',', '.'));
 // niet is. Een cent verschil op de goedkoopste coin is nog altijd meer dan dit.
 const anders = (a: number, b: number) => Math.abs(a - b) > 1e-9;
 
-export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props) {
+export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
   const { colors } = useTheme();
+  const { toonDialoog } = useDialoog();
   const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
   const limiet = useStopLossLimiet(trade.symbool, richtingVan(trade));
 
@@ -50,7 +51,6 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState('');
-  const [onbekend, setOnbekend] = useState('');
 
   // Eén id per keer dat de sheet opengaat, niet per klik, zodat een handmatige herhaling na een fout
   // dezelfde x-request-id hergebruikt.
@@ -63,7 +63,6 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
     setVerzoekId(guid());
     setBezig(false);
     setFout('');
-    setOnbekend('');
   }, [zichtbaar, trade.id, trade.stopLoss, trade.takeProfit]);
 
   // Fail-closed poort. Een positie-ID uit de ene omgeving naar het endpoint van de andere sturen is
@@ -117,7 +116,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
 
   const ietsGewijzigd = stopWijzigt || doelWijzigt;
   const geblokkeerdDoorStop = advies.soort === 'waarschuwing';
-  const magBevestigen = poortOpen && ietsGewijzigd && !geblokkeerdDoorStop && onbekend === '';
+  const magBevestigen = poortOpen && ietsGewijzigd && !geblokkeerdDoorStop;
 
   function bouwWijziging(): NiveauWijziging {
     const wijziging: NiveauWijziging = {};
@@ -145,7 +144,12 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
         onSluiten();
-        onGeslaagd?.(`De niveaus van ${trade.symbool} zijn doorgegeven aan eToro. Kader werkt ze bij na de volgende sync.`);
+        toonDialoog({
+          variant: 'gelukt',
+          titel: 'Niveaus doorgegeven',
+          tekst: `De stop-loss en het doel van ${trade.symbool} staan bij eToro. Kader werkt ze bij na de volgende sync.`,
+          knoppen: [{ label: 'Oké' }],
+        });
         return;
       }
 
@@ -165,7 +169,17 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
         tijd: Date.now(),
       };
       await noteerOnbekendeOrder(order);
-      setOnbekend('We weten niet of je opdracht is doorgegaan. Kader kijkt nu bij eToro.');
+      onSluiten();
+      toonDialoog({
+        variant: 'waarschuwing',
+        titel: 'We weten niet of je wijziging is doorgegaan',
+        tekst: 'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.',
+        resultaat: {
+          soort: 'waarschuwing',
+          tekst: 'Stuur de niveaus niet opnieuw voordat je bij eToro hebt gekeken.',
+        },
+        knoppen: [{ label: 'Oké' }],
+      });
     } finally {
       setBezig(false);
     }
@@ -194,7 +208,11 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={stijlen.lijst}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
           Aankoopprijs {fmtPrijs(trade.entryPrijs, DOLLARS)}. Een veld dat je niet wijzigt blijft bij eToro
           staan zoals het stond.
@@ -210,27 +228,46 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
           placeholderTextColor={colors.tekstGedimd}
           keyboardType="decimal-pad"
         />
+        {/* De aan-stand van deze schakelaar haalt je stop-loss wég, dus die hoort herkenbaar te
+            zijn zonder dat de schakelaar zelf een kleur claimt. */}
         <View style={stijlen.schakelRij}>
-          <Text style={[Type.caption, { color: colors.tekstGedimd, flex: 1 }]}>
+          {wisStop ? <AlertTriangle size={15} color={colors.letOp} strokeWidth={1.75} /> : null}
+          <Text style={[Type.caption, { color: wisStop ? colors.letOp : colors.tekstGedimd, flex: 1 }]}>
             Stop-loss weghalen in plaats van verzetten
           </Text>
           <Switch
             value={wisStop}
             onValueChange={setWisStop}
+            trackColor={{ false: colors.rand, true: colors.schakelaarAan }}
+            thumbColor={colors.schakelaarDuim}
+            ios_backgroundColor={colors.rand}
             accessibilityLabel="Stop-loss weghalen"
-            trackColor={{ false: colors.rand, true: colors.cta }}
+            accessibilityHint="Zet dit aan om je stop-loss bij eToro te verwijderen in plaats van te verzetten."
           />
         </View>
 
-        {advies.soort === 'waarschuwing' ? (
-          <View style={[stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: colors.verlies }]}>
-            <Text style={[Type.caption, { color: colors.verlies, lineHeight: 18 }]}>{advies.uitleg}</Text>
-          </View>
-        ) : advies.soort !== 'ok' ? (
-          <View style={[stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
-            <Text style={[Type.caption, { color: colors.letOp, lineHeight: 18 }]}>{advies.uitleg}</Text>
-          </View>
-        ) : null}
+        {/* Altijd aanwezig, ook leeg: anders krimpt de sheet zodra het stop-advies verdwijnt. */}
+        <View
+          style={[
+            stijlen.adviesSlot,
+            advies.soort !== 'ok' && stijlen.adviesVak,
+            advies.soort !== 'ok' && {
+              backgroundColor: colors.verhoogd,
+              borderColor: advies.soort === 'waarschuwing' ? colors.verlies : colors.letOp,
+            },
+          ]}
+        >
+          {advies.soort !== 'ok' ? (
+            <Text
+              style={[
+                Type.caption,
+                { color: advies.soort === 'waarschuwing' ? colors.verlies : colors.letOp, lineHeight: 18 },
+              ]}
+            >
+              {advies.uitleg}
+            </Text>
+          ) : null}
+        </View>
 
         <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>DOEL (TAKE-PROFIT)</Text>
         <TextInput
@@ -249,8 +286,11 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
           <Switch
             value={wisDoel}
             onValueChange={setWisDoel}
+            trackColor={{ false: colors.rand, true: colors.schakelaarAan }}
+            thumbColor={colors.schakelaarDuim}
+            ios_backgroundColor={colors.rand}
             accessibilityLabel="Doel weghalen"
-            trackColor={{ false: colors.rand, true: colors.cta }}
+            accessibilityHint="Zet dit aan om je doel bij eToro te verwijderen in plaats van te verzetten."
           />
         </View>
 
@@ -266,27 +306,27 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, onGeslaagd }: Props)
           </View>
         ) : null}
 
-        {onbekend ? (
-          <View style={[stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
-            <Text style={[Type.caption, { color: colors.tekstPrimair, lineHeight: 18 }]}>{onbekend}</Text>
-          </View>
-        ) : null}
+      </ScrollView>
 
-        {poortOpen && !ietsGewijzigd && !onbekend ? (
-          <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.md }]}>
+      {/* De hulpregel en de knop staan buiten de ScrollView, en de regel heeft een eigen
+          gereserveerde hoogte. Zo blijft de knop op dezelfde plek staan of er nu een hulpregel is
+          of niet, en scrollt hij niet mee weg. */}
+      <View style={stijlen.hulpSlot}>
+        {poortOpen && !ietsGewijzigd ? (
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
             Wijzig een niveau of zet een schakelaar aan om te kunnen bevestigen.
           </Text>
         ) : null}
+      </View>
 
-        <OrderBevestigKnop
-          label="Niveaus doorgeven"
-          omgeving={omgeving}
-          bezig={bezig}
-          uitgeschakeld={!magBevestigen}
-          onBevestig={bevestig}
-          echtWaarschuwing="Dit wijzigt een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen."
-        />
-      </ScrollView>
+      <OrderBevestigKnop
+        label="Niveaus doorgeven"
+        omgeving={omgeving}
+        bezig={bezig}
+        uitgeschakeld={!magBevestigen}
+        onBevestig={bevestig}
+        echtWaarschuwing="Dit wijzigt een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen."
+      />
     </BottomSheet>
   );
 }
@@ -303,6 +343,8 @@ const stijlen = StyleSheet.create({
     gap: spacing.sm,
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  // Levert hoogte in aan de voet eronder in plaats van hem van het scherm te duwen.
+  lijst: { flexShrink: 1 },
   label: { marginTop: spacing.md, marginBottom: spacing.xs },
   input: {
     borderWidth: 1,
@@ -324,5 +366,24 @@ const stijlen = StyleSheet.create({
     borderRadius: radii.veld,
     padding: spacing.md,
     marginTop: spacing.md,
+  },
+  // 60px is padding 12 boven en onder plus twee regels Type.caption op lineHeight 18: de hoogte die
+  // het stop-advies inneemt als het er wél staat.
+  adviesSlot: {
+    minHeight: 60,
+    marginTop: spacing.md,
+    justifyContent: 'center',
+  },
+  adviesVak: {
+    borderWidth: 1,
+    borderRadius: radii.veld,
+    padding: spacing.md,
+  },
+  // Twee regels Type.caption plus lucht. Onder de zin zat eerst helemaal niets.
+  hulpSlot: {
+    minHeight: 60,
+    marginTop: spacing.md,
+    marginBottom: spacing.base,
+    justifyContent: 'center',
   },
 });

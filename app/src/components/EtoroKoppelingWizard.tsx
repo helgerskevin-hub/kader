@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Modal, ScrollView, View, Text, Pressable, TextInput, StyleSheet,
-  ActivityIndicator, Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -15,6 +15,7 @@ import { EtoroOmgeving, EtoroSleutels, haalAccountInfo, haalEtoroPortfolio, magH
 import { bewaarSleutels, haalSleutels, wisSleutels, Sleutelpaar } from '../state/etoroSleutels';
 import { userKeyBijApiKeyWijziging } from '../engine/sleutelKeuze';
 import { StapOvergang } from './StapOvergang';
+import { useDialoog } from '../state/DialoogProvider';
 
 interface Props {
   zichtbaar: boolean;
@@ -45,6 +46,7 @@ const GEEN_SCHRIJFRECHT: Record<EtoroOmgeving, boolean> = { real: false, demo: f
 
 export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Props) {
   const { colors } = useTheme();
+  const { toonDialoog } = useDialoog();
   const extraKopruimte = useModalKopruimte();
   const [stap, setStap] = useState(0);
   const [apiKey, setApiKey] = useState('');
@@ -181,10 +183,13 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
       // er niets opgeslagen, en dat moet je weten: anders blijft de knop draaien en denk je dat het
       // gelukt is terwijl de koppeling er niet is.
       setBezigOpslaan(false);
-      Alert.alert(
-        'Opslaan mislukt',
-        `Je sleutels konden niet veilig op dit toestel worden opgeslagen. ${e instanceof Error ? e.message : ''}`.trim(),
-      );
+      toonDialoog({
+        variant: 'fout',
+        titel: 'Opslaan mislukt',
+        tekst: 'Je sleutels konden niet veilig op dit toestel worden opgeslagen.',
+        details: e instanceof Error ? e.message : undefined,
+        knoppen: [{ label: 'Oké' }],
+      });
       return;
     }
     setBezigOpslaan(false);
@@ -193,15 +198,15 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
   }
 
   function verwijderKoppeling() {
-    Alert.alert(
-      'Koppeling verwijderen',
-      'Weet je zeker dat je je opgeslagen eToro-sleutel van dit toestel wilt wissen? Kader importeert en handelt daarna niets meer, niet in demo en niet in echt, tot je opnieuw koppelt.',
-      [
-        { text: 'Annuleren', style: 'cancel' },
+    toonDialoog({
+      variant: 'fout',
+      titel: 'Koppeling verwijderen',
+      tekst: 'Weet je zeker dat je je opgeslagen eToro-sleutel van dit toestel wilt wissen? Kader importeert en handelt daarna niets meer, niet in demo en niet in echt, tot je opnieuw koppelt.',
+      knoppen: [
         {
-          text: 'Verwijderen',
-          style: 'destructive',
-          onPress: async () => {
+          label: 'Verwijderen',
+          soort: 'destructief',
+          onDruk: async () => {
             await wisSleutels();
             setApiKey('');
             setUserKey('');
@@ -211,8 +216,9 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
             onSluiten();
           },
         },
+        { label: 'Annuleren', soort: 'secundair' },
       ],
-    );
+    });
   }
 
   return (

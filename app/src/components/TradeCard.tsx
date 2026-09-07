@@ -46,10 +46,18 @@ function adviesLabel(trade: Trade): AdviesLabel {
   return trade.score >= DREMPEL_STERK_KOOP ? 'STERK KOOP' : 'KOOPZONE';
 }
 
-function adviesRandKleur(label: AdviesLabel, colors: ReturnType<typeof useTheme>['colors']): string {
-  if (label === 'HIGH CONVICTION') return colors.primair;
-  if (label === 'STERK KOOP' || label === 'KOOPZONE') return colors.winst;
-  return colors.letOp;
+// De gekleurde linkerstreep is weg. Hij zei hetzelfde als de badge en het scorecijfer, en stond
+// ook op AFWACHTEN, waardoor elke kaart in de lijst even hard riep. Het onderscheid zit nu in
+// hoogte: high conviction krijgt als enige een rand rondom, afwachten verliest zijn schaduw en
+// ligt daardoor plat op de achtergrond terwijl de rest zweeft.
+function niveauOpmaak(label: AdviesLabel, colors: ReturnType<typeof useTheme>['colors']) {
+  if (label === 'HIGH CONVICTION') {
+    return { borderWidth: 1.5, borderColor: colors.primair, schaduw: true };
+  }
+  if (label === 'AFWACHTEN') {
+    return { borderWidth: 1, borderColor: colors.rand, schaduw: false };
+  }
+  return { borderWidth: 0, borderColor: 'transparent', schaduw: true };
 }
 
 export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
@@ -62,7 +70,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   const [uitgeklapt, setUitgeklapt] = useState(false);
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
-  const randKleur = adviesRandKleur(advies, colors);
+  const opmaak = niveauOpmaak(advies, colors);
   const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
   // Boven de drempel blijft de kleur neutraal. Schuift eToro de stop op, dan zakt de R/R mee en is
   // die drempel het enige eerlijke oordeel: de score kan nog zo hoog zijn, met een stop van 10% en
@@ -85,13 +93,25 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   }
 
   return (
-    <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }]}>
+    <View style={[
+      styles.kaart,
+      opmaak.schaduw ? shadow.kaart : null,
+      {
+        backgroundColor: colors.kaart,
+        borderWidth: opmaak.borderWidth,
+        borderColor: opmaak.borderColor,
+      },
+    ]}>
       <Pressable
         onPress={() => onOpenDetail?.(trade)}
         accessibilityRole="button"
         accessibilityLabel={`${trade.symbool} detail bekijken`}
         disabled={!onOpenDetail}
       >
+      {/* Het oordeel staat boven de cijfers, want dat is wat je als eerste wil lezen. */}
+      <View style={styles.badgeRij}>
+        <AdviceBadge advies={advies} />
+      </View>
       {/* Koptekst */}
       <View style={styles.kop}>
         <View style={styles.kopLinks}>
@@ -174,11 +194,6 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
         </View>
       </View>
 
-      {/* Advies-badge */}
-      <View style={styles.sectie}>
-        <AdviceBadge advies={advies} />
-      </View>
-
       {/* Uitklapbare redenen + waarom-kopen onderbouwing */}
       {uitgeklapt && (
         <View style={[styles.redenen, { backgroundColor: colors.verhoogd }]}>
@@ -256,16 +271,22 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
 const styles = StyleSheet.create({
   kaart: {
     borderRadius: radii.kaart,
-    borderLeftWidth: 4,
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,
     overflow: 'hidden',
+  },
+  badgeRij: {
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.base,
+    alignSelf: 'flex-start',
   },
   kop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     padding: spacing.base,
+    // De badgerij erboven levert de bovenruimte al, anders staat er 12 plus 16 boven het symbool.
+    paddingTop: spacing.sm,
     paddingBottom: spacing.xs,
   },
   kopLinks: { gap: 2 },
