@@ -4,7 +4,7 @@ import { RefreshCw, CloudDownload, History, Info } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { fmtPrijs, fmtPct, fmtResultaatUsd, relatieveTijd } from '../engine/format';
+import { fmtBedrag, fmtPct, fmtResultaatUsd, relatieveTijd } from '../engine/format';
 import { PortfolioWaarde } from '../state/statistieken';
 import { bepaalSyncStand } from '../state/syncStatus';
 import { AnimatedGetal } from './AnimatedGetal';
@@ -106,7 +106,7 @@ export function PortfolioStatusKaart({
       {toonBedrag ? (
         <AnimatedGetal
           waarde={totaalUsd}
-          format={fmtPrijs}
+          format={fmtBedrag}
           style={[Type.display, { color: colors.tekstPrimair }]}
         />
       ) : (
@@ -153,14 +153,14 @@ export function PortfolioStatusKaart({
                 <View style={[styles.bolletje, { backgroundColor: colors.primair }]} />
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>IN POSITIES</Text>
               </View>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(belegdUsd)}</Text>
+              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(belegdUsd)}</Text>
             </View>
             <View style={styles.saldoKolom}>
               <View style={styles.saldoLabelRij}>
                 <View style={[styles.bolletje, styles.bolletjeLeeg, { borderColor: colors.rand, backgroundColor: colors.verhoogd }]} />
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BESCHIKBAAR</Text>
               </View>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(vrijSaldoUsd)}</Text>
+              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(vrijSaldoUsd)}</Text>
             </View>
           </View>
         </>
@@ -172,7 +172,7 @@ export function PortfolioStatusKaart({
                 <View style={[styles.bolletje, { backgroundColor: colors.primair }]} />
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>IN POSITIES</Text>
               </View>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(belegdUsd)}</Text>
+              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(belegdUsd)}</Text>
             </View>
             <View style={styles.saldoKolom}>
               <View style={styles.saldoLabelRij}>
@@ -198,7 +198,7 @@ export function PortfolioStatusKaart({
         <View style={styles.detail}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>INGELEGD</Text>
           <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>
-            {heeftWaardering ? fmtPrijs(waarde.ingelegdUsd) : '—'}
+            {heeftWaardering ? fmtBedrag(waarde.ingelegdUsd) : '—'}
           </Text>
         </View>
         <View style={styles.detail}>

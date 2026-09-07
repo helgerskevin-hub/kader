@@ -5,10 +5,16 @@
 // De reden dat dit een provider is en geen los component per scherm: de dialoog verschijnt bijna
 // altijd op het moment dat een BottomSheet sluit, en die sheets gebruiken een Modal. Twee Modals
 // die in dezelfde tick van plek wisselen legden op Android de UI-thread plat (zie de uitleg in
-// MeldingNotitie.tsx). Met één host die op InteractionManager wacht gebeurt dat niet meer.
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { InteractionManager } from 'react-native';
+// MeldingNotitie.tsx). Met één host die de sheet eerst laat sluiten gebeurt dat niet meer.
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { KaderDialoog } from '../components/KaderDialoog';
+
+// De sheet die op dit moment sluit doet er 200ms over (Modal animationType="fade" plus de eigen
+// timing in BottomSheet.tsx). We wachten die tijd plus een marge af voordat onze eigen Modal
+// mount. Hier stond eerst runAfterInteractions, maar die API is in React Native 0.85 afgeschaft en
+// verdwijnt in een volgende versie, met een waarschuwing in beeld als bijvangst. Een expliciete
+// wachttijd doet hier hetzelfde en blijft werken.
+const WACHT_NA_SHEET_MS = 260;
 
 export interface DialoogKnop {
   label: string;
@@ -54,14 +60,23 @@ export function DialoogProvider({ children }: { children: React.ReactNode }) {
   // leeg te lopen.
   const [zichtbaar, setZichtbaar] = useState(false);
 
-  // De wachtbeurt op InteractionManager is geen nettigheid maar de kern van dit bestand: zonder die
-  // beurt komt deze Modal op tafel terwijl de BottomSheet-Modal eronder nog aan het opruimen is, en
-  // dat is precies de situatie die op Android de UI-thread vastzette.
+  // Het uitstel is geen nettigheid maar de kern van dit bestand: zonder die pauze komt deze Modal
+  // op tafel terwijl de BottomSheet-Modal eronder nog aan het opruimen is, en dat is precies de
+  // situatie die op Android de UI-thread vastzette.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const toonDialoog = useCallback((nieuw: DialoogInhoud) => {
-    InteractionManager.runAfterInteractions(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
       setInhoud(nieuw);
       setZichtbaar(true);
-    });
+    }, WACHT_NA_SHEET_MS);
+  }, []);
+
+  // Een openstaande timer mag niet na het opruimen van de provider alsnog vuren.
+  useEffect(() => () => {
+    if (timer.current !== null) clearTimeout(timer.current);
   }, []);
 
   const sluit = useCallback(() => setZichtbaar(false), []);

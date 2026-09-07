@@ -6,7 +6,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { fmtPrijs, fmtPct } from '../engine/format';
+import { fmtBedrag, fmtPct } from '../engine/format';
 import { berekenVerdeling, OVERIG_SLEUTEL, Segment } from '../engine/verdeling';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { useValutaStand } from '../state/useValuta';
@@ -165,7 +165,7 @@ export function VerdelingKaart({ trades, livePrijzen }: Props) {
                 style={[Type.prijs, styles.ringBedrag, { color: colors.tekstPrimair }]}
                 numberOfLines={1}
               >
-                {fmtPrijs(totaalUsd)}
+                {fmtBedrag(totaalUsd)}
               </Text>
               <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
                 {gewaardeerd} {gewaardeerd === 1 ? 'positie' : 'posities'}
@@ -189,7 +189,7 @@ export function VerdelingKaart({ trades, livePrijzen }: Props) {
                   </Text>
                 </View>
                 <Text style={[Type.prijs, styles.celWaarde, { color: colors.tekstGedimd }]}>
-                  {fmtPrijs(s.waardeUsd)}
+                  {fmtBedrag(s.waardeUsd)}
                 </Text>
 
                 {/* De leden van Overig delen de kleur van Overig, dus geen eigen vierkantje. */}
