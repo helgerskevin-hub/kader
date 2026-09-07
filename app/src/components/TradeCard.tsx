@@ -17,6 +17,7 @@ import { oordeelRs, rsUitleg } from '../engine/relatieveSterkte';
 import { useValutaStand } from '../state/useValuta';
 import { handelbaarOp, noemPlatforms } from '../engine/platforms';
 import { PlatformChips } from './PlatformChip';
+import { PlatformSheet } from './PlatformSheet';
 
 interface Props {
   trade: Trade;
@@ -60,27 +61,57 @@ function adviesLabel(trade: Trade): AdviesLabel {
 function niveauOpmaak(label: AdviesLabel, colors: ReturnType<typeof useTheme>['colors']) {
   if (label === 'HIGH CONVICTION') {
     return {
-      borderWidth: 1.5, borderColor: colors.primair, schaduw: true,
+      borderWidth: 2, borderColor: colors.primair, schaduw: true,
       achtergrond: colors.kaart, groteKop: true, prijsKleur: colors.tekstPrimair,
+      // Volle merkkleur in de rand plus de sterkste gloed: dit blijft het hoogste niveau.
+      gloedKleur: colors.primair, gloedDekking: 0.28, gloedStraal: 12, gloedHoogte: 5,
     };
   }
   if (label === 'STERK KOOP') {
-    // 20 procent dekking: net genoeg om de kaart een tint te geven, niet genoeg om met high
-    // conviction te concurreren.
+    // Een haarlijn van 1 op 20 procent dekking was in een scrollende lijst niet te zien. Nu een
+    // rand van 2 op 60 procent: duidelijk zwaarder dan koopzone, en toch een stap onder high
+    // conviction, want die heeft de volle kleur, een gevulde badge en een sterkere gloed.
     return {
-      borderWidth: 1, borderColor: colors.winst + '33', schaduw: true,
+      borderWidth: 2, borderColor: colors.winst + '99', schaduw: true,
       achtergrond: colors.kaart, groteKop: true, prijsKleur: colors.tekstPrimair,
+      gloedKleur: colors.winst, gloedDekking: 0.22, gloedStraal: 10, gloedHoogte: 3,
     };
   }
   if (label === 'AFWACHTEN') {
     return {
       borderWidth: 1, borderColor: colors.rand, schaduw: false,
       achtergrond: colors.achtergrond, groteKop: false, prijsKleur: colors.tekstGedimd,
+      gloedKleur: null, gloedDekking: 0, gloedStraal: 0, gloedHoogte: 0,
     };
   }
   return {
     borderWidth: 0, borderColor: 'transparent', schaduw: true,
     achtergrond: colors.kaart, groteKop: false, prijsKleur: colors.tekstPrimair,
+    gloedKleur: null, gloedDekking: 0, gloedStraal: 0, gloedHoogte: 0,
+  };
+}
+
+// De gloed is een gekleurde schaduw, geen vlak achter de kaart: die kleurt de rand van buitenaf
+// mee zonder dat er iets van layout bij komt. Android tekent hem vanaf API 28 in kleur; op oudere
+// toestellen valt hij terug op een gewone donkere schaduw en blijft alleen de rand over. Dat is
+// een acceptabele terugval, want de rand draagt het onderscheid al.
+//
+// Hij beweegt met opzet niet. Een geanimeerde gloed is hier geprobeerd: een puls van de rand bij
+// het opbouwen van de kaart. Gemeten op de emulator gebeurt dat vrijwel nooit, want een TradeCard
+// blijft gemount zodra de lijst er eenmaal staat, ook bij het wisselen van tab of filter. De puls
+// was dus alleen te zien in het ene frame na een verse analyse, en dat is precies het moment dat
+// je nog naar de laadbalk kijkt. De variant die wél altijd zichtbaar is, een lus, is juist wat
+// deze kaarten in de vorige ronde kwijtraakten: met vijf ademende randen in een lijst roept alles
+// weer even hard. Wil je hier ooit toch beweging, hang hem dan aan onViewableItemsChanged van de
+// FlatList en niet aan het mounten, en bedenk eerst wat er gebeurt als er zes tegelijk in beeld
+// staan.
+function gloedSchaduw(kleur: string, dekking: number, straal: number, hoogte: number) {
+  return {
+    shadowColor: kleur,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: dekking,
+    shadowRadius: straal,
+    elevation: hoogte,
   };
 }
 
@@ -92,14 +123,17 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
+  const [platformsOpen, setPlatformsOpen] = useState(false);
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
   const opmaak = niveauOpmaak(advies, colors);
   const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
-  // Waar deze coin te koop is. Dat is kennis uit Kaders eigen lijsten en hangt niet af van een
-  // koppeling, dus het klopt ook zonder eToro-sleutel. Kent Kader geen enkel platform, dan tekent
-  // PlatformChips niets: een lege plek is eerlijk, een grijze chip zou een platform beloven.
-  const platforms = handelbaarOp(trade.symbool);
+  // Het merkje betekent: KADER kan deze order plaatsen. Niet "deze coin bestaat op eToro". Moet je
+  // het bij de provider zelf doen, dan hoort er geen merkje te staan, want dan doet de koopknop het
+  // ook niet. Daarom hangt het aan precies dezelfde voorwaarde als die knop: `onKoop` komt van het
+  // scherm en is er alleen bij een koppeling met schrijfrecht. Zo kunnen die twee nooit uit elkaar
+  // lopen. handelbaarOp() zegt daarnaast of deze specifieke coin er verhandelbaar is.
+  const platforms = onKoop ? handelbaarOp(trade.symbool) : [];
   // Boven de drempel blijft de kleur neutraal. Schuift eToro de stop op, dan zakt de R/R mee en is
   // die drempel het enige eerlijke oordeel: de score kan nog zo hoog zijn, met een stop van 10% en
   // een doel van 9% verdien je er niets aan.
@@ -123,7 +157,13 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   return (
     <View style={[
       styles.kaart,
-      opmaak.schaduw ? shadow.kaart : null,
+      // Bij de twee sterkste niveaus draagt de schaduw de kleur van het niveau; de rest houdt de
+      // gewone neutrale kaartschaduw.
+      opmaak.schaduw
+        ? opmaak.gloedKleur !== null
+          ? gloedSchaduw(opmaak.gloedKleur, opmaak.gloedDekking, opmaak.gloedStraal, opmaak.gloedHoogte)
+          : shadow.kaart
+        : null,
       {
         backgroundColor: opmaak.achtergrond,
         borderWidth: opmaak.borderWidth,
@@ -142,11 +182,18 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           merklogo op een rare plek las. */}
       <View style={styles.badgeRij}>
         <AdviceBadge advies={advies} score={trade.score} />
-        <PlatformChips
-          platforms={platforms}
-          maat={20}
-          label={platforms.length > 0 ? `Verhandelbaar op ${noemPlatforms(platforms)}` : undefined}
-        />
+        {platforms.length > 0 && (
+          <Pressable
+            onPress={() => setPlatformsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
+            // De rij chips is 20 punten hoog; hitSlop maakt er een raakvlak van 44 van zonder de
+            // kaart hoger te maken.
+            hitSlop={12}
+          >
+            <PlatformChips platforms={platforms} maat={20} />
+          </Pressable>
+        )}
       </View>
       {/* Koptekst */}
       <View style={styles.kop}>
@@ -218,20 +265,24 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
           <Text style={[Type.prijs, styles.metaWaarde, { color: colors.tekstPrimair }]}>{Math.round(trade.rsi)}</Text>
         </View>
-        {/* Neutraal gekleurd, met opzet. Een achterblijver is voor een instap gunstig maar het is
-            geen coin die het goed doet, en groen zou dat laatste beweren. De duiding staat in de
-            uitklap en op het detailscherm, waar er ruimte is om het uit te leggen. */}
-        {versusBtc !== undefined && (
+        {/* Alleen tonen als het cijfer iets zegt. Tussen -10 en +25 procentpunt is het gemeten
+            verschil verwaarloosbaar (zie de emmers in relatieveSterkte.ts), en dan stond hier een
+            kaal getal zonder betekenis op elke kaart: ruis naast R/R en RSI, die wél altijd iets
+            zeggen. Buiten die band is het een gemeten voordeel of nadeel en staat het woord er
+            meteen bij, zodat je het niet hoeft op te zoeken.
+
+            Neutraal gekleurd, met opzet. Een achterblijver is voor een instap gunstig maar het is
+            geen coin die het goed doet, en groen zou dat laatste beweren. De hele uitleg staat in
+            de uitklap en op het detailscherm, waar er ruimte voor is. */}
+        {versusBtc !== undefined && oordeelRs(versusBtc) !== 'gelijk' && (
           <View style={styles.metaItem}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>VS BTC</Text>
             <Text style={[Type.prijs, styles.metaWaarde, { color: colors.tekstPrimair }]}>
               {versusBtc >= 0 ? '+' : ''}{versusBtc.toFixed(0)}%
             </Text>
-            {oordeelRs(versusBtc) !== 'gelijk' && (
-              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-                {oordeelRs(versusBtc) === 'achterblijver' ? 'achterblijver' : 'voorloper'}
-              </Text>
-            )}
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+              {oordeelRs(versusBtc) === 'achterblijver' ? 'achterblijver' : 'voorloper'}
+            </Text>
           </View>
         )}
       </View>
@@ -306,6 +357,17 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           </>
         )}
       </View>
+
+      {/* Alleen mounten als hij open is: anders staat er per kaart een Modal in de boom, en dat zijn
+          er twintig in een lijst die je aan het scrollen bent. */}
+      {platformsOpen && (
+        <PlatformSheet
+          zichtbaar
+          onSluiten={() => setPlatformsOpen(false)}
+          symbool={trade.symbool}
+          platforms={platforms}
+        />
+      )}
     </View>
   );
 }

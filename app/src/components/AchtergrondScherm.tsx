@@ -52,6 +52,7 @@ const SECTIES = [
   { id: 'kansscore', titel: 'Kansscore (Grote Kansen)' },
   { id: 'statistieken', titel: 'Portfolio-statistieken' },
   { id: 'oordeel', titel: 'Het trader-oordeel' },
+  { id: 'platforms', titel: 'Waar je kunt kopen' },
   { id: 'etoro', titel: 'Portfolio importeren uit eToro' },
   { id: 'etorostop', titel: 'Waarom de stop soms opschuift' },
   { id: 'prijsalerts', titel: 'Prijsalerts' },
@@ -369,6 +370,31 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
               positie zonder die niveaus. Je kunt ze daarna gewoon aanvullen via het bewerk-formulier.
               Een tweede import werkt je bestaande eToro-posities bij in plaats van dat hij ze
               dubbel toevoegt.
+            </Text>
+          </Sectie>
+
+          <Sectie id="platforms" titel="Waar je kunt kopen" open={open === 'platforms'} onToggle={wisselOpen}>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Rechtsboven op een tradekaart staan de providers waar je die coin kunt kopen, als klein
+              rond merkje. Tik erop voor de lijst.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Het merkje staat er alleen als Kader de order zélf kan plaatsen. Kan dat niet, dan staat
+              er niets. Dat betekent niet dat de coin nergens te koop is: je kunt hem dan nog steeds bij
+              een provider zelf kopen, Kader doet het alleen niet voor je. Zonder die regel zou een
+              merkje "hier kun je terecht" beloven terwijl de koopknop niets doet, en dat is precies het
+              soort halve belofte waar je geld op verliest. In de praktijk betekent het: geen koppeling
+              met schrijfrecht, geen merkje, en ook geen koopknop.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Het is met opzet een letter in een rondje en niet het logo van de provider zelf. Zulke
+              logo's zijn niet van Kader, ze zitten niet in de app, en een zelfgetekende benadering van
+              andermans merk is erger dan een eigen vorm. Elke provider krijgt een vaste letter en een
+              vaste kleur, dus na twee keer kijken herken je hem net zo goed.
+            </Text>
+            <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
+              Nu is eToro de enige provider waarmee Kader kan handelen. Komen er meer bij, dan komen de
+              merkjes naast elkaar te staan en kies je bij het kopen zelf waar de order heen gaat.
             </Text>
           </Sectie>
 
