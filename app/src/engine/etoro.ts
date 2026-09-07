@@ -43,12 +43,32 @@ interface EtoroPositie {
   takeProfitRate?: number;
 }
 
-// Posities zitten genest onder clientPortfolio (geverifieerd tegen de echte API-respons).
+// Een kooporder die nog niet gevuld is: een limietorder, of een marktorder op een instrument
+// waarvan de beurs dicht is (een aandeel buiten handelsuren). eToro houdt het bedrag daarvan vast,
+// maar telt het WEL nog mee in `credit`. Gemeten door de gebruiker: met een wachtende kooporder op
+// een aandeel stond het gereserveerde bedrag in Kader gewoon als beschikbaar geld, en een koop die
+// je daarop baseerde werd door eToro geweigerd omdat het geld er niet meer was.
+//
+// De veldnamen staan hier ruim: eToro documenteert deze lijst niet en Kader mag niet stilzwijgend
+// het verkeerde getal tonen. Herkent hij het bedrag van een order niet, dan telt die order als
+// onbekend en zegt de app dat ook, in plaats van er nul van te maken.
+interface EtoroWachtendeOrder {
+  amount?: number;
+  initialAmountInDollars?: number;
+  investmentAmount?: number;
+  totalAmount?: number;
+}
+
+// Posities zitten genest onder clientPortfolio (geverifieerd tegen de echte API-respons). De
+// orderlijst is niet tegen een echte respons geverifieerd, vandaar de drie mogelijke namen.
 interface EtoroPortfolioRespons {
   clientPortfolio?: {
     credit?: number;
     unrealizedPnL?: number;
     positions?: EtoroPositie[];
+    orders?: EtoroWachtendeOrder[];
+    entryOrders?: EtoroWachtendeOrder[];
+    pendingOrders?: EtoroWachtendeOrder[];
   };
 }
 
@@ -294,12 +314,70 @@ export function magHandelenVolgensScopes(scopes: string[] | null | undefined, om
   return scopes.includes(HANDELSSCOPE[omgeving]);
 }
 
-// Vrij te besteden saldo van de actieve omgeving. null = eToro gaf het veld niet mee; dan liever
-// geen betaalbaarheidscontrole dan een verzonnen bedrag.
-export async function haalVrijSaldo(sleutels: EtoroSleutels): Promise<number | null> {
-  const portfolio = await haalEtoroPortfolio(sleutels);
-  const credit = portfolio.clientPortfolio?.credit;
-  return typeof credit === 'number' && isFinite(credit) ? credit : null;
+// Wat er van je cash echt te besteden is, en wat er vastzit in orders die nog niet gevuld zijn.
+export interface SaldoStand {
+  // clientPortfolio.credit min het gereserveerde bedrag. null = eToro gaf `credit` niet mee; dan
+  // liever geen betaalbaarheidscontrole dan een verzonnen bedrag.
+  besteedbaarUsd: number | null;
+  // Het kale getal van eToro, voor de uitleg naast het bedrag.
+  creditUsd: number | null;
+  // Wat er vastzit in wachtende orders. 0 als er geen orders wachten, null als er wél orders
+  // wachten maar Kader het bedrag ervan niet kan lezen.
+  gereserveerdUsd: number | null;
+  wachtendeOrders: number;
+}
+
+// Het eerste bedrag dat als getal te lezen is. Geen optelling van alle velden: het zijn drie
+// mogelijke namen voor hetzelfde bedrag, niet drie bedragen.
+function orderBedrag(order: EtoroWachtendeOrder): number | null {
+  for (const waarde of [order.amount, order.initialAmountInDollars, order.investmentAmount, order.totalAmount]) {
+    if (typeof waarde === 'number' && isFinite(waarde) && waarde > 0) return waarde;
+  }
+  return null;
+}
+
+// Pure functie zodat de randgevallen (geen orderlijst, een order zonder leesbaar bedrag, een
+// negatief saldo) in de self-check onderaan getoetst kunnen worden.
+export function bepaalSaldoStand(portfolio: EtoroPortfolioRespons): SaldoStand {
+  const cp = portfolio.clientPortfolio;
+  const credit = cp?.credit;
+  const creditUsd = typeof credit === 'number' && isFinite(credit) ? credit : null;
+
+  const lijst = [cp?.orders, cp?.entryOrders, cp?.pendingOrders].find(Array.isArray);
+  // Geen lijst betekent niet "geen orders": eToro kan het veld gewoon weglaten. Dan is er ook niets
+  // te reserveren en blijft het besteedbare bedrag het kale saldo, precies zoals voorheen.
+  if (lijst === undefined) {
+    return { besteedbaarUsd: creditUsd, creditUsd, gereserveerdUsd: 0, wachtendeOrders: 0 };
+  }
+
+  let gereserveerd = 0;
+  let onleesbaar = false;
+  for (const order of lijst) {
+    const bedrag = orderBedrag(order);
+    if (bedrag === null) onleesbaar = true;
+    else gereserveerd += bedrag;
+  }
+
+  // Eén order zonder leesbaar bedrag maakt de hele optelling onbetrouwbaar. Dan geen bedrag tonen
+  // en ook niets aftrekken, maar wel melden dát er orders wachten: dat is het enige eerlijke.
+  if (onleesbaar) {
+    return { besteedbaarUsd: creditUsd, creditUsd, gereserveerdUsd: null, wachtendeOrders: lijst.length };
+  }
+
+  return {
+    // Nooit onder nul: eToro kan meer gereserveerd hebben dan er credit over is, en een negatief
+    // "te besteden" bedrag leest als een schuld in plaats van als niets te besteden.
+    besteedbaarUsd: creditUsd === null ? null : Math.max(0, creditUsd - gereserveerd),
+    creditUsd,
+    gereserveerdUsd: gereserveerd,
+    wachtendeOrders: lijst.length,
+  };
+}
+
+// Vrij te besteden saldo van de actieve omgeving, met het gereserveerde bedrag van wachtende
+// orders er al af.
+export async function haalSaldoStand(sleutels: EtoroSleutels): Promise<SaldoStand> {
+  return bepaalSaldoStand(await haalEtoroPortfolio(sleutels));
 }
 
 // ============================================================================
@@ -821,9 +899,13 @@ function bouwGeslotenTrades(
 export interface EtoroSyncResultaat {
   open: EtoroImportResultaat;       // wat er nu open staat op eToro
   historie: EtoroImportResultaat;   // wat er het afgelopen jaar is gesloten
-  // clientPortfolio.credit, of null als eToro het veld niet meestuurt. Nooit 0 invullen: een
-  // verzonnen saldo is erger dan geen saldo, want er wordt een totaal vermogen op gebaseerd.
+  // clientPortfolio.credit min wat er vastzit in wachtende orders, of null als eToro `credit` niet
+  // meestuurt. Nooit 0 invullen: een verzonnen saldo is erger dan geen saldo, want er wordt een
+  // totaal vermogen op gebaseerd.
   vrijSaldoUsd: number | null;
+  // Wat er vastzit in orders die nog niet gevuld zijn, en hoeveel dat er zijn. Zie bepaalSaldoStand.
+  gereserveerdUsd: number | null;
+  wachtendeOrders: number;
 }
 
 // Open posities en gesloten historie in één keer. Bewust één functie en niet twee losse imports:
@@ -850,16 +932,17 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
   // echte, en zou de verkoopknop een demo-ID naar het echte endpoint kunnen sturen.
   const omgeving = sleutels.omgeving ?? 'real';
 
-  // Het vrije saldo komt uit dezelfde portfolio-respons die we hierboven al hebben. haalVrijSaldo()
+  // Het saldo komt uit dezelfde portfolio-respons die we hierboven al hebben. haalSaldoStand()
   // zou hem opnieuw ophalen, en dat is een extra request per sync op een endpoint met een quotum
   // van 60 per minuut. Die functie blijft bestaan voor KooporderSheet, die geen sync doet.
-  const credit = portfolio.clientPortfolio?.credit;
-  const vrijSaldoUsd = typeof credit === 'number' && isFinite(credit) ? credit : null;
+  const saldo = bepaalSaldoStand(portfolio);
 
   return {
     open: bouwOpenTrades(posities, instrumentKaart, cryptoTypeIds, omgeving),
     historie: bouwGeslotenTrades(regels, instrumentKaart, cryptoTypeIds, omgeving),
-    vrijSaldoUsd,
+    vrijSaldoUsd: saldo.besteedbaarUsd,
+    gereserveerdUsd: saldo.gereserveerdUsd,
+    wachtendeOrders: saldo.wachtendeOrders,
   };
 }
 
@@ -1058,6 +1141,45 @@ if (require.main === module) {
   // 'fout', niet 'onbekend': anders gaat de app verzoenen voor een order die nooit bestond.
   console.assert(duidFout(new Error('Geen demo-pad bekend voor /iets'), vid).soort === 'fout',
     'een gewone Error komt uit onze eigen code en betekent dat er niets verstuurd is');
+
+  // ---------- Saldo met wachtende orders ----------
+  // De aanleiding: een wachtende kooporder op een aandeel (beurs dicht) hield $400 vast, maar
+  // eToro's `credit` telde dat gewoon mee. Kader toonde dus $1000 te besteden terwijl er $600 was,
+  // en de order die je daarop baseerde werd geweigerd.
+  const metOrder = bepaalSaldoStand({ clientPortfolio: { credit: 1000, orders: [{ amount: 400 }] } });
+  console.assert(metOrder.besteedbaarUsd === 600, `1000 min 400 gereserveerd is 600, was ${metOrder.besteedbaarUsd}`);
+  console.assert(metOrder.creditUsd === 1000, 'het kale saldo blijft leesbaar voor de uitleg');
+  console.assert(metOrder.gereserveerdUsd === 400 && metOrder.wachtendeOrders === 1, 'gereserveerd bedrag en aantal moeten kloppen');
+
+  // Zonder orderlijst verandert er niets aan het gedrag van voor deze versie.
+  const zonderLijst = bepaalSaldoStand({ clientPortfolio: { credit: 1000 } });
+  console.assert(zonderLijst.besteedbaarUsd === 1000, 'zonder orderlijst blijft het kale saldo staan');
+  console.assert(zonderLijst.gereserveerdUsd === 0 && zonderLijst.wachtendeOrders === 0, 'zonder orderlijst is er niets gereserveerd');
+
+  // Een lege orderlijst is iets anders dan geen lijst, maar het antwoord is hetzelfde.
+  console.assert(bepaalSaldoStand({ clientPortfolio: { credit: 50, orders: [] } }).besteedbaarUsd === 50,
+    'een lege orderlijst reserveert niets');
+
+  // De drie mogelijke veldnamen voor hetzelfde bedrag, en de eerste die een getal is wint.
+  const anderVeld = bepaalSaldoStand({ clientPortfolio: { credit: 100, entryOrders: [{ investmentAmount: 25 }] } });
+  console.assert(anderVeld.besteedbaarUsd === 75, `entryOrders telt ook mee, was ${anderVeld.besteedbaarUsd}`);
+
+  // Eén order zonder leesbaar bedrag maakt de optelling onbetrouwbaar: dan niets aftrekken en het
+  // gereserveerde bedrag als onbekend melden, in plaats van er stilzwijgend nul van te maken.
+  const onleesbaar = bepaalSaldoStand({ clientPortfolio: { credit: 100, orders: [{ amount: 20 }, {}] } });
+  console.assert(onleesbaar.besteedbaarUsd === 100, 'bij een onleesbare order wordt er niets afgetrokken');
+  console.assert(onleesbaar.gereserveerdUsd === null, 'een onleesbaar bedrag is null, geen 0');
+  console.assert(onleesbaar.wachtendeOrders === 2, 'het aantal wachtende orders is wel bekend');
+
+  // Meer gereserveerd dan er staat mag geen negatief bedrag opleveren.
+  console.assert(bepaalSaldoStand({ clientPortfolio: { credit: 10, orders: [{ amount: 50 }] } }).besteedbaarUsd === 0,
+    'meer gereserveerd dan saldo geeft 0, geen negatief bedrag');
+
+  // Geen credit betekent geen betaalbaarheidscontrole, ook niet met orders erbij.
+  const geenCredit = bepaalSaldoStand({ clientPortfolio: { orders: [{ amount: 50 }] } });
+  console.assert(geenCredit.besteedbaarUsd === null && geenCredit.creditUsd === null,
+    'zonder credit blijft het saldo onbekend');
+  console.assert(bepaalSaldoStand({}).besteedbaarUsd === null, 'een lege respons geeft geen saldo');
 
   // ---------- Omgeving op geimporteerde trades ----------
   const demoTrade = naarPortfolioTrade(mock, 'BTC', 'demo');

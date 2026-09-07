@@ -18,6 +18,12 @@ interface Props {
   // totaal vermogen, en dan toont deze kaart alleen de waarde van je open posities. Niet optellen
   // met een 0: een verzonnen bedrag is erger dan geen bedrag.
   vrijSaldoUsd: number | null;
+  // Wat er van je cash vastzit in orders die eToro nog niet gevuld heeft. Zit al niet meer in
+  // vrijSaldoUsd; staat hier zodat de kaart kan uitleggen waarom "beschikbaar" lager is dan de cash
+  // die je bij eToro zelf ziet staan. 0 = niets in de wacht, null = er wachten orders maar het
+  // bedrag is niet te lezen.
+  gereserveerdUsd: number | null;
+  wachtendeOrders: number;
   // Staat er een eToro-sleutel op dit toestel? Bepaalt alleen welke uitleg er onder een onbekend
   // saldo komt: koppelen, of wachten tot eToro het veld meestuurt.
   etoroGekoppeld: boolean;
@@ -37,7 +43,8 @@ interface Props {
 }
 
 export function PortfolioStatusKaart({
-  waarde, vrijSaldoUsd, etoroGekoppeld, syncing, laatsteSync, syncFout, etoroFout, etoroBezig, afgesloten,
+  waarde, vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
+  syncing, laatsteSync, syncFout, etoroFout, etoroBezig, afgesloten,
   onVerversen, onImporteren, onOpenHistorie,
 }: Props) {
   const { colors } = useTheme();
@@ -52,6 +59,15 @@ export function PortfolioStatusKaart({
   // plus wat er nog vrij staat. Kennen we het niet, dan staat er alleen de waarde van je posities
   // en heet het ook zo. Er staat dan dus geen totaal, want dat is er niet.
   const heeftSaldo = vrijSaldoUsd !== null;
+  // Wachtende orders houden geld vast dat eToro zelf nog gewoon als cash toont. Kader trekt het er
+  // af, en zegt er hier bij hoeveel en waarom: zonder die regel lijkt het beschikbare bedrag
+  // simpelweg fout.
+  const orderWoord = wachtendeOrders === 1 ? 'order' : 'orders';
+  const gereserveerdRegel = wachtendeOrders === 0
+    ? null
+    : gereserveerdUsd !== null && gereserveerdUsd > 0
+      ? `${fmtBedrag(gereserveerdUsd)} staat vast in ${wachtendeOrders} wachtende ${orderWoord} bij eToro en telt niet mee als beschikbaar.`
+      : `Er ${wachtendeOrders === 1 ? 'wacht' : 'wachten'} ${wachtendeOrders} ${orderWoord} bij eToro. Kader kan niet lezen hoeveel geld daarvan vaststaat, dus dat zit nog in het beschikbare bedrag.`;
   const belegdUsd = waarde.huidigeWaardeUsd;
   const totaalUsd = heeftSaldo ? belegdUsd + vrijSaldoUsd : belegdUsd;
   // Met een bekend saldo is er ook zonder gewaardeerde posities een bedrag te tonen: je hebt dan
@@ -210,6 +226,13 @@ export function PortfolioStatusKaart({
           <Text style={[Type.caption, { color: syncKleur, fontWeight: '600' }]}>{syncKort}</Text>
         </View>
       </View>
+
+      {/* Geld dat vastzit in een order die nog niet gevuld is */}
+      {gereserveerdRegel !== null && (
+        <Text style={[Type.caption, styles.melding, { color: colors.letOp }]}>
+          {gereserveerdRegel}
+        </Text>
+      )}
 
       {/* Advies om te synchroniseren zodra de data niet meer vers is */}
       {stand.niveau !== 'vers' && stand.niveau !== 'bezig' && (

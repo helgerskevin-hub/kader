@@ -467,6 +467,9 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
           doel={data.takeProfit}
           richting={data.richting}
           onSluiten={() => setKoopOpen(false)}
+          // Dit scherm ligt als full-screen Modal over de tabs heen, dus "Naar portfolio" moet hem
+          // eerst weghalen voordat de tabwissel eronder te zien is.
+          onVerlaatScherm={onSluiten}
         />
       )}
     </Modal>

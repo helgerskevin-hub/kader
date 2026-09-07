@@ -60,6 +60,21 @@ Hier komt de eerste echte uitbreiding: een tweede activaklasse en dus een tweede
       en toont wat het tot nu toe heeft gedaan
 - [ ] DeGiro-posities meenemen in het dashboard en de doelverdeling van fase 2
 
+### Fase 4b: kiezen op welk platform je handelt
+Volgt uit fase 3 en 4: zodra er meer dan één platform is, moet je kunnen kiezen waar een order heen gaat.
+
+- [ ] **Platform-indicatie op de tradekaart.** Rechtsboven op elke kaart staan de logo's van de platforms
+      waarop die coin verhandelbaar is, meerdere naast elkaar. De eerste stap hiervan is gebouwd
+      (alleen eToro); zodra er een tweede platform bij komt moet de rij meegroeien
+- [ ] **Platformkeuze bij het kopen.** Een dropdown waarin je kiest via welk platform je de order plaatst,
+      met het platform waar je het meeste vrije saldo hebt als voorstel. Nu gaat elke order blind naar
+      eToro. Randvoorwaarden: per platform een eigen minimumbedrag, een eigen vrij saldo en eigen
+      stop-loss-grenzen (`etoroLimieten.ts` is nu eToro-specifiek en moet per platform), en de keuze moet
+      op de bevestigingsknop zichtbaar blijven, want een order op het verkeerde account is niet terug te
+      draaien
+- [ ] **Coins die maar op één platform staan.** De keuze mag dan geen dropdown zijn maar een vaste regel,
+      anders kies je een platform dat die coin niet heeft
+
 ### Fase 5: Kader bewaakt je posities zelf
 Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft te kijken.
 

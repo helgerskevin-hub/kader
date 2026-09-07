@@ -69,7 +69,10 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
 
   const knoppen = inhoud?.knoppen ?? [];
   const enkeleKnop = knoppen.length <= 1;
-  const secundaireKnop = knoppen.find(k => k.soort === 'secundair') ?? knoppen[knoppen.length - 1];
+  // Alleen een knop die zichzelf secundair noemt telt als "afbreken". De terugval op de laatste
+  // knop is eruit: bij twee knoppen die allebei iets doen (Oké naast Naar portfolio) voerde de
+  // Android-terugknop daarmee de laatste actie uit in plaats van de dialoog weg te halen.
+  const secundaireKnop = knoppen.find(k => k.soort === 'secundair');
 
   function druk(knop: DialoogKnop) {
     onSluiten();
@@ -83,7 +86,7 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
   }
 
   function opTerugknop() {
-    if (!enkeleKnop && secundaireKnop) druk(secundaireKnop);
+    if (!enkeleKnop && secundaireKnop !== undefined) druk(secundaireKnop);
     else onSluiten();
   }
 
@@ -164,10 +167,16 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
             <View style={stijlen.knoppen}>
               {knoppen.map(knop => {
                 const soort = knop.soort ?? 'primair';
+                // 'omlijnd' houdt het vlak van de kaart (wit in licht thema) en zet de CTA-kleur in
+                // de rand en de tekst. Zo staat hij als gelijkwaardige tweede keuze naast de
+                // primaire knop zonder er twee gevulde blauwe blokken van te maken.
                 const vulling = soort === 'primair' ? colors.cta
                   : soort === 'destructief' ? DESTRUCTIEF
-                    : 'transparent';
-                const tekstKleur = soort === 'secundair' ? colors.tekstGedimd : '#FFFFFF';
+                    : soort === 'omlijnd' ? colors.kaart
+                      : 'transparent';
+                const tekstKleur = soort === 'secundair' ? colors.tekstGedimd
+                  : soort === 'omlijnd' ? colors.cta
+                    : '#FFFFFF';
                 return (
                   <Pressable
                     key={knop.label}
@@ -178,6 +187,7 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
                       stijlen.knop,
                       { backgroundColor: vulling },
                       soort === 'secundair' && { borderWidth: 1, borderColor: colors.rand },
+                      soort === 'omlijnd' && { borderWidth: 1.5, borderColor: colors.cta },
                     ]}
                   >
                     <Text style={[Type.body, stijlen.knopLabel, { color: tekstKleur }]}>

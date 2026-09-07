@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -18,8 +18,24 @@ interface Props {
 // v voor: "vNog niet uitgebracht" leest als een fout in de app.
 const versieLabel = (versie: string) => (/^\d/.test(versie) ? `v${versie}` : versie);
 
+// Hoeveel van het scherm het vel mag vullen, en wat de titelrij, de Begrepen-knop en de padding
+// van het vel daarvan opeten. Die twee samen geven de hoogte die de lijst zelf overhoudt.
+//
+// Waarom een uitgerekende hoogte in punten en geen flex: de lijst stond hier eerst zonder eigen
+// hoogte in een vel met `maxHeight: '80%'`, en flexShrink is in React Native standaard 0. De lijst
+// groeide dus tot zijn volle inhoud en liep onder het vel door, waar hij werd afgekapt: er viel
+// niets te scrollen omdat de ScrollView zelf nooit te klein werd. Eerder is hier `flexShrink: 1`
+// geprobeerd en dat hielp op het toestel niet (zie 0.1.18 in de changelog). Een expliciete
+// maxHeight hoeft niets te onderhandelen: de ScrollView is dan gewoon kleiner dan zijn inhoud en
+// scrollt.
+const VEL_DEEL_VAN_SCHERM = 0.8;
+const RUIMTE_OM_DE_LIJST = 180;
+const LIJST_MINIMUM = 160;
+
 export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) {
   const { colors } = useTheme();
+  const { height: schermHoogte } = useWindowDimensions();
+  const lijstHoogte = Math.max(LIJST_MINIMUM, schermHoogte * VEL_DEEL_VAN_SCHERM - RUIMTE_OM_DE_LIJST);
   const entries = alleenNieuwste ? CHANGELOG.slice(0, 1) : CHANGELOG;
   const titel = alleenNieuwste ? `Nieuw: ${versieLabel(CHANGELOG[0]?.versie ?? '')}` : 'Wijzigingen';
 
@@ -37,7 +53,7 @@ export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) 
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator style={{ maxHeight: lijstHoogte }}>
         {entries.map(entry => (
           <View key={entry.versie} style={styles.entry}>
             <View style={styles.entryKop}>

@@ -19,7 +19,10 @@ const WACHT_NA_SHEET_MS = 260;
 export interface DialoogKnop {
   label: string;
   onDruk?: () => void;
-  soort?: 'primair' | 'secundair' | 'destructief';
+  // 'omlijnd' is een tweede knop die net zo belangrijk is als de primaire, geen ontsnapping: hij
+  // draagt de CTA-kleur in zijn rand en zijn tekst maar houdt het vlak van de kaart. Dat is wat
+  // "Naar portfolio" naast "Oké" nodig heeft; 'secundair' (grijs, gedimd) zou hem wegdrukken.
+  soort?: 'primair' | 'omlijnd' | 'secundair' | 'destructief';
 }
 
 // Het blok tussen de tekst en de knoppen. Drie vormen, omdat er drie dingen te melden zijn na een

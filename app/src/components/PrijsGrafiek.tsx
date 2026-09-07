@@ -62,13 +62,23 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
     setPeriode(id);
   }
 
+  // De PanResponder wordt met useRef één keer gemaakt en houdt daarna permanent de handlers van de
+  // EERSTE render vast. Die eerste render staat op 3M, dus `wijsAan` bleef rekenen met het aantal
+  // punten van 3M terwijl de grafiek al een andere periode tekende. Gevolg: op 1M (31 punten in
+  // plaats van 91) schoot de aanwijzer bijna drie keer zo hard als je vinger en viel hij na een
+  // derde van de breedte weg, op 6M en Alles kroop hij juist achter je vinger aan. Via deze ref
+  // draait elke aanraking door de wijsAan van de HUIDIGE render, met het aantal punten van de
+  // periode die op dat moment in beeld staat.
+  const wijsAanRef = useRef<(x: number) => void>(() => {});
+  wijsAanRef.current = wijsAan;
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_evt, g) => Math.abs(g.dx) > Math.abs(g.dy),
       onPanResponderTerminationRequest: () => true,
-      onPanResponderGrant: (evt) => wijsAan(evt.nativeEvent.locationX),
-      onPanResponderMove: (evt) => wijsAan(evt.nativeEvent.locationX),
+      onPanResponderGrant: (evt) => wijsAanRef.current(evt.nativeEvent.locationX),
+      onPanResponderMove: (evt) => wijsAanRef.current(evt.nativeEvent.locationX),
       onPanResponderRelease: () => setActief(null),
       onPanResponderTerminate: () => setActief(null),
     }),

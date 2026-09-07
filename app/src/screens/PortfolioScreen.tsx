@@ -875,7 +875,7 @@ export function PortfolioScreen() {
     trades, livePrijzen, voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade,
     syncing, laatsteSync, syncFout, etoroFout, synchroniseer, geladen,
     omgeving, magHandelen, verlopenOrders, controleerOnbekendeOrders,
-    vrijSaldoUsd, etoroGekoppeld,
+    vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
   } = usePortfolio();
   const [verkoopTrade, setVerkoopTrade] = useState<PortfolioTrade | null>(null);
   const [niveausTrade, setNiveausTrade] = useState<PortfolioTrade | null>(null);
@@ -1137,6 +1137,8 @@ export function PortfolioScreen() {
             <PortfolioStatusKaart
               waarde={waarde}
               vrijSaldoUsd={vrijSaldoUsd}
+              gereserveerdUsd={gereserveerdUsd}
+              wachtendeOrders={wachtendeOrders}
               etoroGekoppeld={etoroGekoppeld}
               // Ook tijdens een swipe- of knop-sync bezig tonen: verversPrijzen zet `syncing` alleen
               // als er open posities zijn, dus met een lege portfolio bleef de knop anders indrukbaar.

@@ -165,8 +165,12 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           ]}>
             {fmtRR(niveaus.rr)}
           </Text>
+          {/* Zelfde opmaak als de waarde erboven, en dat is de hele reden dat fmtRR hier staat.
+              Er stond "onder 1:2" onder een waarde van "1 : 1.3", en dat las als "onder 1,2":
+              een grens die het getal erboven ruim haalde. Nu staat er "onder 1 : 2.0" onder
+              "1 : 1.3" en is het één schaal. */}
           {!haaltRr && (
-            <Text style={[Type.caption, { color: colors.letOp }]}>onder 1:{MIN_RISK_REWARD}</Text>
+            <Text style={[Type.caption, { color: colors.letOp }]}>onder {fmtRR(MIN_RISK_REWARD)}</Text>
           )}
         </View>
         <View style={styles.metaItem}>
