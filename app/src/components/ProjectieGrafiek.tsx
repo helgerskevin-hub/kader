@@ -60,6 +60,17 @@ export function ProjectieGrafiek({ punten, jaren }: Props) {
   const laatsteY1 = yVoor(laatste.totaalWaarde);
   const laatsteY2 = yVoor(laatste.ingelegdWaarde);
 
+  // De twee eindlabels moeten van elkaar én van hun eigen lijn wegblijven. Beide op een vaste plek
+  // zetten werkt niet: bij een klein verschil tussen de lijnen, of bij een negatief rendement waar
+  // ze van plek wisselen, komen ze dan over elkaar of over de lijn heen te liggen. Dus krijgt het
+  // label van de bovenste lijn zijn plek bóven dat eindpunt en dat van de onderste eronder, wat
+  // ze altijd uit elkaar houdt, ook als de lijnen samenvallen bij een rendement van 0 procent.
+  const LABEL_HOOGTE = 14;
+  const klem = (y: number) => Math.min(HOOGTE - LABEL_HOOGTE, Math.max(0, y));
+  const eersteIsBoven = laatsteY1 <= laatsteY2;
+  const labelY1 = klem(eersteIsBoven ? laatsteY1 - LABEL_HOOGTE - 3 : laatsteY1 + 3);
+  const labelY2 = klem(eersteIsBoven ? laatsteY2 + 3 : laatsteY2 - LABEL_HOOGTE - 3);
+
   return (
     <View>
       <View style={{ height: HOOGTE }} onLayout={opLayout}>
@@ -98,14 +109,16 @@ export function ProjectieGrafiek({ punten, jaren }: Props) {
           />
         </Svg>
 
-        {/* Eindwaarde van lijn 1 rechtsboven: bij deze grafiek gaat het alleen om het eindpunt van
-            elke reeks, niet om het min/max van de hele reeks zoals bij PrijsGrafiek. */}
-        <Text style={[Type.label, stijlen.labelBoven, { color: colors.cta }]} numberOfLines={1}>
+        {/* Per lijn de eindwaarde bij het eigen eindpunt: bij deze grafiek gaat het alleen om waar
+            elke reeks uitkomt, niet om het min/max van de hele reeks zoals bij PrijsGrafiek. */}
+        <Text
+          style={[Type.label, stijlen.labelBijLijn, { top: labelY1, color: colors.cta }]}
+          numberOfLines={1}
+        >
           {fmtBedrag(laatste.totaalWaarde)}
         </Text>
-        {/* Eindwaarde van lijn 2 bij het eindpunt van die lijn zelf. */}
         <Text
-          style={[Type.label, stijlen.labelBijLijn, { top: laatsteY2 - 16, color: colors.tekstGedimd }]}
+          style={[Type.label, stijlen.labelBijLijn, { top: labelY2, color: colors.tekstGedimd }]}
           numberOfLines={1}
         >
           {fmtBedrag(laatste.ingelegdWaarde)}
@@ -137,7 +150,6 @@ export function ProjectieGrafiek({ punten, jaren }: Props) {
 
 const stijlen = StyleSheet.create({
   leeg: { borderRadius: 8 },
-  labelBoven: { position: 'absolute', top: 2, right: 4 },
   labelBijLijn: { position: 'absolute', right: 4 },
   datumRij: {
     flexDirection: 'row',
