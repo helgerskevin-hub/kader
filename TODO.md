@@ -28,22 +28,30 @@ Wat het geworden is staat in [CHANGELOG.md](CHANGELOG.md) onder 0.1.19 en 0.1.20
       (`components/VerdelingKaart.tsx`, rekenwerk in `engine/verdeling.ts`)
 - [x] "Mijn trades" heet Portfolio, "Open traders" heet Open posities
 
-### Fase 2: doelstelling en projectie (nu mee bezig)
+### Fase 2: doelstelling en projectie ✅ gebouwd, nog niet uitgebracht
 Een doel invullen en zien hoe je ervoor staat. Nog steeds alleen crypto, nog geen nieuwe databron nodig.
+Ontwerp in [docs/design-doelstelling-en-projectie.md](docs/design-doelstelling-en-projectie.md),
+rekenwerk in `engine/doelstelling.ts` (met eigen zelftest), UI in `components/DoelSheet.tsx`,
+`DoelScherm.tsx`, `InlegSheet.tsx` en `ProjectieGrafiek.tsx`.
 
-Uitgangspositie (gemeten, september 2026): hier ligt nog niets van. `engine/verdeling.ts` rekent alleen
-de HUIDIGE verdeling uit en kent geen doel, en er is geen opslagsleutel voor een doel of een inleg.
-Wel bruikbaar als voorbeeld: `engine/verdeling.ts` is het precedent voor een pure rekenmodule met een
-self-check, en `state/useHandelskapitaal.ts` plus `SLEUTELS.handelskapitaal` zijn het precedent voor een
-bedrag dat de gebruiker zelf invult en dat Kader nooit verzint. Ontwerp staat in
-[docs/design-doelstelling-en-projectie.md](docs/design-doelstelling-en-projectie.md).
+Nog te doen voordat dit uitgebracht wordt:
 
-- [ ] Doelverdeling instellen: welk percentage wil je waar in hebben (bijv. 60% BTC, 20% ETH, 20% alt)
-- [ ] Afwijking tonen: waar zit je te zwaar of te licht ten opzichte van je doel
-- [ ] Bijstortplan: vul in wat je maandelijks inlegt, Kader rekent uit waar dat geld heen moet om
-      richting je doel te bewegen. **Nooit "advies" noemen**, het is een rekensom op basis van jouw doel
-- [ ] Projectie: verwachte waarde over X jaar op basis van inleg per maand plus een zelf ingevuld
-      verwacht rendement. Toon expliciet dat dit een rekensom is en geen voorspelling
+- [ ] Kevin en Thom kiezen over de drempels: nu telt een categorie als op doel binnen 1 procentpunt
+      (`OP_DOEL_MARGE`) en krijgt een afwijking het oranje let-op-gewicht boven 5 procentpunt
+      (`AFWIJKING_FLINK`). Dat zijn keuzes en geen normen, net als `CONCENTRATIE_DREMPEL` in
+      `verdeling.ts`
+- [ ] Bij 0 posities zonder ingesteld doel is er nu geen ingang om een eerste doel te maken, want de
+      verdelingskaart verschijnt pas met een eerste positie. Bewust zo gelaten. Blijkt dat te
+      knellen, dan hoort er een ingang bij Instellingen
+
+- [x] Doelverdeling instellen, via `components/DoelSheet.tsx`. Je vult in wat je bewust wil sturen,
+      de rest valt onder Overig, dus het telt per constructie op tot 100
+- [x] Afwijking tonen: Nu/Doel-schakelaar op de verdelingskaart, per categorie een staafje met een
+      streep op je doel en een pil OP DOEL / TE ZWAAR / TE LICHT met het verschil in procentpunten
+- [x] Bijstortplan in `components/DoelScherm.tsx`, gerekend in `engine/doelstelling.ts`: eerst
+      tekorten dichten, dan de rest naar doelverhouding. Het woord advies komt er niet in voor
+- [x] Projectie met een zelf ingevuld rendement over 1 tot 20 jaar, met een tweede lijn voor de
+      inleg zonder rendement. Beide lijnen gestippeld, want er is niets aan gemeten
 
 ### Fase 3: aandelen en index-fondsen erbij
 Hier komt de eerste echte uitbreiding: een tweede activaklasse en dus een tweede databron.
@@ -125,10 +133,11 @@ Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft t
 
 ## 🔨 Nu mee bezig
 
-Fase 2: doelverdeling, afwijking, bijstortplan en projectie. Zie de fase hierboven en het ontwerp in
-[docs/design-doelstelling-en-projectie.md](docs/design-doelstelling-en-projectie.md).
+Fase 2 is gebouwd en op de emulator nagekeken, licht en donker. Wat er nog open staat zijn twee
+keuzes voor Kevin en Thom, die staan bij de fase zelf hierboven. Daarna is fase 3 aan de beurt: de
+databron daarvoor is uitgezocht en vastgelegd.
 
-De vorige lijst hier is helemaal afgewerkt in 0.1.19 tot en met 0.1.21 en staat in de changelog:
+De lijst die hier eerder stond is helemaal afgewerkt in 0.1.19 tot en met 0.1.21 en staat in de changelog:
 het portfolio-dashboard, skeletons op elk scherm dat data ophaalt, de orderbevestiging met resultaat
 in procenten en in geld, de Kader-dialogen in plaats van de systeemvensters, en de herontworpen
 kaartindicatie (de gekleurde streep is weg, het niveau zit nu in de kaart zelf).
