@@ -89,6 +89,22 @@ export const SLEUTELS = {
   // Staan Kaders meldingen aan? 'aan' of 'uit'. Ontbreekt de waarde, dan staan ze aan: dat is het
   // gedrag van elke versie tot nu toe.
   meldingenAan: 'meldingen_aan',
+  // De doelverdeling die de gebruiker zelf invult: per coin een streefpercentage. Overig staat er
+  // bewust NIET in, dat is altijd 100 min de som, zodat een opgeslagen doel niet uit balans kan
+  // raken met wat het scherm toont. Ontbreekt de sleutel of is de lijst leeg, dan is er geen doel
+  // en toont Kader de lege staat in plaats van een verzonnen verdeling.
+  doelverdeling: 'doelverdeling',
+  // Wat de gebruiker maandelijks van plan is bij te storten, in dollars. Zelfde soort getal als
+  // handelskapitaal: door de gebruiker ingevuld, nooit afgeleid, en zonder invulling geen
+  // bijstortplan en geen projectie.
+  maandelijkseInleg: 'maandelijkse_inleg',
+  // Het verwachte rendement per jaar in procent, voor de projectie. Mag negatief zijn: een dalende
+  // rekensom is net zo eerlijk als een stijgende. Nooit voorgevuld, want een voorgevuld percentage
+  // zou lezen als een verwachting van Kader, en die heeft de app niet.
+  verwachtRendement: 'verwacht_rendement',
+  // De laatst gekozen periode van de projectiegrafiek, in jaren. Puur een weergavekeuze die je niet
+  // elke keer opnieuw wil aantikken.
+  projectieJaren: 'projectie_jaren',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

@@ -12,6 +12,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-09-08',
+    punten: [
+      'Portfolio kan nu een doelverdeling bijhouden: welk percentage van je crypto je in welke coin wil hebben. Je vult alleen in wat je bewust wil sturen, bijvoorbeeld 60 procent BTC en 25 procent ETH, en alles wat je verder bezit valt samen onder Overig. Daardoor telt een doel altijd precies op tot 100 en hoef je niet voor elk van je posities een percentage te verzinnen',
+      'De verdelingskaart heeft rechtsboven een schakelaar Nu / Doel gekregen. Op Nu staat de ring die er al stond, op Doel staat per categorie een staafje met waar je nu zit en een streepje waar je doel ligt, plus een label OP DOEL, TE ZWAAR of TE LICHT met het verschil in procentpunten erachter. Bewust geen groen of rood: afwijken van je eigen doel is geen winst of verlies, alleen een verschil',
+      'Achter die kaart zit een nieuw scherm met je doelverdeling, een bijstortplan en een projectie. Vul in wat je maandelijks bijstort en Kader rekent uit hoe dat bedrag over je categorieën verdeeld zou worden om richting je doel te bewegen: eerst worden de achterstanden gedicht, wat daarna overblijft gaat naar je doelverhouding. Dat is nadrukkelijk een rekensom op het doel dat je zelf hebt ingevuld en geen beleggingsadvies, en dat staat er ook onder',
+      'In datzelfde scherm zit een projectie: vul een verwacht rendement per jaar in en kies een periode van 1 tot 20 jaar, dan tekent Kader wat je inleg volgens die aanname zou worden, met een tweede lijn van je eigen inleg zonder enig rendement ernaast. Beide lijnen zijn gestippeld, ook de bovenste. Dat is met opzet: er is niets aan gemeten, het is jouw aanname doorgerekend en geen voorspelling van de koers. Het rendementsveld staat leeg tot je zelf iets invult, want een voorgevuld percentage zou lezen als een verwachting van Kader',
+      'Een negatief rendement invullen mag gewoon. De projectie mag dalen, dat is een even eerlijke rekensom als een stijgende, en dan staat er onder de grafiek verlies in plaats van rendement',
+    ],
+  },
+  {
     versie: '0.1.21',
     datum: '2026-09-08',
     punten: [
