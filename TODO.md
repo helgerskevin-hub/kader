@@ -77,11 +77,24 @@ Hier komt de eerste echte uitbreiding: een tweede activaklasse en dus een tweede
       S&P500-ETF's die via DeGiro te kopen zijn). Het register staat er (`engine/instrumenten.ts`,
       met VUSA, VUAA, VWRL, IWDA, VOO, SPY, QQQ en zeven aandelen) en `haalData()` kiest de bron nu
       op activaklasse, maar `STANDAARD_UNIVERSUM` in `analyzer.ts` scant ze nog niet mee
-  - [ ] **Eerst nog te meten: hoe hard knijpt Yahoo af?** Op 8 september 2026 gaf het endpoint na een
-        reeks snelle verzoeken hard 429 op query1 en query2 tegelijk, en dat hield na twintig minuten
-        nog aan. `engine/yahoo.ts` houdt daarom zelf een wachtrij aan van één verzoek per anderhalve
-        seconde plus tien minuten stilte na een 429. Of die twee getallen kloppen is niet gemeten;
-        zonder dat cijfer valt niet te zeggen hoeveel effecten er in een scan passen
+  - [ ] **Eerst een keuze: welk klimaat geldt voor een aandeel?** `bepaalKlimaat()` rekent op BTC en
+        op de breedte van het crypto-universum, en die poort zet nu elk koopsignaal op WATCH zodra
+        het klimaat niet gunstig is. Een S&P500-tracker op WATCH zetten omdat bitcoin onder zijn
+        EMA50 staat is onzin. De functie zelf is generiek genoeg, maar er hoort een eigen ijkpunt
+        bij, bijvoorbeeld een brede index. Zolang dat er niet is, kunnen effecten niet in dezelfde
+        scan als crypto
+  - [x] **Gemeten: Yahoo knijpt niet af, het weigert op User-Agent.** De 429 die het endpoint gaf
+        leek een rate limit en was het niet. Zelfde machine, zelfde IP, zelfde minuut, alleen de
+        header verschillend: geen header 429, een macOS-Chrome-string 429, een Windows-Chrome-string
+        200, kaal `Mozilla/5.0` 200. Met de goede header viel er geen limiet te raken: honderd
+        verzoeken achter elkaar zonder pauze plus blokken van zes tegelijk, allemaal 200. React
+        Native's fetch stuurt vanzelf een okhttp-UA mee, dus zonder die header werkt de bron niet.
+        `engine/yahoo.ts` houdt nog wel een wachtrij aan van een halve seconde plus vijf minuten
+        stilte na een 429, als vangnet: een dagquotum is niet uitgesloten en dit endpoint staat
+        nergens gedocumenteerd
+  - [x] Alle veertien instrumenten uit het register geven ruim vijfhonderd dagcandles over twee jaar,
+        de valuta die Yahoo meldt klopt bij alle veertien met het register, en weekcandles werken.
+        Getest via de app-code zelf, niet via curl
   - [ ] De koersreeks van een effect komt binnen in de valuta van de beurs: VUSA staat in euro's.
         Die reeks wordt bewust niet omgerekend (indicatoren zijn schaalonafhankelijk en een
         omgerekende geschiedenis is een verzonnen geschiedenis), maar bij de PORTFOLIOWAARDERING
