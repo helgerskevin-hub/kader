@@ -4,10 +4,22 @@
 //
 // Zonder id geen koopknop. zoekInstrumentId geeft bij elke twijfel null terug, en dan blijft kopen
 // geblokkeerd: een verkeerd id zou een order in een andere coin of zelfs een future plaatsen.
+//
+// De hook geeft met opzet een stand terug en niet alleen `number | null`. Met alleen null viel
+// "we zijn nog aan het zoeken" samen met "gezocht en niets gevonden", en dat is precies wat de
+// koopsheet liet zien: bij een coin die nog niet in de cache stond stond de rode melding "Kader kan
+// PEPE niet eenduidig aan een eToro-instrument koppelen" er al vanaf het openen, de hele netwerkbeurt
+// lang. Bij BTC merkte niemand dat, want die staat na één keer kopen in de cache en is meteen klaar.
 import { useEffect, useState } from 'react';
 import { zoekInstrumentId } from '../engine/etoro';
 import { SLEUTELS, bewaarObject, laadObject } from '../storage/opslag';
 import { actieveSleutels } from './etoroSleutels';
+
+// 'bezig' = de zoekopdracht loopt nog, 'geen' = uitgezocht en niets bruikbaars gevonden.
+export type InstrumentStand =
+  | { soort: 'bezig' }
+  | { soort: 'gevonden'; id: number }
+  | { soort: 'geen' };
 
 type Kaart = Record<string, number>;
 
@@ -55,20 +67,23 @@ function idBelofte(symbool: string): Promise<number | null> {
   return vlucht;
 }
 
-export function useInstrumentId(symbool: string | null | undefined): number | null {
-  const [id, setId] = useState<number | null>(null);
+export function useInstrumentId(symbool: string | null | undefined): InstrumentStand {
+  const [stand, setStand] = useState<InstrumentStand>({ soort: 'bezig' });
 
   useEffect(() => {
+    // Zonder symbool valt er niets te zoeken. 'geen' en niet 'bezig': er loopt niets, dus wachten
+    // op een uitkomst die nooit komt zou de sheet eeuwig in de laadstand houden.
     if (!symbool) {
-      setId(null);
+      setStand({ soort: 'geen' });
       return;
     }
     let actief = true;
+    setStand({ soort: 'bezig' });
     idBelofte(symbool).then(gevonden => {
-      if (actief) setId(gevonden);
+      if (actief) setStand(gevonden === null ? { soort: 'geen' } : { soort: 'gevonden', id: gevonden });
     });
     return () => { actief = false; };
   }, [symbool]);
 
-  return id;
+  return stand;
 }

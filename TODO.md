@@ -165,3 +165,15 @@ Doorlopen na elke grote wijziging, er is geen testsuite.
       Ook nog open: trekt eToro het gereserveerde bedrag misschien zelf al van `credit` af? Dan
       wordt het nu dubbel afgetrokken. De regel onder het bedrag maakt zichtbaar wat er is
       afgetrokken, dus dat valt op zodra iemand met een wachtende order kijkt.
+
+- [ ] **Controleren of PEPE nu wél te kopen is via de app.**
+      De melding "Kader kan PEPE niet eenduidig aan een eToro-instrument koppelen" had zeker één
+      oorzaak: de sheet toonde die rode regel ook al terwijl het zoeken nog liep, en bij een coin die
+      nog niet in de cache stond duurde dat een netwerkbeurt lang. Dat is opgelost, en `kiesInstrumentTreffer()`
+      gooit dubbele regels (delisted, niet koopbaar, andere assetclass) nu weg vóór het de eis stelt
+      dat er precies één treffer overblijft. Of dat genoeg is, is niet gemeten: daar is een echte
+      sleutel voor nodig. Blijft de melding staan nadat het zoeken klaar is, dump dan wat
+      `/market-data/search?internalSymbolFull=PEPE` teruggeeft en leg hier vast onder welke naam
+      eToro de coin voert. Let op de tegenstelling die dan zichtbaar wordt: het merkje op de kaart
+      komt uit Kaders eigen `ETORO_TRADABLE`-lijst, de koopsheet vraagt het live aan eToro. Die twee
+      kunnen uit elkaar lopen, en dan is de lijst het ding dat bijgewerkt moet worden.

@@ -70,6 +70,9 @@ export function PortfolioStatusKaart({
       : `Er ${wachtendeOrders === 1 ? 'wacht' : 'wachten'} ${wachtendeOrders} ${orderWoord} bij eToro. Kader kan niet lezen hoeveel geld daarvan vaststaat, dus dat zit nog in het beschikbare bedrag.`;
   const belegdUsd = waarde.huidigeWaardeUsd;
   const totaalUsd = heeftSaldo ? belegdUsd + vrijSaldoUsd : belegdUsd;
+  // Het aandeel van de balk dat in posities zit. Geclamped, want een negatief of te groot deel zou
+  // het andere stuk van de balk duwen; de twee stukken tellen altijd op tot precies 100 procent.
+  const belegdPct = totaalUsd > 0 ? Math.min(100, Math.max(0, (belegdUsd / totaalUsd) * 100)) : 0;
   // Met een bekend saldo is er ook zonder gewaardeerde posities een bedrag te tonen: je hebt dan
   // gewoon alles in cash staan.
   const toonBedrag = heeftSaldo || heeftWaardering;
@@ -158,9 +161,18 @@ export function PortfolioStatusKaart({
         <>
           {totaalUsd > 0 && (
             <View style={[styles.balk, { backgroundColor: colors.verhoogd }]}>
-              {/* De twee flex-waarden zijn de bedragen zelf, dus de balk is de verhouding. */}
-              <View style={{ flex: Math.max(0, belegdUsd), backgroundColor: colors.primair }} />
-              <View style={{ flex: Math.max(0, vrijSaldoUsd), backgroundColor: colors.verhoogd }} />
+              {/* Twee stukken met een uitgerekende breedte in procenten, en met opzet geen flex.
+
+                  Er stond hier eerder `flex: belegdUsd` naast `flex: vrijSaldoUsd`, met de gedachte
+                  dat de verhouding dan vanzelf klopt. Op Android kregen beide stukken daar geen
+                  breedte van en bleef alleen de lege baan over: de balk was leeg, ongeacht de
+                  bedragen. Een percentage laat niets te bepalen over.
+
+                  De kleuren waren het tweede probleem: het cash-stuk had colors.verhoogd, exact de
+                  kleur van de baan eronder, dus zelfs met breedte was het onzichtbaar geweest. Nu
+                  heeft elk stuk een eigen kleur. Grijs en niet groen: cash is geen winst. */}
+              <View style={[styles.balkStuk, { width: `${belegdPct}%`, backgroundColor: colors.primair }]} />
+              <View style={[styles.balkStuk, { width: `${100 - belegdPct}%`, backgroundColor: colors.verdelingOverig }]} />
             </View>
           )}
           <View style={styles.saldoRij}>
@@ -173,7 +185,9 @@ export function PortfolioStatusKaart({
             </View>
             <View style={styles.saldoKolom}>
               <View style={styles.saldoLabelRij}>
-                <View style={[styles.bolletje, styles.bolletjeLeeg, { borderColor: colors.rand, backgroundColor: colors.verhoogd }]} />
+                {/* Vol en in de kleur van de balk: het bolletje is de legenda bij dat stuk, dus een
+                    open rondje naast een vol balkstuk zou twee verschillende dingen beweren. */}
+                <View style={[styles.bolletje, { backgroundColor: colors.verdelingOverig }]} />
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BESCHIKBAAR</Text>
               </View>
               <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(vrijSaldoUsd)}</Text>
@@ -302,6 +316,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: spacing.base,
   },
+  // Eigen hoogte in plaats van uitrekken: één ding minder dat de layout kan laten vallen.
+  balkStuk: { height: 8 },
   saldoRij: {
     flexDirection: 'row',
     gap: spacing.md,

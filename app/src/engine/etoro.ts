@@ -450,10 +450,40 @@ interface ZoekTreffer {
 // twintig talen terug. Met projectie is het een handvol velden.
 const ZOEK_VELDEN = 'internalSymbolFull,instrumentId,internalAssetClassName,isDelisted,isBuyEnabled';
 
-// Geeft null bij elke twijfel, en dan is kopen geblokkeerd. Gemeten: zoeken op "BTC" geeft 53
-// treffers, waaronder BTCEUR, BTCJPY en futures als BTC.DEC29. Alleen een exacte match op
-// internalSymbolFull is de coin die de gebruiker bedoelt, en isBuyEnabled staat op alle crosses
-// op false en alleen op de echte BTC op true.
+// Welke van de zoektreffers is de coin die de gebruiker bedoelt? Pure functie, zodat de regels
+// hieronder in de self-check staan in plaats van alleen in een API-respons die niemand kan naspelen.
+//
+// Gemeten: zoeken op "BTC" geeft 53 treffers, waaronder BTCEUR, BTCJPY en futures als BTC.DEC29.
+// Alleen een exacte match op internalSymbolFull is de coin zelf, en isBuyEnabled staat op alle
+// crosses op false en alleen op de echte BTC op true.
+//
+// De volgorde is belangrijk en was eerder andersom: eerst werd geëist dat er precies één exacte
+// match was, en pas daarna werden delisted, niet-koopbaar en niet-crypto weggegooid. Voerde eToro
+// hetzelfde symbool twee keer op (een oude delisted regel naast de levende, of een crypto naast een
+// andere assetclass), dan viel het antwoord op nul terug terwijl er maar één echte kandidaat was.
+// Nu gooien we eerst alles weg wat het per definitie niet kan zijn, en pas dan geldt de eis dat er
+// precies één overblijft. Blijven er twee bruikbare over, dan nog steeds null: bij twijfel niet
+// handelen, want een verkeerd id opent een positie in een andere coin.
+export function kiesInstrumentTreffer(treffers: ZoekTreffer[], symbool: string): number | null {
+  const gezocht = symbool.trim().toUpperCase();
+  if (!gezocht) return null;
+
+  const bruikbaar = treffers.filter(t => {
+    if ((t.internalSymbolFull ?? '').toUpperCase() !== gezocht) return false;
+    if (t.isDelisted === true) return false;
+    if (t.isBuyEnabled === false) return false;
+    // Ontbreekt de assetclass, dan niet afkeuren: eToro stuurt het veld niet altijd mee en een
+    // ontbrekend veld is geen bewijs dat het geen crypto is.
+    if (t.internalAssetClassName && t.internalAssetClassName.toLowerCase() !== 'crypto') return false;
+    const id = t.instrumentId ?? t.internalInstrumentId;
+    return typeof id === 'number' && id > 0;
+  });
+
+  if (bruikbaar.length !== 1) return null;
+  return (bruikbaar[0].instrumentId ?? bruikbaar[0].internalInstrumentId)!;
+}
+
+// Geeft null bij elke twijfel, en dan is kopen geblokkeerd.
 export async function zoekInstrumentId(symbool: string, sleutels: EtoroSleutels): Promise<number | null> {
   const gezocht = symbool.trim().toUpperCase();
   if (!gezocht) return null;
@@ -463,16 +493,7 @@ export async function zoekInstrumentId(symbool: string, sleutels: EtoroSleutels)
     sleutels,
   );
 
-  const treffers = (data?.items ?? []).filter(i => (i.internalSymbolFull ?? '').toUpperCase() === gezocht);
-  if (treffers.length !== 1) return null;
-
-  const treffer = treffers[0];
-  if (treffer.isDelisted === true) return null;
-  if (treffer.isBuyEnabled === false) return null;
-  if (treffer.internalAssetClassName && treffer.internalAssetClassName.toLowerCase() !== 'crypto') return null;
-
-  const id = treffer.instrumentId ?? treffer.internalInstrumentId;
-  return typeof id === 'number' && id > 0 ? id : null;
+  return kiesInstrumentTreffer(data?.items ?? [], gezocht);
 }
 
 // ---------- Kooporder ----------
@@ -1180,6 +1201,47 @@ if (require.main === module) {
   console.assert(geenCredit.besteedbaarUsd === null && geenCredit.creditUsd === null,
     'zonder credit blijft het saldo onbekend');
   console.assert(bepaalSaldoStand({}).besteedbaarUsd === null, 'een lege respons geeft geen saldo');
+
+  // ---------- Symbool naar instrument ----------
+  // De aanleiding: PEPE stond met een eToro-merkje op de kaart, maar de koopsheet meldde dat Kader
+  // de coin niet aan een instrument kon koppelen.
+  const pepe: ZoekTreffer = { internalSymbolFull: 'PEPE', instrumentId: 123, internalAssetClassName: 'crypto' };
+  console.assert(kiesInstrumentTreffer([pepe], 'PEPE') === 123, 'een enkele bruikbare treffer is het antwoord');
+  console.assert(kiesInstrumentTreffer([pepe], 'pepe') === 123, 'kleine letters horen ook te werken');
+
+  // Crosses en futures dragen een ander internalSymbolFull en tellen dus niet mee.
+  const crosses: ZoekTreffer[] = [
+    { internalSymbolFull: 'PEPEEUR', instrumentId: 900, isBuyEnabled: false },
+    { internalSymbolFull: 'PEPE.DEC29', instrumentId: 901 },
+    pepe,
+  ];
+  console.assert(kiesInstrumentTreffer(crosses, 'PEPE') === 123, 'alleen de exacte match telt');
+
+  // Dit is de regel die eerder omgekeerd stond: een tweede regel met hetzelfde symbool die
+  // delisted, niet koopbaar of geen crypto is, mag de echte niet meeslepen.
+  console.assert(
+    kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', instrumentId: 5, isDelisted: true }, pepe], 'PEPE') === 123,
+    'een delisted dubbele regel mag de levende niet blokkeren');
+  console.assert(
+    kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', instrumentId: 5, isBuyEnabled: false }, pepe], 'PEPE') === 123,
+    'een niet-koopbare dubbele regel mag de koopbare niet blokkeren');
+  console.assert(
+    kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', instrumentId: 5, internalAssetClassName: 'stocks' }, pepe], 'PEPE') === 123,
+    'een aandeel met hetzelfde symbool mag de crypto niet blokkeren');
+
+  // En de kant waar het fail-closed moet blijven: twee bruikbare kandidaten is twijfel.
+  console.assert(
+    kiesInstrumentTreffer([pepe, { internalSymbolFull: 'PEPE', instrumentId: 456, internalAssetClassName: 'crypto' }], 'PEPE') === null,
+    'twee bruikbare kandidaten geeft null, want dan weten we het niet');
+  console.assert(kiesInstrumentTreffer([], 'PEPE') === null, 'geen treffers geeft null');
+  console.assert(kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE' }], 'PEPE') === null, 'een treffer zonder id is onbruikbaar');
+  console.assert(kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', instrumentId: 0 }], 'PEPE') === null, 'id 0 is geen id');
+  // Zonder assetclass niet afkeuren: eToro stuurt dat veld niet altijd mee.
+  console.assert(kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', instrumentId: 7 }], 'PEPE') === 7,
+    'een ontbrekende assetclass is geen bewijs dat het geen crypto is');
+  // internalInstrumentId is de tweede naam voor hetzelfde veld.
+  console.assert(kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', internalInstrumentId: 42 }], 'PEPE') === 42,
+    'internalInstrumentId telt ook als id');
 
   // ---------- Omgeving op geimporteerde trades ----------
   const demoTrade = naarPortfolioTrade(mock, 'BTC', 'demo');

@@ -67,7 +67,11 @@ export function KooporderSheet({
   const { gaNaar } = useNavigatie();
   const isShort = richting === 'short';
   const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
-  const instrumentId = useInstrumentId(zichtbaar ? symbool : null);
+  const instrumentStand = useInstrumentId(zichtbaar ? symbool : null);
+  const instrumentId = instrumentStand.soort === 'gevonden' ? instrumentStand.id : null;
+  // Zolang het zoeken loopt is er nog niets mis: dan hoort er geen rode melding te staan en is
+  // bevestigen alleen tijdelijk uit.
+  const instrumentBezig = instrumentStand.soort === 'bezig';
   const stopLimiet = useStopLossLimiet(zichtbaar ? symbool : null, richting);
   // Staat de app op euro's, dan blijft dit scherm in dollars maar tonen we wel wat je inleg in
   // euro's is. Anders moet je zelf gaan rekenen om te weten wat je uitgeeft.
@@ -168,17 +172,19 @@ export function KooporderSheet({
       ? ` Er staat ${fmtBedrag(gereserveerd, DOLLARS)} vast in ${wachtend} wachtende ${orderWoord} bij eToro.`
       : ` Er ${wachtend === 1 ? 'wacht' : 'wachten'} ${wachtend} ${orderWoord} bij eToro; Kader weet niet hoeveel daarvan vaststaat.`;
 
-  // Eén rode melding tegelijk, in de volgorde waarin ze zwaarwegend zijn.
+  // Eén rode melding tegelijk, in de volgorde waarin ze zwaarwegend zijn. Tijdens het zoeken staat
+  // er niets: "niet te koppelen" over een coin die nog opgezocht wordt is gewoon onwaar.
   const blokkade =
-    instrumentId === null
-      ? `Kader kan ${symbool} niet eenduidig aan een eToro-instrument koppelen. Handelen via de app is daarom uitgeschakeld.`
+    instrumentBezig ? null
+    : instrumentId === null
+      ? `Kader kan ${symbool} niet aan een eToro-instrument koppelen. Dat kan aan de koppeling liggen (geen sleutel, of eToro even niet bereikbaar) of eToro voert ${symbool} onder een andere naam. Handelen via de app is daarom uitgeschakeld; bij eToro zelf kun je de coin mogelijk gewoon kopen.`
     : advies.soort === 'waarschuwing' ? advies.uitleg
     : heeftBedrag && bedragGetal < MINIMUM_USD ? `Het minimum bij eToro is ${fmtBedrag(MINIMUM_USD, DOLLARS)}.`
     : heeftBedrag && vrijSaldo !== null && bedragGetal * KOSTENMARGE > vrijSaldo
       ? `Dit past niet in je vrije saldo van ${fmtBedrag(vrijSaldo, DOLLARS)}.${gereserveerdZin} eToro rekent kosten bovenop je inleg, dus houd wat ruimte over.`
     : null;
 
-  const magBevestigen = heeftBedrag && blokkade === null;
+  const magBevestigen = heeftBedrag && blokkade === null && instrumentId !== null;
 
   async function bevestig() {
     if (!magBevestigen || instrumentId === null) return;
@@ -381,7 +387,11 @@ export function KooporderSheet({
           </Text>
         ) : null}
 
-        {blokkade ? (
+        {instrumentBezig ? (
+          <Text style={[Type.caption, stijlen.melding, { color: colors.tekstGedimd }]}>
+            Kader zoekt {symbool} op bij eToro...
+          </Text>
+        ) : blokkade ? (
           <Text style={[Type.caption, stijlen.melding, { color: colors.verlies }]}>{blokkade}</Text>
         ) : null}
 

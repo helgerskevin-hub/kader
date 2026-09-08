@@ -1,19 +1,33 @@
-// Het merkje van een platform: een rond chipje met één letter.
+// Het merkje van een platform: een rond chipje, met het echte logo als dat er is.
 //
-// Bewust geen nagemaakt merklogo. Die zijn niet van ons, er zit er ook geen in de repo, en een
-// zelfgetekende benadering van andermans logo is erger dan een eigen vorm. Een monogram in de
-// merkkleur is herkenbaar zodra je het twee keer gezien hebt, en er passen er zes naast elkaar
-// zonder dat er iets nagemaakt hoeft te worden.
+// eToro's logo zit in de repo met toestemming van de gebruiker om het in deze app te gebruiken. Het
+// is het onbewerkte bestand, niet een nagetekende benadering: dat laatste blijft verboden, want een
+// scheve kopie van andermans merk is erger dan een eigen vorm. Een platform zonder logo in LOGOS
+// valt terug op het monogram in de merkkleur, en dat blijft dus de standaard voor alles wat we niet
+// mogen of hebben.
+//
+// Het logo is een vierkant dat tot aan de rand doorloopt, dus het vult het rondje helemaal en er
+// komt geen achtergrondkleur of padding onder. Precies zoals een app-icoon op je beginscherm.
 //
 // Let op wat een chip op twee plekken betekent: op een tradekaart is het "hier kun je deze coin
 // kopen", op het verdelingsscherm "hier staat je positie". Dat verschil zit in de schermlezerlabels
 // van de aanroepers, niet in de chip zelf.
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, ImageSourcePropType, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Fonts } from '../theme/typography';
 import { radii } from '../theme/tokens';
 import { PlatformId, platformInfo } from '../engine/platforms';
+
+// Buiten platforms.ts, met opzet: dat bestand is pure logica die ook onder node draait (het heeft
+// een eigen self-check), en een require() van een PNG hoort daar niet thuis.
+//
+// Demo krijgt hetzelfde logo als echt. Het is dezelfde eToro; dat het om speelgeld gaat, staat in
+// de DEMO-pil naast de naam en niet in een tweede versie van hun merk.
+const LOGOS: Partial<Record<PlatformId, ImageSourcePropType>> = {
+  etoro: require('../../assets/etoro-logo.png'),
+  'etoro-demo': require('../../assets/etoro-logo.png'),
+};
 
 export type ChipMaat = 16 | 20 | 24;
 
@@ -29,6 +43,21 @@ interface ChipProps {
 export function PlatformChip({ platform, maat = 20 }: ChipProps) {
   const { colors, donkerActief } = useTheme();
   const info = platformInfo(platform);
+  const logo = LOGOS[platform];
+
+  // Het logo vult het hele rondje. Geen rand eromheen: eToro's groen staat op elke kaartkleur en op
+  // elke achtergrond die Kader heeft, en een grijze ring eromheen maakt er een knop van.
+  if (logo) {
+    return (
+      <Image
+        source={logo}
+        style={{ width: maat, height: maat, borderRadius: radii.pill }}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      />
+    );
+  }
+
   const neutraal = info.kleurIndex < 0 || info.kleurIndex >= colors.verdeling.length;
   const vulling = neutraal ? colors.verhoogd : colors.verdeling[info.kleurIndex];
   // Dezelfde regel als in AdviceBadge: de donkere reeks in colors.verdeling is licht, en witte
