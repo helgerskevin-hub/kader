@@ -39,6 +39,36 @@ const AFKOEL_MS = 10 * 60 * 1000;
 // app deelt één quotum bij Yahoo: een afkoeling per component zou niets afkoelen.
 let geblokkeerdTot = 0;
 
+// De minimale tussentijd tussen twee verzoeken aan Yahoo.
+//
+// Dit staat hier en niet bij de aanroeper, en dat is de kern van de zaak: de marktscan haalt zijn
+// universum op in parallelle blokken van zes (GELIJKTIJDIG in analyzer.ts). Zes crypto-verzoeken
+// tegelijk is voor Binance geen enkel probleem, zes Yahoo-verzoeken tegelijk is precies wat de 429
+// uitlokt. In plaats van elke aanroeper te laten onthouden dat effecten anders zijn, knijpt deze
+// module zichzelf af: alles wat hierlangs komt gaat één voor één de deur uit, met een pauze ertussen.
+// De scan mag dus gewoon blijven doen wat hij deed.
+const MIN_TUSSENTIJD_MS = 1500;
+
+// De staart van de wachtrij. Elke aanroep hangt zich achter de vorige, dus er is er nooit meer dan
+// één tegelijk onderweg.
+let wachtrij: Promise<void> = Promise.resolve();
+let laatsteVerzoek = 0;
+
+const wacht = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+// Zet een taak achter in de rij en geef terug wat hij oplevert. De rij zelf breekt nooit: een
+// mislukte taak mag de volgende niet blokkeren, dus de ketting vangt zijn eigen fouten op.
+function inDeRij<T>(taak: () => Promise<T>): Promise<T> {
+  const uitkomst = wachtrij.then(async () => {
+    const sinds = Date.now() - laatsteVerzoek;
+    if (sinds < MIN_TUSSENTIJD_MS) await wacht(MIN_TUSSENTIJD_MS - sinds);
+    laatsteVerzoek = Date.now();
+    return taak();
+  });
+  wachtrij = uitkomst.then(() => undefined, () => undefined);
+  return uitkomst;
+}
+
 export function yahooGeblokkeerd(): boolean {
   return Date.now() < geblokkeerdTot;
 }
@@ -98,11 +128,26 @@ function parseCandles(resultaat: NonNullable<NonNullable<YahooRespons['chart']>[
 
 // Eén ticker ophalen. `ticker` is de Yahoo-vorm met beurssuffix ('VUSA.AS'), niet het symbool dat
 // de app toont.
-export async function haalYahooCandles(
+export function haalYahooCandles(
   ticker: string,
   interval: '1d' | '1wk' = '1d',
   range = '2y',
 ): Promise<YahooUitkomst> {
+  // De blokkade buiten de rij toetsen: staat de bron stil, dan hoeft dit verzoek ook niet eerst
+  // anderhalve seconde te wachten om daarna alsnog niets te doen.
+  if (yahooGeblokkeerd()) {
+    return Promise.resolve({ candles: [], valuta: 'USD', fout: 'Kader haalt even geen koersen op bij Yahoo, omdat die de laatste verzoeken afwees. Probeer het over een paar minuten opnieuw.' });
+  }
+  return inDeRij(() => verzoek(ticker, interval, range));
+}
+
+async function verzoek(
+  ticker: string,
+  interval: '1d' | '1wk',
+  range: string,
+): Promise<YahooUitkomst> {
+  // Tussen het aansluiten in de rij en nu kan er een 429 binnengekomen zijn op een eerder verzoek.
+  // Nog een keer toetsen, anders loopt de hele rij alsnog een voor een tegen dezelfde dichte deur.
   if (yahooGeblokkeerd()) {
     return { candles: [], valuta: 'USD', fout: 'Kader haalt even geen koersen op bij Yahoo, omdat die de laatste verzoeken afwees. Probeer het over een paar minuten opnieuw.' };
   }

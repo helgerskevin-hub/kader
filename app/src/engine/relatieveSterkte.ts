@@ -1,4 +1,5 @@
 import { Candle } from './types';
+import { klasseVan } from './instrumenten';
 import { ema as berekenEma } from './indicators';
 
 // Relatieve sterkte: hoeveel beter (of slechter) een coin het doet dan BTC over dezelfde periode.
@@ -44,10 +45,17 @@ function bovenEigenEma50(candles: Candle[]): boolean | null {
 }
 
 /**
- * Rangschikt het universum op prestatie ten opzichte van BTC, sterkste eerst.
+ * Rangschikt de crypto's uit het universum op prestatie ten opzichte van BTC, sterkste eerst.
  *
  * Geeft een lege lijst terug als BTC zelf ontbreekt of te weinig historie heeft: zonder ijkpunt is
  * "relatief" een leeg woord, en een verzonnen rangschikking is erger dan geen rangschikking.
+ *
+ * Aandelen en fondsen doen hier niet aan mee, en dat is geen omissie. Het cijfer is gemeten op
+ * crypto (meting H, zie hieronder) en de vraag "loopt dit voor of achter op bitcoin" heeft voor
+ * een S&P500-tracker geen betekenis: die twee bewegen op verschillende markten om verschillende
+ * redenen. Een getal dat niets zegt is erger dan een leeg veld, dus een effect krijgt geen rij.
+ * Wil je ooit hetzelfde voor aandelen, dan hoort daar een eigen ijkpunt bij, bijvoorbeeld een
+ * brede index, en een eigen meting.
  */
 export function berekenRelatieveSterkte(
   reeksen: { symbool: string; candles: Candle[] }[],
@@ -61,6 +69,7 @@ export function berekenRelatieveSterkte(
   const uit: RelatieveSterkte[] = [];
   for (const { symbool, candles } of reeksen) {
     if (symbool === 'BTC') continue;
+    if (klasseVan(symbool) !== 'crypto') continue;
     const rendement = rendementOver(candles, periode);
     if (rendement === null) continue;
     uit.push({

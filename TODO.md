@@ -74,10 +74,35 @@ Hier komt de eerste echte uitbreiding: een tweede activaklasse en dus een tweede
         (800/dag) eisen allemaal een sleutel, en een sleutel in een client-app is door de gebruiker uit te
         lezen. Voorlopig dus alleen Yahoo, en pas een sleutelbron erbij als Yahoo in de praktijk hapert
 - [ ] Universum uitbreiden: meer crypto's, plus aandelen en index-fondsen (in elk geval de Vanguard
-      S&P500-ETF's die via DeGiro te kopen zijn)
+      S&P500-ETF's die via DeGiro te kopen zijn). Het register staat er (`engine/instrumenten.ts`,
+      met VUSA, VUAA, VWRL, IWDA, VOO, SPY, QQQ en zeven aandelen) en `haalData()` kiest de bron nu
+      op activaklasse, maar `STANDAARD_UNIVERSUM` in `analyzer.ts` scant ze nog niet mee
+  - [ ] **Eerst nog te meten: hoe hard knijpt Yahoo af?** Op 8 september 2026 gaf het endpoint na een
+        reeks snelle verzoeken hard 429 op query1 en query2 tegelijk, en dat hield na twintig minuten
+        nog aan. `engine/yahoo.ts` houdt daarom zelf een wachtrij aan van één verzoek per anderhalve
+        seconde plus tien minuten stilte na een 429. Of die twee getallen kloppen is niet gemeten;
+        zonder dat cijfer valt niet te zeggen hoeveel effecten er in een scan passen
+  - [ ] De koersreeks van een effect komt binnen in de valuta van de beurs: VUSA staat in euro's.
+        Die reeks wordt bewust niet omgerekend (indicatoren zijn schaalonafhankelijk en een
+        omgerekende geschiedenis is een verzonnen geschiedenis), maar bij de PORTFOLIOWAARDERING
+        moet het wel, anders belandt een euro-koers als dollarbedrag in je totaal
+  - [ ] **`engine/etoro.ts` slikt een effect nu stilzwijgend in.** `duidInstrument()` bepaalt per
+        positie of het crypto is, en `bouwOpenTrades()` en `bouwGeslotenTrades()` slaan al het
+        andere over met reden `geen-crypto`. Een ETF die je op eToro hebt staan is daardoor
+        onzichtbaar in Kader. Zelfde mechanisme dat eerder TON wegfilterde. Ook
+        `kiesInstrumentTreffer()` filtert hard op assetclass `crypto`, dus kopen kan straks niet
+  - [ ] `handelbaarOp()` in `engine/platforms.ts` toetst alleen tegen `ETORO_TRADABLE`, dus een
+        effect geldt nu als "nergens verhandelbaar" en krijgt geen merkje
+  - [ ] Teksten die letterlijk crypto zeggen en fout worden zodra er aandelen in staan: de
+        onboarding ("Structuur in crypto"), de uitleg bij de angst-en-hebzuchtmeter (die meet alleen
+        cryptosentiment en zegt niets over een aandeel), en het label "(geen crypto)" op Portfolio
 - [ ] Tweede signaalprofiel voor de lange termijn: aandelen zijn kopen-en-vasthouden, niet swing-traden.
       Andere periode (weekcandles), ander doel, geen take-profit. **Eerst meten, dan bouwen**, zelfde regel
-      als bij de shorts: geen profiel uitbrengen dat in de backtest geld kost
+      als bij de shorts: geen profiel uitbrengen dat in de backtest geld kost.
+      De indicatoren zelf (`engine/indicators.ts`) kennen geen tijdseenheid en werken dus gewoon op
+      weekcandles. De aanname zit in de CONSTANTEN: `SWING_PERIODE`, `MIN_CANDLES` en alle
+      `DREMPEL_*`-waarden zijn gemeten op dagcandles en zijn op een ander interval niet zomaar geldig.
+      Herijken is dus geen extraatje maar de kern van deze taak
 - [ ] Verkoopmelding voor lange-termijnposities: alleen als het echt misgaat, niet bij elke dip
 - [ ] Verdeling per activaklasse in het dashboard: hoeveel procent crypto, aandelen, index-fondsen
 
