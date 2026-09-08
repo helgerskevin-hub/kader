@@ -33,7 +33,13 @@ import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
 import { AfbouwRegel } from '../components/AfbouwRegel';
 import { BlootstellingKaart } from '../components/BlootstellingKaart';
 import { KapitaalSheet } from '../components/KapitaalSheet';
+import { DoelSheet } from '../components/DoelSheet';
+import { InlegSheet } from '../components/InlegSheet';
+import { DoelScherm } from '../components/DoelScherm';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
+import { useDoelverdeling } from '../state/useDoelverdeling';
+import { useMaandelijkseInleg } from '../state/useMaandelijkseInleg';
+import { useProjectieInstellingen } from '../state/useProjectieInstellingen';
 import { useMarkt } from '../state/MarktProvider';
 import { useNavigatie } from '../state/navigatie';
 import { MeldingNotitie } from '../components/MeldingNotitie';
@@ -891,7 +897,13 @@ export function PortfolioScreen() {
   const [verdelingOpen, setVerdelingOpen] = useState(false);
   const [actiesVoor, setActiesVoor] = useState<PortfolioTrade | null>(null);
   const [kapitaalOpen, setKapitaalOpen] = useState(false);
+  const [doelSchermOpen, setDoelSchermOpen] = useState(false);
+  const [doelSheetOpen, setDoelSheetOpen] = useState(false);
+  const [inlegOpen, setInlegOpen] = useState(false);
   const { kapitaal, zetKapitaal } = useHandelskapitaal();
+  const { doel, zetDoel } = useDoelverdeling();
+  const { inleg, zetInleg } = useMaandelijkseInleg();
+  const { rendementPct, jaren, zetRendement, zetJaren } = useProjectieInstellingen();
   // Het marktscherm heeft de analyse en het klimaat al opgehaald. Dit scherm leunt daarop en scant
   // niet zelf: dat zou 57 coins aan requests kosten voor data die al in het geheugen staat. Zonder
   // een gedraaide analyse blijft het klimaat null en verdwijnen het blootstellingsvak en de
@@ -1159,7 +1171,10 @@ export function PortfolioScreen() {
             <VerdelingKaart
               trades={trades}
               livePrijzen={livePrijzen}
+              doel={doel}
               onOpenDetail={() => setVerdelingOpen(true)}
+              onOpenDoel={() => setDoelSchermOpen(true)}
+              onDoelInstellen={() => setDoelSheetOpen(true)}
             />
 
             {/* Orders waarvan we na een kwartier nog steeds niet weten of ze zijn doorgegaan. Er
@@ -1308,6 +1323,38 @@ export function PortfolioScreen() {
         huidig={kapitaal}
         onOpslaan={zetKapitaal}
         onSluiten={() => setKapitaalOpen(false)}
+      />
+
+      <DoelScherm
+        zichtbaar={doelSchermOpen}
+        trades={trades}
+        livePrijzen={livePrijzen}
+        doel={doel}
+        inleg={inleg}
+        rendementPct={rendementPct}
+        jaren={jaren}
+        onOpenDoelSheet={() => setDoelSheetOpen(true)}
+        onOpenInlegSheet={() => setInlegOpen(true)}
+        onWijzigRendement={zetRendement}
+        onWijzigJaren={zetJaren}
+        onSluiten={() => setDoelSchermOpen(false)}
+      />
+
+      {/* De twee sheets staan buiten DoelScherm en niet erin. Een BottomSheet binnen een
+          full-screen Modal komt op Android achter die modal terecht, en dan tik je op een veld dat
+          je niet ziet. Daarom opent het scherm ze via een callback en rendert dit scherm ze. */}
+      <DoelSheet
+        zichtbaar={doelSheetOpen}
+        doel={doel}
+        onOpslaan={zetDoel}
+        onSluiten={() => setDoelSheetOpen(false)}
+      />
+
+      <InlegSheet
+        zichtbaar={inlegOpen}
+        huidig={inleg}
+        onOpslaan={zetInleg}
+        onSluiten={() => setInlegOpen(false)}
       />
     </SafeAreaView>
   );

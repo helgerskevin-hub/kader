@@ -14,35 +14,65 @@ Kevins kernvisie: **één dashboard over al je platformen, met een doel en een a
 stuurt, en posities die Kader zelf bewaakt.** Je geeft alleen toestemming om te kopen, de rest doet de app.
 
 Dat is te groot voor één sprint, dus het is opgeknipt in vijf fasen. Elke fase is op zichzelf bruikbaar.
-Fase 1 is waar we nu aan werken.
+Fase 1 is af sinds 0.1.19, fase 2 is waar we nu aan werken.
 
-### Fase 1: portfolio-dashboard (nu mee bezig)
+### Fase 1: portfolio-dashboard ✅ af in 0.1.19
 Van "lijst met trades" naar "overzicht van je geld". Alles op basis van data die we al binnenhalen.
+Wat het geworden is staat in [CHANGELOG.md](CHANGELOG.md) onder 0.1.19 en 0.1.20.
 
-- [ ] Dashboard bovenaan Portfolio met: beschikbaar geld, totale portfoliowaarde, waarde open posities,
-      aantal open posities, en een ingang naar je historie
-- [ ] Beschikbaar geld uit eToro halen (`haalVrijSaldo()` bestaat al, wordt nu alleen in de kooporder
-      gebruikt) en meenemen in de totale waarde
-- [ ] Cirkeldiagram van de verdeling: per positie het percentage en het bedrag
-- [ ] "Mijn trades" heet vanaf nu Portfolio, "Open traders" heet Open posities
+- [x] Dashboard bovenaan Portfolio met beschikbaar geld, totale portfoliowaarde, waarde open posities,
+      aantal open posities en een ingang naar je historie (`components/PortfolioStatusKaart.tsx`)
+- [x] Beschikbaar geld uit eToro, inclusief het bedrag dat vastzit in wachtende orders
+      (`bepaalSaldoStand()` in `engine/etoro.ts`)
+- [x] Cirkeldiagram van de verdeling, per positie het percentage en het bedrag
+      (`components/VerdelingKaart.tsx`, rekenwerk in `engine/verdeling.ts`)
+- [x] "Mijn trades" heet Portfolio, "Open traders" heet Open posities
 
-### Fase 2: doelstelling en projectie
+### Fase 2: doelstelling en projectie ✅ gebouwd, nog niet uitgebracht
 Een doel invullen en zien hoe je ervoor staat. Nog steeds alleen crypto, nog geen nieuwe databron nodig.
+Ontwerp in [docs/design-doelstelling-en-projectie.md](docs/design-doelstelling-en-projectie.md),
+rekenwerk in `engine/doelstelling.ts` (met eigen zelftest), UI in `components/DoelSheet.tsx`,
+`DoelScherm.tsx`, `InlegSheet.tsx` en `ProjectieGrafiek.tsx`.
 
-- [ ] Doelverdeling instellen: welk percentage wil je waar in hebben (bijv. 60% BTC, 20% ETH, 20% alt)
-- [ ] Afwijking tonen: waar zit je te zwaar of te licht ten opzichte van je doel
-- [ ] Bijstortplan: vul in wat je maandelijks inlegt, Kader rekent uit waar dat geld heen moet om
-      richting je doel te bewegen. **Nooit "advies" noemen**, het is een rekensom op basis van jouw doel
-- [ ] Projectie: verwachte waarde over X jaar op basis van inleg per maand plus een zelf ingevuld
-      verwacht rendement. Toon expliciet dat dit een rekensom is en geen voorspelling
+Nog te doen voordat dit uitgebracht wordt:
+
+- [ ] Kevin en Thom kiezen over de drempels: nu telt een categorie als op doel binnen 1 procentpunt
+      (`OP_DOEL_MARGE`) en krijgt een afwijking het oranje let-op-gewicht boven 5 procentpunt
+      (`AFWIJKING_FLINK`). Dat zijn keuzes en geen normen, net als `CONCENTRATIE_DREMPEL` in
+      `verdeling.ts`
+- [ ] Bij 0 posities zonder ingesteld doel is er nu geen ingang om een eerste doel te maken, want de
+      verdelingskaart verschijnt pas met een eerste positie. Bewust zo gelaten. Blijkt dat te
+      knellen, dan hoort er een ingang bij Instellingen
+
+- [x] Doelverdeling instellen, via `components/DoelSheet.tsx`. Je vult in wat je bewust wil sturen,
+      de rest valt onder Overig, dus het telt per constructie op tot 100
+- [x] Afwijking tonen: Nu/Doel-schakelaar op de verdelingskaart, per categorie een staafje met een
+      streep op je doel en een pil OP DOEL / TE ZWAAR / TE LICHT met het verschil in procentpunten
+- [x] Bijstortplan in `components/DoelScherm.tsx`, gerekend in `engine/doelstelling.ts`: eerst
+      tekorten dichten, dan de rest naar doelverhouding. Het woord advies komt er niet in voor
+- [x] Projectie met een zelf ingevuld rendement over 1 tot 20 jaar, met een tweede lijn voor de
+      inleg zonder rendement. Beide lijnen gestippeld, want er is niets aan gemeten
 
 ### Fase 3: aandelen en index-fondsen erbij
 Hier komt de eerste echte uitbreiding: een tweede activaklasse en dus een tweede databron.
 
-- [ ] **Eerst uitzoeken: welke gratis databron voor aandelen en ETF's?** Binance en CoinGecko doen geen
-      aandelen. Kandidaten om te vergelijken op dekking, limieten en betrouwbaarheid: Stooq (gratis, geen
-      key), Financial Modeling Prep (gratis tier), Alpha Vantage (25 calls/dag, waarschijnlijk te krap).
-      Zonder een bron die de S&P500-ETF's dekt heeft de rest van deze fase geen zin
+- [x] **Uitgezocht: welke gratis databron voor aandelen en ETF's?** Antwoord: het chart-endpoint van
+      Yahoo Finance, `https://query1.finance.yahoo.com/v8/finance/chart/{SYMBOOL}?range=2y&interval=1d`.
+      Live getest in september 2026: AAPL, VOO, IVV, SPY, MSFT, VUSA.AS (Amsterdam) en VUAA.L (Londen)
+      geven allemaal HTTP 200 met echte OHLCV plus een timestamp-reeks, precies wat `indicators.ts` nodig
+      heeft. `interval=1wk` geeft weekcandles, wat fase 3 sowieso wil. Geen API-sleutel, dus niets dat uit
+      de APK te lezen valt, hetzelfde principe als Binance en CoinGecko nu. `query2.finance.yahoo.com` is
+      dezelfde dienst op een tweede host en dus de retry. Bij een fout is `chart.result` null en staat de
+      reden in `chart.error.description`, bruikbaar voor een nette Nederlandse melding.
+      Kanttekening om te onthouden: dit endpoint is niet officieel gedocumenteerd en kan zonder
+      aankondiging veranderen. Yahoo bedoelt het voor persoonlijk, niet-commercieel gebruik, wat Kader is.
+      Let op de beursafkorting per instrument: VUSA noteert op Amsterdam (`.AS`), VUAA alleen op Londen
+      (`.L`), `VUAA.AS` bestaat niet. Blind `.AS` plakken gaat dus mis
+  - [ ] Afgevallen, met reden, zodat niemand ze opnieuw onderzoekt: **Stooq** zit inmiddels achter een
+        JavaScript-bot-check en geeft aan een mobiele client HTML terug in plaats van CSV. **Alpha
+        Vantage** (25/dag), **EODHD** (20/dag), **Tiingo** en **FMP** (250/dag) en **Twelve Data**
+        (800/dag) eisen allemaal een sleutel, en een sleutel in een client-app is door de gebruiker uit te
+        lezen. Voorlopig dus alleen Yahoo, en pas een sleutelbron erbij als Yahoo in de praktijk hapert
 - [ ] Universum uitbreiden: meer crypto's, plus aandelen en index-fondsen (in elk geval de Vanguard
       S&P500-ETF's die via DeGiro te kopen zijn)
 - [ ] Tweede signaalprofiel voor de lange termijn: aandelen zijn kopen-en-vasthouden, niet swing-traden.
@@ -63,9 +93,11 @@ Hier komt de eerste echte uitbreiding: een tweede activaklasse en dus een tweede
 ### Fase 4b: kiezen op welk platform je handelt
 Volgt uit fase 3 en 4: zodra er meer dan één platform is, moet je kunnen kiezen waar een order heen gaat.
 
-- [ ] **Platform-indicatie op de tradekaart.** Rechtsboven op elke kaart staan de logo's van de platforms
-      waarop die coin verhandelbaar is, meerdere naast elkaar. De eerste stap hiervan is gebouwd
-      (alleen eToro); zodra er een tweede platform bij komt moet de rij meegroeien
+- [x] **Platform-indicatie op de tradekaart.** Rechtsboven op elke kaart staan de logo's van de platforms
+      waarop die coin verhandelbaar is, meerdere naast elkaar. Gebouwd in `components/PlatformChip.tsx` en
+      `PlatformSheet.tsx`, met het register in `engine/platforms.ts`. De rij groeit vanzelf mee: een nieuw
+      platform is een regel in `PLATFORMS` plus een regel in `handelbaarOp()`. Vandaag levert die functie
+      alleen eToro op, dus er staat nu altijd hoogstens één merkje
 - [ ] **Platformkeuze bij het kopen.** Een dropdown waarin je kiest via welk platform je de order plaatst,
       met het platform waar je het meeste vrije saldo hebt als voorstel. Nu gaat elke order blind naar
       eToro. Randvoorwaarden: per platform een eigen minimumbedrag, een eigen vrij saldo en eigen
@@ -83,8 +115,15 @@ Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft t
       verhogen breekt die regel. Voorstel om over te beslissen: stop verhogen mag automatisch (kan alleen
       je verlies verkleinen), doel verzetten en verkopen blijft een melding met een knop
 - [ ] Stop automatisch meetrekken als de trade in de winst loopt. **Verlagen mag nooit**, ook niet als de
-      analyse dat zou suggereren. De trailing-berekening zit al in `stopAfstandStructuur()`, en
-      `useStopLossLimiet.ts` moet toetsen of eToro het niveau accepteert voordat het verstuurd wordt
+      analyse dat zou suggereren. De rekenkant is al af: `voorstelTrailingStop()` in `state/afbouw.ts` is
+      richting-bewust en geeft null terug als het voorstel geen winst vastzet of aan de verkeerde kant
+      zou liggen. De uitvoerkant is er ook al: `wijzigNiveaus()` in `engine/etoro.ts`, met
+      `useStopLossLimiet.ts` ervoor om te toetsen of eToro het niveau accepteert. Wat ontbreekt is
+      uitsluitend de schakel tussen die twee zonder handmatige tik, en dat is precies wat het besluit
+      hierboven blokkeert.
+      Correctie op een eerdere aanname in deze lijst: `stopAfstandStructuur()` in `engine/analyzer.ts` is
+      NIET de trailing-berekening. Dat is de initiële stopafstand voor de marktscan, en die kijkt niet
+      naar een open positie
 - [ ] Doel meebewegen: blijft het momentum sterk, dan het doel verhogen op basis van de verse analyse
 - [ ] Verkoopsignaal als de analyse zegt dat het op is, ook als het doel nog niet geraakt is
 - [ ] Deze bewaking moet in de achtergrondtaak passen. Android's ondergrens is 15 minuten en het systeem
@@ -94,11 +133,14 @@ Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft t
 
 ## 🔨 Nu mee bezig
 
-- [ ] Portfolio-dashboard (fase 1 hierboven)
-- [ ] Skeleton-laadanimaties op alle schermen die data ophalen
-- [ ] Bevestigingspopup na een order: bij verkoop met resultaat, percentage en bedrag erbij
-- [ ] Pop-ups en meldingen in de Kader-huisstijl trekken
-- [ ] Adviesrand op de kaarten herontwerpen
+Fase 2 is gebouwd en op de emulator nagekeken, licht en donker. Wat er nog open staat zijn twee
+keuzes voor Kevin en Thom, die staan bij de fase zelf hierboven. Daarna is fase 3 aan de beurt: de
+databron daarvoor is uitgezocht en vastgelegd.
+
+De lijst die hier eerder stond is helemaal afgewerkt in 0.1.19 tot en met 0.1.21 en staat in de changelog:
+het portfolio-dashboard, skeletons op elk scherm dat data ophaalt, de orderbevestiging met resultaat
+in procenten en in geld, de Kader-dialogen in plaats van de systeemvensters, en de herontworpen
+kaartindicatie (de gekleurde streep is weg, het niveau zit nu in de kaart zelf).
 
 ---
 
@@ -113,8 +155,10 @@ Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft t
       hoort is afgeleid uit de eligibility-respons, niet gemeten. Draaien met
       `ETORO_DEMO_API_KEY=... ETORO_DEMO_USER_KEY=... npx tsx scripts/etoro-demo-order.ts --order` vanuit
       `app/` (die vlag plaatst een echte order op het demo-account)
-- [ ] Trailing stop: het voorgestelde niveau is nu alleen tekst. Zodra er een knop komt die de stop bij
-      eToro zet, moet die eerst langs `useStopLossLimiet.ts`
+- [ ] Trailing stop: het voorgestelde niveau uit `voorstelTrailingStop()` staat nu alleen als tekst in
+      `components/AfbouwRegel.tsx`. Er is wel al een handmatige weg om een niveau echt te zetten, de
+      NiveausSheet, maar die moet je zelf openen en invullen. Een knop "neem dit voorstel over" die het
+      niveau meteen invult ontbreekt, en die moet net als de sheet langs `useStopLossLimiet.ts`
 
 ### Waar we vanaf blijven
 - Geen drempelverlaging om het scherm te vullen. Een leeg marktscherm met uitleg is beter dan een
