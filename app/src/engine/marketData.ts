@@ -1,4 +1,6 @@
 import { Candle } from './types';
+import { effect } from './instrumenten';
+import { haalYahooCandles, haalYahooPrijs } from './yahoo';
 
 const BINANCE_BASES = [
   'https://api.binance.com',
@@ -91,7 +93,27 @@ export async function haalCoingeckoOhlc(symbool: string, days = 30): Promise<Can
   }));
 }
 
+// De ene ingang naar koersdata, voor elk soort instrument. De keuze van de bron zit hier en niet bij
+// de aanroeper: analyzer.ts en opportunities.ts hoeven niet te weten dat een aandeel ergens anders
+// vandaan komt, ze vragen gewoon candles bij een symbool.
+//
+// Let op de valuta. Een reeks van Yahoo staat in de valuta van de beurs, dus VUSA op Amsterdam komt
+// in euro's binnen terwijl de rest van de app in dollars rekent. Die reeks wordt hier bewust NIET
+// omgerekend. Alle indicatoren zijn schaalonafhankelijk (RSI, EMA en MACD kijken naar verhoudingen,
+// en ATR bepaalt de stop binnen diezelfde reeks, dus de risk/reward verandert er niet van), en
+// omrekenen zou betekenen dat twee jaar aan candles met de wisselkoers van vandaag verbouwd wordt.
+// Dat is een verzonnen geschiedenis. De omrekening hoort thuis waar het om geld gaat, bij de
+// portfoliowaardering, niet hier.
 export async function haalData(symbool: string): Promise<{ candles: Candle[]; bron: string } | null> {
+  const effectInfo = effect(symbool);
+  if (effectInfo?.yahoo) {
+    const { candles } = await haalYahooCandles(effectInfo.yahoo);
+    if (candles.length > EMA_LANG) return { candles, bron: 'Yahoo Finance' };
+    // Geen terugval op Binance of CoinGecko: die kennen dit fonds niet, en een leeg antwoord is
+    // hier eerlijker dan een tweede poging die per definitie niets oplevert.
+    return null;
+  }
+
   const binance = await haalBinanceKlines(symbool);
   if (binance && binance.length > EMA_LANG) return { candles: binance, bron: 'Binance' };
   const cg = await haalCoingeckoOhlc(symbool);
@@ -114,6 +136,12 @@ export async function haalCoingeckoMarkten(perPage = 250): Promise<Record<string
 export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function haalLaatstePrijs(symbool: string): Promise<number | null> {
+  const effectInfo = effect(symbool);
+  if (effectInfo?.yahoo) {
+    const uitkomst = await haalYahooPrijs(effectInfo);
+    return uitkomst?.prijs ?? null;
+  }
+
   const pair = pairVoor(symbool);
   for (const base of BINANCE_BASES) {
     const data = await httpGet<{ price: string }>(`${base}/api/v3/ticker/price`, { symbol: pair });
