@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Onuitgebracht
+## 0.1.21
 
 - In het rondje rechtsboven op een kaart staat nu het echte logo van eToro in plaats van een letter E. Dat mocht eerder niet: hun logo zat niet in de app en een nagetekende versie is erger dan een eigen vorm. We hebben nu toestemming om het te gebruiken, dus het onbewerkte bestand zit er nu in. Een platform waar we geen logo van hebben of mogen gebruiken houdt gewoon zijn letter in een vaste kleur
 - De regel onderaan het marktscherm noemde alleen Binance en CoinGecko als bron, terwijl de angst-en-hebzuchtmeter op datzelfde scherm van Alternative.me komt. Alle drie de bronnen staan er nu

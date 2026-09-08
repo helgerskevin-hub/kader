@@ -11,11 +11,9 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
-  // Nog niet uitgebracht. Bij het bouwen van een release wordt dit blok het nieuwe versienummer
-  // met de datum van die dag, hier en in CHANGELOG.md tegelijk.
   {
-    versie: 'Onuitgebracht',
-    datum: '',
+    versie: '0.1.21',
+    datum: '2026-09-08',
     punten: [
       'In het rondje rechtsboven op een kaart staat nu het echte logo van eToro in plaats van een letter E. Dat mocht eerder niet: hun logo zat niet in de app en een nagetekende versie is erger dan een eigen vorm. We hebben nu toestemming om het te gebruiken, dus het onbewerkte bestand zit er nu in. Een platform waar we geen logo van hebben of mogen gebruiken houdt gewoon zijn letter in een vaste kleur',
       'De regel onderaan het marktscherm noemde alleen Binance en CoinGecko als bron, terwijl de angst-en-hebzuchtmeter op datzelfde scherm van Alternative.me komt. Alle drie de bronnen staan er nu',
