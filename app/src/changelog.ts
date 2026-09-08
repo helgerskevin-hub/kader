@@ -12,6 +12,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.1.21',
+    datum: '2026-09-08',
+    punten: [
+      'In het rondje rechtsboven op een kaart staat nu het echte logo van eToro in plaats van een letter E. Dat mocht eerder niet: hun logo zat niet in de app en een nagetekende versie is erger dan een eigen vorm. We hebben nu toestemming om het te gebruiken, dus het onbewerkte bestand zit er nu in. Een platform waar we geen logo van hebben of mogen gebruiken houdt gewoon zijn letter in een vaste kleur',
+      'De regel onderaan het marktscherm noemde alleen Binance en CoinGecko als bron, terwijl de angst-en-hebzuchtmeter op datzelfde scherm van Alternative.me komt. Alle drie de bronnen staan er nu',
+      'Wilde je een coin kopen die Kader nog niet eerder had opgezocht, dan stond er meteen in het rood dat Kader die coin niet aan een eToro-instrument kon koppelen. Dat was niet waar: hij was nog aan het zoeken. Voor BTC merkte je het niet, want die staat na een keer kopen in het geheugen. Nu staat er "Kader zoekt PEPE op bij eToro..." zolang dat loopt, en pas als het echt niets oplevert komt de rode melding, met wat het dan kan zijn. Daarnaast is het zoeken zelf minder streng geworden op één punt: voerde eToro hetzelfde symbool twee keer op, bijvoorbeeld een oude regel die niet meer verhandeld wordt naast de levende, dan gaf Kader het op terwijl er maar één echte kandidaat was. Die dubbele regels vallen nu eerst af. Blijven er daarna twee bruikbare over, dan blijft kopen geblokkeerd: een verkeerd instrument opent een positie in een andere coin',
+      'In het gat van de ring op het verdelingsscherm stond niets. Daar staat nu je ongerealiseerde resultaat over alles wat in die ring zit: het percentage over je inleg, met het bedrag eronder. Het rekent over precies dezelfde posities als de ring zelf, dus over open posities waarvan Kader het aantal munten en de live koers kent',
+      'Het balkje op de portfoliokaart dat laat zien hoe je geld verdeeld is over posities en cash was helemaal leeg. Er waren twee dingen mis. De twee stukken kregen hun breedte uit een verhouding tussen de bedragen zelf, en daar kwam op Android geen breedte uit: er bleef alleen de lege baan over, ongeacht wat er in je portfolio stond. En het cash-stuk had exact dezelfde kleur als die baan, dus zelfs met breedte was het onzichtbaar geweest. De breedte wordt nu als percentage uitgerekend en beide stukken hebben een eigen kleur, met het bolletje in de legenda erbij',
+    ],
+  },
+  {
     versie: '0.1.20',
     datum: '2026-09-07',
     punten: [

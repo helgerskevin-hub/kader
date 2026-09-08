@@ -387,10 +387,10 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
               met schrijfrecht, geen merkje, en ook geen koopknop.
             </Text>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
-              Het is met opzet een letter in een rondje en niet het logo van de provider zelf. Zulke
-              logo's zijn niet van Kader, ze zitten niet in de app, en een zelfgetekende benadering van
-              andermans merk is erger dan een eigen vorm. Elke provider krijgt een vaste letter en een
-              vaste kleur, dus na twee keer kijken herken je hem net zo goed.
+              In het rondje staat het echte logo van de provider, als Kader dat mag gebruiken. Van eToro
+              mag dat. Kan het niet, dan komt er een vaste letter in een vaste kleur in plaats van een
+              nagetekende versie: een scheve kopie van andermans merk is erger dan een eigen vorm, en
+              na twee keer kijken herken je zo'n letter net zo goed.
             </Text>
             <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
               Nu is eToro de enige provider waarmee Kader kan handelen. Komen er meer bij, dan komen de

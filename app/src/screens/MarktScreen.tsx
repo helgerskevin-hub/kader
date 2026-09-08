@@ -365,8 +365,11 @@ function IdleView({ onStart }: { onStart: () => void }) {
       >
         <Text style={[Type.body, styles.ctaTekst]}>Start analyse</Text>
       </Pressable>
+      {/* Alle drie de bronnen die dit scherm gebruikt: de candles komen van Binance met CoinGecko
+          als terugval, en de angst-en-hebzuchtmeter onder de analyse van Alternative.me. Die derde
+          stond hier niet, terwijl hij wel op dit scherm staat. */}
       <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base }]}>
-        Data via Binance & CoinGecko · geen financieel advies
+        Data via Binance, CoinGecko en Alternative.me · geen financieel advies
       </Text>
     </View>
   );

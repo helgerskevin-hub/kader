@@ -16,7 +16,9 @@ export type PlatformId = 'etoro' | 'etoro-demo' | 'handmatig';
 export interface PlatformInfo {
   id: PlatformId;
   naam: string;
-  // Eén hoofdletter in de chip. Geen nagemaakt merklogo: die zijn niet van ons.
+  // Eén hoofdletter voor in de chip. Alleen zichtbaar als er geen echt logo van dit platform in de
+  // app zit; welke dat zijn staat in LOGOS in PlatformChip.tsx, want een PNG hoort niet in dit
+  // bestand. Nooit een nagetekend merk: alleen het echte bestand of een letter.
   monogram: string;
   // Index in colors.verdeling, of -1 voor het neutrale grijs.
   //

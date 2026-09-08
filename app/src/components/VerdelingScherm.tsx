@@ -6,8 +6,14 @@
 // twee schermen die je vanaf Portfolio opent er hetzelfde uitzien.
 //
 // De ring hierboven komt uit berekenVerdeling, dezelfde functie als de kaart die je aantikte. Dat
-// is met opzet: het bedrag boven aan dit scherm moet exact het bedrag in het gat van die ring zijn,
-// anders gelooft niemand meer een van beide. verdeling.ts bewaakt dat met een self-check.
+// is met opzet: het bedrag boven aan dit scherm moet exact het bedrag zijn dat de kaart in het gat
+// van haar ring zet, anders gelooft niemand meer een van beide. verdeling.ts bewaakt dat met een
+// self-check.
+//
+// In het gat van DEZE ring staat daarom iets anders: het ongerealiseerde resultaat over je inleg.
+// Twee keer hetzelfde bedrag op één scherm zetten (boven de ring en er nog eens in) voegt niets toe,
+// en dit is het cijfer dat er nog niet stond. Het rekent over exact dezelfde posities als de ring:
+// beide tellen alleen open posities met een aantal munten en een live koers.
 import React, { useMemo } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,13 +23,14 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type } from '../theme/typography';
 import { radii, shadow, spacing } from '../theme/tokens';
-import { fmtBedrag } from '../engine/format';
+import { fmtBedrag, fmtPct, fmtResultaatUsd } from '../engine/format';
 import {
   aandeelTekst, berekenVerdeling, berekenVolledigeVerdeling, duidingen,
   OVERIG_SLEUTEL, Segment, spreekAandeel,
 } from '../engine/verdeling';
 import { noemPlatforms, platformInfo, platformNaam } from '../engine/platforms';
 import { PortfolioTrade } from '../state/portfolioTypes';
+import { berekenPortfolioWaarde } from '../state/statistieken';
 import { useValutaStand } from '../state/useValuta';
 import { PlatformChip, PlatformChips } from './PlatformChip';
 
@@ -68,12 +75,22 @@ export function VerdelingScherm({ zichtbaar, trades, livePrijzen, onSluiten }: P
     () => (zichtbaar ? berekenVolledigeVerdeling(trades, livePrijzen) : null),
     [zichtbaar, trades, livePrijzen],
   );
+  // Voor het gat in de ring. Zelfde posities als de verdeling zelf, dus het percentage gaat echt
+  // over wat je hier ziet staan en niet over een ander deel van je portfolio.
+  const waarde = useMemo(
+    () => (zichtbaar ? berekenPortfolioWaarde(trades, livePrijzen) : null),
+    [zichtbaar, trades, livePrijzen],
+  );
 
   const kleurVoorIndex = (i: number) =>
     i < EIGEN_KLEUREN && i < colors.verdeling.length ? colors.verdeling[i] : colors.verdelingOverig;
 
   const kleurVoorSegment = (segment: Segment, i: number) =>
     segment.sleutel === OVERIG_SLEUTEL ? colors.verdelingOverig : kleurVoorIndex(i);
+
+  // Groen of rood, dezelfde afspraak als op de portfoliokaart. Precies nul telt als winst: dat is
+  // geen verlies, en een rood nulletje zou dat wel beweren.
+  const resultaatKleur = (waarde?.ongerealiseerdUsd ?? 0) >= 0 ? colors.winst : colors.verlies;
 
   const platformKleur = (kleurIndex: number) =>
     kleurIndex >= 0 && kleurIndex < colors.verdeling.length
@@ -99,7 +116,7 @@ export function VerdelingScherm({ zichtbaar, trades, livePrijzen, onSluiten }: P
           </Pressable>
         </View>
 
-        {vol === null || verdeling === null ? null : vol.coins.length === 0 && vol.nietGewogen.length === 0 ? (
+        {vol === null || verdeling === null || waarde === null ? null : vol.coins.length === 0 && vol.nietGewogen.length === 0 ? (
           <View style={stijlen.leeg}>
             <ChartPie size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
             <Text style={[Type.body, stijlen.leegTekst, { color: colors.tekstGedimd }]}>
@@ -124,10 +141,13 @@ export function VerdelingScherm({ zichtbaar, trades, livePrijzen, onSluiten }: P
                 accessibilityLabel={
                   vol.gewaardeerd === 0
                     ? 'Nog geen live koersen om je posities te wegen.'
-                    : 'Verdeling: ' + vol.coins
-                      .slice(0, EIGEN_KLEUREN)
-                      .map(c => `${c.symbool} ${spreekAandeel(c.aandeel)}`)
-                      .join(', ') + '.'
+                    : (waarde.ongerealiseerdPct === null
+                      ? ''
+                      : `Resultaat ${fmtPct(waarde.ongerealiseerdPct)}, ${fmtResultaatUsd(waarde.ongerealiseerdUsd)}, over een inleg van ${fmtBedrag(waarde.ingelegdUsd)}. `)
+                      + 'Verdeling: ' + vol.coins
+                        .slice(0, EIGEN_KLEUREN)
+                        .map(c => `${c.symbool} ${spreekAandeel(c.aandeel)}`)
+                        .join(', ') + '.'
                 }
               >
                 <Svg
@@ -177,6 +197,26 @@ export function VerdelingScherm({ zichtbaar, trades, livePrijzen, onSluiten }: P
                     </G>
                   )}
                 </Svg>
+
+                {/* Het gat in de ring. Alleen als er ook echt iets te melden valt: zonder inleg is
+                    er geen percentage, en een streepje in het midden van een gevulde ring leest als
+                    een fout in plaats van als "onbekend". */}
+                {vol.gewaardeerd > 0 && waarde.ongerealiseerdPct !== null && (
+                  <View style={stijlen.ringMidden} pointerEvents="none">
+                    <Text style={[Type.overline, stijlen.ringLabel, { color: colors.tekstGedimd }]} numberOfLines={1}>
+                      RESULTAAT
+                    </Text>
+                    <Text
+                      style={[Type.prijs, stijlen.ringPct, { color: resultaatKleur }]}
+                      numberOfLines={1}
+                    >
+                      {fmtPct(waarde.ongerealiseerdPct)}
+                    </Text>
+                    <Text style={[Type.prijs, stijlen.ringBedrag, { color: colors.tekstGedimd }]} numberOfLines={1}>
+                      {fmtResultaatUsd(waarde.ongerealiseerdUsd)}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <Text style={[Type.caption, stijlen.onderregel, { color: colors.tekstGedimd }]}>
@@ -447,7 +487,26 @@ const stijlen = StyleSheet.create({
   },
   blokUitleg: { marginTop: spacing.sm },
 
-  ringHouder: { alignSelf: 'center', marginTop: spacing.base },
+  ringHouder: {
+    alignSelf: 'center',
+    marginTop: spacing.base,
+    width: RING_MAAT,
+    height: RING_MAAT,
+  },
+  // Het gat is 2 * (STRAAL - DIKTE / 2) = 83 punten breed. Alles hierbinnen moet daarin passen,
+  // vandaar de kleinere maten en numberOfLines op elke regel.
+  ringMidden: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringLabel: { fontSize: 9, letterSpacing: 0.6 },
+  ringPct: { fontSize: 17, marginTop: 1 },
+  ringBedrag: { fontSize: 11 },
   onderregel: { marginTop: spacing.base, textAlign: 'center' },
 
   rijen: { rowGap: spacing.md },
