@@ -8,11 +8,10 @@
 //
 // Wat je erover moet weten voordat je erop bouwt: dit endpoint is niet gedocumenteerd. Yahoo sloot
 // zijn officiële API in 2017 en dit is wat de website zelf gebruikt. Het kan zonder aankondiging
-// veranderen, en het knijpt af. Gemeten op 8 september 2026: na een reeks snelle verzoeken gaf
-// zowel query1 als query2 hard HTTP 429, met en zonder browser-User-Agent. Vandaar de afkoelperiode
-// hieronder: één 429 legt alle verzoeken even stil in plaats van dat vijftig kaarten tegelijk tegen
-// een dichte deur blijven duwen. Dat is geen nette-code-keuze maar de enige manier waarop deze bron
-// bruikbaar blijft.
+// veranderen, en het is kieskeurig over wie het te woord staat. Gemeten op 8 september 2026: met de
+// verkeerde User-Agent geeft het hard HTTP 429 vanaf het eerste verzoek, met de goede geen enkele
+// keer, ook niet bij honderd verzoeken achter elkaar. Zie de header hieronder, dat is de
+// belangrijkste regel in dit bestand.
 
 import { Candle } from './types';
 import { Instrument } from './instrumenten';
@@ -22,18 +21,35 @@ const YAHOO_HOSTS = [
   'https://query2.finance.yahoo.com',
 ];
 
-// Yahoo weigert of knijpt af op een kale client. Een gewone browser-User-Agent voorkomt dat.
+// De User-Agent is hier geen beleefdheid maar de hele sleutel tot de bron.
+//
+// Gemeten op 8 september 2026, zelfde machine, zelfde IP, binnen dezelfde minuut, alleen deze
+// header verschillend:
+//
+//   geen header                            -> 429
+//   'Mozilla/5.0 (Macintosh ... Chrome)'   -> 429
+//   'Mozilla/5.0 (Windows NT 10.0 ...)'    -> 200
+//   'Mozilla/5.0'                          -> 200
+//
+// De 429 die dit endpoint teruggeeft leest dus als "te veel verzoeken" terwijl het in werkelijkheid
+// "deze client niet" betekent. Dat is een dure verwarring: hij lokt uit dat je gaat wachten en
+// afknijpen terwijl er niets af te knijpen valt. React Native's fetch stuurt vanzelf een okhttp-UA
+// mee, en die valt in de eerste categorie, dus zonder deze regel werkt de hele bron niet.
 const YAHOO_HEADERS = {
   'Accept': 'application/json',
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
 };
 
 const HTTP_TIMEOUT = 15_000;
 
-// Hoe lang alle Yahoo-verzoeken stilliggen na een 429. Ruim genomen: een tweede golf verzoeken
-// tijdens een lopende blokkade verlengt hem eerder dan dat hij hem opheft, en een scherm zonder
-// koersen met een nette melding is beter dan een scherm dat de bron kapot blijft bellen.
-const AFKOEL_MS = 10 * 60 * 1000;
+// Hoe lang alle Yahoo-verzoeken stilliggen na een 429.
+//
+// Let op wat dit wel en niet is. Met de juiste User-Agent hierboven trad in de meting geen enkele
+// 429 op, ook niet bij honderd verzoeken achter elkaar zonder pauze. Deze afkoeling is dus geen
+// antwoord op een gemeten limiet maar een vangnet voor het geval Yahoo alsnog dichtgaat, en dan is
+// stoppen het enige zinnige: bij de blokkade die wel gemeten is hielp wachten namelijk niet, want
+// die zat op de client en niet op de klok. Vijf minuten stilte kost hooguit één verversing.
+const AFKOEL_MS = 5 * 60 * 1000;
 
 // Tijdstip tot wanneer er niets verstuurd wordt. Module-niveau en niet per aanroep, want de hele
 // app deelt één quotum bij Yahoo: een afkoeling per component zou niets afkoelen.
@@ -47,7 +63,14 @@ let geblokkeerdTot = 0;
 // uitlokt. In plaats van elke aanroeper te laten onthouden dat effecten anders zijn, knijpt deze
 // module zichzelf af: alles wat hierlangs komt gaat één voor één de deur uit, met een pauze ertussen.
 // De scan mag dus gewoon blijven doen wat hij deed.
-const MIN_TUSSENTIJD_MS = 1500;
+//
+// Het getal is bewust bescheiden en niet ruim. Gemeten is dat er met de juiste User-Agent geen
+// limiet te raken viel: honderd verzoeken zonder enige pauze, plus blokken van zes tegelijk, alles
+// 200. Wat NIET gemeten is, is of er op de lange termijn een dagquotum bestaat. Een halve seconde is
+// de prijs voor die onzekerheid: bij veertien effecten kost dat zeven seconden, en dat is te
+// overzien. Zou hier 1500 staan, dan bepaalde de wachttijd de scan op grond van een limiet waarvan
+// het bestaan niet is aangetoond.
+const MIN_TUSSENTIJD_MS = 500;
 
 // De staart van de wachtrij. Elke aanroep hangt zich achter de vorige, dus er is er nooit meer dan
 // één tegelijk onderweg.
