@@ -115,23 +115,23 @@ balkStuk: { height: 10 }      // was 8
 // Percentage van de balkbreedte. Garandeert dat een klein aandeel (bijvoorbeeld 2% cash) nog een
 // zichtbaar stukje krijgt, ook al zou de werkelijke breedte een paar pixels zijn. Het getal in de
 // legenda blijft altijd het echte percentage; alleen de tekening schuift op.
-const MIN_BALKSTUK_PCT = 4;
+const MIN_BALKSTUK_PCT = 6;
 ```
 
 Vervang de bestaande `belegdPct`-berekening (regel 75) door:
 
 ```ts
-const belegdPctRuw = totaalUsd > 0 ? (belegdUsd / totaalUsd) * 100 : 0;
+const belegdPct = totaalUsd > 0 ? (belegdUsd / totaalUsd) * 100 : 0;
 // De ondergrens geldt alleen als een kant ECHT nul is versus ECHT klein. Nul blijft nul (staat c
 // en e), een klein maar bestaand aandeel krijgt de minimumbreedte (staat b).
-const belegdPctWeergave =
+const belegdPctBalk =
   belegdUsd <= 0 ? 0
   : vrijSaldoUsd !== null && vrijSaldoUsd <= 0 ? 100
-  : Math.min(100 - MIN_BALKSTUK_PCT, Math.max(MIN_BALKSTUK_PCT, belegdPctRuw));
+  : Math.min(100 - MIN_BALKSTUK_PCT, Math.max(MIN_BALKSTUK_PCT, belegdPct));
 ```
 
-De balk gebruikt `belegdPctWeergave` voor de breedtes (regel 174 tot 176 in de huidige code), precies
-zoals nu, alleen met de nieuwe variabele. `belegdPctRuw` is voor de legenda hieronder: die moet altijd
+De balk gebruikt `belegdPctBalk` voor de breedtes (regel 174 tot 176 in de huidige code), precies
+zoals nu, alleen met de nieuwe variabele. `belegdPct` is voor de legenda hieronder: die moet altijd
 het echte getal tonen, nooit het opgerekte.
 
 **Percentage in de legenda.** `IN POSITIES` en `BESCHIKBAAR` tonen vandaag alleen een bedrag. Zet er
@@ -151,11 +151,11 @@ precies dit soort percentage, inclusief de `<0,1%`-regel bij een heel klein aand
 
 ```tsx
 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-  IN POSITIES · {aandeelTekst(belegdPctRuw / 100)}
+  IN POSITIES · {aandeelTekst(belegdPct / 100)}
 </Text>
 ...
 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-  BESCHIKBAAR · {aandeelTekst((100 - belegdPctRuw) / 100)}
+  BESCHIKBAAR · {aandeelTekst((100 - belegdPct) / 100)}
 </Text>
 ```
 
@@ -164,7 +164,7 @@ zie je er "3,2%" naast staan en weet je dat het klein is, niet kapot.
 
 **Contrast van het grijze stuk.** Eerst even scherp waar het contrastprobleem wel en niet zit: de twee
 `balkStuk`-breedtes tellen per constructie altijd op tot exact 100 procent (de tweede is letterlijk
-`100 - belegdPctWeergave`), dus `colors.verhoogd` (`#EEF2F7` licht) op de buitenste `balk`-`View` wordt
+`100 - belegdPctBalk`), dus `colors.verhoogd` (`#EEF2F7` licht) op de buitenste `balk`-`View` wordt
 nooit zichtbaar, die zit altijd volledig onder de twee stukken bedekt. De echte grens die je ziet is
 dus niet "grijs tegen de baan eronder", maar "grijs tegen de witte kaart" op het punt waar de pil-vorm
 afrondt, want het rechterstuk (`verdelingOverig`) ligt tegen die ronding aan. Gemeten:
@@ -196,8 +196,8 @@ bolletjes in de legenda, de marges tussen balk en legenda (`spacing.md`), en all
   `VerdelingKaart.tsx`.
 - Elke kolom krijgt `accessible` met één samengesteld label in plaats van dat de schermlezer overline,
   bedrag en percentage als losse knipsels voorleest:
-  - `In posities: ${fmtBedrag(belegdUsd)}, ${spreekAandeel(belegdPctRuw / 100)} van je vermogen.`
-  - `Beschikbaar: ${fmtBedrag(vrijSaldoUsd)}, ${spreekAandeel((100 - belegdPctRuw) / 100)} van je vermogen.`
+  - `In posities: ${fmtBedrag(belegdUsd)}, ${spreekAandeel(belegdPct / 100)} van je vermogen.`
+  - `Beschikbaar: ${fmtBedrag(vrijSaldoUsd)}, ${spreekAandeel((100 - belegdPct) / 100)} van je vermogen.`
 
   `spreekAandeel` komt uit hetzelfde bestand als `aandeelTekst` en geeft de comma-vorm die een
   schermlezer als "34,3 procent" uitspreekt in plaats van "34,3 punt 3 procent".
@@ -778,7 +778,7 @@ gebruiker bewust invult en die verder niets met "waar kijk ik nu naar" te maken 
 
 | Pad | Wat |
 |-----|-----|
-| `app/src/components/PortfolioStatusKaart.tsx` | `MIN_BALKSTUK_PCT`, `belegdPctWeergave`/`belegdPctRuw`-splitsing, balkhoogte 8 naar 10, percentage in de twee legendakolommen, toegankelijkheidslabels op balk en kolommen (1.3, 1.4); nieuw blok "Resultaat over periode" met periodechips, laad- en faalstaat (2.2 tot en met 2.11); nieuwe prop `trades: PortfolioTrade[]`; roept `useResultaatHistorie()` zelf aan op de unieke symbolen van zijn gewaardeerde open trades |
+| `app/src/components/PortfolioStatusKaart.tsx` | `MIN_BALKSTUK_PCT`, `belegdPctBalk`/`belegdPct`-splitsing, balkhoogte 8 naar 10, percentage in de twee legendakolommen, toegankelijkheidslabels op balk en kolommen (1.3, 1.4); nieuw blok "Resultaat over periode" met periodechips, laad- en faalstaat (2.2 tot en met 2.11); nieuwe prop `trades: PortfolioTrade[]`; roept `useResultaatHistorie()` zelf aan op de unieke symbolen van zijn gewaardeerde open trades |
 | `app/src/state/portfolioTypes.ts` | nieuw veld `openTijd?: number` (2.3) |
 | `app/src/engine/etoro.ts` | `naarPortfolioTrade()` vult `openTijd` vanuit `positie.openDateTime` (2.3) |
 | `app/src/screens/PortfolioScreen.tsx` | trade-aanmaak vult `openTijd` met `Date.now()` (2.3); `trades` doorgeven aan `PortfolioStatusKaart` (naast de bestaande `waarde`-prop, die al uit dezelfde `trades`-array wordt afgeleid) |
@@ -787,7 +787,7 @@ gebruiker bewust invult en die verder niets met "waar kijk ik nu naar" te maken 
 
 ### Waarden om niet te vergeten
 
-- `MIN_BALKSTUK_PCT = 4`.
+- `MIN_BALKSTUK_PCT = 6`.
 - Balkhoogte `10` (was 8).
 - Chip: `minHeight: 44`, actief `colors.cta` met `'white'`-tekst, inactief `colors.verhoogd` met
   `colors.tekstGedimd`.
