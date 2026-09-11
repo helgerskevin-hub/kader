@@ -1020,6 +1020,8 @@ export function PortfolioScreen() {
   const afgeslotenCount = trades.length - openTrades.length;
   const waarde = berekenPortfolioWaarde(trades, livePrijzen);
 
+
+
   const klimaat = marktState.status === 'success' ? marktState.klimaat : null;
   // `alle` en niet `trades`: een positie kan best buiten de top-20 van het marktscherm vallen, en
   // juist over die posities zou de app dan zwijgen.
@@ -1138,6 +1140,8 @@ export function PortfolioScreen() {
           <>
             <PortfolioStatusKaart
               waarde={waarde}
+              trades={trades}
+              livePrijzen={livePrijzen}
               vrijSaldoUsd={vrijSaldoUsd}
               gereserveerdUsd={gereserveerdUsd}
               wachtendeOrders={wachtendeOrders}
