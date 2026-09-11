@@ -25,17 +25,6 @@ const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
 // De ondergrens verandert alleen de tekening; het getal in de legenda blijft het echte percentage.
 const MIN_BALKSTUK_PCT = 6;
 
-// Waar de gekozen periode over gaat, in gewone taal. Gebruikt in de lege staat en in de
-// schermlezerlabels van de chips, zodat "1M" nergens het enige is dat de gebruiker te zien krijgt.
-const PERIODE_OMSCHRIJVING: Record<PeriodeId, string> = {
-  dag: 'vandaag',
-  '1M': 'in de laatste maand',
-  '3M': 'in de laatste 3 maanden',
-  '6M': 'in de laatste 6 maanden',
-  '1J': 'in het laatste jaar',
-  alles: 'sinds je eerste trade',
-};
-
 const PERIODE_UITLEG: Record<PeriodeId, string> = {
   dag: 'Toon resultaat van vandaag',
   '1M': 'Toon resultaat over de laatste maand',
@@ -358,23 +347,28 @@ export function PortfolioStatusKaart({
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
           {resultaat.status === 'alleen-gerealiseerd' ? 'GEREALISEERD RESULTAAT' : 'RESULTAAT OVER PERIODE'}
         </Text>
+        {/* Kort houden. Deze regel hoeft alleen te zeggen wat er in het getal zit; welke periode
+            dat is staat al op de actieve chip eronder, en dat het iets anders is dan de regel
+            bovenaan blijkt uit de kop. Drie zinnen uitleg boven een cijfer van één regel maakte
+            het blok hoger dan de rest van de kaart. */}
         <Text style={[Type.caption, styles.periodeUitleg, { color: colors.tekstGedimd }]}>
-          Resultaat van gesloten trades in deze periode, plus wat je open posities in diezelfde
-          periode aan koers wonnen of verloren. De regel bovenaan blijft altijd van nu, dit cijfer
-          kijkt terug.
+          Gesloten trades plus koersbeweging van open posities.
         </Text>
 
-        {/* Een gewone rij die mag afbreken, zelfde patroon als pillRij in MarktFilters.tsx.
+        {/* Vijf even grote rondjes plus een breder, rechthoekiger blokje voor Alles.
 
-            Hier stond eerst een horizontale ScrollView, met de gedachte dat zes labels op een smal
-            toestel misschien niet naast elkaar passen. Dat kostte meer dan het opleverde: een
-            horizontale ScrollView in deze kolom trok de breedte van de kaart scheef, waardoor de
-            kolom BESCHIKBAAR ernaast samenkneep tot één letter per regel. Gemeten passen alle zes
-            de chips ruim op 360dp, en wordt het ooit krapper, dan valt er netjes een chip naar de
-            volgende regel in plaats van buiten beeld te schuiven. */}
+            De vijf tijdvakken zijn onderling inwisselbaar en horen er dus identiek uit te zien; dat
+            ze eerst meegroeiden met hun label (Dag breder dan 1M) maakte van een rij gelijkwaardige
+            keuzes een rommelige reeks. Alles is geen tijdvak maar de uitzondering erop, en krijgt
+            daarom bewust een andere vorm in plaats van een uitgerekt rondje.
+
+            Een gewone rij die mag afbreken, zelfde patroon als pillRij in MarktFilters.tsx. Hier
+            stond eerst een horizontale ScrollView; die trok de breedte van de kaart scheef, waardoor
+            de kolom BESCHIKBAAR ernaast samenkneep tot één letter per regel. */}
         <View style={styles.periodeRij}>
           {PERIODES.map(p => {
             const isActief = p.id === periode;
+            const isAlles = p.id === 'alles';
             return (
               <Pressable
                 key={p.id}
@@ -382,7 +376,15 @@ export function PortfolioStatusKaart({
                 accessibilityRole="button"
                 accessibilityState={{ selected: isActief }}
                 accessibilityLabel={PERIODE_UITLEG[p.id]}
-                style={[styles.periodeChip, { backgroundColor: isActief ? colors.cta : colors.verhoogd }]}
+                // Het rondje is 40 en niet 44, anders past de rij niet op één regel op een scherm
+                // van 360dp. De hitSlop maakt het aanraakvlak alsnog ruim 44 hoog, zodat de kleinere
+                // vorm geen kleiner doel wordt.
+                hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
+                style={[
+                  styles.periodeChip,
+                  isAlles ? styles.periodeChipAlles : styles.periodeChipRond,
+                  { backgroundColor: isActief ? colors.cta : colors.verhoogd },
+                ]}
               >
                 <Text style={[Type.caption, { color: isActief ? 'white' : colors.tekstGedimd, fontWeight: '600' }]}>
                   {p.label}
@@ -396,7 +398,7 @@ export function PortfolioStatusKaart({
           <>
             <Text style={[Type.prijs, styles.periodeGetal, { color: colors.tekstGedimd }]}>Laden...</Text>
             <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-              Historische koersen worden opgehaald.
+              Koersen van toen worden opgehaald.
             </Text>
           </>
         ) : resultaat.totaalUsd === null ? (
@@ -405,9 +407,7 @@ export function PortfolioStatusKaart({
                 gebeurd. Geen AnimatedGetal, er is niets om naartoe te bewegen. */}
             <Text style={[Type.prijs, styles.periodeGetal, { color: colors.tekstGedimd }]}>—</Text>
             <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-              {periode === 'alles'
-                ? 'Nog geen gesloten trades of open posities.'
-                : `Niets gesloten of open ${PERIODE_OMSCHRIJVING[periode]}.`}
+              {periode === 'alles' ? 'Nog geen trades.' : 'Niets gesloten of open in deze periode.'}
             </Text>
           </>
         ) : (
@@ -431,22 +431,21 @@ export function PortfolioStatusKaart({
             </View>
             <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
               {resultaat.gesloten === 0
-                ? `Geen gesloten trades ${PERIODE_OMSCHRIJVING[periode]}, dit is de koersverandering van je open posities.`
-                : `${resultaat.gesloten} gesloten ${resultaat.gesloten === 1 ? 'trade' : 'trades'} ${PERIODE_OMSCHRIJVING[periode]}.`}
+                ? 'Alleen koersbeweging, niets gesloten.'
+                : `${resultaat.gesloten} gesloten ${resultaat.gesloten === 1 ? 'trade' : 'trades'}.`}
             </Text>
             {/* Bij een volledige mislukking staat er al een andere kop boven het getal, dus hier
                 alleen nog waarom. Bij een gedeeltelijke mislukking is de kop nog gewoon waar en
                 doet deze regel het hele werk. */}
             {resultaat.status === 'alleen-gerealiseerd' && (
               <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-                Kon de koersverandering van je open posities niet ophalen. Dit is alleen het
-                gerealiseerde deel.
+                Koers van toen niet opgehaald, dus alleen het gerealiseerde deel.
               </Text>
             )}
             {resultaat.status === 'deels' && (
               <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-                {resultaat.zonderReferentie} open {resultaat.zonderReferentie === 1 ? 'positie telt' : 'posities tellen'} niet
-                mee in dit cijfer (geen openingsdatum of geen koers van toen).
+                {resultaat.zonderReferentie} {resultaat.zonderReferentie === 1 ? 'positie telt' : 'posities tellen'} niet
+                mee, geen koers van toen.
               </Text>
             )}
           </>
@@ -564,7 +563,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   periodeBlok: {
-    marginTop: spacing.base,
+    marginTop: spacing.md,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
@@ -575,23 +574,33 @@ const styles = StyleSheet.create({
   periodeRij: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: 6,
     marginTop: spacing.sm,
   },
   periodeChip: {
-    minHeight: 44,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // De vijf tijdvakken: exact even breed als hoog, dus een echt rondje, ongeacht of het label
+  // twee of drie tekens is.
+  periodeChipRond: {
+    width: 40,
+    borderRadius: radii.pill,
+  },
+  // Alles is de uitzondering op de reeks en ziet er ook zo uit: breder, met de knop-radius in
+  // plaats van de pil-radius, zodat het een blokje is en geen uitgerekt rondje.
+  periodeChipAlles: {
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.knop,
   },
   periodeRegel: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   periodeGetal: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   periodeBijschrift: {
     marginTop: 2,

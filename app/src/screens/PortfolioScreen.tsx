@@ -1021,6 +1021,7 @@ export function PortfolioScreen() {
   const waarde = berekenPortfolioWaarde(trades, livePrijzen);
 
 
+
   const klimaat = marktState.status === 'success' ? marktState.klimaat : null;
   // `alle` en niet `trades`: een positie kan best buiten de top-20 van het marktscherm vallen, en
   // juist over die posities zou de app dan zwijgen.
