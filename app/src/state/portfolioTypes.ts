@@ -18,6 +18,12 @@ export interface PortfolioTrade {
   exitPrijs?: number;
   slotDatum?: string;
   slotTijd?: number;            // epoch ms bij sluiten, voor chronologische historie
+  // Epoch ms bij openen. `datum` hierboven is een opgemaakte Nederlandse datumtekst ("11 sep 2026")
+  // en dus niet betrouwbaar terug te rekenen, terwijl het resultaat over een periode moet weten of
+  // een positie er aan het begin van die periode al was. Ontbreekt bij alles wat vóór dit veld is
+  // opgeslagen; eToro-posities vullen het bij de eerstvolgende sync vanzelf, want de import
+  // vervangt een bestaande open positie volledig door de verse eToro-versie.
+  openTijd?: number;
   // Werkelijk gerealiseerd resultaat in dollars, inclusief kosten (eToro's netProfit). Alleen
   // gevuld voor trades die uit eToro komen; bij handmatige trades kennen we de kosten niet en
   // rekent statistieken.ts het bruto koersverschil uit. Zonder dit veld zou het totaalresultaat

@@ -128,6 +128,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
       takeProfit: trade.takeProfit,
       rr,
       datum: new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),
+      openTijd: Date.now(),
       status: 'open',
       bedragUsd: bedrag,
       aantalCoins: aantal,

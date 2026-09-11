@@ -99,6 +99,40 @@ export async function haalData(symbool: string): Promise<{ candles: Candle[]; br
   return null;
 }
 
+// Dagsluitingen over een langer venster dan de analyse nodig heeft. haalData geeft 200 candles,
+// genoeg voor de indicatoren maar te kort om je resultaat over een jaar af te zetten tegen de koers
+// van toen. Eén ophaal per symbool levert alle referentiepunten tegelijk (een dag, een maand, drie,
+// zes en twaalf maanden terug), dus wisselen tussen periodes kost daarna niets meer.
+//
+// Bewust een eigen functie en niet een parameter op haalData: die heeft een contract (meer dan
+// EMA_LANG candles, anders null) dat op de indicatoren is afgestemd. Hier is minder historie geen
+// fout maar gewoon minder ver terug kunnen kijken, en dat mag de aanroeper zelf afhandelen.
+export async function haalDagHistorie(symbool: string, dagen = 400): Promise<Candle[] | null> {
+  const limit = Math.min(1000, Math.max(dagen, 1));
+  const binance = await haalBinanceKlines(symbool, '1d', limit);
+  if (binance && binance.length > 0) return binance;
+  return haalCoingeckoMarktChart(symbool, dagen);
+}
+
+// CoinGecko's /market_chart in plaats van /ohlc: die laatste geeft op een jaar vier-uurs of
+// dagelijkse candles afhankelijk van de range, terwijl hier alleen de slotkoers per dag telt.
+// /market_chart geeft bij days=365 vanzelf dagpunten en is één veld per punt, dus minder om mis te
+// lezen. Alleen de close wordt gevuld; open, high en low zijn hier betekenisloos en krijgen
+// dezelfde waarde in plaats van een verzonnen spreiding.
+async function haalCoingeckoMarktChart(symbool: string, dagen: number): Promise<Candle[] | null> {
+  const cgId = COINGECKO_IDS[symbool];
+  if (!cgId) return null;
+  const data = await httpGet<{ prices?: [number, number][] }>(
+    `${COINGECKO_BASE}/coins/${cgId}/market_chart`,
+    { vs_currency: 'usd', days: String(Math.min(365, Math.max(1, dagen))) },
+  );
+  const punten = data?.prices;
+  if (!Array.isArray(punten) || punten.length === 0) return null;
+  return punten
+    .filter(p => Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number')
+    .map(([tijd, prijs]) => ({ open: prijs, high: prijs, low: prijs, close: prijs, volume: 0, tijd }));
+}
+
 export async function haalCoingeckoMarkten(perPage = 250): Promise<Record<string, unknown>[]> {
   const data = await httpGet<Record<string, unknown>[]>(
     `${COINGECKO_BASE}/coins/markets`,

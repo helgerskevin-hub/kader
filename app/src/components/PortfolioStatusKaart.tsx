@@ -1,19 +1,59 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { RefreshCw, CloudDownload, History, Info } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { fmtBedrag, fmtPct, fmtResultaatUsd, relatieveTijd } from '../engine/format';
+import { aandeelTekst, spreekAandeel } from '../engine/verdeling';
 import { PortfolioWaarde } from '../state/statistieken';
+import { PortfolioTrade } from '../state/portfolioTypes';
+import {
+  PERIODES, PeriodeId, STANDAARD_PERIODE, berekenPeriodeResultaat,
+} from '../state/periodeResultaat';
+import { useResultaatHistorie } from '../state/useResultaatHistorie';
 import { bepaalSyncStand } from '../state/syncStatus';
 import { AnimatedGetal } from './AnimatedGetal';
 import { useValutaStand } from '../state/useValuta';
 
 const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
 
+// Percentage van de balkbreedte dat een bestaand maar klein aandeel minimaal krijgt. Gemeten op de
+// emulator: bij 3 procent cash is het grijze stukje een paar pixels en moet je ernaar zoeken, bij
+// 0,3 procent is de balk een effen blauwe lijn en zie je helemaal geen verdeling meer. Dat is wat
+// "de balk doet het niet" in de praktijk betekent: hij tekent wel, hij is alleen niet af te lezen.
+// De ondergrens verandert alleen de tekening; het getal in de legenda blijft het echte percentage.
+const MIN_BALKSTUK_PCT = 6;
+
+// Waar de gekozen periode over gaat, in gewone taal. Gebruikt in de lege staat en in de
+// schermlezerlabels van de chips, zodat "1M" nergens het enige is dat de gebruiker te zien krijgt.
+const PERIODE_OMSCHRIJVING: Record<PeriodeId, string> = {
+  dag: 'vandaag',
+  '1M': 'in de laatste maand',
+  '3M': 'in de laatste 3 maanden',
+  '6M': 'in de laatste 6 maanden',
+  '1J': 'in het laatste jaar',
+  alles: 'sinds je eerste trade',
+};
+
+const PERIODE_UITLEG: Record<PeriodeId, string> = {
+  dag: 'Toon resultaat van vandaag',
+  '1M': 'Toon resultaat over de laatste maand',
+  '3M': 'Toon resultaat over de laatste 3 maanden',
+  '6M': 'Toon resultaat over de laatste 6 maanden',
+  '1J': 'Toon resultaat over het laatste jaar',
+  alles: 'Toon resultaat sinds je eerste trade',
+};
+
 interface Props {
   waarde: PortfolioWaarde;
+  // De hele lijst, niet alleen de afgeleide waarde: het resultaat over een periode rekent over
+  // gesloten trades (met hun slottijd) en over open posities (met hun openingstijd), en geen van
+  // beide is uit PortfolioWaarde terug te halen.
+  trades: PortfolioTrade[];
+  // Nodig naast `trades` om de open posities tegen de koers van nu af te zetten. Zelfde bron als
+  // waar `waarde` uit gerekend is, dus de twee cijfers op deze kaart lopen niet uiteen.
+  livePrijzen: Record<string, number>;
   // Vrij te besteden saldo bij eToro, of null als Kader het niet weet. Zonder saldo is er geen
   // totaal vermogen, en dan toont deze kaart alleen de waarde van je open posities. Niet optellen
   // met een 0: een verzonnen bedrag is erger dan geen bedrag.
@@ -43,7 +83,7 @@ interface Props {
 }
 
 export function PortfolioStatusKaart({
-  waarde, vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
+  waarde, trades, livePrijzen, vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
   syncing, laatsteSync, syncFout, etoroFout, etoroBezig, afgesloten,
   onVerversen, onImporteren, onOpenHistorie,
 }: Props) {
@@ -51,6 +91,27 @@ export function PortfolioStatusKaart({
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft deze kaart na het omzetten in de oude valuta staan.
   useValutaStand();
+
+  const [periode, setPeriode] = useState<PeriodeId>(STANDAARD_PERIODE);
+
+  // Alleen de symbolen van posities die de kaart ook echt kan waarderen. Voor de rest is een
+  // koersreeks ophalen zinloos: zonder aantal of live koers valt er toch niets mee te rekenen.
+  const symbolen = useMemo(
+    () => [...new Set(
+      trades
+        .filter(t => t.status === 'open' && typeof t.aantalCoins === 'number' && t.aantalCoins > 0)
+        .map(t => t.symbool),
+    )],
+    [trades],
+  );
+  const { punten, status: historieStatus } = useResultaatHistorie(symbolen);
+  const resultaat = useMemo(
+    () => berekenPeriodeResultaat(trades, livePrijzen, punten, periode),
+    [trades, livePrijzen, punten, periode],
+  );
+  // 'alles' rekent altijd vanaf de entryprijs en heeft dus nooit historie nodig. Daar mag het
+  // laadscherm niet overheen komen, ook niet als er voor een andere periode nog gehaald wordt.
+  const laadt = historieStatus === 'laden' && periode !== 'alles';
 
   const heeftWaardering = waarde.gewaardeerd > 0;
   const resultaatKleur = waarde.ongerealiseerdUsd >= 0 ? colors.winst : colors.verlies;
@@ -70,9 +131,17 @@ export function PortfolioStatusKaart({
       : `Er ${wachtendeOrders === 1 ? 'wacht' : 'wachten'} ${wachtendeOrders} ${orderWoord} bij eToro. Kader kan niet lezen hoeveel geld daarvan vaststaat, dus dat zit nog in het beschikbare bedrag.`;
   const belegdUsd = waarde.huidigeWaardeUsd;
   const totaalUsd = heeftSaldo ? belegdUsd + vrijSaldoUsd : belegdUsd;
-  // Het aandeel van de balk dat in posities zit. Geclamped, want een negatief of te groot deel zou
-  // het andere stuk van de balk duwen; de twee stukken tellen altijd op tot precies 100 procent.
+  // Het echte aandeel dat in posities zit. Geclamped, want een negatief of te groot deel zou het
+  // andere stuk van de balk duwen; de twee stukken tellen altijd op tot precies 100 procent. Dit
+  // getal gaat naar de legenda en is altijd de waarheid.
   const belegdPct = totaalUsd > 0 ? Math.min(100, Math.max(0, (belegdUsd / totaalUsd) * 100)) : 0;
+  // En dit is wat de balk tekent. Een kant die echt nul is blijft nul: nul is geen klein aandeel
+  // maar een afwezig aandeel, en daar hoort geen stukje bij. Een kant die bestaat maar klein is,
+  // krijgt de ondergrens, zodat de verdeling afleesbaar blijft.
+  const belegdPctBalk =
+    belegdUsd <= 0 ? 0
+    : heeftSaldo && vrijSaldoUsd <= 0 ? 100
+    : Math.min(100 - MIN_BALKSTUK_PCT, Math.max(MIN_BALKSTUK_PCT, belegdPct));
   // Met een bekend saldo is er ook zonder gewaardeerde posities een bedrag te tonen: je hebt dan
   // gewoon alles in cash staan.
   const toonBedrag = heeftSaldo || heeftWaardering;
@@ -160,7 +229,11 @@ export function PortfolioStatusKaart({
       {heeftSaldo ? (
         <>
           {totaalUsd > 0 && (
-            <View style={[styles.balk, { backgroundColor: colors.verhoogd }]}>
+            <View
+              style={[styles.balk, { backgroundColor: colors.verhoogd }]}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
               {/* Twee stukken met een uitgerekende breedte in procenten, en met opzet geen flex.
 
                   Er stond hier eerder `flex: belegdUsd` naast `flex: vrijSaldoUsd`, met de gedachte
@@ -171,24 +244,40 @@ export function PortfolioStatusKaart({
                   De kleuren waren het tweede probleem: het cash-stuk had colors.verhoogd, exact de
                   kleur van de baan eronder, dus zelfs met breedte was het onzichtbaar geweest. Nu
                   heeft elk stuk een eigen kleur. Grijs en niet groen: cash is geen winst. */}
-              <View style={[styles.balkStuk, { width: `${belegdPct}%`, backgroundColor: colors.primair }]} />
-              <View style={[styles.balkStuk, { width: `${100 - belegdPct}%`, backgroundColor: colors.verdelingOverig }]} />
+              <View style={[styles.balkStuk, { width: `${belegdPctBalk}%`, backgroundColor: colors.primair }]} />
+              <View style={[styles.balkStuk, { width: `${100 - belegdPctBalk}%`, backgroundColor: colors.verdelingOverig }]} />
             </View>
           )}
+          {/* Het percentage staat hier en niet op de balk: een stukje van een paar pixels is geen
+              plek voor een getal, en dit is nu juist de regel waar het kleine aandeel afleesbaar
+              moet blijven. Altijd belegdPct en nooit belegdPctBalk, anders zou de tekst de
+              opgerekte tekening bevestigen in plaats van de waarheid. */}
           <View style={styles.saldoRij}>
-            <View style={styles.saldoKolom}>
+            <View
+              style={styles.saldoKolom}
+              accessible
+              accessibilityLabel={`In posities: ${fmtBedrag(belegdUsd)}, ${spreekAandeel(belegdPct / 100)} van je vermogen.`}
+            >
               <View style={styles.saldoLabelRij}>
                 <View style={[styles.bolletje, { backgroundColor: colors.primair }]} />
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>IN POSITIES</Text>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                  IN POSITIES · {aandeelTekst(belegdPct / 100)}
+                </Text>
               </View>
               <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(belegdUsd)}</Text>
             </View>
-            <View style={styles.saldoKolom}>
+            <View
+              style={styles.saldoKolom}
+              accessible
+              accessibilityLabel={`Beschikbaar: ${fmtBedrag(vrijSaldoUsd)}, ${spreekAandeel((100 - belegdPct) / 100)} van je vermogen.`}
+            >
               <View style={styles.saldoLabelRij}>
                 {/* Vol en in de kleur van de balk: het bolletje is de legenda bij dat stuk, dus een
                     open rondje naast een vol balkstuk zou twee verschillende dingen beweren. */}
                 <View style={[styles.bolletje, { backgroundColor: colors.verdelingOverig }]} />
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BESCHIKBAAR</Text>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                  BESCHIKBAAR · {aandeelTekst((100 - belegdPct) / 100)}
+                </Text>
               </View>
               <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(vrijSaldoUsd)}</Text>
             </View>
@@ -262,6 +351,108 @@ export function PortfolioStatusKaart({
         </Text>
       )}
 
+      {/* Resultaat over een gekozen periode. Bewust onder de meldingen: die gaan over nu en over
+          iets dat misschien actie vraagt, dit is een terugblik. En bewust boven de historie-knop,
+          want het gerealiseerde deel van dit cijfer komt uit precies die historie. */}
+      <View style={[styles.periodeBlok, { borderTopColor: colors.rand }]}>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+          {resultaat.status === 'alleen-gerealiseerd' ? 'GEREALISEERD RESULTAAT' : 'RESULTAAT OVER PERIODE'}
+        </Text>
+        <Text style={[Type.caption, styles.periodeUitleg, { color: colors.tekstGedimd }]}>
+          Resultaat van gesloten trades in deze periode, plus wat je open posities in diezelfde
+          periode aan koers wonnen of verloren. De regel bovenaan blijft altijd van nu, dit cijfer
+          kijkt terug.
+        </Text>
+
+        {/* Een gewone rij die mag afbreken, zelfde patroon als pillRij in MarktFilters.tsx.
+
+            Hier stond eerst een horizontale ScrollView, met de gedachte dat zes labels op een smal
+            toestel misschien niet naast elkaar passen. Dat kostte meer dan het opleverde: een
+            horizontale ScrollView in deze kolom trok de breedte van de kaart scheef, waardoor de
+            kolom BESCHIKBAAR ernaast samenkneep tot één letter per regel. Gemeten passen alle zes
+            de chips ruim op 360dp, en wordt het ooit krapper, dan valt er netjes een chip naar de
+            volgende regel in plaats van buiten beeld te schuiven. */}
+        <View style={styles.periodeRij}>
+          {PERIODES.map(p => {
+            const isActief = p.id === periode;
+            return (
+              <Pressable
+                key={p.id}
+                onPress={() => setPeriode(p.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActief }}
+                accessibilityLabel={PERIODE_UITLEG[p.id]}
+                style={[styles.periodeChip, { backgroundColor: isActief ? colors.cta : colors.verhoogd }]}
+              >
+                <Text style={[Type.caption, { color: isActief ? 'white' : colors.tekstGedimd, fontWeight: '600' }]}>
+                  {p.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {laadt ? (
+          <>
+            <Text style={[Type.prijs, styles.periodeGetal, { color: colors.tekstGedimd }]}>Laden...</Text>
+            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+              Historische koersen worden opgehaald.
+            </Text>
+          </>
+        ) : resultaat.totaalUsd === null ? (
+          <>
+            {/* Geen bedrag van 0: dat leest als quitte gespeeld, en er is hier gewoon niets
+                gebeurd. Geen AnimatedGetal, er is niets om naartoe te bewegen. */}
+            <Text style={[Type.prijs, styles.periodeGetal, { color: colors.tekstGedimd }]}>—</Text>
+            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+              {periode === 'alles'
+                ? 'Nog geen gesloten trades of open posities.'
+                : `Niets gesloten of open ${PERIODE_OMSCHRIJVING[periode]}.`}
+            </Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.periodeRegel}>
+              <AnimatedGetal
+                waarde={resultaat.totaalUsd}
+                format={fmtResultaatUsd}
+                style={[Type.prijs, { color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies }]}
+              />
+              {resultaat.pct !== null && (
+                <AnimatedGetal
+                  waarde={resultaat.pct}
+                  format={fmtResultaatPct}
+                  style={[Type.prijs, {
+                    color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies,
+                    marginLeft: spacing.sm,
+                  }]}
+                />
+              )}
+            </View>
+            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+              {resultaat.gesloten === 0
+                ? `Geen gesloten trades ${PERIODE_OMSCHRIJVING[periode]}, dit is de koersverandering van je open posities.`
+                : `${resultaat.gesloten} gesloten ${resultaat.gesloten === 1 ? 'trade' : 'trades'} ${PERIODE_OMSCHRIJVING[periode]}.`}
+            </Text>
+            {/* Bij een volledige mislukking staat er al een andere kop boven het getal, dus hier
+                alleen nog waarom. Bij een gedeeltelijke mislukking is de kop nog gewoon waar en
+                doet deze regel het hele werk. */}
+            {resultaat.status === 'alleen-gerealiseerd' && (
+              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+                Kon de koersverandering van je open posities niet ophalen. Dit is alleen het
+                gerealiseerde deel.
+              </Text>
+            )}
+            {resultaat.status === 'deels' && (
+              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+                {resultaat.zonderReferentie} open {resultaat.zonderReferentie === 1 ? 'positie telt' : 'posities tellen'} niet
+                mee in dit cijfer (geen openingsdatum of geen koers van toen).
+              </Text>
+            )}
+          </>
+        )}
+      </View>
+
       {/* Historie-knop */}
       <Pressable
         onPress={onOpenHistorie}
@@ -311,13 +502,13 @@ const styles = StyleSheet.create({
   },
   balk: {
     flexDirection: 'row',
-    height: 8,
+    height: 10,
     borderRadius: radii.pill,
     overflow: 'hidden',
     marginTop: spacing.base,
   },
   // Eigen hoogte in plaats van uitrekken: één ding minder dat de layout kan laten vallen.
-  balkStuk: { height: 8 },
+  balkStuk: { height: 10 },
   saldoRij: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -370,6 +561,40 @@ const styles = StyleSheet.create({
   detail: { gap: 2 },
   melding: {
     marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  periodeBlok: {
+    marginTop: spacing.base,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  periodeUitleg: {
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  periodeRij: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  periodeChip: {
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodeRegel: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: spacing.md,
+  },
+  periodeGetal: {
+    marginTop: spacing.md,
+  },
+  periodeBijschrift: {
+    marginTop: 2,
     lineHeight: 18,
   },
   historieKnop: {
