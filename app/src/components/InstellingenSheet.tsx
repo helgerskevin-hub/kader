@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import {
   X, Smartphone, Sun, Moon, FileText, Link2, ChevronRight, FlaskConical, Wallet,
   DollarSign, Euro, Bell, BellOff,
@@ -58,6 +58,14 @@ const SCHRIJFVLAG: Record<EtoroOmgeving, string> = {
   demo: SLEUTELS.etoroDemoSchrijven,
 };
 
+// Zelfde reden en aanpak als in ChangelogSheet.tsx: een expliciete hoogte in punten omdat
+// flexShrink op het toestel niet werkte. RUIMTE_OM_DE_INHOUD is kleiner dan bij het changelog-vel
+// omdat hier geen Begrepen-knop onder de lijst staat; 140 laat ruim marge over de titelrij en de
+// padding van het vel (samen ongeveer 90).
+const VEL_DEEL_VAN_SCHERM = 0.9;
+const RUIMTE_OM_DE_INHOUD = 140;
+const INHOUD_MINIMUM = 200;
+
 // Eén sleutel, dus één status. Het handelsrecht blijft wél per omgeving, want eToro kan je sleutel
 // in demo wel en in echt geen schrijfrecht geven, en dat verschil hoort zichtbaar te blijven.
 async function bepaalStatus(): Promise<SleutelStatus> {
@@ -75,6 +83,8 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { valuta, eurPerUsd, koersOntbreekt, kiesValuta } = useValuta();
   // Meteen ophalen zodra de koppeling is opgeslagen, niet pas bij de volgende app-start.
   const { omgeving, setOmgeving } = usePortfolio();
+  const { height: schermHoogte } = useWindowDimensions();
+  const inhoudHoogte = Math.max(INHOUD_MINIMUM, schermHoogte * VEL_DEEL_VAN_SCHERM - RUIMTE_OM_DE_INHOUD);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [sleutelStatus, setSleutelStatus] = useState<SleutelStatus>('Niet ingesteld');
@@ -145,7 +155,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
 
   return (
     <>
-    <BottomSheet zichtbaar={zichtbaar && !changelogOpen && !wizardOpen} onSluiten={onSluiten}>
+    <BottomSheet zichtbaar={zichtbaar && !changelogOpen && !wizardOpen} onSluiten={onSluiten} velStijl={styles.vel}>
       <View style={styles.titelRij}>
         <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Instellingen</Text>
         <Pressable
@@ -158,179 +168,181 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
         </Pressable>
       </View>
 
-      <Text style={[Type.overline, styles.label, { color: colors.tekstGedimd }]}>WEERGAVE</Text>
-      <View style={styles.opties}>
-        {OPTIES.map(({ modus: optieModus, label, Icon }) => {
-          const actief = modus === optieModus;
-          return (
-            <Pressable
-              key={optieModus}
-              onPress={() => setModus(optieModus)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: actief }}
-              accessibilityLabel={label}
-              style={[
-                styles.optie,
-                {
-                  backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                  borderColor: actief ? colors.cta : colors.rand,
-                },
-              ]}
-            >
-              <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <ScrollView showsVerticalScrollIndicator style={{ maxHeight: inhoudHoogte }}>
+        <Text style={[Type.overline, styles.label, { color: colors.tekstGedimd }]}>WEERGAVE</Text>
+        <View style={styles.opties}>
+          {OPTIES.map(({ modus: optieModus, label, Icon }) => {
+            const actief = modus === optieModus;
+            return (
+              <Pressable
+                key={optieModus}
+                onPress={() => setModus(optieModus)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: actief }}
+                accessibilityLabel={label}
+                style={[
+                  styles.optie,
+                  {
+                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
+                    borderColor: actief ? colors.cta : colors.rand,
+                  },
+                ]}
+              >
+                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
-      <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
-        VALUTA
-      </Text>
-      <View style={styles.opties}>
-        {VALUTAS.map(({ valuta: optieValuta, label, Icon }) => {
-          const actief = valuta === optieValuta;
-          return (
-            <Pressable
-              key={optieValuta}
-              onPress={() => kiesValuta(optieValuta)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: actief }}
-              accessibilityLabel={`Bedragen in ${label.toLowerCase()}`}
-              style={[
-                styles.optie,
-                {
-                  backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                  borderColor: actief ? colors.cta : colors.rand,
-                },
-              ]}
-            >
-              <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Text style={[Type.caption, styles.uitleg, { color: koersOntbreekt ? colors.letOp : colors.tekstGedimd }]}>
-        {koersOntbreekt
-          ? 'De wisselkoers is nog niet opgehaald, dus bedragen staan voorlopig in dollars. Zodra er internet is pakt de app dit vanzelf op.'
-          : valuta === 'EUR' && eurPerUsd !== null
-            ? `Koersen en bedragen worden omgerekend tegen €${eurPerUsd.toFixed(4)} per dollar. Orders reken je bij eToro in dollars af, dus die schermen blijven in dollars.`
-            : 'Marktdata en eToro rekenen allebei in dollars. Kies euro als je liever ziet wat een bedrag in je eigen valuta is.'}
-      </Text>
+        <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
+          VALUTA
+        </Text>
+        <View style={styles.opties}>
+          {VALUTAS.map(({ valuta: optieValuta, label, Icon }) => {
+            const actief = valuta === optieValuta;
+            return (
+              <Pressable
+                key={optieValuta}
+                onPress={() => kiesValuta(optieValuta)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: actief }}
+                accessibilityLabel={`Bedragen in ${label.toLowerCase()}`}
+                style={[
+                  styles.optie,
+                  {
+                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
+                    borderColor: actief ? colors.cta : colors.rand,
+                  },
+                ]}
+              >
+                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={[Type.caption, styles.uitleg, { color: koersOntbreekt ? colors.letOp : colors.tekstGedimd }]}>
+          {koersOntbreekt
+            ? 'De wisselkoers is nog niet opgehaald, dus bedragen staan voorlopig in dollars. Zodra er internet is pakt de app dit vanzelf op.'
+            : valuta === 'EUR' && eurPerUsd !== null
+              ? `Koersen en bedragen worden omgerekend tegen €${eurPerUsd.toFixed(4)} per dollar. Orders reken je bij eToro in dollars af, dus die schermen blijven in dollars.`
+              : 'Marktdata en eToro rekenen allebei in dollars. Kies euro als je liever ziet wat een bedrag in je eigen valuta is.'}
+        </Text>
 
-      <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
-        MELDINGEN
-      </Text>
-      <View style={styles.opties}>
-        {MELDINGKEUZES.map(({ aan, label, Icon }) => {
-          const actief = meldingen === aan;
-          return (
-            <Pressable
-              key={label}
-              onPress={() => kiesMeldingen(aan)}
-              disabled={bezigMeldingen}
-              accessibilityRole="button"
-              accessibilityState={{ selected: actief, disabled: bezigMeldingen }}
-              accessibilityLabel={aan ? 'Meldingen aan' : 'Meldingen uit'}
-              style={[
-                styles.optie,
-                {
-                  backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                  borderColor: actief ? colors.cta : colors.rand,
-                  opacity: bezigMeldingen ? 0.6 : 1,
-                },
-              ]}
-            >
-              <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
-        {meldingen
-          ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open positie aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
-          : 'Kader stuurt geen enkele melding meer, ook geen prijsalerts. Je alerts blijven staan en gaan weer werken zodra je dit aanzet.'}
-      </Text>
+        <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
+          MELDINGEN
+        </Text>
+        <View style={styles.opties}>
+          {MELDINGKEUZES.map(({ aan, label, Icon }) => {
+            const actief = meldingen === aan;
+            return (
+              <Pressable
+                key={label}
+                onPress={() => kiesMeldingen(aan)}
+                disabled={bezigMeldingen}
+                accessibilityRole="button"
+                accessibilityState={{ selected: actief, disabled: bezigMeldingen }}
+                accessibilityLabel={aan ? 'Meldingen aan' : 'Meldingen uit'}
+                style={[
+                  styles.optie,
+                  {
+                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
+                    borderColor: actief ? colors.cta : colors.rand,
+                    opacity: bezigMeldingen ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
+          {meldingen
+            ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open positie aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
+            : 'Kader stuurt geen enkele melding meer, ook geen prijsalerts. Je alerts blijven staan en gaan weer werken zodra je dit aanzet.'}
+        </Text>
 
-      <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
-        HANDELSOMGEVING
-      </Text>
-      <View style={styles.opties}>
-        {OMGEVINGEN.map(({ omgeving: optieOmgeving, label, Icon }) => {
-          const actief = omgeving === optieOmgeving;
-          return (
-            <Pressable
-              key={optieOmgeving}
-              onPress={() => kiesOmgeving(optieOmgeving)}
-              disabled={bezigWisselen}
-              accessibilityRole="button"
-              accessibilityState={{ selected: actief, disabled: bezigWisselen }}
-              accessibilityLabel={label}
-              style={[
-                styles.optie,
-                {
-                  backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                  borderColor: actief ? colors.cta : colors.rand,
-                  opacity: bezigWisselen ? 0.6 : 1,
-                },
-              ]}
-            >
-              <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-              <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
-        In demo gaan orders naar je oefenaccount bij eToro. In echt gaan ze met je eigen geld. Kader
-        gebruikt in allebei dezelfde sleutel; alleen het adres waar de order heen gaat verschilt.
-      </Text>
+        <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
+          HANDELSOMGEVING
+        </Text>
+        <View style={styles.opties}>
+          {OMGEVINGEN.map(({ omgeving: optieOmgeving, label, Icon }) => {
+            const actief = omgeving === optieOmgeving;
+            return (
+              <Pressable
+                key={optieOmgeving}
+                onPress={() => kiesOmgeving(optieOmgeving)}
+                disabled={bezigWisselen}
+                accessibilityRole="button"
+                accessibilityState={{ selected: actief, disabled: bezigWisselen }}
+                accessibilityLabel={label}
+                style={[
+                  styles.optie,
+                  {
+                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
+                    borderColor: actief ? colors.cta : colors.rand,
+                    opacity: bezigWisselen ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
+          In demo gaan orders naar je oefenaccount bij eToro. In echt gaan ze met je eigen geld. Kader
+          gebruikt in allebei dezelfde sleutel; alleen het adres waar de order heen gaat verschilt.
+        </Text>
 
-      <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
-        <Pressable
-          onPress={() => setWizardOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel={`eToro-sleutel instellen, nu ${sleutelStatus.toLowerCase()}`}
-          style={styles.menuKnop}
-        >
-          <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-          <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>eToro-sleutel</Text>
-          <Text
-            style={[
-              Type.caption,
-              {
-                color: sleutelStatus === 'Niet ingesteld'
-                  ? colors.tekstGedimd
-                  : sleutelStatus === 'Alleen lezen' ? colors.tekstPrimair : colors.winst,
-              },
-            ]}
+        <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
+          <Pressable
+            onPress={() => setWizardOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`eToro-sleutel instellen, nu ${sleutelStatus.toLowerCase()}`}
+            style={styles.menuKnop}
           >
-            {sleutelStatus}
-          </Text>
-          <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
+            <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+            <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>eToro-sleutel</Text>
+            <Text
+              style={[
+                Type.caption,
+                {
+                  color: sleutelStatus === 'Niet ingesteld'
+                    ? colors.tekstGedimd
+                    : sleutelStatus === 'Alleen lezen' ? colors.tekstPrimair : colors.winst,
+                },
+              ]}
+            >
+              {sleutelStatus}
+            </Text>
+            <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+          </Pressable>
 
-        <Pressable
-          onPress={() => setChangelogOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Wijzigingen"
-          style={styles.menuKnop}
-        >
-          <FileText size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-          <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>Wijzigingen</Text>
-          <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={() => setChangelogOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Wijzigingen"
+            style={styles.menuKnop}
+          >
+            <FileText size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+            <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>Wijzigingen</Text>
+            <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+          </Pressable>
+        </View>
+      </ScrollView>
     </BottomSheet>
 
     <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
@@ -344,6 +356,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
 }
 
 const styles = StyleSheet.create({
+  vel: { maxHeight: '90%' },
   titelRij: {
     flexDirection: 'row',
     justifyContent: 'space-between',

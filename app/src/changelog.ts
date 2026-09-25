@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-09-25',
+    punten: [
+      'Het instellingenscherm scrollt nu. Op kleinere telefoons of met grotere systeemletters liep het vel eerder boven het scherm uit, waardoor je de sluitknop niet meer zag en niet meer bij de onderste opties kon. Het vel blijft nu binnen het scherm en de rest schuift eronder',
+    ],
+  },
+  {
     versie: '0.1.22',
     datum: '2026-09-11',
     punten: [

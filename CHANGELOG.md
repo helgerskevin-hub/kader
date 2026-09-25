@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Het instellingenscherm scrollt nu. Op kleinere telefoons of met grotere systeemletters liep het vel eerder boven het scherm uit, waardoor je de sluitknop niet meer zag en niet meer bij de onderste opties kon. Het vel blijft nu binnen het scherm en de rest schuift eronder
+
 ## 0.1.22
 
 - Het balkje op de portfoliokaart laat nu echt zien hoe je geld verdeeld is over posities en cash. Het tekende al wel, maar zodra er weinig cash op je rekening stond was het grijze stukje een paar pixels breed, en onder een procent zag je alleen nog een effen blauwe lijn. Dat is precies de situatie waar de meeste mensen in zitten, dus in de praktijk liet de balk geen verdeling zien. Een klein aandeel krijgt nu een minimumbreedte zodat het altijd zichtbaar blijft, en het echte percentage staat ernaast in de legenda: IN POSITIES 99,7% tegenover BESCHIKBAAR 0,3%. Dat getal is altijd de waarheid, ook als het stukje op de balk iets breder getekend is dan het in werkelijkheid is. De balk zelf is ook iets dikker geworden
