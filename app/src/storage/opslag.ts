@@ -42,6 +42,10 @@ export const SLEUTELS = {
   // Concept van het "Trade toevoegen"-formulier: overleeft een activity-restart door Android
   // terwijl je even naar eToro schakelt om de exacte prijs te checken.
   tradeConcept: 'trade_concept',
+  // Dagcandles per coin, alleen voor het resultaat over een periode op de portfoliokaart. Een dag
+  // geldig: een dagcandle verandert niet meer zodra de dag voorbij is, dus vaker ophalen levert
+  // dezelfde getallen op.
+  resultaatHistorie: 'resultaat_historie_candles',
   // Stop-loss-grenzen per coin, opgehaald bij eToro. Gecachet omdat het endpoint een krap eigen
   // quotum heeft (20 per minuut) en de grenzen zelden wijzigen.
   etoroLimieten: 'etoro_limieten',

@@ -751,6 +751,9 @@ export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgev
     takeProfit,
     rr,
     datum: new Date(positie.openDateTime).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),
+    // Het ruwe tijdstip naast de opgemaakte datum: het resultaat over een periode moet kunnen zien
+    // of deze positie er aan het begin van die periode al was, en dat is uit de tekst niet te halen.
+    openTijd: Number.isNaN(Date.parse(positie.openDateTime)) ? undefined : Date.parse(positie.openDateTime),
     status: 'open',
     bedragUsd: positie.amount ?? positie.initialAmountInDollars ?? 0,
     aantalCoins: positie.units,
