@@ -12,7 +12,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.1.23',
     datum: '2026-09-26',
     punten: [
       'De hele app beweegt nu vloeiender, in lijn met hoe een moderne Apple-app aanvoelt. Een kaart tikken op Markt of Portfolio laat het detailscherm uit die kaart groeien in plaats van omhoog schuiven, en je veegt het weer dicht vanaf de linkerrand. Tussen de tabs onderin wissel je ook met een veeg, niet meer alleen met een tik, en de blauwe indicator in de tabbalk glijdt mee',

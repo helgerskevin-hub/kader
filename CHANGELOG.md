@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.1.23
 
 - De hele app beweegt nu vloeiender, in lijn met hoe een moderne Apple-app aanvoelt. Een kaart tikken op Markt of Portfolio laat het detailscherm uit die kaart groeien in plaats van omhoog schuiven, en je veegt het weer dicht vanaf de linkerrand. Tussen de tabs onderin wissel je ook met een veeg, niet meer alleen met een tik, en de blauwe indicator in de tabbalk glijdt mee
 - Vellen (sheets) zoals de instellingen of een koopformulier sleep je nu dicht aan de bovenrand, en ze schuiven ook zachter open
