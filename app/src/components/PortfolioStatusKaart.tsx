@@ -1,9 +1,20 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { RefreshCw, CloudDownload, History, Info } from 'lucide-react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, type LayoutChangeEvent } from 'react-native';
+import { RefreshCw, CloudDownload, Check, History, Info } from 'lucide-react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
+import { duur } from '../theme/beweging';
+import { useBeweging } from '../theme/useReduceMotion';
 import { fmtBedrag, fmtPct, fmtResultaatUsd, relatieveTijd } from '../engine/format';
 import { aandeelTekst, spreekAandeel } from '../engine/verdeling';
 import { PortfolioWaarde } from '../state/statistieken';
@@ -81,8 +92,58 @@ export function PortfolioStatusKaart({
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft deze kaart na het omzetten in de oude valuta staan.
   useValutaStand();
+  const { reduceMotion, naar } = useBeweging();
 
   const [periode, setPeriode] = useState<PeriodeId>(STANDAARD_PERIODE);
+
+  // Rotatie van het sync-icoon: doorlopend en lineair zolang er gesynchroniseerd wordt, en bij het
+  // klaarmelden niet abrupt gestopt maar afgemaakt tot de eerstvolgende volle slag met een veer.
+  // Onder reduce motion blijft dit uit; de ActivityIndicator van hiervoor doet dan gewoon zijn werk.
+  const rotatie = useSharedValue(0);
+  const vorigSyncing = useRef(syncing);
+  const [toonSyncVink, setToonSyncVink] = useState(false);
+  const syncVinkWekker = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (syncVinkWekker.current !== null) clearTimeout(syncVinkWekker.current);
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    if (syncing) {
+      rotatie.value = withRepeat(
+        withTiming(rotatie.value + 360, { duration: 900, easing: Easing.linear }),
+        -1,
+        false,
+      );
+    } else if (vorigSyncing.current) {
+      // Net klaar: laat 'm afmaken tot de volgende volle slag in plaats van hem stil te zetten
+      // waar hij toevallig staat, en toon heel even een vinkje.
+      const doel = Math.ceil((rotatie.value + 1) / 360) * 360;
+      rotatie.value = naar(doel, 'standaard');
+      setToonSyncVink(true);
+      if (syncVinkWekker.current !== null) clearTimeout(syncVinkWekker.current);
+      syncVinkWekker.current = setTimeout(() => setToonSyncVink(false), duur.lang);
+    }
+    vorigSyncing.current = syncing;
+  }, [syncing, reduceMotion]);
+
+  const rotatieStijl = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotatie.value}deg` }],
+  }));
+
+  // Vermogensbalk: de "belegd"-kleur ligt over de volle balk in de cash-kleur heen en groeit met
+  // een veer, in plaats van dat allebei de stukken los hun breedte aanpassen. Getransformeerd met
+  // een gemeten breedte in plaats van transformOrigin: dat laatste is in React Native nog niet
+  // overal even betrouwbaar, dit rekensommetje (opschalen vanuit het midden, dan terugschuiven tot
+  // de linkerkant weer op zijn plek staat) werkt overal hetzelfde.
+  const [balkBreedte, setBalkBreedte] = useState(0);
+  const belegdAandeel = useSharedValue(0);
+  const eersteBalk = useRef(true);
+
+  function opBalkLayout(e: LayoutChangeEvent) {
+    setBalkBreedte(e.nativeEvent.layout.width);
+  }
 
   // Alleen de symbolen van posities die de kaart ook echt kan waarderen. Voor de rest is een
   // koersreeks ophalen zinloos: zonder aantal of live koers valt er toch niets mee te rekenen.
@@ -136,6 +197,29 @@ export function PortfolioStatusKaart({
   // gewoon alles in cash staan.
   const toonBedrag = heeftSaldo || heeftWaardering;
 
+  useEffect(() => {
+    const doel = belegdPctBalk / 100;
+    if (eersteBalk.current) {
+      eersteBalk.current = false;
+      belegdAandeel.value = naar(doel, 'zacht');
+      return;
+    }
+    belegdAandeel.value = naar(doel, 'standaard');
+    // naar() zelf is geen afhankelijkheid: alleen een echte aandeelwijziging hoort deze animatie
+    // te starten, niet het wisselen van reduce motion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [belegdPctBalk]);
+
+  const balkStijl = useAnimatedStyle(() => {
+    const s = belegdAandeel.value;
+    return {
+      // Opschalen vanuit het midden en dan terugschuiven tot de linkerkant weer op zijn plek
+      // staat: zo groeit het stuk zichtbaar vanaf links, zonder afhankelijk te zijn van
+      // transformOrigin.
+      transform: [{ translateX: -(balkBreedte / 2) * (1 - s) }, { scaleX: s }],
+    };
+  });
+
   // Kleurindicatie voor het sync-icoon: groen = actueel, oranje = verouderd of eToro mislukt,
   // rood = te oud of de koersen zelf mislukten, blauw = bezig.
   const stand = bepaalSyncStand({ laatsteSync, syncFout, syncing, etoroFout });
@@ -164,8 +248,20 @@ export function PortfolioStatusKaart({
             schaal={0.9}
           >
             {syncing
-              ? <ActivityIndicator size="small" color={syncKleur} />
-              : <RefreshCw size={18} color={syncKleur} strokeWidth={1.75} />}
+              ? (reduceMotion
+                  ? <ActivityIndicator size="small" color={syncKleur} />
+                  : (
+                    <Animated.View style={rotatieStijl}>
+                      <RefreshCw size={18} color={syncKleur} strokeWidth={1.75} />
+                    </Animated.View>
+                  ))
+              : toonSyncVink
+                ? (
+                  <Animated.View entering={FadeIn.duration(duur.kort)} exiting={FadeOut.duration(duur.kort)}>
+                    <Check size={18} color={syncKleur} strokeWidth={2} />
+                  </Animated.View>
+                )
+                : <RefreshCw size={18} color={syncKleur} strokeWidth={1.75} />}
           </Drukbaar>
           <Drukbaar
             onPress={onImporteren}
@@ -200,12 +296,14 @@ export function PortfolioStatusKaart({
             waarde={waarde.ongerealiseerdUsd}
             format={fmtResultaatUsd}
             style={[Type.prijs, { color: resultaatKleur }]}
+            kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
           />
           {waarde.ongerealiseerdPct !== null && (
             <AnimatedGetal
               waarde={waarde.ongerealiseerdPct}
               format={fmtResultaatPct}
               style={[Type.prijs, { color: resultaatKleur, marginLeft: spacing.sm }]}
+              kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
             />
           )}
         </View>
@@ -222,22 +320,23 @@ export function PortfolioStatusKaart({
         <>
           {totaalUsd > 0 && (
             <View
-              style={[styles.balk, { backgroundColor: colors.verhoogd }]}
+              style={[styles.balk, { backgroundColor: colors.verdelingOverig }]}
+              onLayout={opBalkLayout}
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
-              {/* Twee stukken met een uitgerekende breedte in procenten, en met opzet geen flex.
+              {/* Eén bewegend stuk in plaats van twee: de balk zelf is al de cash-kleur, en het
+                  belegd-stuk ligt erover heen en groeit met een veer vanaf links. Getekend met
+                  transform (scaleX + een terugschuivende translateX) en niet met width, anders
+                  animeert React Native per frame een layout-eigenschap in plaats van iets dat de
+                  UI-thread zelf kan afhandelen.
 
                   Er stond hier eerder `flex: belegdUsd` naast `flex: vrijSaldoUsd`, met de gedachte
                   dat de verhouding dan vanzelf klopt. Op Android kregen beide stukken daar geen
                   breedte van en bleef alleen de lege baan over: de balk was leeg, ongeacht de
-                  bedragen. Een percentage laat niets te bepalen over.
-
-                  De kleuren waren het tweede probleem: het cash-stuk had colors.verhoogd, exact de
-                  kleur van de baan eronder, dus zelfs met breedte was het onzichtbaar geweest. Nu
-                  heeft elk stuk een eigen kleur. Grijs en niet groen: cash is geen winst. */}
-              <View style={[styles.balkStuk, { width: `${belegdPctBalk}%`, backgroundColor: colors.primair }]} />
-              <View style={[styles.balkStuk, { width: `${100 - belegdPctBalk}%`, backgroundColor: colors.verdelingOverig }]} />
+                  bedragen. Vandaar nu een expliciete meting van de balkbreedte in plaats van flex
+                  of een percentage. */}
+              <Animated.View style={[styles.balkStuk, balkStijl, { width: '100%', backgroundColor: colors.primair }]} />
             </View>
           )}
           {/* Het percentage staat hier en niet op de balk: een stukje van een paar pixels is geen
@@ -424,6 +523,7 @@ export function PortfolioStatusKaart({
                 waarde={resultaat.totaalUsd}
                 format={fmtResultaatUsd}
                 style={[Type.prijs, { color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies }]}
+                kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
               />
               {resultaat.pct !== null && (
                 <AnimatedGetal
@@ -433,6 +533,7 @@ export function PortfolioStatusKaart({
                     color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies,
                     marginLeft: spacing.sm,
                   }]}
+                  kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
                 />
               )}
             </View>
