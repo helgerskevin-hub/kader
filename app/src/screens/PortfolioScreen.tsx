@@ -4,12 +4,14 @@ import {
   StyleSheet, RefreshControl, LayoutAnimation,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3, ChevronDown, ChevronRight } from 'lucide-react-native';
 import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { useDrukVeer } from '../components/Drukbaar';
 import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -73,6 +75,9 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
   afbouw?: AfbouwAdvies | null;
 }) {
   const { colors } = useTheme();
+  // Het detailscherm groeit uit deze kaart; de kaart veert daarom ook mee bij indrukken, net als
+  // op het marktscherm.
+  const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
 
   const statusKleur = trade.status === 'gewonnen' ? colors.winst
     : trade.status === 'verloren' ? colors.verlies
@@ -131,7 +136,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
   const open = trade.status === 'open';
 
   return (
-    <View style={[
+    <Animated.View ref={druk.ref} style={[
       tradeStyles.kaart,
       open ? shadow.kaart : null,
       {
@@ -139,9 +144,15 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
         borderWidth: open ? 0 : 1,
         borderColor: open ? 'transparent' : colors.rand,
       },
+      druk.stijl,
     ]}>
       <Pressable
-        onPress={() => onOpenDetail(trade)}
+        onPress={() => {
+          druk.legBronVast();
+          onOpenDetail(trade);
+        }}
+        onPressIn={druk.drukIn}
+        onPressOut={druk.drukUit}
         accessibilityRole="button"
         accessibilityLabel={`${trade.symbool} detail bekijken`}
       >
@@ -314,7 +325,7 @@ function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, o
           </Pressable>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

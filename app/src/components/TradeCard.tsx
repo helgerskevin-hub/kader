@@ -126,12 +126,12 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
   const [platformsOpen, setPlatformsOpen] = useState(false);
-  // De hele kaart veert mee als je het bovenste deel indrukt, niet alleen dat deel: anders krimpt
-  // de inhoud binnen een stilstaande rand en schaduw.
-  const druk = useDrukVeer();
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
   const opmaak = niveauOpmaak(advies, colors);
+  // De hele kaart veert mee als je het bovenste deel indrukt, niet alleen dat deel: anders krimpt
+  // de inhoud binnen een stilstaande rand en schaduw. Het detailscherm groeit uit deze kaart.
+  const druk = useDrukVeer(undefined, { kleur: opmaak.achtergrond, radius: radii.kaart });
   const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
   // Het merkje betekent: KADER kan deze order plaatsen. Niet "deze coin bestaat op eToro". Moet je
   // het bij de provider zelf doen, dan hoort er geen merkje te staan, want dan doet de koopknop het
@@ -160,7 +160,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   }
 
   return (
-    <Animated.View style={[
+    <Animated.View ref={druk.ref} style={[
       styles.kaart,
       // Bij de twee sterkste niveaus draagt de schaduw de kleur van het niveau; de rest houdt de
       // gewone neutrale kaartschaduw.
@@ -177,7 +177,10 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
       druk.stijl,
     ]}>
       <Pressable
-        onPress={() => onOpenDetail?.(trade)}
+        onPress={() => {
+          druk.legBronVast();
+          onOpenDetail?.(trade);
+        }}
         onPressIn={druk.drukIn}
         onPressOut={druk.drukUit}
         accessibilityRole="button"

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions,
+  View, Text, StyleSheet, ScrollView, useWindowDimensions,
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { fmtPrijs } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import { Drukbaar } from './Drukbaar';
 import { useValutaStand } from '../state/useValuta';
 
 interface Props {
@@ -130,8 +131,9 @@ function Kaart({ trade, onOpenDetail, breedte }: {
   const { colors } = useTheme();
 
   return (
-    <Pressable
+    <Drukbaar
       onPress={() => onOpenDetail(trade)}
+      bron={{ kleur: colors.primair, radius: radii.kaart }}
       style={[styles.kaart, { width: breedte, backgroundColor: colors.primair }]}
       accessibilityRole="button"
       accessibilityLabel={`Bekijk ${trade.symbool}, aanbevolen koopkans: ${reden}`}
@@ -147,7 +149,7 @@ function Kaart({ trade, onOpenDetail, breedte }: {
         <Text style={[Type.caption, styles.hintTekst]}>Tik voor meer info</Text>
         <ChevronRight size={13} color="rgba(255,255,255,0.75)" strokeWidth={2} />
       </View>
-    </Pressable>
+    </Drukbaar>
   );
 }
 

@@ -64,8 +64,9 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
-  // Zelfde als TradeCard: de hele kaart veert mee, ook al druk je alleen het bovenste deel in.
-  const druk = useDrukVeer();
+  // Zelfde als TradeCard: de hele kaart veert mee, ook al druk je alleen het bovenste deel in, en
+  // het detailscherm groeit uit de hele kaart.
+  const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
   const niveaus = etoroNiveaus(kans.entry, kans.stopLoss, kans.takeProfit, limiet);
 
   const randKleur = kans.trendOp === true ? colors.winst
@@ -83,9 +84,12 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
   }
 
   return (
-    <Animated.View style={[cardStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }, druk.stijl]}>
+    <Animated.View ref={druk.ref} style={[cardStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }, druk.stijl]}>
       <Pressable
-        onPress={() => onOpenDetail(kans)}
+        onPress={() => {
+          druk.legBronVast();
+          onOpenDetail(kans);
+        }}
         onPressIn={druk.drukIn}
         onPressOut={druk.drukUit}
         accessibilityRole="button"

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Pressable,
+  type View,
   type GestureResponderEvent,
   type PressableProps,
   type PressableStateCallbackType,
@@ -11,6 +12,7 @@ import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanima
 import { drukSchaal } from '../theme/beweging';
 import { useBeweging } from '../theme/useReduceMotion';
 import { haptiek as speelHaptiek, type HaptiekMoment } from '../theme/haptiek';
+import { zetBron, type BronStijl } from '../state/bronRect';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -26,7 +28,12 @@ const DIM_OPACITY = 0.85;
 // ScrollView van React Native neemt de lijst de aanraking over zodra je gaat scrollen, dan komt
 // er een onPressOut zonder onPress. De kaart veert dus terug en er opent niets. Een
 // gesture-handler-knop in een RN-lijst heeft daar op Android minder betrouwbare afspraken over.
-export function useDrukVeer(schaal: number = drukSchaal) {
+//
+// Met bron opent deze kaart een full-screen scherm dat uit de kaart moet groeien (PodiumScherm).
+// Zet dan ook ref op de buitenste Animated.View en roep legBronVast() aan in onPress, vóór het
+// scherm geopend wordt. Gemeten wordt al bij het indrukken: measureInWindow is een rondje naar de
+// native kant, en bij de tik zelf moet het antwoord er al liggen.
+export function useDrukVeer(schaal: number = drukSchaal, bron?: BronStijl) {
   const { reduceMotion, naar } = useBeweging();
   // 0 = los, 1 = helemaal ingedrukt. Eén voortgangswaarde in plaats van schaal en opacity apart,
   // zodat een onderbreking (loslaten halverwege) vanzelf vanaf de huidige stand terugveert.
@@ -38,15 +45,31 @@ export function useDrukVeer(schaal: number = drukSchaal) {
       : { transform: [{ scale: 1 - (1 - schaal) * voortgang.value }] },
   );
 
+  const ref = useRef<View>(null);
+  const gemeten = useRef<{ x: number; y: number; breedte: number; hoogte: number } | null>(null);
+
   function drukIn() {
     voortgang.value = naar(1, 'snel');
+    if (bron) {
+      ref.current?.measureInWindow((x, y, breedte, hoogte) => {
+        gemeten.current = { x, y, breedte, hoogte };
+      });
+    }
   }
 
   function drukUit() {
     voortgang.value = naar(0, 'snel');
   }
 
-  return { stijl, drukIn, drukUit };
+  // De meting geldt voor precies één tik. Een activering zonder indrukken (TalkBack) meet niets,
+  // en dan hoort er geen oude rect van een eerdere tik te blijven liggen: het scherm schuift dan
+  // gewoon van rechts binnen.
+  function legBronVast() {
+    if (bron && gemeten.current) zetBron({ ...gemeten.current, ...bron });
+    gemeten.current = null;
+  }
+
+  return { stijl, drukIn, drukUit, ref, legBronVast };
 }
 
 export interface DrukbaarProps extends Omit<PressableProps, 'style'> {
@@ -56,6 +79,8 @@ export interface DrukbaarProps extends Omit<PressableProps, 'style'> {
   schaal?: number;
   // Optionele haptic bij een geslaagde druk (onPress), niet bij het aanraken. Spaarzaam gebruiken.
   haptiek?: HaptiekMoment;
+  // Opent deze knop een full-screen scherm, dan groeit dat scherm uit dit vlak. Zie useDrukVeer.
+  bron?: BronStijl;
 }
 
 // Vervanger voor Pressable op kaarten en knoppen: krimpt op een snelle veer bij indrukken en veert
@@ -65,12 +90,13 @@ export function Drukbaar({
   style,
   schaal,
   haptiek,
+  bron,
   onPress,
   onPressIn,
   onPressOut,
   ...rest
 }: DrukbaarProps) {
-  const { stijl, drukIn, drukUit } = useDrukVeer(schaal);
+  const { stijl, drukIn, drukUit, ref, legBronVast } = useDrukVeer(schaal, bron);
   // Alleen bijgehouden als style een functie is, zodat de gewone variant bij indrukken niet
   // opnieuw hoeft te renderen: de schaal loopt volledig via de shared value.
   const [ingedrukt, setIngedrukt] = useState(false);
@@ -79,6 +105,7 @@ export function Drukbaar({
   return (
     <AnimatedPressable
       {...rest}
+      ref={ref}
       onPressIn={(e: GestureResponderEvent) => {
         drukIn();
         if (stijlIsFunctie) setIngedrukt(true);
@@ -93,6 +120,7 @@ export function Drukbaar({
         onPress
           ? (e: GestureResponderEvent) => {
               if (haptiek) speelHaptiek(haptiek);
+              legBronVast();
               onPress(e);
             }
           : undefined
