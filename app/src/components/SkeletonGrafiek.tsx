@@ -1,8 +1,7 @@
 import React from 'react';
-import { Animated, StyleSheet } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { View, StyleSheet } from 'react-native';
 import { spacing, radii } from '../theme/tokens';
-import { useSkeletonPuls } from '../theme/useSkeletonPuls';
+import { ShimmerBlok, ShimmerGroep } from './Shimmer';
 
 interface Props {
   hoogte?: number;
@@ -12,19 +11,15 @@ interface Props {
 // periodeknoppen als pillen. Gebruikt tijdens het laden van een coin-detail, vóór de eerste
 // candles binnen zijn.
 export function SkeletonGrafiek({ hoogte = 180 }: Props) {
-  const { colors } = useTheme();
-  const bg = colors.verhoogd;
-  const opacity = useSkeletonPuls();
-
   return (
-    <Animated.View style={{ opacity }}>
-      <Animated.View style={[styles.vlak, { height: hoogte, backgroundColor: bg }]} />
-      <Animated.View style={styles.pillenRij}>
+    <ShimmerGroep>
+      <ShimmerBlok style={[styles.vlak, { height: hoogte }]} />
+      <View style={styles.pillenRij}>
         {[1, 2, 3, 4].map(i => (
-          <Animated.View key={i} style={[styles.pil, { backgroundColor: bg }]} />
+          <ShimmerBlok key={i} style={styles.pil} />
         ))}
-      </Animated.View>
-    </Animated.View>
+      </View>
+    </ShimmerGroep>
   );
 }
 

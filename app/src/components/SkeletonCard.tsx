@@ -1,49 +1,45 @@
 import React from 'react';
-import { Animated, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { useSkeletonPuls } from '../theme/useSkeletonPuls';
+import { ShimmerBlok, ShimmerGroep } from './Shimmer';
 
 export function SkeletonCard() {
   const { colors } = useTheme();
-  const bg = colors.verhoogd;
-  const opacity = useSkeletonPuls();
 
   return (
-    <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
-      {/* De puls staat op de inhoud en niet op de kaart zelf. Met de opacity op de buitenste View
-          vervaagde ook het witte kaartvlak en de schaduw, en loste de kaart half op in de
-          achtergrond in plaats van dat de grijze blokjes ademden. */}
-      <Animated.View style={{ opacity, gap: spacing.md }}>
+    // De glans loopt alleen over de grijze blokjes, niet over de kaart zelf. Toen de oude puls op de
+    // buitenste View stond, vervaagde ook het witte kaartvlak en de schaduw en loste de kaart half
+    // op in de achtergrond; hetzelfde geldt voor een glans over het hele vlak.
+    <ShimmerGroep style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
       {/* Op de plek waar de adviesbadge en de platformmerkjes komen te staan, zodat de kaart niet
           verspringt zodra de echte data er is. De badge is breder dan vroeger, want het scorecijfer
           staat er nu in. */}
       <View style={styles.badgeRij}>
-        <View style={[styles.blok, { width: 108, height: 22, backgroundColor: bg, borderRadius: radii.pill }]} />
-        <View style={[styles.blok, { width: 20, height: 20, backgroundColor: bg, borderRadius: radii.pill }]} />
+        <ShimmerBlok style={{ width: 108, height: 22, borderRadius: radii.pill }} />
+        <ShimmerBlok style={{ width: 20, height: 20, borderRadius: radii.pill }} />
       </View>
       <View style={styles.kop}>
         <View style={styles.kopLinks}>
-          <View style={[styles.blok, { width: 64, height: 16, backgroundColor: bg }]} />
-          <View style={[styles.blok, { width: 100, height: 12, backgroundColor: bg }]} />
+          <ShimmerBlok style={{ width: 64, height: 16 }} />
+          <ShimmerBlok style={{ width: 100, height: 12 }} />
         </View>
         <View style={styles.kopRechts}>
-          <View style={[styles.blok, { width: 80, height: 20, backgroundColor: bg }]} />
+          <ShimmerBlok style={{ width: 80, height: 20 }} />
         </View>
       </View>
       <View style={styles.niveauRij}>
-        <View style={[styles.blok, { flex: 1, height: 8, backgroundColor: bg, borderRadius: radii.pill }]} />
+        <ShimmerBlok style={{ flex: 1, height: 8, borderRadius: radii.pill }} />
       </View>
       <View style={styles.metaRij}>
         {[72, 48, 60].map((w, i) => (
           <View key={i} style={{ gap: 4 }}>
-            <View style={[styles.blok, { width: 28, height: 10, backgroundColor: bg }]} />
-            <View style={[styles.blok, { width: w, height: 14, backgroundColor: bg }]} />
+            <ShimmerBlok style={{ width: 28, height: 10 }} />
+            <ShimmerBlok style={{ width: w, height: 14 }} />
           </View>
         ))}
       </View>
-      </Animated.View>
-    </View>
+    </ShimmerGroep>
   );
 }
 
@@ -73,8 +69,5 @@ const styles = StyleSheet.create({
   metaRij: {
     flexDirection: 'row',
     gap: spacing.lg,
-  },
-  blok: {
-    borderRadius: 4,
   },
 });
