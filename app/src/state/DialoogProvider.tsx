@@ -9,11 +9,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { KaderDialoog } from '../components/KaderDialoog';
 
-// De sheet die op dit moment sluit doet er 200ms over (Modal animationType="fade" plus de eigen
-// timing in BottomSheet.tsx). We wachten die tijd plus een marge af voordat onze eigen Modal
-// mount. Hier stond eerst runAfterInteractions, maar die API is in React Native 0.85 afgeschaft en
-// verdwijnt in een volgende versie, met een waarschuwing in beeld als bijvangst. Een expliciete
-// wachttijd doet hier hetzelfde en blijft werken.
+// De sheet die op dit moment sluit doet er tot 180ms over (de eigen Reanimated-uittimer in
+// BottomSheet.tsx, niet een Modal-animationType: die staat daar op "none"). We wachten die tijd
+// plus een marge af voordat onze eigen Modal mount. Hier stond eerst runAfterInteractions, maar
+// die API is in React Native 0.85 afgeschaft en verdwijnt in een volgende versie, met een
+// waarschuwing in beeld als bijvangst. Een expliciete wachttijd doet hier hetzelfde en blijft
+// werken.
 const WACHT_NA_SHEET_MS = 260;
 
 export interface DialoogKnop {

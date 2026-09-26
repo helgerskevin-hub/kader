@@ -505,8 +505,10 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
               </Canvas>
             )}
 
-            <Text style={[Type.label, styles.prijsLabelBoven, { color: colors.tekstGedimd }]}>{fmtPrijs(geometrie.max)}</Text>
-            <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd }]}>{fmtPrijs(geometrie.min)}</Text>
+            {/* Achtergrondpil onder de tekst: zonder die dekking loopt een niveaulijn die toevallig
+                op de hoogste of laagste koers uitkomt dwars door de cijfers heen. */}
+            <Text style={[Type.label, styles.prijsLabelBoven, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{fmtPrijs(geometrie.max)}</Text>
+            <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{fmtPrijs(geometrie.min)}</Text>
 
             <ScrubLabel
               reeks={reeks}
@@ -673,8 +675,8 @@ function ScrubLabel({ reeks, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelP
 
 const styles = StyleSheet.create({
   leeg: { borderRadius: 8 },
-  prijsLabelBoven: { position: 'absolute', top: 2, right: 4 },
-  prijsLabelOnder: { position: 'absolute', bottom: 2, right: 4 },
+  prijsLabelBoven: { position: 'absolute', top: 2, right: 4, paddingHorizontal: 4, borderRadius: 4 },
+  prijsLabelOnder: { position: 'absolute', bottom: 2, right: 4, paddingHorizontal: 4, borderRadius: 4 },
   tooltip: {
     position: 'absolute',
     top: 4,

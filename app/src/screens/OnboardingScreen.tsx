@@ -1,12 +1,25 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  interpolateColor,
+  scrollTo,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TrendingUp, Target, Users, Shield, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { KaderLogo } from '../components/KaderLogo';
-import { StapOvergang } from '../components/StapOvergang';
+import { useReduceMotion } from '../theme/useReduceMotion';
+import { duur, vervaag } from '../theme/beweging';
 
 interface Stap {
   Icon?: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
@@ -43,26 +56,50 @@ const STAPPEN: Stap[] = [
   },
 ];
 
+const LAATSTE_STAP = STAPPEN.length - 1;
+
 interface Props {
   onKlaar: () => void;
 }
 
 export function OnboardingScreen({ onKlaar }: Props) {
   const { colors } = useTheme();
+  const { width: breedte } = useWindowDimensions();
+  const reduceMotion = useReduceMotion();
   const [actieveStap, setActieveStap] = useState(0);
-  const stap = STAPPEN[actieveStap];
-  const isLaatsteStap = actieveStap === STAPPEN.length - 1;
+  const isLaatsteStap = actieveStap === LAATSTE_STAP;
+
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const scrollX = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: e => {
+      scrollX.value = e.contentOffset.x;
+    },
+    onMomentumEnd: e => {
+      const index = Math.round(e.contentOffset.x / breedte);
+      scheduleOnRN(setActieveStap, Math.min(LAATSTE_STAP, Math.max(0, index)));
+    },
+  });
+
+  // Bij een tik op Vorige/Volgende schuift de pager mee, net als bij een veeg. Onder Minder
+  // beweging springt hij meteen: dat is de enige plek waar dit scherm zelf besluit iets niet te
+  // laten glijden, de rest is vingerbeweging en blijft dus wel bewegen.
+  function gaNaarStap(index: number) {
+    scrollTo(scrollRef, index * breedte, 0, !reduceMotion);
+    setActieveStap(index);
+  }
 
   function volgende() {
     if (isLaatsteStap) {
       onKlaar();
     } else {
-      setActieveStap(v => v + 1);
+      gaNaarStap(actieveStap + 1);
     }
   }
 
   function vorige() {
-    if (actieveStap > 0) setActieveStap(v => v - 1);
+    if (actieveStap > 0) gaNaarStap(actieveStap - 1);
   }
 
   return (
@@ -82,53 +119,46 @@ export function OnboardingScreen({ onKlaar }: Props) {
         )}
       </View>
 
-      {/* Stap-indicator */}
+      {/* Stap-indicator: de pil rekt en verschuift mee met de vinger, en morpht niet als hij
+          gewoon zou moeten fade. Bij Minder beweging wisselt hij pas als de pagina echt geland is. */}
       <View style={styles.dots}>
         {STAPPEN.map((_, i) => (
-          <View
+          <OnboardingStip
             key={i}
-            style={[
-              styles.dot,
-              {
-                backgroundColor: i === actieveStap ? colors.cta : colors.rand,
-                width: i === actieveStap ? 20 : 8,
-              },
-            ]}
+            index={i}
+            breedte={breedte}
+            scrollX={scrollX}
+            actief={i === actieveStap}
+            reduceMotion={reduceMotion}
+            kleurAan={colors.cta}
+            kleurUit={colors.rand}
           />
         ))}
       </View>
 
-      {/* Inhoud */}
-      <StapOvergang stapIndex={actieveStap} style={styles.inhoud}>
-        {stap.isWelkom ? (
-          <>
-            <View style={styles.logoContainer}>
-              <KaderLogo size={80} />
-            </View>
-            <Text style={[Type.display, styles.titel, { color: colors.tekstPrimair }]}>
-              Welkom bij Kader
-            </Text>
-            <Text style={[Type.sectiekop, styles.slogan, { color: colors.primair }]}>
-              Structuur in crypto.
-            </Text>
-            <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
-              {stap.body}
-            </Text>
-          </>
-        ) : (
-          <>
-            <View style={[styles.iconContainer, { backgroundColor: colors.verhoogd }]}>
-              {stap.Icon && <stap.Icon size={36} color={colors.cta} strokeWidth={1.5} />}
-            </View>
-            <Text style={[Type.display, styles.titel, { color: colors.tekstPrimair }]}>
-              {stap.titel}
-            </Text>
-            <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
-              {stap.body}
-            </Text>
-          </>
-        )}
-      </StapOvergang>
+      {/* Inhoud: een pagina per stap, naast elkaar. De vinger bepaalt het tempo, hier wordt niets
+          geprogrammeerd geanimeerd behalve de knoppen hierboven/onder. */}
+      <Animated.ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        style={styles.pager}
+      >
+        {STAPPEN.map((stap, i) => (
+          <OnboardingPagina
+            key={i}
+            index={i}
+            breedte={breedte}
+            scrollX={scrollX}
+            reduceMotion={reduceMotion}
+            stap={stap}
+          />
+        ))}
+      </Animated.ScrollView>
 
       {/* Navigatie */}
       <View style={styles.navigatie}>
@@ -164,6 +194,104 @@ export function OnboardingScreen({ onKlaar }: Props) {
   );
 }
 
+interface StipProps {
+  index: number;
+  breedte: number;
+  scrollX: SharedValue<number>;
+  actief: boolean;
+  reduceMotion: boolean;
+  kleurAan: string;
+  kleurUit: string;
+}
+
+// Rekt en kleurt mee met de scrollpositie (Apple-stijl), tenzij Minder beweging aanstaat: dan
+// wisselt hij pas als `actief` echt verandert, met een korte fade in plaats van een doorlopende
+// morph tijdens het slepen.
+function OnboardingStip({ index, breedte, scrollX, actief, reduceMotion, kleurAan, kleurUit }: StipProps) {
+  const fade = useSharedValue(actief ? 1 : 0);
+
+  useEffect(() => {
+    if (!reduceMotion) return;
+    fade.value = vervaag(actief ? 1 : 0, duur.kort);
+  }, [actief, reduceMotion, fade]);
+
+  const stijl = useAnimatedStyle(() => {
+    if (reduceMotion) {
+      return {
+        width: 8 + 12 * fade.value,
+        backgroundColor: interpolateColor(fade.value, [0, 1], [kleurUit, kleurAan]),
+      };
+    }
+    const bereik = [(index - 1) * breedte, index * breedte, (index + 1) * breedte];
+    const t = interpolate(scrollX.value, bereik, [0, 1, 0], Extrapolation.CLAMP);
+    return {
+      width: 8 + 12 * t,
+      backgroundColor: interpolateColor(t, [0, 1], [kleurUit, kleurAan]),
+    };
+  });
+
+  return <Animated.View style={[styles.dot, stijl]} />;
+}
+
+interface PaginaProps {
+  index: number;
+  breedte: number;
+  scrollX: SharedValue<number>;
+  reduceMotion: boolean;
+  stap: Stap;
+}
+
+// Eén stap. De illustratie (logo of icoon) hangt in zijn eigen laag: die krijgt bovenop de
+// gewone scrollverplaatsing nog een tegengestelde duw mee, zodat hij maar op ongeveer halve
+// snelheid van de tekst meekomt. Onder Minder beweging blijft die laag stilstaan.
+function OnboardingPagina({ index, breedte, scrollX, reduceMotion, stap }: PaginaProps) {
+  const { colors } = useTheme();
+
+  const illustratieStijl = useAnimatedStyle(() => {
+    if (reduceMotion) return { transform: [{ translateX: 0 }] };
+    const bereik = [(index - 1) * breedte, index * breedte, (index + 1) * breedte];
+    const translateX = interpolate(scrollX.value, bereik, [breedte * 0.5, 0, -breedte * 0.5], Extrapolation.CLAMP);
+    return { transform: [{ translateX }] };
+  });
+
+  return (
+    <View style={{ width: breedte }}>
+      <View style={styles.inhoud}>
+        {stap.isWelkom ? (
+          <>
+            <Animated.View style={[styles.logoContainer, illustratieStijl]}>
+              <KaderLogo size={80} />
+            </Animated.View>
+            <Text style={[Type.display, styles.titel, { color: colors.tekstPrimair }]}>
+              Welkom bij Kader
+            </Text>
+            <Text style={[Type.sectiekop, styles.slogan, { color: colors.primair }]}>
+              Structuur in crypto.
+            </Text>
+            <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
+              {stap.body}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Animated.View
+              style={[styles.iconContainer, { backgroundColor: colors.verhoogd }, illustratieStijl]}
+            >
+              {stap.Icon && <stap.Icon size={36} color={colors.cta} strokeWidth={1.5} />}
+            </Animated.View>
+            <Text style={[Type.display, styles.titel, { color: colors.tekstPrimair }]}>
+              {stap.titel}
+            </Text>
+            <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
+              {stap.body}
+            </Text>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   titelBalk: {
@@ -184,6 +312,9 @@ const styles = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: radii.pill,
+  },
+  pager: {
+    flex: 1,
   },
   inhoud: {
     flex: 1,
