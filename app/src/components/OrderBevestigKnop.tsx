@@ -33,9 +33,9 @@ const HOUD_VAST_MS = 800;
 // Ruim boven de werkelijke lengte van het vinkje-pad (ongeveer 24), zodat bij offset 0 het hele
 // pad zeker getekend is.
 const VINK_PADLENGTE = 30;
-// Hoe lang het vinkje blijft staan voor het weer wijkt voor de bestaande laadstatus. Lang genoeg om
-// het tekenen te zien, kort genoeg dat het niet als een aparte stap aanvoelt.
-const VINK_ZICHTBAAR_MS = 550;
+// Hoe lang het vinkje staat voordat de sheet sluit en de bevestiging verschijnt. Het tekenen zelf
+// duurt duur.lang; de rest is rust, zodat je het vinkje ook echt ziet staan.
+const VINK_ZICHTBAAR_MS = 1100;
 
 interface Props {
   label: string;
@@ -43,11 +43,16 @@ interface Props {
   bezig: boolean;
   uitgeschakeld: boolean;
   onBevestig: () => void;
+  // Zet de ouder op true zodra eToro de order heeft aangenomen: dan pas tekent het vinkje in, met
+  // de succes-haptiek. Een vinkje bij het bevestigen zelf beloofde iets wat nog kon mislukken.
+  gelukt?: boolean;
+  // Na het vinkje: hier sluit de ouder de sheet en toont hij de bevestiging.
+  onGeluktKlaar?: () => void;
   // Overschrijft de standaardtekst boven de knop in echt-modus.
   echtWaarschuwing?: string;
 }
 
-export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, echtWaarschuwing }: Props) {
+export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, gelukt = false, onGeluktKlaar, echtWaarschuwing }: Props) {
   const { colors } = useTheme();
   const { reduceMotion, naar } = useBeweging();
   const isEcht = omgeving === 'real';
@@ -63,6 +68,8 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
   const [knopBreedte, setKnopBreedte] = useState(0);
   const wekker = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vinkWekker = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onGeluktKlaarRef = useRef(onGeluktKlaar);
+  onGeluktKlaarRef.current = onGeluktKlaar;
 
   const geblokkeerd = uitgeschakeld || bezig;
 
@@ -91,19 +98,25 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
     setKnopBreedte(e.nativeEvent.layout.width);
   }
 
-  function toonVinkje() {
+  useEffect(() => {
+    if (!gelukt) {
+      setToonVink(false);
+      return;
+    }
     haptiek('succes');
     setToonVink(true);
     vinkVoortgang.value = 0;
     vinkVoortgang.value = reduceMotion
       ? vervaag(1, duur.kort)
-      : withTiming(1, { duration: duur.midden, easing: curve.binnen });
+      : withTiming(1, { duration: duur.lang, easing: curve.binnen });
     if (vinkWekker.current !== null) clearTimeout(vinkWekker.current);
     vinkWekker.current = setTimeout(() => {
       vinkWekker.current = null;
-      setToonVink(false);
+      onGeluktKlaarRef.current?.();
     }, VINK_ZICHTBAAR_MS);
-  }
+    // Alleen op gelukt: reduceMotion en de shared value veranderen niet midden in dit moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gelukt]);
 
   function stopVasthouden() {
     if (wekker.current !== null) {
@@ -132,19 +145,19 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
       setHoudtVast(false);
       voortgang.value = 0;
       onBevestig();
-      toonVinkje();
     }, HOUD_VAST_MS);
   }
 
   function tik() {
     // In echt doet een losse tik met opzet niets: daar geldt alleen ingedrukt houden.
     if (isEcht || geblokkeerd) return;
+    // Bij vasthouden geeft het volle moment al 'stevig'; een tik krijgt zijn eigen, lichtere klik.
+    haptiek('vastklikken');
     onBevestig();
-    toonVinkje();
   }
 
-  const knopKleur = geblokkeerd ? colors.rand : isEcht ? colors.verlies : colors.cta;
-  const voorgrondKleur = geblokkeerd ? colors.tekstGedimd : 'white';
+  const knopKleur = toonVink ? colors.winst : geblokkeerd ? colors.rand : isEcht ? colors.verlies : colors.cta;
+  const voorgrondKleur = toonVink ? 'white' : geblokkeerd ? colors.tekstGedimd : 'white';
 
   const vulStijl = useAnimatedStyle(() => {
     const s = voortgang.value;
@@ -241,3 +254,35 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+
+// Het gelukt-moment voor een sheet met deze knop. vier() krijgt wat er na het vinkje moet gebeuren
+// (sheet sluiten, bevestiging tonen) en bewaart dat tot het vinkje heeft gestaan. Sluit de
+// gebruiker de sheet in die tussentijd zelf, dan gebeurt het meteen: de bevestiging mag niet
+// wegvallen omdat iemand snel was.
+export function useGeluktMoment(onSluiten: () => void) {
+  const [gelukt, setGelukt] = useState(false);
+  const daarna = useRef<(() => void) | null>(null);
+
+  function vier(naVinkje: () => void) {
+    daarna.current = naVinkje;
+    setGelukt(true);
+  }
+
+  function rondAf() {
+    const f = daarna.current;
+    daarna.current = null;
+    f?.();
+  }
+
+  function sluit() {
+    if (daarna.current) rondAf();
+    else onSluiten();
+  }
+
+  function wis() {
+    daarna.current = null;
+    setGelukt(false);
+  }
+
+  return { gelukt, vier, rondAf, sluit, wis };
+}

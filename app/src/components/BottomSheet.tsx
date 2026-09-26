@@ -368,11 +368,14 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: radii.pill,
   },
+  // Aan de onderrand vastgezet, niet met top: '100%'. Yoga rekent dat percentage tegen de hoogte
+  // van het vel zonder padding, waardoor de strook 42px te hoog begon en over de onderste knop
+  // van een sheet viel.
   onderrok: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: '100%',
+    bottom: -120,
     height: 120,
   },
 });

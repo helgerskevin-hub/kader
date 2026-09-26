@@ -19,7 +19,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
-import { OrderBevestigKnop } from './OrderBevestigKnop';
+import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
 
 // De niveaus die je hier intikt gaan als dollarprijzen naar eToro, dus dit scherm blijft in dollars,
 // ook als de app op euro's staat.
@@ -50,6 +50,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
   const [wisDoel, setWisDoel] = useState(false);
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
+  const { gelukt, vier, rondAf, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
   // Eén id per keer dat de sheet opengaat, niet per klik, zodat een handmatige herhaling na een fout
@@ -62,6 +63,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
     setWisDoel(false);
     setVerzoekId(guid());
     setBezig(false);
+    wis();
     setFout('');
   }, [zichtbaar, trade.id, trade.stopLoss, trade.takeProfit]);
 
@@ -143,12 +145,15 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
 
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
-        onSluiten();
-        toonDialoog({
-          variant: 'gelukt',
-          titel: 'Niveaus doorgegeven',
-          tekst: `De stop-loss en het doel van ${trade.symbool} staan bij eToro. Kader werkt ze bij na de volgende sync.`,
-          knoppen: [{ label: 'Oké' }],
+        // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
+        vier(() => {
+          onSluiten();
+          toonDialoog({
+            variant: 'gelukt',
+            titel: 'Niveaus doorgegeven',
+            tekst: `De stop-loss en het doel van ${trade.symbool} staan bij eToro. Kader werkt ze bij na de volgende sync.`,
+            knoppen: [{ label: 'Oké' }],
+          });
         });
         return;
       }
@@ -193,13 +198,13 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
   }];
 
   return (
-    <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={sluit} velStijl={stijlen.vel}>
       <View style={stijlen.titelRij}>
         <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
           Stop-loss en doel van {trade.symbool}
         </Text>
         <Pressable
-          onPress={onSluiten}
+          onPress={sluit}
           accessibilityLabel="Sluiten"
           accessibilityRole="button"
           style={stijlen.sluitKnop}
@@ -325,6 +330,8 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
         bezig={bezig}
         uitgeschakeld={!magBevestigen}
         onBevestig={bevestig}
+        gelukt={gelukt}
+        onGeluktKlaar={rondAf}
         echtWaarschuwing="Dit wijzigt een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen."
       />
     </BottomSheet>

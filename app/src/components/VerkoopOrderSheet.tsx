@@ -18,7 +18,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
-import { OrderBevestigKnop } from './OrderBevestigKnop';
+import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
 import { useValutaStand } from '../state/useValuta';
 
 interface Props {
@@ -49,6 +49,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
 
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
+  const { gelukt, vier, rondAf, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
   // Eén id per keer dat de sheet opengaat, niet per klik. Probeer je het na een fout opnieuw, dan
@@ -57,6 +58,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
     if (!zichtbaar) return;
     setVerzoekId(guid());
     setBezig(false);
+    wis();
     setFout('');
   }, [zichtbaar, trade.id]);
 
@@ -119,26 +121,29 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
 
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
-        onSluiten();
-        toonDialoog({
-          variant: 'gelukt',
-          titel: isShort ? 'Sluitorder staat bij eToro' : 'Verkoop staat bij eToro',
-          tekst: `Je ${opdrachtTekst} is doorgegeven. Kader werkt je portfolio bij zodra de positie gesloten is.`,
-          resultaat: resultaat !== undefined && resultaatPct !== undefined
-            ? {
-              soort: 'bedrag',
-              bedragUsd: resultaat,
-              procent: resultaatPct,
-              detail: huidigePrijs !== undefined
-                ? `${aantalTekst} ${trade.symbool} · aankoop ${fmtPrijs(trade.entryPrijs)} · nu ${fmtPrijs(huidigePrijs)}`
-                : undefined,
-              toelichting: 'Schatting op de koers van dit moment. eToro sluit op zijn eigen koers en rekent kosten, dus het definitieve bedrag kan afwijken. Kader zet het echte resultaat in je historie na de volgende sync.',
-            }
-            : {
-              soort: 'onbekend',
-              toelichting: 'Kader kent het aantal coins of de live koers van deze positie niet, dus een bedrag zou gokwerk zijn. Zodra eToro de verkoop heeft verwerkt staat het echte resultaat in je historie.',
-            },
-          knoppen: [{ label: 'Oké' }],
+        // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
+        vier(() => {
+          onSluiten();
+          toonDialoog({
+            variant: 'gelukt',
+            titel: isShort ? 'Sluitorder staat bij eToro' : 'Verkoop staat bij eToro',
+            tekst: `Je ${opdrachtTekst} is doorgegeven. Kader werkt je portfolio bij zodra de positie gesloten is.`,
+            resultaat: resultaat !== undefined && resultaatPct !== undefined
+              ? {
+                soort: 'bedrag',
+                bedragUsd: resultaat,
+                procent: resultaatPct,
+                detail: huidigePrijs !== undefined
+                  ? `${aantalTekst} ${trade.symbool} · aankoop ${fmtPrijs(trade.entryPrijs)} · nu ${fmtPrijs(huidigePrijs)}`
+                  : undefined,
+                toelichting: 'Schatting op de koers van dit moment. eToro sluit op zijn eigen koers en rekent kosten, dus het definitieve bedrag kan afwijken. Kader zet het echte resultaat in je historie na de volgende sync.',
+              }
+              : {
+                soort: 'onbekend',
+                toelichting: 'Kader kent het aantal coins of de live koers van deze positie niet, dus een bedrag zou gokwerk zijn. Zodra eToro de verkoop heeft verwerkt staat het echte resultaat in je historie.',
+              },
+            knoppen: [{ label: 'Oké' }],
+          });
         });
         return;
       }
@@ -184,11 +189,11 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
   }
 
   return (
-    <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={sluit} velStijl={stijlen.vel}>
       <View style={stijlen.titelRij}>
         <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{trade.symbool} {werkwoord}</Text>
         <Pressable
-          onPress={onSluiten}
+          onPress={sluit}
           accessibilityLabel="Sluiten"
           accessibilityRole="button"
           style={stijlen.sluitKnop}
@@ -256,6 +261,8 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
           bezig={bezig}
           uitgeschakeld={!mag}
           onBevestig={bevestig}
+          gelukt={gelukt}
+          onGeluktKlaar={rondAf}
           echtWaarschuwing={`Dit ${werkwoordVervoegd} een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen.`}
         />
       </ScrollView>
