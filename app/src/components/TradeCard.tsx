@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Info, CheckCircle, Star, ShoppingCart } from 'lucide-react-native';
@@ -119,7 +119,9 @@ function gloedSchaduw(kleur: string, dekking: number, straal: number, hoogte: nu
   };
 }
 
-export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
+// Memo: tijdens de marktscan tekent MarktScreen bij elk voortgangstikje opnieuw, en zonder memo
+// tekenden alle al gelande kaarten dan mee, net terwijl de nieuwe kaarten binnen komen vliegen.
+export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -386,7 +388,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
       )}
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   kaart: {

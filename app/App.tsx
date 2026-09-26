@@ -38,7 +38,7 @@ import { meldingenAan } from './src/state/meldingVoorkeur';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
 import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
-import { MarktProvider } from './src/state/MarktProvider';
+import { MarktProvider, useMarkt } from './src/state/MarktProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { DialoogProvider } from './src/state/DialoogProvider';
@@ -51,6 +51,7 @@ import { CHANGELOG, nieuwsteVersie } from './src/changelog';
 import { useBeweging } from './src/theme/useReduceMotion';
 import { duur, veer, vervaag } from './src/theme/beweging';
 import { usePortfolio } from './src/state/PortfolioProvider';
+import { TabZichtbaarContext } from './src/state/tabZichtbaar';
 
 // Geen props, dus React.memo houdt deze schermen volledig stil als AppInhoud hertekent door
 // bijvoorbeeld de prijzen-poll in PortfolioProvider (elke 60s), ook tijdens een tabwissel.
@@ -92,11 +93,14 @@ interface PagerWaarden extends TabPagerStand {
 
 // Eén pagina van de pager. Elke pagina rekent zijn eigen verschuiving uit de gedeelde positie, dus
 // tijdens een swipe of wissel tekent React niets: alleen de UI-thread schuift.
-function TabPagina({ index, pager, actief, getoond, children }: {
+function TabPagina({ index, pager, actief, getoond, inBeeld, children }: {
   index: number;
   pager: PagerWaarden;
   actief: boolean;
   getoond: boolean;
+  // Echt in beeld (actief, wegschuivend of de buur waar een veeg naartoe gaat), niet alleen klaar
+  // gezet naast het scherm. Daarop pauzeren eindeloze animaties, zie tabZichtbaar.ts.
+  inBeeld: boolean;
   children: React.ReactNode;
 }) {
   const stijl = useAnimatedStyle(() => {
@@ -134,9 +138,20 @@ function TabPagina({ index, pager, actief, getoond, children }: {
         !getoond && styles.verborgen,
       ]}
     >
-      {children}
+      <TabZichtbaarContext.Provider value={inBeeld}>{children}</TabZichtbaarContext.Provider>
     </Animated.View>
   );
+}
+
+// Luistert in zijn eentje naar de marktscan, zodat niet heel AppInhoud bij elk voortgangstikje
+// opnieuw tekent: AppInhoud hoort alleen wanneer de scan begint of stopt.
+function ScanWachter({ onWissel }: { onWissel: (bezig: boolean) => void }) {
+  const { state } = useMarkt();
+  const bezig = state.status === 'loading';
+  useEffect(() => {
+    onWissel(bezig);
+  }, [bezig, onWissel]);
+  return null;
 }
 
 function AppInhoud() {
@@ -169,7 +184,10 @@ function AppInhoud() {
   // Kansen-scan start pas op een knop, de marktanalyse zit in MarktProvider), dus het enige wat
   // het kost is die JS-tijd, en die valt nu in een moment waarop niemand iets doet. Swipe je
   // eerder dan dat, dan mount de buur alsnog meteen bij het begin van de swipe.
+  // "Stil" betekent ook: er loopt geen marktscan. Tijdens de scan tekent elke useMarkt-gebruiker bij
+  // elk voortgangstikje opnieuw, en een vooruit gemount Portfolio deed dat dan onzichtbaar mee.
   const [bezochteTabs, setBezochteTabs] = useState<Tab[]>(['markt']);
+  const [scanBezig, setScanBezig] = useState(false);
   const bezochteTabsRef = useRef(bezochteTabs);
   bezochteTabsRef.current = bezochteTabs;
   // Het scherm dat nog getoond moet blijven terwijl de nieuwe tab binnenkomt.
@@ -212,6 +230,7 @@ function AppInhoud() {
   // voorgaan; daarna telkens op een stil moment de volgende tab, zodat er nooit één lange hapering
   // ontstaat.
   useEffect(() => {
+    if (scanBezig) return;
     let gestopt = false;
     let klok: ReturnType<typeof setTimeout> | undefined;
     let idle: number | undefined;
@@ -233,7 +252,7 @@ function AppInhoud() {
       if (klok) clearTimeout(klok);
       if (idle !== undefined) cancelIdleCallback(idle);
     };
-  }, []);
+  }, [scanBezig]);
 
   function zorgGemount(index: number) {
     const tab = TAB_VOLGORDE[index];
@@ -426,11 +445,11 @@ function AppInhoud() {
     // Binnen AppInhoud en niet daarbuiten, want de provider heeft wisselTab nodig. Alles wat een
     // melding kan aantikken (ScreenHeader staat op elk scherm) zit hierbinnen.
     <NavigatieProvider wisselTab={wisselTab}>
+    <ScanWachter onWissel={setScanBezig} />
     <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
       {/* Het swipegebaar ligt over alle pagina's. Verticaal scrollen wint altijd (zie de drempels
           bovenaan), en een horizontale ScrollView in een scherm (de koopkansen in WatKopenNu) ook:
-          die neemt de aanraking native al bij 8dp, en dan breekt gesture-handler dit gebaar af.
-          De koersgrafiek wint op dezelfde manier, via zijn PanResponder. */}
+          die neemt de aanraking native al bij 8dp, en dan breekt gesture-handler dit gebaar af. */}
       <GestureDetector gesture={swipe}>
       <View style={styles.schermen} onLayout={opSchermenLayout}>
         {bezochteTabs.map(tab => {
@@ -443,7 +462,14 @@ function AppInhoud() {
             || tab === sleepBuur
             || Math.abs(index - TAB_VOLGORDE.indexOf(actieveTab)) === 1;
           return (
-            <TabPagina key={tab} index={index} pager={pager} actief={isActief} getoond={getoond}>
+            <TabPagina
+              key={tab}
+              index={index}
+              pager={pager}
+              actief={isActief}
+              getoond={getoond}
+              inBeeld={isActief || tab === overgangTab || tab === sleepBuur}
+            >
               <FoutGrens>
                 {tab === 'markt' && <MarktScherm />}
                 {tab === 'kansen' && <KansenScherm />}

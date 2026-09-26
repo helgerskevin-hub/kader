@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { useTabZichtbaar } from '../state/tabZichtbaar';
 import { kaartLandt } from '../theme/lijstBeweging';
 
 // Klein, rustig beeld boven een lege staat: de vier hoekhaken van het Kader-logo die zacht
@@ -56,6 +57,9 @@ interface Props {
 export function LegeStaatBeeld({ maat = 72, kleur, children }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
+  const inBeeld = useTabZichtbaar();
+  // Loopt door voorbij 1; alles hieronder kijkt alleen naar het deel achter de komma. Zo kan de
+  // adem pauzeren (tab uit beeld) en later verder gaan waar hij was, zonder terug te springen.
   const t = useSharedValue(RUSTSTAND);
 
   useEffect(() => {
@@ -64,13 +68,19 @@ export function LegeStaatBeeld({ maat = 72, kleur, children }: Props) {
       t.value = RUSTSTAND;
       return;
     }
-    t.value = 0;
-    t.value = withRepeat(withTiming(1, { duration: ADEM_MS, easing: Easing.linear }), -1, false);
+    if (!inBeeld) {
+      cancelAnimation(t);
+      return;
+    }
+    const start = t.value % 1;
+    t.value = start;
+    t.value = withRepeat(withTiming(start + 1, { duration: ADEM_MS, easing: Easing.linear }), -1, false);
     return () => cancelAnimation(t);
-  }, [reduceMotion, t]);
+  }, [reduceMotion, inBeeld, t]);
 
+  const fase = useDerivedValue(() => t.value % 1);
   // Cosinus in plaats van heen-en-weer-timing: geen knik op het keerpunt, net als echte adem.
-  const uitslag = useDerivedValue(() => UITSLAG * (1 - Math.cos(2 * Math.PI * t.value)) / 2);
+  const uitslag = useDerivedValue(() => UITSLAG * (1 - Math.cos(2 * Math.PI * fase.value)) / 2);
   const hoek0 = useDerivedValue(() => [{ translateX: RICHTING[0][0] * uitslag.value }, { translateY: RICHTING[0][1] * uitslag.value }]);
   const hoek1 = useDerivedValue(() => [{ translateX: RICHTING[1][0] * uitslag.value }, { translateY: RICHTING[1][1] * uitslag.value }]);
   const hoek2 = useDerivedValue(() => [{ translateX: RICHTING[2][0] * uitslag.value }, { translateY: RICHTING[2][1] * uitslag.value }]);
@@ -79,8 +89,8 @@ export function LegeStaatBeeld({ maat = 72, kleur, children }: Props) {
 
   // De lijn tekent zich in (einde loopt mee) en trekt daarna vanaf zijn begin weer weg, alsof er
   // een koers voorbijschuift. Tussen twee rondes is hij even helemaal weg.
-  const lijnEind = useDerivedValue(() => glad(0.1, 0.5, t.value));
-  const lijnBegin = useDerivedValue(() => glad(0.62, 0.95, t.value));
+  const lijnEind = useDerivedValue(() => glad(0.1, 0.5, fase.value));
+  const lijnBegin = useDerivedValue(() => glad(0.62, 0.95, fase.value));
 
   const schaal = maat / 96;
 

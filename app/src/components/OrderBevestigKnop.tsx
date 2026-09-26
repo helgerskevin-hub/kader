@@ -34,7 +34,8 @@ const HOUD_VAST_MS = 800;
 // pad zeker getekend is.
 const VINK_PADLENGTE = 30;
 // Hoe lang het vinkje staat voordat de sheet sluit en de bevestiging verschijnt. Het tekenen zelf
-// duurt duur.lang; de rest is rust, zodat je het vinkje ook echt ziet staan.
+// duurt duur.lang; de rest is rust, zodat je het vinkje ook echt ziet staan. De wekker zelf zit in
+// useGeluktMoment (in de sheet), niet in deze knop, zodat hij niet met de knop kan verdwijnen.
 const VINK_ZICHTBAAR_MS = 1100;
 
 interface Props {
@@ -45,14 +46,13 @@ interface Props {
   onBevestig: () => void;
   // Zet de ouder op true zodra eToro de order heeft aangenomen: dan pas tekent het vinkje in, met
   // de succes-haptiek. Een vinkje bij het bevestigen zelf beloofde iets wat nog kon mislukken.
+  // Komt uit useGeluktMoment, dat ook bepaalt wanneer de sheet daarna sluit.
   gelukt?: boolean;
-  // Na het vinkje: hier sluit de ouder de sheet en toont hij de bevestiging.
-  onGeluktKlaar?: () => void;
   // Overschrijft de standaardtekst boven de knop in echt-modus.
   echtWaarschuwing?: string;
 }
 
-export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, gelukt = false, onGeluktKlaar, echtWaarschuwing }: Props) {
+export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, gelukt = false, echtWaarschuwing }: Props) {
   const { colors } = useTheme();
   const { reduceMotion, naar } = useBeweging();
   const isEcht = omgeving === 'real';
@@ -67,17 +67,17 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
   const vinkVoortgang = useSharedValue(0);
   const [knopBreedte, setKnopBreedte] = useState(0);
   const wekker = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const vinkWekker = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onGeluktKlaarRef = useRef(onGeluktKlaar);
-  onGeluktKlaarRef.current = onGeluktKlaar;
 
   const geblokkeerd = uitgeschakeld || bezig;
+  // De houd-wekker vuurt 800 ms na het indrukken. Komt in die tijd het saldo binnen en past de
+  // order niet meer, dan moet hij dat zien: dus de actuele stand, niet die van bij het indrukken.
+  const actueel = useRef({ onBevestig, geblokkeerd });
+  actueel.current = { onBevestig, geblokkeerd };
 
-  // Lopende timers moeten weg als de component verdwijnt, anders vuurt de order af (of verschijnt
-  // het vinkje) nadat de sheet al gesloten is.
+  // Een lopende houd-wekker moet weg als de component verdwijnt, anders vuurt de order af nadat de
+  // sheet al gesloten is.
   useEffect(() => () => {
     if (wekker.current !== null) clearTimeout(wekker.current);
-    if (vinkWekker.current !== null) clearTimeout(vinkWekker.current);
   }, []);
 
   // Haptiek loopt mee met het vasthouden: een tik op een derde, iets dat vastklikt op tweederde,
@@ -109,11 +109,6 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
     vinkVoortgang.value = reduceMotion
       ? vervaag(1, duur.kort)
       : withTiming(1, { duration: duur.lang, easing: curve.binnen });
-    if (vinkWekker.current !== null) clearTimeout(vinkWekker.current);
-    vinkWekker.current = setTimeout(() => {
-      vinkWekker.current = null;
-      onGeluktKlaarRef.current?.();
-    }, VINK_ZICHTBAAR_MS);
     // Alleen op gelukt: reduceMotion en de shared value veranderen niet midden in dit moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gelukt]);
@@ -143,8 +138,12 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
     wekker.current = setTimeout(() => {
       wekker.current = null;
       setHoudtVast(false);
+      if (actueel.current.geblokkeerd) {
+        voortgang.value = naar(0, 'standaard');
+        return;
+      }
       voortgang.value = 0;
-      onBevestig();
+      actueel.current.onBevestig();
     }, HOUD_VAST_MS);
   }
 
@@ -199,7 +198,8 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
         style={[styles.knop, { backgroundColor: knopKleur }]}
       >
         {/* Vulbalk die meeloopt met het ingedrukt houden, zodat je ziet dat er iets gebeurt. */}
-        {houdtVast && (
+        {/* Blijft staan na loslaten, zodat je 'm ook ziet terugveren; bij voortgang 0 is hij onzichtbaar. */}
+        {isEcht && !toonVink && (
           <Animated.View
             style={[
               StyleSheet.absoluteFill,
@@ -256,22 +256,50 @@ const styles = StyleSheet.create({
 });
 
 // Het gelukt-moment voor een sheet met deze knop. vier() krijgt wat er na het vinkje moet gebeuren
-// (sheet sluiten, bevestiging tonen) en bewaart dat tot het vinkje heeft gestaan. Sluit de
-// gebruiker de sheet in die tussentijd zelf, dan gebeurt het meteen: de bevestiging mag niet
-// wegvallen omdat iemand snel was.
+// (sheet sluiten, bevestiging tonen) en voert dat uit zodra het vinkje heeft gestaan. De bevestiging
+// mag nooit wegvallen: sluit de gebruiker de sheet tijdens het vinkje, dan gebeurt het meteen, en is
+// de sheet al weg voordat eToro antwoordt (dicht getikt terwijl de order onderweg was), dan ook. Wie
+// geen bevestiging ziet, denkt dat de order mislukte en plaatst 'm nog een keer.
 export function useGeluktMoment(onSluiten: () => void) {
   const [gelukt, setGelukt] = useState(false);
   const daarna = useRef<(() => void) | null>(null);
+  const wekker = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gemount = useRef(false);
 
-  function vier(naVinkje: () => void) {
-    daarna.current = naVinkje;
-    setGelukt(true);
+  function stopWekker() {
+    if (wekker.current !== null) clearTimeout(wekker.current);
+    wekker.current = null;
   }
 
   function rondAf() {
+    stopWekker();
     const f = daarna.current;
     daarna.current = null;
     f?.();
+  }
+
+  // Verdwijnt de sheet midden in het vinkje (de ouder unmount 'm om een andere reden), dan alsnog
+  // afronden in plaats van de bevestiging mee te nemen. Via een ref, zodat de opruiming de actuele
+  // rondAf ziet en niet die van de eerste render.
+  const rondAfRef = useRef(rondAf);
+  rondAfRef.current = rondAf;
+  useEffect(() => {
+    gemount.current = true;
+    return () => {
+      gemount.current = false;
+      rondAfRef.current();
+    };
+  }, []);
+
+  function vier(naVinkje: () => void) {
+    if (!gemount.current) {
+      naVinkje();
+      return;
+    }
+    daarna.current = naVinkje;
+    setGelukt(true);
+    stopWekker();
+    wekker.current = setTimeout(rondAf, VINK_ZICHTBAAR_MS);
   }
 
   function sluit() {
@@ -279,10 +307,12 @@ export function useGeluktMoment(onSluiten: () => void) {
     else onSluiten();
   }
 
+  // Terug naar begin (sheet opnieuw geopend). Staat er nog een bevestiging klaar, dan eerst die:
+  // weggooien zou de order stil laten verdwijnen.
   function wis() {
-    daarna.current = null;
+    if (daarna.current) rondAf();
     setGelukt(false);
   }
 
-  return { gelukt, vier, rondAf, sluit, wis };
+  return { gelukt, vier, sluit, wis };
 }

@@ -4,7 +4,6 @@ import Animated, {
   Extrapolation,
   interpolate,
   interpolateColor,
-  scrollTo,
   useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
@@ -85,8 +84,10 @@ export function OnboardingScreen({ onKlaar }: Props) {
   // Bij een tik op Vorige/Volgende schuift de pager mee, net als bij een veeg. Onder Minder
   // beweging springt hij meteen: dat is de enige plek waar dit scherm zelf besluit iets niet te
   // laten glijden, de rest is vingerbeweging en blijft dus wel bewegen.
+  // Via de gewone ScrollView-methode: Reanimated's scrollTo doet vanaf de JS-thread stil niets, en
+  // dan bleven de pagina's staan terwijl de knop al "Begin" zei (en de disclaimer oversloeg).
   function gaNaarStap(index: number) {
-    scrollTo(scrollRef, index * breedte, 0, !reduceMotion);
+    scrollRef.current?.scrollTo({ x: index * breedte, animated: !reduceMotion });
     setActieveStap(index);
   }
 

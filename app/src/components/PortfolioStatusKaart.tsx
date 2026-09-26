@@ -28,6 +28,10 @@ import { AnimatedGetal } from './AnimatedGetal';
 import { Drukbaar } from './Drukbaar';
 import { useValutaStand } from '../state/useValuta';
 
+// Buiten de component, zie AnimatedGetal: anders elke render een nieuwe builder.
+const VINK_IN = FadeIn.duration(duur.kort);
+const VINK_UIT = FadeOut.duration(duur.kort);
+
 const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
 
 // Percentage van de balkbreedte dat een bestaand maar klein aandeel minimaal krijgt. Gemeten op de
@@ -257,7 +261,7 @@ export function PortfolioStatusKaart({
                   ))
               : toonSyncVink
                 ? (
-                  <Animated.View entering={FadeIn.duration(duur.kort)} exiting={FadeOut.duration(duur.kort)}>
+                  <Animated.View entering={VINK_IN} exiting={VINK_UIT}>
                     <Check size={18} color={syncKleur} strokeWidth={2} />
                   </Animated.View>
                 )

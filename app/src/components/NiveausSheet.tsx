@@ -50,7 +50,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
   const [wisDoel, setWisDoel] = useState(false);
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
-  const { gelukt, vier, rondAf, sluit, wis } = useGeluktMoment(onSluiten);
+  const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
   // Eén id per keer dat de sheet opengaat, niet per klik, zodat een handmatige herhaling na een fout
@@ -331,7 +331,6 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
         uitgeschakeld={!magBevestigen}
         onBevestig={bevestig}
         gelukt={gelukt}
-        onGeluktKlaar={rondAf}
         echtWaarschuwing="Dit wijzigt een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen."
       />
     </BottomSheet>

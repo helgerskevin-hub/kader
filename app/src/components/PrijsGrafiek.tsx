@@ -37,6 +37,7 @@ import { useValutaStand } from '../state/useValuta';
 import { BereikId, STANDAARD_BEREIK, beschikbareBereiken, geldigBereik, reeksVoorBereik } from '../engine/grafiekBereik';
 import { curve, duur, veer, staggerVertraging, vervaag } from '../theme/beweging';
 import { useBeweging } from '../theme/useReduceMotion';
+import { useTabZichtbaar } from '../state/tabZichtbaar';
 import { haptiek, haptiekVanUI } from '../theme/haptiek';
 import { bemonster, fractiesVoor, metAlfa, unieFracties } from './grafiek/morph';
 
@@ -252,9 +253,11 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
     }
   }, [klaarVoorTekenen]);
 
-  // Rustig ademende halo om de laatste koers: twee seconden per slag, uit bij Minder beweging.
+  // Rustig ademende halo om de laatste koers: twee seconden per slag, uit bij Minder beweging en
+  // op een tab die niet in beeld is.
+  const inBeeld = useTabZichtbaar();
   useEffect(() => {
-    if (reduceMotion) {
+    if (reduceMotion || !inBeeld) {
       cancelAnimation(puls);
       puls.value = 1;
       return;
@@ -262,7 +265,7 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
     puls.value = 0;
     puls.value = withRepeat(withTiming(1, { duration: 2000, easing: curve.binnen }), -1, false);
     return () => cancelAnimation(puls);
-  }, [reduceMotion]);
+  }, [reduceMotion, inBeeld]);
 
   // ---------- Paden, op de UI-thread ----------
 

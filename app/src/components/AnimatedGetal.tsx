@@ -10,6 +10,11 @@ import Animated, {
 import { duur, vervaag } from '../theme/beweging';
 import { useBeweging, useReduceMotion } from '../theme/useReduceMotion';
 
+// Eén keer gebouwd: een nieuwe builder per render laat Reanimated de overgang telkens opnieuw
+// registreren, en dit getal tekent bij elke koersupdate opnieuw.
+const TEKEN_IN = FadeIn.duration(duur.kort);
+const TEKEN_UIT = FadeOut.duration(duur.kort);
+
 const CIJFERS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 interface KleurBijTeken {
@@ -169,7 +174,8 @@ export function AnimatedGetal({ waarde, format, style, kleurBijTeken }: Props) {
         // meteen ook waarom er bij mount niets rolt, zoals Apple's Stocks-app dat ook niet doet.
         <Animated.Text style={[cijferStijl, kleurStijl]}>{geformatteerd}</Animated.Text>
       ) : (
-        <View style={styles.rij}>
+        // Eén geheel voor TalkBack: anders leest hij per cijferkolom alle tien cijfers 0 tot 9 voor.
+        <View style={styles.rij} accessible accessibilityLabel={geformatteerd}>
           {slots.map(slot =>
             slot.isCijfer ? (
               <RollendCijfer
@@ -183,8 +189,8 @@ export function AnimatedGetal({ waarde, format, style, kleurBijTeken }: Props) {
             ) : (
               <Animated.View
                 key={slot.key}
-                entering={FadeIn.duration(duur.kort)}
-                exiting={FadeOut.duration(duur.kort)}
+                entering={TEKEN_IN}
+                exiting={TEKEN_UIT}
               >
                 <Animated.Text style={[cijferStijl, kleurStijl, styles.slotTekst]}>
                   {slot.teken}

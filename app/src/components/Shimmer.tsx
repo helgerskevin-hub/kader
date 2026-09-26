@@ -11,6 +11,7 @@ import Animated, {
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useTheme } from '../theme/ThemeProvider';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { useTabZichtbaar } from '../state/tabZichtbaar';
 
 // Shimmer voor de skeleton-componenten (SkeletonCard, SkeletonRegel, SkeletonGrafiek): een zachte
 // schuine glansband die van links naar rechts over de grijze blokjes trekt. Vervangt de oude
@@ -72,7 +73,9 @@ export function ShimmerGroep({ style, children }: { style?: StyleProp<ViewStyle>
   const reduceMotion = useReduceMotion();
   const ref = useRef<View>(null);
   const [maat, setMaat] = useState({ breedte: 0, hoogte: 0 });
-  useKlok(!reduceMotion);
+  // Een skeleton op een tab die niet in beeld is, telt niet mee: dan staat de klok gewoon stil.
+  const inBeeld = useTabZichtbaar();
+  useKlok(!reduceMotion && inBeeld);
 
   function opLayout(e: LayoutChangeEvent) {
     const { width, height } = e.nativeEvent.layout;

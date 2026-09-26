@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, RefreshControl,
 } from 'react-native';
@@ -76,6 +76,11 @@ export function MarktScreen() {
   const rsPerSymbool = useMemo(
     () => Object.fromEntries((rsLijst ?? []).map(r => [r.symbool, r.versusBtc])),
     [rsLijst],
+  );
+  // Stabiel, zodat de gememode TradeCard niet bij elke render een nieuwe functie ziet.
+  const opOpenDetail = useCallback(
+    (t: Trade) => openDetail(vanTrade(t, rsPerSymbool[t.symbool])),
+    [openDetail, rsPerSymbool],
   );
 
   // Een filter of tab wisselen hoeft zelf niets te animeren: kaarten die wegvallen vervagen
@@ -232,11 +237,14 @@ export function MarktScreen() {
               entering={kaartLandt(landVolgorde(item.symbool, index), reduceMotion)}
               exiting={uitklapUit()}
               pointerEvents={laden ? 'none' : 'auto'}
+              // pointerEvents houdt alleen vingers tegen; TalkBack tikt via de toegankelijkheidsactie
+              // en komt er dan nog wel doorheen. Tijdens het laden daarom ook voor TalkBack verborgen.
+              importantForAccessibility={laden ? 'no-hide-descendants' : 'auto'}
             >
               <TradeCard
                 trade={item}
                 onGetrade={setGetradeteTrade}
-                onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))}
+                onOpenDetail={opOpenDetail}
                 favoriet={isFavoriet(item.symbool)}
                 onToggleFavoriet={wisselFavoriet}
                 onKoop={magHandelen ? setKoopTrade : undefined}
@@ -297,7 +305,7 @@ export function MarktScreen() {
                   magHandelen={magHandelen}
                   onGetrade={setGetradeteTrade}
                   onKoop={magHandelen ? setKoopTrade : undefined}
-                  onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))}
+                  onOpenDetail={opOpenDetail}
                 />
               </Animated.View>
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}

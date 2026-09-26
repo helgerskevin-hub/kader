@@ -47,7 +47,20 @@ type LaadStatus = 'idle' | 'loading' | 'error' | 'success';
 // De secties onder de kop komen na het laden licht gestaffeld binnen: 8 punten omhoog en
 // infaden. Subtiel, want de kaart is net uitgegroeid tot dit scherm en dat was de echte beweging.
 // Onder Minder beweging alleen een korte fade, alles tegelijk.
+// Gecachet per index, net als kaartLandt: een nieuwe worklet per render laat Reanimated de
+// overgang bij elke render opnieuw naar de UI-thread sturen.
+const opkomstCache = new Map<string, EntryExitAnimationFunction>();
 function opkomst(index: number, alleenFade: boolean): EntryExitAnimationFunction {
+  const sleutel = `${index}:${alleenFade ? 1 : 0}`;
+  let f = opkomstCache.get(sleutel);
+  if (!f) {
+    f = maakOpkomst(index, alleenFade);
+    opkomstCache.set(sleutel, f);
+  }
+  return f;
+}
+
+function maakOpkomst(index: number, alleenFade: boolean): EntryExitAnimationFunction {
   const vertraging = staggerVertraging(index);
   return () => {
     'worklet';

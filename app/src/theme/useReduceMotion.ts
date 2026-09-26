@@ -1,18 +1,37 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { withSpring, type AnimationCallback } from 'react-native-reanimated';
 import { veer, duur, vervaag, type VeerNaam } from './beweging';
 
+// Eén bron voor de hele app in plaats van een eigen abonnement per component. Het uitlezen gebeurt
+// meteen bij het laden van deze module, dus ruim voor het eerste scherm met beweging; zo tekent
+// een component dat later mount (een order-sheet, een nieuwe kaart) zijn eerste frame al met de
+// juiste stand, en veert een sheet onder Minder beweging niet toch even binnen.
+let minderBeweging = false;
+const luisteraars = new Set<() => void>();
+
+function zetMinderBeweging(aan: boolean) {
+  if (aan === minderBeweging) return;
+  minderBeweging = aan;
+  luisteraars.forEach(l => l());
+}
+
+AccessibilityInfo.isReduceMotionEnabled().then(zetMinderBeweging).catch(() => {});
+AccessibilityInfo.addEventListener('reduceMotionChanged', zetMinderBeweging);
+
+function abonneer(luisteraar: () => void) {
+  luisteraars.add(luisteraar);
+  return () => {
+    luisteraars.delete(luisteraar);
+  };
+}
+
+function leesStand() {
+  return minderBeweging;
+}
+
 export function useReduceMotion(): boolean {
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => sub.remove();
-  }, []);
-
-  return reduceMotion;
+  return useSyncExternalStore(abonneer, leesStand);
 }
 
 export interface NaarOpties {

@@ -49,7 +49,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
 
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
-  const { gelukt, vier, rondAf, sluit, wis } = useGeluktMoment(onSluiten);
+  const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
   // Eén id per keer dat de sheet opengaat, niet per klik. Probeer je het na een fout opnieuw, dan
@@ -262,7 +262,6 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
           uitgeschakeld={!mag}
           onBevestig={bevestig}
           gelukt={gelukt}
-          onGeluktKlaar={rondAf}
           echtWaarschuwing={`Dit ${werkwoordVervoegd} een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen.`}
         />
       </ScrollView>

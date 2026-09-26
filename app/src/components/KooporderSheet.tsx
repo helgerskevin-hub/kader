@@ -86,7 +86,7 @@ export function KooporderSheet({
   // Kader dat geld als beschikbaar en werd de order die je erop baseerde door eToro geweigerd.
   const vrijSaldo = saldo?.besteedbaarUsd ?? null;
   const [bezig, setBezig] = useState(false);
-  const { gelukt, vier, rondAf, sluit, wis } = useGeluktMoment(onSluiten);
+  const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
   // Eén verzoekId per keer dat de sheet opengaat, zodat een handmatige herhaling na een afwijzing
@@ -415,7 +415,6 @@ export function KooporderSheet({
           uitgeschakeld={!magBevestigen}
           onBevestig={bevestig}
           gelukt={gelukt}
-          onGeluktKlaar={rondAf}
         />
       </ScrollView>
     </BottomSheet>
