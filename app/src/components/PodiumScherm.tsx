@@ -3,6 +3,7 @@ import { Dimensions, Modal, StyleSheet, View, type LayoutChangeEvent } from 'rea
 import Animated, {
   Extrapolation,
   interpolate,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -62,6 +63,12 @@ const START_TERUGVAL_MS = 250;
 // lijkt. Bij 1e-4 van de beginenergie is het vlak op een procent na op zijn plek, en dat laatste
 // procent valt samen met de kaart eronder.
 const SLUIT_VEER = { ...veer.standaard, energyThreshold: 1e-4 };
+// Ook met die drempel duurde het op de emulator nog zo'n 0,7 s voor de Modal echt weg was, en al
+// die tijd lag het ondoorzichtige kaartvlak over de echte kaart: de lijst leek leeg. Daarom vervaagt
+// het vlak in dit laatste stuk van de voortgang naar de kaart eronder, en melden we het scherm al
+// dicht zodra het zo goed als in de kaart zit, in plaats van op de staart van de veer te wachten.
+const KAART_OVERNAME_VANAF = 0.12;
+const DICHT_BIJ = 0.02;
 
 export interface SluitOpties {
   // false = niet terug de kaart in maar kort uitfaden, voor als er na het sluiten een tabwissel
@@ -251,6 +258,15 @@ export function PodiumScherm({ zichtbaar, onSluiten, children }: Props) {
         : withSpring(0, { ...veer.standaard, velocity: e.velocityX });
     }), [markeerSwipeSluiting, maatB, modus, rondAf, sleep, sluitendUI, voortgang]);
 
+  // Zie DICHT_BIJ. Alleen voor terug-de-kaart-in: bij schuiven en vervagen is het laatste stukje
+  // gewoon nog zichtbaar. rondAf vangt zelf af dat de veer daarna nog een keer klaar meldt.
+  useAnimatedReaction(
+    () => sluitendUI.value && modus.value === MODUS_BRON && voortgang.value < DICHT_BIJ,
+    (dicht, vorige) => {
+      if (dicht && !vorige) scheduleOnRN(rondAf);
+    },
+  );
+
   const dimStijl = useAnimatedStyle(() => {
     const swipeDeel = Math.min(Math.max(sleep.value / maatB.value, 0), 1);
     const p = Math.min(Math.max(voortgang.value, 0), 1);
@@ -283,6 +299,7 @@ export function PodiumScherm({ zichtbaar, onSluiten, children }: Props) {
     }
     const rest = 1 - Math.min(Math.max(voortgang.value, 0), 1);
     return {
+      opacity: interpolate(voortgang.value, [0, KAART_OVERNAME_VANAF], [0, 1], Extrapolation.CLAMP),
       left: r.x * rest,
       top: r.y * rest,
       right: Math.max(maatB.value - r.x - r.breedte, 0) * rest,
