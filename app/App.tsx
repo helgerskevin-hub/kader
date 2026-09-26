@@ -162,14 +162,16 @@ function AppInhoud() {
   // layout-effect daarna: de oude pagina blijft dus staan tot de nieuwe er is, er is nooit een
   // leeg frame en dus geen flits.
   //
-  // Nooit bezochte buren worden pas gemount als je hun kant op begint te swipen, niet vooruit na
-  // het opstarten. Geen scherm doet bij het mounten iets duurs over het netwerk (de Kansen-scan
-  // start pas op een knop, de marktanalyse zit in MarktProvider), maar Portfolio tekent al je
-  // trades en dat kost merkbaar JS-tijd. Die tijd betalen we liever als je er echt heen gaat dan
-  // bij elke app-start voor een tab die je misschien niet opent. Tijdens het mounten ligt er even
-  // de achtergrondkleur, maar de pagina volgt de vinger gewoon, want die beweging draait op de
-  // UI-thread.
+  // Nooit bezochte tabs mounten we vooruit, maar pas als de app na het opstarten stil is, en één
+  // per keer (zie het effect hieronder). Eerst deden we dat pas bij de eerste swipe erheen, maar
+  // dan lag er op de emulator 0,3 s (Kansen) tot 0,6 s (Portfolio, dat al je trades tekent) een
+  // lege pagina onder je vinger. Geen scherm doet bij het mounten iets duurs over het netwerk (de
+  // Kansen-scan start pas op een knop, de marktanalyse zit in MarktProvider), dus het enige wat
+  // het kost is die JS-tijd, en die valt nu in een moment waarop niemand iets doet. Swipe je
+  // eerder dan dat, dan mount de buur alsnog meteen bij het begin van de swipe.
   const [bezochteTabs, setBezochteTabs] = useState<Tab[]>(['markt']);
+  const bezochteTabsRef = useRef(bezochteTabs);
+  bezochteTabsRef.current = bezochteTabs;
   // Het scherm dat nog getoond moet blijven terwijl de nieuwe tab binnenkomt.
   const [overgangTab, setOvergangTab] = useState<Tab | null>(null);
   // De buur waar een swipe naartoe trekt, ook als die niet naast de vastgelegde tab ligt.
@@ -205,6 +207,33 @@ function AppInhoud() {
     setOvergangTab(null);
     setSleepBuur(null);
   }
+
+  // Zie het commentaar bij bezochteTabs. De eerste pauze laat de marktanalyse en de eerste paint
+  // voorgaan; daarna telkens op een stil moment de volgende tab, zodat er nooit één lange hapering
+  // ontstaat.
+  useEffect(() => {
+    let gestopt = false;
+    let klok: ReturnType<typeof setTimeout> | undefined;
+    let idle: number | undefined;
+    const volgende = () => {
+      if (gestopt) return;
+      idle = requestIdleCallback(() => {
+        if (gestopt) return;
+        // Uit de ref en niet uit een updater-functie: die draait pas bij de volgende render, dus
+        // daarin kunnen we hier nog niet zien of er na deze tab nog een volgt.
+        const ontbreekt = TAB_VOLGORDE.filter(t => !bezochteTabsRef.current.includes(t));
+        if (ontbreekt.length === 0) return;
+        setBezochteTabs(prev => (prev.includes(ontbreekt[0]) ? prev : [...prev, ontbreekt[0]]));
+        if (ontbreekt.length > 1) klok = setTimeout(volgende, 400);
+      });
+    };
+    klok = setTimeout(volgende, 1500);
+    return () => {
+      gestopt = true;
+      if (klok) clearTimeout(klok);
+      if (idle !== undefined) cancelIdleCallback(idle);
+    };
+  }, []);
 
   function zorgGemount(index: number) {
     const tab = TAB_VOLGORDE[index];
