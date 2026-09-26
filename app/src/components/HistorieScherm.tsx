@@ -1,8 +1,8 @@
 import React from 'react';
 import {
-  Modal, ScrollView, View, Text, Pressable, StyleSheet,
+  ScrollView, View, Text, Pressable, StyleSheet,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 import { X, CheckCircle, XCircle, History } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
@@ -12,6 +12,8 @@ import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { PortfolioTrade, tekenVan } from '../state/portfolioTypes';
 import { berekenStatistieken } from '../state/statistieken';
 import { useValutaStand } from '../state/useValuta';
+import { PodiumScherm } from './PodiumScherm';
+import { useDrukVeer } from './Drukbaar';
 
 interface Props {
   zichtbaar: boolean;
@@ -35,70 +37,72 @@ export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onV
   const stats = berekenStatistieken(trades);
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
-      <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
-        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
-          <View style={styles.headerLinks}>
-            <History size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Historie</Text>
-          </View>
-          <Pressable
-            onPress={onSluiten}
-            style={styles.sluitKnop}
-            accessibilityRole="button"
-            accessibilityLabel="Sluiten"
-            hitSlop={8}
-          >
-            <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
-          </Pressable>
-        </View>
-
-        {gesloten.length === 0 ? (
-          <View style={styles.leeg}>
-            <History size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
-            <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base, lineHeight: 24 }]}>
-              Nog geen afgesloten trades. Zodra je een trade als gewonnen of verloren afsluit, verschijnt hij hier.
-            </Text>
-          </View>
-        ) : (
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-            {/* Samenvatting */}
-            <View style={[styles.samenvatting, shadow.kaart, { backgroundColor: colors.kaart }]}>
-              <View style={styles.statRij}>
-                <Stat label="AFGESLOTEN" waarde={String(stats.afgesloten)} kleur={colors.tekstPrimair} />
-                <Stat
-                  label="TREFFERPERCENTAGE"
-                  waarde={stats.trefferpercentage !== null ? `${Math.round(stats.trefferpercentage)}%` : '—'}
-                  kleur={colors.tekstPrimair}
-                />
-                <Stat
-                  label="GEM. R/R BEHAALD"
-                  waarde={stats.gemBehaaldeRR !== null ? fmtRR(stats.gemBehaaldeRR) : '—'}
-                  kleur={colors.tekstPrimair}
-                />
-              </View>
-              {stats.totaalResultaatUsd !== null && (
-                <View style={[styles.totaalRij, { borderTopColor: colors.rand }]}>
-                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TOTAAL RESULTAAT</Text>
-                  <Text style={[Type.prijsGroot, { color: stats.totaalResultaatUsd >= 0 ? colors.winst : colors.verlies }]}>
-                    {fmtResultaatUsd(stats.totaalResultaatUsd)}
-                  </Text>
-                </View>
-              )}
+    <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
+      {sluit => (
+        <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
+          <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
+            <View style={styles.headerLinks}>
+              <History size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+              <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Historie</Text>
             </View>
+            <Pressable
+              onPress={() => sluit()}
+              style={styles.sluitKnop}
+              accessibilityRole="button"
+              accessibilityLabel="Sluiten"
+              hitSlop={8}
+            >
+              <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
+            </Pressable>
+          </View>
 
-            {gesloten.map(trade => (
-              <GeslotenKaart
-                key={trade.id}
-                trade={trade}
-                onOpenDetail={() => onOpenDetail(trade)}
-                onVerwijder={() => onVerwijder(trade.id)}
-              />
-            ))}
-          </ScrollView>
-        )}
-      </SafeAreaView>
-    </Modal>
+          {gesloten.length === 0 ? (
+            <View style={styles.leeg}>
+              <History size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
+              <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base, lineHeight: 24 }]}>
+                Nog geen afgesloten trades. Zodra je een trade als gewonnen of verloren afsluit, verschijnt hij hier.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+              {/* Samenvatting */}
+              <View style={[styles.samenvatting, shadow.kaart, { backgroundColor: colors.kaart }]}>
+                <View style={styles.statRij}>
+                  <Stat label="AFGESLOTEN" waarde={String(stats.afgesloten)} kleur={colors.tekstPrimair} />
+                  <Stat
+                    label="TREFFERPERCENTAGE"
+                    waarde={stats.trefferpercentage !== null ? `${Math.round(stats.trefferpercentage)}%` : '—'}
+                    kleur={colors.tekstPrimair}
+                  />
+                  <Stat
+                    label="GEM. R/R BEHAALD"
+                    waarde={stats.gemBehaaldeRR !== null ? fmtRR(stats.gemBehaaldeRR) : '—'}
+                    kleur={colors.tekstPrimair}
+                  />
+                </View>
+                {stats.totaalResultaatUsd !== null && (
+                  <View style={[styles.totaalRij, { borderTopColor: colors.rand }]}>
+                    <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TOTAAL RESULTAAT</Text>
+                    <Text style={[Type.prijsGroot, { color: stats.totaalResultaatUsd >= 0 ? colors.winst : colors.verlies }]}>
+                      {fmtResultaatUsd(stats.totaalResultaatUsd)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {gesloten.map(trade => (
+                <GeslotenKaart
+                  key={trade.id}
+                  trade={trade}
+                  onOpenDetail={() => onOpenDetail(trade)}
+                  onVerwijder={() => onVerwijder(trade.id)}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+    </PodiumScherm>
   );
 }
 
@@ -118,6 +122,9 @@ function GeslotenKaart({ trade, onOpenDetail, onVerwijder }: {
   onVerwijder: () => void;
 }) {
   const { colors } = useTheme();
+  // Het detailscherm groeit uit deze kaart; de kaart veert daarom ook mee bij indrukken, net als
+  // op het marktscherm.
+  const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
   const gewonnen = trade.status === 'gewonnen';
   const statusKleur = gewonnen ? colors.winst : colors.verlies;
   const StatusIcon = gewonnen ? CheckCircle : XCircle;
@@ -144,8 +151,20 @@ function GeslotenKaart({ trade, onOpenDetail, onVerwijder }: {
       : colors.tekstGedimd;
 
   return (
-    <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: statusKleur }]}>
-      <Pressable onPress={onOpenDetail} accessibilityRole="button" accessibilityLabel={`${trade.symbool} detail bekijken`}>
+    <Animated.View
+      ref={druk.ref}
+      style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: statusKleur }, druk.stijl]}
+    >
+      <Pressable
+        onPress={() => {
+          druk.legBronVast();
+          onOpenDetail();
+        }}
+        onPressIn={druk.drukIn}
+        onPressOut={druk.drukUit}
+        accessibilityRole="button"
+        accessibilityLabel={`${trade.symbool} detail bekijken`}
+      >
         <View style={styles.kaartKop}>
           <View style={styles.kaartKopLinks}>
             <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
@@ -193,7 +212,7 @@ function GeslotenKaart({ trade, onOpenDetail, onVerwijder }: {
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Verwijder</Text>
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

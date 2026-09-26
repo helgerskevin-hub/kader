@@ -312,15 +312,53 @@ export interface MarktUitkomst {
   relatieveSterkte: RelatieveSterkte[];
 }
 
+// Sorteer: HIGH CONVICTION eerst, dan wie de R/R-drempel haalt (die is verhandelbaar, de rest
+// is alleen ter informatie), dan op score, dan op R/R. Eén functie voor de eindlijst en de
+// voorlopige lijst tijdens het laden, zodat die twee nooit verschillend kunnen rangschikken.
+function vergelijkLongs(a: Trade, b: Trade): number {
+  if (a.highConviction !== b.highConviction) return a.highConviction ? -1 : 1;
+  if (a.voldoetAanRR !== b.voldoetAanRR) return a.voldoetAanRR ? -1 : 1;
+  if (b.score !== a.score) return b.score - a.score;
+  return b.rr - a.rr;
+}
+
+// De voorlopige top-N na een blok, alleen voor de weergave terwijl de scan nog loopt. De scores
+// en niveaus zijn per coin al definitief (scoorCandles kijkt alleen naar de candles van die ene
+// coin), maar de klimaatpoort hangt af van de hele markt. Die rekenen we op wat er tot nu toe
+// binnen is, met één verschil met de eindberekening: zolang er nog geen klimaat te bepalen valt
+// (BTC nog niet binnen, of te weinig coins voor de marktbreedte) telt de poort hier als dicht en
+// niet als open. Een KOOP die aan het eind alsnog verschijnt is een afronding; een KOOP die je
+// al zag en die aan het eind verdwijnt is een belofte die de app niet waarmaakt.
+function voorlopigeTop(
+  gescoord: Trade[],
+  opgehaald: { symbool: string; candles: Candle[] }[],
+  topN: number,
+): Trade[] {
+  const btc = opgehaald.find(o => o.symbool === 'BTC');
+  const klimaat = btc ? bepaalKlimaat(btc.candles, opgehaald.map(o => o.candles)) : null;
+  const lijst = klimaat && poortOpen(klimaat)
+    ? [...gescoord]
+    : gescoord.map(t => (t.signaal === 'KOOP' ? { ...t, signaal: 'WATCH' as const, highConviction: false } : t));
+  lijst.sort(vergelijkLongs);
+  return lijst.slice(0, topN);
+}
+
 export async function analyseerMarkt(options?: {
   universum?: string[];
   topN?: number;
   onProgress?: (current: number, total: number, symbool: string) => void;
+  // Na elk blok van GELIJKTIJDIG coins: de voorlopige top-N van wat er tot nu toe binnen is, en
+  // van hoeveel coins er data is. Alleen om kaarten te laten landen terwijl de scan loopt; de
+  // returnwaarde blijft de enige uitkomst en wordt precies zo berekend als zonder deze callback.
+  onVoorlopig?: (voorlopig: Trade[], bekeken: number) => void;
 }): Promise<MarktUitkomst> {
   const universum = options?.universum ?? STANDAARD_UNIVERSUM;
   const topN = options?.topN ?? 20;
   const opgehaald: { symbool: string; candles: Candle[]; bron: string }[] = [];
   let klaar = 0;
+  // Alleen gevuld met onVoorlopig. Staat los van `resultaten` hieronder, zodat de eindberekening
+  // niets van de tussenstanden erft.
+  const voorlopigGescoord: Trade[] = [];
 
   // Data ophalen en scoren in twee losse stappen, zodat we de candles van élke coin (ook wie
   // straks geen KOOP-signaal haalt) kunnen hergebruiken voor de marktbreedte hieronder, zonder
@@ -340,6 +378,20 @@ export async function analyseerMarkt(options?: {
       }),
     );
     for (const res of uitkomsten) if (res) opgehaald.push(res);
+
+    if (options?.onVoorlopig) {
+      // Een fout in de weergave mag de scan zelf nooit laten mislukken.
+      try {
+        for (const res of uitkomsten) {
+          if (!res) continue;
+          const trade = scoorCandles(res.symbool, res.candles, res.bron);
+          if (trade) voorlopigGescoord.push(trade);
+        }
+        options.onVoorlopig(voorlopigeTop(voorlopigGescoord, opgehaald, topN), opgehaald.length);
+      } catch {
+        // Alleen de tussenstand valt weg; de scan loopt door.
+      }
+    }
   }
 
   const resultaten: Trade[] = [];
@@ -377,14 +429,9 @@ export async function analyseerMarkt(options?: {
     shorts.sort((a, b) => (a.score !== b.score ? a.score - b.score : b.rr - a.rr));
   }
 
-  // Sorteer: HIGH CONVICTION eerst, dan wie de R/R-drempel haalt (die is verhandelbaar, de rest
-  // is alleen ter informatie), dan op score, dan op R/R.
-  gefilterd.sort((a, b) => {
-    if (a.highConviction !== b.highConviction) return a.highConviction ? -1 : 1;
-    if (a.voldoetAanRR !== b.voldoetAanRR) return a.voldoetAanRR ? -1 : 1;
-    if (b.score !== a.score) return b.score - a.score;
-    return b.rr - a.rr;
-  });
+  // Sorteer: HIGH CONVICTION eerst, dan wie de R/R-drempel haalt, dan op score, dan op R/R. Zie
+  // vergelijkLongs.
+  gefilterd.sort(vergelijkLongs);
 
   return {
     trades: gefilterd.slice(0, topN),

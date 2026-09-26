@@ -6,16 +6,21 @@
 //
 // Wordt alleen door DialoogProvider gemount. Roep hem nergens anders aan, anders komt de Modal weer
 // op meerdere plekken tegelijk te staan.
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View,
+  Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import Animated, {
+  ReduceMotion, cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native';
 import { fmtPct, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, shadow, spacing } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { curve, duur, veer, vervaag } from '../theme/beweging';
 import type { DialoogInhoud, DialoogKnop } from '../state/DialoogProvider';
 
 const IKONEN = {
@@ -32,6 +37,16 @@ const DESTRUCTIEF = '#DC2626';
 // Meer dan zes regels detailtekst duwt de knoppen van het scherm; vanaf daar mag het blok scrollen.
 const MAX_DETAILREGELS = 6;
 
+// De kaart komt uit iets kleiner op en veert naar zijn maat, zoals een iOS-alert. Weg gaat hij
+// sneller en minder ver: er is besloten, daar hoeft niemand nog naar te kijken.
+const SCHAAL_IN = 0.94;
+const SCHAAL_UIT = 0.97;
+
+// Beginsnelheid van de schijf bij een geslaagde actie. Vanuit rust op 1 geeft dat met veer.speels
+// één zachte uitslag tot ongeveer 1,06 en terug: dezelfde puls als de vroegere twee stappen van
+// 130ms, maar als één doorlopende beweging.
+const PULS_SNELHEID = 2.2;
+
 interface Props {
   inhoud: DialoogInhoud | null;
   zichtbaar: boolean;
@@ -41,31 +56,74 @@ interface Props {
 export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
   const { colors, donkerActief } = useTheme();
   const reduceMotion = useReduceMotion();
-  const schaal = useRef(new Animated.Value(1)).current;
+
+  // De Modal blijft staan tot de kaart weg is; zichtbaar zegt alleen welke kant het op gaat.
+  const [modalOpen, setModalOpen] = useState(false);
+  const zichtbaarRef = useRef(zichtbaar);
+  zichtbaarRef.current = zichtbaar;
+  const achtergrondDekking = useSharedValue(0);
+  const kaartDekking = useSharedValue(0);
+  const kaartSchaal = useSharedValue(SCHAAL_IN);
+  const schijfSchaal = useSharedValue(1);
 
   const resultaat = inhoud?.resultaat;
   const verliesGetoond = resultaat !== undefined && resultaat.soort === 'bedrag' && resultaat.bedragUsd < 0;
   // Je feliciteert niemand met een verlies, dus de puls slaat over zodra het bedrag negatief is.
   const pulseren = zichtbaar && inhoud?.variant === 'gelukt' && !verliesGetoond && !reduceMotion;
 
+  // Pas als de kaart helemaal weg is gaat de Modal dicht, en dan zetten we de beginstand voor de
+  // volgende keer klaar terwijl er toch niets in beeld is.
+  const verberg = useCallback(() => {
+    if (zichtbaarRef.current) return;
+    kaartSchaal.value = SCHAAL_IN;
+    kaartDekking.value = 0;
+    achtergrondDekking.value = 0;
+    setModalOpen(false);
+  }, [kaartSchaal, kaartDekking, achtergrondDekking]);
+
+  const open = zichtbaar && inhoud !== null;
+  const modalOpenRef = useRef(modalOpen);
+  modalOpenRef.current = modalOpen;
+
   useEffect(() => {
-    schaal.setValue(1);
+    if (open) {
+      setModalOpen(true);
+      // Onder Minder beweging alleen de fades, geen schaal. Komt hij terug terwijl hij nog aan het
+      // wegfaden was, dan gaat alles vanaf de huidige stand weer terug.
+      kaartSchaal.value = reduceMotion ? 1 : withSpring(1, veer.standaard);
+      kaartDekking.value = vervaag(1, duur.kort);
+      achtergrondDekking.value = vervaag(1, duur.midden);
+      return;
+    }
+    if (!modalOpenRef.current) return;
+    if (!reduceMotion) {
+      kaartSchaal.value = withTiming(SCHAAL_UIT, {
+        duration: duur.kort, easing: curve.weg, reduceMotion: ReduceMotion.Never,
+      });
+    }
+    achtergrondDekking.value = vervaag(0, duur.kort);
+    kaartDekking.value = vervaag(0, duur.kort, afgerond => {
+      'worklet';
+      if (afgerond) scheduleOnRN(verberg);
+    });
+    // Alleen op open en dicht reageren. Een omschakeling van Minder beweging halverwege is geen
+    // reden om een binnenkomst of vertrek opnieuw te starten.
+  }, [open]);
+
+  useEffect(() => {
+    cancelAnimation(schijfSchaal);
+    schijfSchaal.value = 1;
     if (!pulseren) return;
-    Animated.sequence([
-      Animated.timing(schaal, {
-        toValue: 1.06,
-        duration: 130,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(schaal, {
-        toValue: 1,
-        duration: 130,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [pulseren, schaal]);
+    // Even wachten tot de kaart grotendeels staat, anders gaat de puls op in de binnenkomst.
+    schijfSchaal.value = withDelay(80, withSpring(1, { ...veer.speels, velocity: PULS_SNELHEID }));
+  }, [pulseren, schijfSchaal]);
+
+  const achtergrondStijl = useAnimatedStyle(() => ({ opacity: achtergrondDekking.value }));
+  const kaartStijl = useAnimatedStyle(() => ({
+    opacity: kaartDekking.value,
+    transform: [{ scale: kaartSchaal.value }],
+  }));
+  const schijfStijl = useAnimatedStyle(() => ({ transform: [{ scale: schijfSchaal.value }] }));
 
   const knoppen = inhoud?.knoppen ?? [];
   const enkeleKnop = knoppen.length <= 1;
@@ -105,20 +163,30 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
 
   return (
     <Modal
-      visible={zichtbaar && inhoud !== null}
+      visible={modalOpen && inhoud !== null}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={opTerugknop}
     >
-      <Pressable
+      {/* Tijdens het wegfaden reageert niets meer: een tweede tik op dezelfde knop zou zijn actie
+          anders nog een keer uitvoeren. */}
+      <View style={stijlen.vlak} pointerEvents={zichtbaar ? 'auto' : 'none'}>
+      {/* De dimlaag staat los van de kaart, zodat die twee elk hun eigen tempo hebben. */}
+      <Animated.View
         style={[
-          stijlen.achtergrond,
+          StyleSheet.absoluteFill,
           { backgroundColor: donkerActief ? 'rgba(0,0,0,0.6)' : 'rgba(15,23,42,0.5)' },
+          achtergrondStijl,
         ]}
+        pointerEvents="none"
+      />
+      <Pressable
+        style={stijlen.achtergrond}
         onPress={opAchtergrond}
         accessibilityLabel={enkeleKnop ? 'Sluiten' : undefined}
       >
         {inhoud !== null ? (
+          <Animated.View style={[stijlen.kaartHouder, kaartStijl]}>
           <Pressable
             style={[stijlen.kaart, shadow.modal, { backgroundColor: colors.kaart }]}
             onPress={() => {}}
@@ -127,7 +195,8 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
             <Animated.View
               style={[
                 stijlen.schijf,
-                { backgroundColor: schijfVulling, transform: [{ scale: schaal }] },
+                { backgroundColor: schijfVulling },
+                schijfStijl,
               ]}
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
@@ -198,8 +267,10 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
               })}
             </View>
           </Pressable>
+          </Animated.View>
         ) : null}
       </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -257,15 +328,19 @@ function ResultaatBlok({ resultaat }: { resultaat: NonNullable<DialoogInhoud['re
 }
 
 const stijlen = StyleSheet.create({
+  vlak: { flex: 1 },
   achtergrond: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
-  kaart: {
+  kaartHouder: {
     width: '100%',
     maxWidth: 342,
+  },
+  kaart: {
+    width: '100%',
     borderRadius: radii.kaart,
     padding: spacing.lg,
   },

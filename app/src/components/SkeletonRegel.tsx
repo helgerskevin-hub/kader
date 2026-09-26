@@ -1,8 +1,7 @@
 import React from 'react';
-import { Animated, StyleSheet } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { View, StyleSheet } from 'react-native';
 import { spacing } from '../theme/tokens';
-import { useSkeletonPuls } from '../theme/useSkeletonPuls';
+import { ShimmerBlok, ShimmerGroep } from './Shimmer';
 
 interface Props {
   // Aantal label/waarde-paren op de rij, bijvoorbeeld 3 voor een niveau-rij (stop/entry/doel) of
@@ -14,19 +13,15 @@ interface Props {
 // of het indicatorgrid in CoinDetailScherm. Generiek genoeg om op meerdere plekken te hergebruiken
 // in plaats van per scherm een eigen variant te bouwen.
 export function SkeletonRegel({ aantal = 3 }: Props) {
-  const { colors } = useTheme();
-  const bg = colors.verhoogd;
-  const opacity = useSkeletonPuls();
-
   return (
-    <Animated.View style={[styles.rij, { opacity }]}>
+    <ShimmerGroep style={styles.rij}>
       {Array.from({ length: aantal }).map((_, i) => (
-        <Animated.View key={i} style={styles.item}>
-          <Animated.View style={[styles.label, { backgroundColor: bg }]} />
-          <Animated.View style={[styles.waarde, { backgroundColor: bg }]} />
-        </Animated.View>
+        <View key={i} style={styles.item}>
+          <ShimmerBlok style={styles.label} />
+          <ShimmerBlok style={styles.waarde} />
+        </View>
       ))}
-    </Animated.View>
+    </ShimmerGroep>
   );
 }
 

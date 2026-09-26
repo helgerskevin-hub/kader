@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, RefreshControl, LayoutAnimation,
+  View, Text, Pressable, StyleSheet, RefreshControl,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RefreshCw, SlidersHorizontal, TriangleAlert } from 'lucide-react-native';
 import { Trade } from '../engine/types';
@@ -22,6 +23,7 @@ import { infoVoor } from '../engine/coinInfo';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
+import { Drukbaar } from '../components/Drukbaar';
 import { MarktBalk } from '../components/MarktBalk';
 import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
@@ -33,9 +35,12 @@ import { ShortSignalenKaart } from '../components/ShortSignalenKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { magDoorRsFilter } from '../engine/relatieveSterkte';
 import { haalFearGreed } from '../engine/marketData';
-import { CoinDetailScherm } from '../components/CoinDetailScherm';
-import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
+import { useCoinDetail } from '../components/CoinDetailScherm';
+import { vanTrade } from '../engine/coinDetailData';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
+import { haptiek } from '../theme/haptiek';
+import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
 import { limietVoor, useStopLossLimieten } from '../state/useStopLossLimiet';
 
 type Progress = { current: number; total: number; symbool: string };
@@ -50,7 +55,7 @@ export function MarktScreen() {
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
   const [koopTrade, setKoopTrade] = useState<Trade | null>(null);
-  const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
+  const { openDetail, detailScherm } = useCoinDetail();
   // Geen schrijfrecht in de actieve omgeving betekent geen koopknop. De kaart is dan identiek
   // aan hoe hij altijd was.
   const { magHandelen } = usePortfolio();
@@ -72,20 +77,20 @@ export function MarktScreen() {
     () => Object.fromEntries((rsLijst ?? []).map(r => [r.symbool, r.versusBtc])),
     [rsLijst],
   );
+  // Stabiel, zodat de gememode TradeCard niet bij elke render een nieuwe functie ziet.
+  const opOpenDetail = useCallback(
+    (t: Trade) => openDetail(vanTrade(t, rsPerSymbool[t.symbool])),
+    [openDetail, rsPerSymbool],
+  );
 
-  function soepelWisselen() {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
-  }
-
+  // Een filter of tab wisselen hoeft zelf niets te animeren: kaarten die wegvallen vervagen
+  // (exiting), kaarten die erbij komen landen (entering) en de rest schuift naar zijn nieuwe plek
+  // via itemLayoutAnimation op de lijst.
   function wisselFilterTab(volgende: Filter) {
-    soepelWisselen();
     setFilter(volgende);
   }
 
   function wijzigMarktFilters(volgende: MarktFilterState) {
-    soepelWisselen();
     setMarktFilters(volgende);
   }
 
@@ -109,7 +114,7 @@ export function MarktScreen() {
 
     const trade = state.alle.find(t => t.symbool === navigatieDoel.symbool);
     if (trade) {
-      setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
+      openDetail(vanTrade(trade, rsPerSymbool[trade.symbool]));
     } else {
       setMeldingNotitie(
         `${navigatieDoel.symbool} zat niet in de laatste analyse. Ververs de markt en probeer het opnieuw.`,
@@ -127,13 +132,28 @@ export function MarktScreen() {
     setVerverstState(false);
   }
 
+  // Pull-to-refresh: de haptic hoort bij het moment dat de lijst loslaat en vastklikt, dus alleen
+  // hier en niet bij de verversknop in de kop, die al zijn eigen druk-veer heeft.
+  function trekVervers() {
+    haptiek('vastklikken');
+    handleVervers();
+  }
+
   const metaText = state.status === 'success'
     ? `${state.trades.length} coins · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
     : undefined;
 
-  const gesorteerdeTrades = state.status === 'success'
-    ? [...state.trades].sort((a, b) => Number(isFavoriet(b.symbool)) - Number(isFavoriet(a.symbool)))
-    : [];
+  // Tijdens het laden staat dezelfde lijst al in beeld, gevuld met de voorlopige top na elk blok.
+  // Het is bewust één en dezelfde FlatList voor laden en klaar: kaarten die al geland zijn blijven
+  // gemount als de scan afrondt, en schuiven alleen nog naar hun definitieve plek. Twee losse
+  // lijsten zouden aan het eind alles opnieuw laten binnenkomen, een flits over het hele scherm.
+  const laden = state.status === 'loading';
+  const bronTrades = state.status === 'success'
+    ? state.trades
+    : state.status === 'loading' ? state.voorlopig : [];
+
+  const gesorteerdeTrades = [...bronTrades]
+    .sort((a, b) => Number(isFavoriet(b.symbool)) - Number(isFavoriet(a.symbool)));
   const aantalFavorieten = gesorteerdeTrades.filter(t => isFavoriet(t.symbool)).length;
   const weergegevenTrades = (filter === 'favorieten'
     ? gesorteerdeTrades.filter(t => isFavoriet(t.symbool))
@@ -147,13 +167,25 @@ export function MarktScreen() {
 
   const bearModus = state.status === 'success' && state.klimaat?.klimaat === 'ongunstig';
 
+  // Kaarten die in hetzelfde blok binnenkwamen landen gestaffeld, in de volgorde waarin ze in de
+  // lijst staan. Buiten het laden (een stille refresh, een filter dat weer openging) is dat
+  // gewoon de plek in de lijst.
+  const binnenBlok = state.status === 'loading' ? state.binnenBlok : null;
+  function landVolgorde(symbool: string, index: number): number {
+    if (!binnenBlok) return index;
+    const blok = binnenBlok[symbool];
+    let n = 0;
+    for (let i = 0; i < index; i++) if (binnenBlok[weergegevenTrades[i].symbool] === blok) n++;
+    return n;
+  }
+
   // De relatieve-sterktelijst kent alleen symbolen. De bijbehorende analyse zoeken we op in `alle`
   // en niet in `trades`: een coin die standhoudt in een dalende markt scoort vaak juist laag op
   // momentum en valt dan buiten de top-20 die de lijst toont.
   function openCoinDetail(symbool: string) {
     if (state.status !== 'success') return;
     const trade = state.alle.find(t => t.symbool === symbool);
-    if (trade) setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
+    if (trade) openDetail(vanTrade(trade, rsPerSymbool[trade.symbool]));
   }
 
   return (
@@ -163,21 +195,21 @@ export function MarktScreen() {
         meta={metaText}
         rechts={
           state.status === 'success' ? (
-            <Pressable
+            <Drukbaar
               onPress={handleVervers}
               accessibilityRole="button"
               accessibilityLabel="Ververs analyse"
               style={styles.ververskOp}
+              schaal={0.9}
             >
               <RefreshCw size={18} color={colors.cta} strokeWidth={1.75} />
-            </Pressable>
+            </Drukbaar>
           ) : undefined
         }
       />
 
       {/* Inhoud per state */}
       {state.status === 'idle' && <IdleView onStart={() => startAnalyse()} />}
-      {state.status === 'loading' && <LadenView progress={state.progress} />}
       {state.status === 'error' && (
         <OfflineMelding
           titel="Geen marktdata"
@@ -187,33 +219,63 @@ export function MarktScreen() {
           onRetry={() => startAnalyse()}
         />
       )}
-      {state.status === 'success' && (
-        <FlatList
+      {(state.status === 'loading' || state.status === 'success') && (
+        <Animated.FlatList
           data={weergegevenTrades}
           keyExtractor={item => item.symbool}
-          renderItem={({ item }) => (
-            <TradeCard
-              trade={item}
-              onGetrade={setGetradeteTrade}
-              onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))}
-              favoriet={isFavoriet(item.symbool)}
-              onToggleFavoriet={wisselFavoriet}
-              onKoop={magHandelen ? setKoopTrade : undefined}
-              limiet={limietVoor(stopLimieten, item.symbool)}
-              versusBtc={rsPerSymbool[item.symbool]}
-            />
+          // Kaarten die van plek wisselen (hersorteren na een blok, een kaart erboven die openklapt,
+          // de kop die aan het eind van de scan groeit) schuiven op een veer naar hun nieuwe plek.
+          itemLayoutAnimation={schuifOvergang(reduceMotion)}
+          renderItem={({ item, index }) => (
+            // Tijdens het laden kijk je alleen: de kaart is nog niet tikbaar. De cijfers op de kaart
+            // zijn wel al definitief, maar het signaal niet: de klimaatpoort hangt af van de hele
+            // markt, en een koopknop of detailscherm op een KOOP die aan het eind nog kan wegvallen
+            // is precies de verkeerde uitnodiging. Ook de relatieve sterkte (VS BTC) komt pas aan het
+            // eind. Scrollen blijft gewoon werken, want pointerEvents="none" laat de aanraking door
+            // naar de lijst.
+            <Animated.View
+              entering={kaartLandt(landVolgorde(item.symbool, index), reduceMotion)}
+              exiting={uitklapUit()}
+              pointerEvents={laden ? 'none' : 'auto'}
+              // pointerEvents houdt alleen vingers tegen; TalkBack tikt via de toegankelijkheidsactie
+              // en komt er dan nog wel doorheen. Tijdens het laden daarom ook voor TalkBack verborgen.
+              importantForAccessibility={laden ? 'no-hide-descendants' : 'auto'}
+            >
+              <TradeCard
+                trade={item}
+                onGetrade={setGetradeteTrade}
+                onOpenDetail={opOpenDetail}
+                favoriet={isFavoriet(item.symbool)}
+                onToggleFavoriet={wisselFavoriet}
+                onKoop={magHandelen ? setKoopTrade : undefined}
+                limiet={limietVoor(stopLimieten, item.symbool)}
+                versusBtc={rsPerSymbool[item.symbool]}
+              />
+            </Animated.View>
           )}
           contentContainerStyle={styles.lijst}
           refreshControl={
+            // Altijd aanwezig en tijdens het laden alleen uitgeschakeld. Op Android wikkelt een
+            // refreshControl de ScrollView in een eigen native view; hem weghalen en terugzetten
+            // bouwt de lijst opnieuw op, en dan landen alle kaarten aan het eind nog een keer.
             <RefreshControl
               refreshing={ververst}
-              onRefresh={handleVervers}
+              onRefresh={trekVervers}
+              enabled={!laden}
               colors={[colors.cta]}
               tintColor={colors.cta}
             />
           }
           ListHeaderComponent={
-            <>
+            state.status === 'loading' ? (
+              <>
+                {meldingNotitie && (
+                  <MeldingNotitie tekst={meldingNotitie} onSluiten={() => setMeldingNotitie(null)} />
+                )}
+                <LaadKop progress={state.progress} />
+              </>
+            ) : (
+            <Animated.View entering={uitklapIn(reduceMotion)}>
               {meldingNotitie && (
                 <MeldingNotitie tekst={meldingNotitie} onSluiten={() => setMeldingNotitie(null)} />
               )}
@@ -229,19 +291,23 @@ export function MarktScreen() {
               {bearModus ? (
                 <BearModusKaart stand={state.bearModus} />
               ) : (
-                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))} />
+                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))} />
               )}
               {/* Short-signalen zijn de actionable tegenhanger van de bear-modus-kaart: die legt uit
                   waarom er geen koopsignaal is, dit is wat er dan wél te doen valt. Leeg zolang het
                   klimaat niet ongunstig is, want dan levert analyseerMarkt() hier niets voor aan. */}
-              <ShortSignalenKaart
-                signalen={state.shorts}
-                limieten={stopLimieten}
-                magHandelen={magHandelen}
-                onGetrade={setGetradeteTrade}
-                onKoop={magHandelen ? setKoopTrade : undefined}
-                onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))}
-              />
+              {/* De kaarten hieronder schuiven op een veer mee als een kaart erboven zijn uitleg
+                  openklapt; de lijst eronder doet dat via itemLayoutAnimation. */}
+              <Animated.View layout={schuifOvergang(reduceMotion)}>
+                <ShortSignalenKaart
+                  signalen={state.shorts}
+                  limieten={stopLimieten}
+                  magHandelen={magHandelen}
+                  onGetrade={setGetradeteTrade}
+                  onKoop={magHandelen ? setKoopTrade : undefined}
+                  onOpenDetail={opOpenDetail}
+                />
+              </Animated.View>
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
                   al waar de kracht zit en zou deze lijst er een tweede rangschikking naast zetten. */}
@@ -253,10 +319,11 @@ export function MarktScreen() {
                 />
               )}
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
-              <View style={styles.tabsRij}>
+              <Animated.View layout={schuifOvergang(reduceMotion)} style={styles.tabsRij}>
                 <FilterTabs actief={filter} onWijzig={wisselFilterTab} aantalFavorieten={aantalFavorieten} />
-                <Pressable
+                <Drukbaar
                   style={[styles.filterKnop, { backgroundColor: colors.verhoogd }]}
+                  schaal={0.92}
                   onPress={() => setFiltersOpen(true)}
                   accessibilityRole="button"
                   accessibilityLabel="Filters op RSI, score en R/R"
@@ -267,32 +334,42 @@ export function MarktScreen() {
                       <Text style={styles.filterBadgeTekst}>{aantalActieveFilters(marktFilters)}</Text>
                     </View>
                   )}
-                </Pressable>
-              </View>
-              <View style={styles.lijstKop}>
+                </Drukbaar>
+              </Animated.View>
+              <Animated.View layout={schuifOvergang(reduceMotion)} style={styles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {state.trades.length} van {state.bekeken} coins · gesorteerd op signaalsterkte
                 </Text>
-              </View>
-            </>
-          }
-          ListEmptyComponent={
-            filter === 'favorieten' && aantalFavorieten === 0 ? (
-              <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
-                Nog geen favorieten. Tik op de ster bij een coin om die hier te verzamelen.
-              </Text>
-            ) : aantalActieveFilters(marktFilters) > 0 ? (
-              <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
-                Geen coins voldoen aan de gekozen filters.
-              </Text>
-            ) : (
-              <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>
-                Er kwam van geen enkele coin marktdata binnen. Trek de lijst omlaag om het opnieuw
-                te proberen.
-              </Text>
+              </Animated.View>
+            </Animated.View>
             )
           }
-          ListFooterComponent={<Disclaimer />}
+          ListEmptyComponent={
+            // Tijdens het laden staan de skeletons in de voet; een lege-lijsttekst zou dan liegen.
+            laden ? null
+            : filter === 'favorieten' && aantalFavorieten === 0 ? (
+              <LeegInLijst tekst="Nog geen favorieten. Tik op de ster bij een coin om die hier te verzamelen." />
+            ) : aantalActieveFilters(marktFilters) > 0 ? (
+              <LeegInLijst tekst="Geen coins voldoen aan de gekozen filters." />
+            ) : (
+              <LeegInLijst tekst="Er kwam van geen enkele coin marktdata binnen. Trek de lijst omlaag om het opnieuw te proberen." />
+            )
+          }
+          ListFooterComponent={
+            laden ? (
+              // Zolang de scan loopt staan er onder de gelande kaarten nog skeletons: tot drie als er
+              // nog weinig binnen is, en altijd minstens één als teken dat er meer komt.
+              <>
+                {Array.from({ length: Math.max(1, 3 - weergegevenTrades.length) }).map((_, i) => (
+                  <Animated.View key={i} exiting={uitklapUit()}>
+                    <SkeletonCard />
+                  </Animated.View>
+                ))}
+              </>
+            ) : (
+              <Disclaimer />
+            )
+          }
         />
       )}
 
@@ -315,7 +392,7 @@ export function MarktScreen() {
         />
       )}
 
-      <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+      {detailScherm}
 
       <MarktFilters
         zichtbaar={filtersOpen}
@@ -353,24 +430,51 @@ function IdleView({ onStart }: { onStart: () => void }) {
   const { colors } = useTheme();
   return (
     <View style={styles.midden}>
-      <Text style={[Type.titel, styles.middenTitel, { color: colors.tekstPrimair }]}>Nog geen analyse</Text>
-      <Text style={[Type.body, styles.middenBody, { color: colors.tekstGedimd }]}>
-        Start een analyse om kansrijke trades met entry, stop en take-profit te zien.
-      </Text>
-      <Pressable
-        style={[styles.ctaKnop, { backgroundColor: colors.cta }]}
-        onPress={onStart}
-        accessibilityRole="button"
-        accessibilityLabel="Start analyse"
-      >
-        <Text style={[Type.body, styles.ctaTekst]}>Start analyse</Text>
-      </Pressable>
+      <Opkomst volgorde={0} style={styles.middenBeeld}>
+        <LegeStaatBeeld />
+      </Opkomst>
+      <Opkomst volgorde={1}>
+        <Text style={[Type.titel, styles.middenTitel, { color: colors.tekstPrimair }]}>Nog geen analyse</Text>
+      </Opkomst>
+      <Opkomst volgorde={2}>
+        <Text style={[Type.body, styles.middenBody, { color: colors.tekstGedimd }]}>
+          Start een analyse om kansrijke trades met entry, stop en take-profit te zien.
+        </Text>
+      </Opkomst>
+      <Opkomst volgorde={3}>
+        <Drukbaar
+          style={[styles.ctaKnop, { backgroundColor: colors.cta }]}
+          onPress={onStart}
+          accessibilityRole="button"
+          accessibilityLabel="Start analyse"
+        >
+          <Text style={[Type.body, styles.ctaTekst]}>Start analyse</Text>
+        </Drukbaar>
+      </Opkomst>
       {/* Alle drie de bronnen die dit scherm gebruikt: de candles komen van Binance met CoinGecko
           als terugval, en de angst-en-hebzuchtmeter onder de analyse van Alternative.me. Die derde
           stond hier niet, terwijl hij wel op dit scherm staat. */}
-      <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base }]}>
-        Data via Binance, CoinGecko en Alternative.me · geen financieel advies
-      </Text>
+      <Opkomst volgorde={4}>
+        <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base }]}>
+          Data via Binance, CoinGecko en Alternative.me · geen financieel advies
+        </Text>
+      </Opkomst>
+    </View>
+  );
+}
+
+// Een lege lijst na een geslaagde analyse: meestal door een filter of een lege favorietenlijst.
+// Kleiner beeld dan het startscherm, want de kop met klimaat en filters staat er nog boven.
+function LeegInLijst({ tekst }: { tekst: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.leegInLijst}>
+      <Opkomst volgorde={0}>
+        <LegeStaatBeeld maat={56} />
+      </Opkomst>
+      <Opkomst volgorde={1}>
+        <Text style={[Type.body, styles.leegFavorieten, { color: colors.tekstGedimd }]}>{tekst}</Text>
+      </Opkomst>
     </View>
   );
 }
@@ -413,20 +517,21 @@ function FilterTabs({ actief, onWijzig, aantalFavorieten }: {
   );
 }
 
-function LadenView({ progress }: { progress: Progress | null }) {
+// De kop van de lijst zolang de scan loopt: de laadbalk en hoe ver hij is. Vervaagt weg als de
+// echte kop (klimaat, filters) verschijnt.
+function LaadKop({ progress }: { progress: Progress | null }) {
   const { colors } = useTheme();
   return (
-    <View style={{ flex: 1 }}>
+    <Animated.View exiting={uitklapUit()}>
       {progress && progress.total > 0 && <Laadbalk huidig={progress.current} totaal={progress.total} />}
-      <SkeletonCard />
-      <SkeletonCard />
-      <SkeletonCard />
-      {progress && (
-        <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm }]}>
-          {progress.current}/{progress.total} · {progress.symbool}
+      <View style={styles.lijstKop}>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+          {progress
+            ? `${progress.current} van ${progress.total} coins bekeken · ${progress.symbool} · voorlopige volgorde`
+            : 'Marktdata ophalen'}
         </Text>
-      )}
-    </View>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -445,6 +550,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
   },
+  middenBeeld: { marginBottom: spacing.base },
   middenTitel: { textAlign: 'center', marginBottom: spacing.sm },
   middenBody: { textAlign: 'center', marginBottom: spacing.lg, lineHeight: 24 },
   ctaKnop: {
@@ -521,10 +627,14 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   tabTekst: { fontWeight: '600' },
+  leegInLijst: {
+    alignItems: 'center',
+    paddingTop: spacing.xl,
+  },
   leegFavorieten: {
     textAlign: 'center',
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.base,
     lineHeight: 22,
   },
 });

@@ -9,7 +9,19 @@ type Progress = { current: number; total: number; symbool: string };
 
 export type MarktState =
   | { status: 'idle' }
-  | { status: 'loading'; progress: Progress | null }
+  | {
+      status: 'loading';
+      progress: Progress | null;
+      // De voorlopige top-N tot nu toe, na elk blok bijgewerkt, zodat de kaarten al landen terwijl
+      // de scan loopt. Alleen voor weergave: zie onVoorlopig in analyzer.ts. Wat er aan het eind in
+      // `trades` staat komt uit de volledige analyse, niet uit deze lijst.
+      voorlopig: Trade[];
+      // Per symbool in welk blok hij binnenkwam (0, 1, 2, ...). Het scherm staffelt daarmee de
+      // kaarten die tegelijk landen, en laat een kaart die al stond niet opnieuw binnenkomen.
+      binnenBlok: Record<string, number>;
+      // Van hoeveel coins er tot nu toe data is.
+      bekeken: number;
+    }
   | { status: 'error'; melding: string; lastAttempt: Date }
   | {
       status: 'success';
@@ -32,6 +44,7 @@ export type MarktState =
 type Action =
   | { type: 'START' }
   | { type: 'PROGRESS'; progress: Progress }
+  | { type: 'VOORLOPIG'; voorlopig: Trade[]; bekeken: number }
   | {
       type: 'SUCCESS';
       trades: Trade[];
@@ -46,8 +59,19 @@ type Action =
 
 function reducer(state: MarktState, action: Action): MarktState {
   switch (action.type) {
-    case 'START': return { status: 'loading', progress: null };
-    case 'PROGRESS': return { status: 'loading', progress: action.progress };
+    case 'START': return { status: 'loading', progress: null, voorlopig: [], binnenBlok: {}, bekeken: 0 };
+    case 'PROGRESS':
+      if (state.status !== 'loading') return state;
+      return { ...state, progress: action.progress };
+    case 'VOORLOPIG': {
+      if (state.status !== 'loading') return state;
+      // Het bloknummer is het aantal tussenstanden dat er al was. Een coin die al een blok had
+      // houdt dat, ook als hij na een hersortering van plek verandert.
+      const blok = Object.keys(state.binnenBlok).length === 0 ? 0 : Math.max(...Object.values(state.binnenBlok)) + 1;
+      const binnenBlok = { ...state.binnenBlok };
+      for (const t of action.voorlopig) if (!(t.symbool in binnenBlok)) binnenBlok[t.symbool] = blok;
+      return { ...state, voorlopig: action.voorlopig, binnenBlok, bekeken: action.bekeken };
+    }
     case 'SUCCESS': return {
       status: 'success',
       trades: action.trades,
@@ -84,6 +108,11 @@ export function MarktProvider({ children }: { children: React.ReactNode }) {
         onProgress: (current, total, symbool) => {
           if (!stil) dispatch({ type: 'PROGRESS', progress: { current, total, symbool } });
         },
+        // Een stille refresh houdt de oude lijst in beeld tot de nieuwe klaar is; daar horen geen
+        // tussenstanden bij, anders zou de lijst halverwege naar een halve markt springen.
+        onVoorlopig: stil
+          ? undefined
+          : (voorlopig, bekekenTotNu) => dispatch({ type: 'VOORLOPIG', voorlopig, bekeken: bekekenTotNu }),
       });
       // Loopt over AsyncStorage en mag de analyse niet kunnen laten mislukken: zonder deze vangnet
       // zou een kapotte opslagregel het hele marktscherm op de foutstand zetten terwijl de data

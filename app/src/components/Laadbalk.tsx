@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { veer } from '../theme/beweging';
 
 interface Props {
   huidig: number;
@@ -11,25 +13,21 @@ interface Props {
   kleur?: string;
 }
 
+// De vulling schaalt via transform: scaleX vanaf de linkerkant, niet via width. Width is een
+// layout-eigenschap: die per frame omzetten laat alles eromheen opnieuw meten, en tijdens een scan
+// waarin ook de kaarten landen is dat precies het werk dat de JS-thread niet kan missen. Op een veer,
+// zodat elke stap vloeiend aansluit op de vorige in plaats van telkens opnieuw op te trekken.
 export function Laadbalk({ huidig, totaal, kleur }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const positie = totaal > 0 ? Math.min(Math.max(huidig / totaal, 0), 1) : 0;
-  const animatie = useRef(new Animated.Value(positie)).current;
+  const vulling = useSharedValue(positie);
 
   useEffect(() => {
-    Animated.timing(animatie, {
-      toValue: positie,
-      duration: reduceMotion ? 0 : 300,
-      useNativeDriver: false,
-    }).start();
-  }, [positie, animatie, reduceMotion]);
+    vulling.value = reduceMotion ? positie : withSpring(positie, veer.standaard);
+  }, [positie, reduceMotion, vulling]);
 
-  const breedte = animatie.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-    extrapolate: 'clamp',
-  });
+  const vulStijl = useAnimatedStyle(() => ({ transform: [{ scaleX: vulling.value }] }));
 
   return (
     <View style={styles.wrapper}>
@@ -38,7 +36,7 @@ export function Laadbalk({ huidig, totaal, kleur }: Props) {
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 0, max: totaal, now: huidig }}
       >
-        <Animated.View style={[styles.vulling, { backgroundColor: kleur ?? colors.cta, width: breedte }]} />
+        <Animated.View style={[styles.vulling, { backgroundColor: kleur ?? colors.cta }, vulStijl]} />
       </View>
       <Text style={[Type.caption, styles.percentage, { color: colors.tekstGedimd }]}>
         {Math.round(positie * 100)}%
@@ -60,8 +58,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   vulling: {
-    height: '100%',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     borderRadius: radii.pill,
+    transformOrigin: 'left',
   },
   percentage: {
     textAlign: 'right',

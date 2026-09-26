@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import Svg, { G, Circle } from 'react-native-svg';
+import { useDerivedValue, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import { Canvas, Circle, DashPathEffect, Group, Path, Skia } from '@shopify/react-native-skia';
 import { ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -9,11 +10,15 @@ import { fmtBedrag } from '../engine/format';
 import { aandeelTekst, berekenVerdeling, OVERIG_SLEUTEL, Segment, spreekAandeel } from '../engine/verdeling';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { useValutaStand } from '../state/useValuta';
+import { curve, duur, vervaag } from '../theme/beweging';
+import { useReduceMotion } from '../theme/useReduceMotion';
 
-// Een donut van losse <Circle>-elementen met strokeDasharray, en bewust geen <Path> met booghoeken.
-// Een taartpunt als pad vraagt om largeArcFlag plus sinus en cosinus per segment, en dat is precies
-// waar dit soort code stukgaat. Zo is de wiskunde één vermenigvuldiging per segment en klopt de
-// tekening vanzelf bij één segment, bij zeven, en bij een segment van 0,4 procent.
+// Een donut van losse boogstrepen, bewust zonder zelfgebouwde taartpunten. Een taartpunt als
+// SVG-pad vraagt om largeArcFlag plus sinus en cosinus per segment, en dat is precies waar dit soort
+// code stukgaat. Skia's addArc neemt een beginhoek en een zwaai in graden, dus de wiskunde blijft
+// één vermenigvuldiging per segment en de tekening klopt vanzelf bij één segment, bij zeven, en bij
+// een segment van 0,4 procent. Skia en niet SVG omdat elke boog zo een eigen `end` krijgt die op de
+// UI-thread kan intekenen.
 const RING_MAAT = 150;
 const MIDDEN = RING_MAAT / 2;
 const STRAAL = 58;
@@ -21,6 +26,9 @@ const DIKTE = 22;
 const OMTREK = 2 * Math.PI * STRAAL;   // 364.42
 // De visuele naad tussen twee segmenten, in dezelfde eenheid als de omtrek.
 const NAAD = 2;
+// Hoe lang de hele ring erover doet om rond te komen bij het verschijnen.
+const INTEKEN_DUUR = 800;
+const RING_OVAAL = Skia.XYWHRect(MIDDEN - STRAAL, MIDDEN - STRAAL, STRAAL * 2, STRAAL * 2);
 
 interface Props {
   trades: PortfolioTrade[];
@@ -86,17 +94,11 @@ export function VerdelingKaart({ trades, livePrijzen, onOpenDetail }: Props) {
       {gewaardeerd === 0 ? (
         <>
           <View style={styles.ringHouder}>
-            <Svg width={RING_MAAT} height={RING_MAAT} viewBox={`0 0 ${RING_MAAT} ${RING_MAAT}`}>
-              <Circle
-                cx={MIDDEN}
-                cy={MIDDEN}
-                r={STRAAL}
-                fill="none"
-                stroke={colors.rand}
-                strokeWidth={DIKTE}
-                strokeDasharray="6 8"
-              />
-            </Svg>
+            <Canvas style={styles.doek}>
+              <Circle cx={MIDDEN} cy={MIDDEN} r={STRAAL} color={colors.rand} style="stroke" strokeWidth={DIKTE}>
+                <DashPathEffect intervals={[6, 8]} />
+              </Circle>
+            </Canvas>
           </View>
           <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
             Kader heeft nog geen live koersen om je posities te wegen. De verdeling verschijnt na de eerste sync.
@@ -110,42 +112,14 @@ export function VerdelingKaart({ trades, livePrijzen, onOpenDetail }: Props) {
             accessible
             accessibilityLabel={ringLabel}
           >
-            <Svg
-              width={RING_MAAT}
-              height={RING_MAAT}
-              viewBox={`0 0 ${RING_MAAT} ${RING_MAAT}`}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              <G transform={`rotate(-90 ${MIDDEN} ${MIDDEN})`}>
-                {segmenten.length === 1 ? (
-                  // Eén segment krijgt geen dasharray. Met een naad van 2 zou de enige streep
-                  // niet rondkomen en leest dat gaatje als een fout in plaats van als een naad.
-                  <Circle
-                    cx={MIDDEN}
-                    cy={MIDDEN}
-                    r={STRAAL}
-                    fill="none"
-                    stroke={kleurVoor(segmenten[0], 0)}
-                    strokeWidth={DIKTE}
-                  />
-                ) : segmenten.map((s, i) => (
-                  <Circle
-                    key={s.sleutel}
-                    cx={MIDDEN}
-                    cy={MIDDEN}
-                    r={STRAAL}
-                    fill="none"
-                    stroke={kleurVoor(s, i)}
-                    strokeWidth={DIKTE}
-                    // Een segment van een halve procent is korter dan de naad. Zonder deze
-                    // ondergrens wordt de streeplengte negatief en tekent het hele segment niet.
-                    strokeDasharray={`${Math.max(0.5, s.aandeel * OMTREK - NAAD)} ${OMTREK}`}
-                    strokeDashoffset={-(beginPunten[i] * OMTREK)}
-                  />
-                ))}
-              </G>
-            </Svg>
+            <Ring
+              segmenten={segmenten.map((s, i) => ({
+                sleutel: s.sleutel,
+                kleur: kleurVoor(s, i),
+                begin: beginPunten[i],
+                aandeel: s.aandeel,
+              }))}
+            />
             <View style={styles.ringMidden} pointerEvents="none">
               <Text
                 style={[Type.prijs, styles.ringBedrag, { color: colors.tekstPrimair }]}
@@ -212,6 +186,77 @@ export function VerdelingKaart({ trades, livePrijzen, onOpenDetail }: Props) {
   );
 }
 
+interface RingSegment {
+  sleutel: string;
+  kleur: string;
+  begin: number;
+  aandeel: number;
+}
+
+// De ring tekent bij het verschijnen met de klok mee in, als één doorlopende streek: elk segment
+// begint pas als het vorige rond is. Dat leest als één gebaar in plaats van zeven losse. Bij Minder
+// beweging staat de ring er meteen helemaal en vervaagt hij alleen in.
+function Ring({ segmenten }: { segmenten: RingSegment[] }) {
+  const reduceMotion = useReduceMotion();
+  const voortgang = useSharedValue(0);
+  const dekking = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      voortgang.value = 1;
+      dekking.value = vervaag(1, duur.lang);
+    } else {
+      dekking.value = 1;
+      voortgang.value = withTiming(1, { duration: INTEKEN_DUUR, easing: curve.binnen });
+    }
+    // Alleen bij het verschijnen. Een nieuwe live koers verschuift de segmenten daarna zonder
+    // opnieuw in te tekenen.
+  }, []);
+
+  return (
+    <Canvas style={styles.doek} pointerEvents="none">
+      <Group opacity={dekking}>
+        {segmenten.length === 1 ? (
+          // Eén segment krijgt geen naad. Met een naad van 2 zou de enige streep niet rondkomen en
+          // leest dat gaatje als een fout in plaats van als een naad.
+          <Boog kleur={segmenten[0].kleur} begin={0} aandeel={1} naad={0} voortgang={voortgang} />
+        ) : segmenten.map(s => (
+          <Boog key={s.sleutel} kleur={s.kleur} begin={s.begin} aandeel={s.aandeel} naad={NAAD} voortgang={voortgang} />
+        ))}
+      </Group>
+    </Canvas>
+  );
+}
+
+interface BoogProps {
+  kleur: string;
+  // Beide als fractie van de hele ring.
+  begin: number;
+  aandeel: number;
+  naad: number;
+  voortgang: SharedValue<number>;
+}
+
+function Boog({ kleur, begin, aandeel, naad, voortgang }: BoogProps) {
+  // Een segment van een halve procent is korter dan de naad. Zonder deze ondergrens wordt de
+  // streeplengte negatief en tekent het hele segment niet.
+  const lengte = Math.max(0.5, aandeel * OMTREK - naad);
+  const pad = useMemo(() => {
+    const b = Skia.PathBuilder.Make();
+    // -90 graden is twaalf uur; een positieve zwaai loopt met de klok mee.
+    b.addArc(RING_OVAAL, -90 + begin * 360, Math.min((lengte / OMTREK) * 360, 359.999));
+    return b.detach();
+  }, [begin, lengte]);
+
+  // Hoeveel van dit segment er al staat, gezien de voortgang van de hele ring.
+  const eind = useDerivedValue(() => {
+    if (aandeel <= 0) return 1;
+    return Math.min(Math.max((voortgang.value - begin) / aandeel, 0), 1);
+  });
+
+  return <Path path={pad} color={kleur} style="stroke" strokeWidth={DIKTE} start={0} end={eind} />;
+}
+
 const styles = StyleSheet.create({
   kaart: {
     borderRadius: radii.kaart,
@@ -229,6 +274,10 @@ const styles = StyleSheet.create({
     width: RING_MAAT,
     height: RING_MAAT,
     alignSelf: 'center',
+  },
+  doek: {
+    width: RING_MAAT,
+    height: RING_MAAT,
   },
   ringMidden: {
     position: 'absolute',

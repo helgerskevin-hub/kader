@@ -1,5 +1,14 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View, Text, Dimensions } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { StyleSheet, View, Text, Dimensions } from 'react-native';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
 import { useReduceMotion } from '../theme/useReduceMotion';
 
@@ -80,37 +89,33 @@ function Deeltje({ config, goud, schermHoogte }: {
   goud: string;
   schermHoogte: number;
 }) {
-  const voortgang = useRef(new Animated.Value(0)).current;
+  const voortgang = useSharedValue(0);
 
   useEffect(() => {
-    voortgang.setValue(0);
-    const animatie = Animated.timing(voortgang, {
-      toValue: 1,
-      duration: config.duur,
-      delay: config.vertraging,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    });
-    animatie.start();
-    return () => animatie.stop();
+    voortgang.value = 0;
+    voortgang.value = withDelay(
+      config.vertraging,
+      withTiming(1, { duration: config.duur, easing: Easing.linear }),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const translateY = voortgang.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-config.grootte - 40, schermHoogte + config.grootte],
-  });
-  const translateX = voortgang.interpolate({
-    inputRange: [0, 0.25, 0.5, 0.75, 1],
-    outputRange: [0, config.drift * config.richting, 0, -config.drift * config.richting, 0],
-  });
-  const rotate = voortgang.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', `${360 * config.spins * config.richting}deg`],
-  });
-  const opacity = voortgang.interpolate({
-    inputRange: [0, 0.08, 0.9, 1],
-    outputRange: [0, 1, 1, 0],
+  const stijl = useAnimatedStyle(() => {
+    const v = voortgang.value;
+    const translateY = interpolate(
+      v, [0, 1], [-config.grootte - 40, schermHoogte + config.grootte], Extrapolation.CLAMP,
+    );
+    const translateX = interpolate(
+      v, [0, 0.25, 0.5, 0.75, 1],
+      [0, config.drift * config.richting, 0, -config.drift * config.richting, 0],
+      Extrapolation.CLAMP,
+    );
+    const rotate = interpolate(v, [0, 1], [0, 360 * config.spins * config.richting], Extrapolation.CLAMP);
+    const opacity = interpolate(v, [0, 0.08, 0.9, 1], [0, 1, 1, 0], Extrapolation.CLAMP);
+    return {
+      opacity,
+      transform: [{ translateY }, { translateX }, { rotate: `${rotate}deg` }],
+    };
   });
 
   if (config.soort === 'munt') {
@@ -124,9 +129,8 @@ function Deeltje({ config, goud, schermHoogte }: {
             height: config.grootte,
             borderRadius: config.grootte / 2,
             backgroundColor: goud,
-            opacity,
-            transform: [{ translateY }, { translateX }, { rotate }],
           },
+          stijl,
         ]}
       >
         <Text style={[styles.teken, { fontSize: config.grootte * 0.62 }]}>₿</Text>
@@ -143,9 +147,8 @@ function Deeltje({ config, goud, schermHoogte }: {
           width: config.breedte,
           height: config.grootte,
           backgroundColor: config.kleur,
-          opacity,
-          transform: [{ translateY }, { translateX }, { rotate }],
         },
+        stijl,
       ]}
     />
   );

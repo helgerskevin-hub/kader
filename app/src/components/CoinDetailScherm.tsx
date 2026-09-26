@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  Modal, ScrollView, View, Text, Pressable, StyleSheet,
+  ScrollView, View, Text, Pressable, StyleSheet,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  withDelay, withSpring, withTiming, type EntryExitAnimationFunction,
+} from 'react-native-reanimated';
 import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
@@ -12,6 +14,8 @@ import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
+import { useReduceMotion } from '../theme/useReduceMotion';
+import { curve, duur, staggerVertraging, veer, vervaag } from '../theme/beweging';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { ScoreBadge } from './ScoreBadge';
@@ -31,6 +35,7 @@ import { useValutaStand } from '../state/useValuta';
 import { etoroNiveaus } from '../engine/etoroLimieten';
 import { rsUitleg } from '../engine/relatieveSterkte';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
+import { PodiumScherm } from './PodiumScherm';
 
 interface Props {
   data: CoinDetailData | null;
@@ -39,13 +44,56 @@ interface Props {
 
 type LaadStatus = 'idle' | 'loading' | 'error' | 'success';
 
-export function CoinDetailScherm({ data, onSluiten }: Props) {
+// De secties onder de kop komen na het laden licht gestaffeld binnen: 8 punten omhoog en
+// infaden. Subtiel, want de kaart is net uitgegroeid tot dit scherm en dat was de echte beweging.
+// Onder Minder beweging alleen een korte fade, alles tegelijk.
+// Gecachet per index, net als kaartLandt: een nieuwe worklet per render laat Reanimated de
+// overgang bij elke render opnieuw naar de UI-thread sturen.
+const opkomstCache = new Map<string, EntryExitAnimationFunction>();
+function opkomst(index: number, alleenFade: boolean): EntryExitAnimationFunction {
+  const sleutel = `${index}:${alleenFade ? 1 : 0}`;
+  let f = opkomstCache.get(sleutel);
+  if (!f) {
+    f = maakOpkomst(index, alleenFade);
+    opkomstCache.set(sleutel, f);
+  }
+  return f;
+}
+
+function maakOpkomst(index: number, alleenFade: boolean): EntryExitAnimationFunction {
+  const vertraging = staggerVertraging(index);
+  return () => {
+    'worklet';
+    if (alleenFade) {
+      return { initialValues: { opacity: 0 }, animations: { opacity: vervaag(1, duur.kort) } };
+    }
+    return {
+      initialValues: { opacity: 0, transform: [{ translateY: 8 }] },
+      animations: {
+        opacity: withDelay(vertraging, withTiming(1, { duration: duur.midden, easing: curve.fade })),
+        transform: [{ translateY: withDelay(vertraging, withSpring(0, veer.standaard)) }],
+      },
+    };
+  };
+}
+
+export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
 
   const { colors } = useTheme();
   const extraKopruimte = useModalKopruimte();
+  const reduceMotion = useReduceMotion();
+  // De ouder zet data op null zodra het scherm dicht moet. Tijdens het wegbewegen hoort de
+  // laatste coin nog gewoon in beeld te staan, dus die houden we hier vast.
+  const laatsteData = useRef<CoinDetailData | null>(null);
+  if (dataProp) laatsteData.current = dataProp;
+  const data = dataProp ?? laatsteData.current;
+  // Alleen bij het openen staffelen de secties binnen, niet bij elke verversing van de data
+  // terwijl het scherm al openstaat: dan zou alles bij elke prijsupdate opnieuw opdoemen.
+  const binnenkomstGehad = useRef(false);
+  const vorigeDataProp = useRef<CoinDetailData | null>(null);
   const [status, setStatus] = useState<LaadStatus>('idle');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [indicatoren, setIndicatoren] = useState<VerseIndicatoren | null>(null);
@@ -60,10 +108,19 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   const stopLimiet = useStopLossLimiet(data ? data.symbool : null, data?.richting ?? 'long');
 
   useEffect(() => {
+    if (dataProp && !vorigeDataProp.current) binnenkomstGehad.current = false;
+    vorigeDataProp.current = dataProp;
+    // Dicht (null) laadt niets en laat de oude staat staan: die is nog te zien terwijl het scherm
+    // wegbeweegt.
+    if (!dataProp) return;
     setHandelReden('');
-    if (data) laadData(data.symbool);
+    laadData(dataProp.symbool);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [dataProp]);
+
+  useEffect(() => {
+    if (status === 'success') binnenkomstGehad.current = true;
+  }, [status]);
 
   async function laadData(symbool: string) {
     setStatus('loading');
@@ -170,6 +227,12 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
 
   const isShort = data.richting === 'short';
 
+  // Volgnummer per sectie die daadwerkelijk getoond wordt, zodat een ontbrekende sectie geen gat
+  // in de staffeling slaat.
+  let sectieNr = 0;
+  const binnenkomst = () =>
+    binnenkomstGehad.current ? undefined : opkomst(sectieNr++, reduceMotion);
+
   // De knop opent de order-sheet, of legt uit waarom dat niet kan. Wat er ontbreekt weten we pas na
   // een lezing van de sleutelopslag, dus dat gebeurt hier bij de tik en niet bij elke render.
   async function openHandel() {
@@ -191,288 +254,295 @@ export function CoinDetailScherm({ data, onSluiten }: Props) {
   }
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
-      <SafeAreaView style={[styles.root, { backgroundColor: colors.achtergrond }]}>
-        <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
-          <View style={styles.headerLinks}>
-            <View style={styles.symboolRij}>
-              <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
-              {/* Alleen bij een short. Vrijwel alles is long, dus daar hoort geen label bij; bij een
-                  short moet je het meteen zien, want stop en doel liggen omgekeerd. */}
-              {data.richting === 'short' && <RichtingBadge richting="short" />}
-            </View>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{data.naam}</Text>
-          </View>
-          <View style={styles.headerRechts}>
-            {data.prijs !== undefined && (
-              <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(data.prijs)}</Text>
-            )}
-            {typeof data.score === 'number' && <ScoreBadge score={data.score} />}
-          </View>
-          {/* Een alert kan op elke coin, ook op een die je al hebt en ook zonder eToro-koppeling:
-              het is een melding, geen order. Daarom in de header en niet in de actiebalk onderin,
-              die staat er alleen bij een coin met niveaus. */}
-          <Pressable
-            onPress={() => setAlertOpen(true)}
-            style={styles.sluitKnop}
-            accessibilityRole="button"
-            accessibilityLabel={`Prijsalert instellen voor ${data.symbool}`}
-            hitSlop={8}
-          >
-            <Bell size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-          </Pressable>
-          <Pressable
-            onPress={onSluiten}
-            style={styles.sluitKnop}
-            accessibilityRole="button"
-            accessibilityLabel="Sluiten"
-            hitSlop={8}
-          >
-            <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
-          </Pressable>
-        </View>
-
-        {/* Skeleton in de vorm van het uiteindelijke scherm (grafiek, niveaus, indicatoren) in
-            plaats van een kale spinner: dat scheelt een sprong zodra de data binnen is. */}
-        {status === 'loading' && (
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-            <View style={styles.sectie}>
-              <SkeletonGrafiek />
-            </View>
-            {heeftNiveaus && (
-              <View style={styles.sectie}>
-                <SkeletonRegel aantal={3} />
-              </View>
-            )}
-            <View style={styles.sectie}>
-              <SkeletonRegel aantal={5} />
-            </View>
-          </ScrollView>
-        )}
-
-        {status === 'error' && (
-          <OfflineMelding
-            titel="Geen koersdata"
-            beschrijving={`Kon geen actuele koersdata ophalen voor ${data.symbool}. Controleer je verbinding.`}
-            melding="Binance en CoinGecko niet bereikbaar"
-            lastAttempt={foutTijd}
-            onRetry={() => laadData(data.symbool)}
-          />
-        )}
-
-        {status === 'success' && indicatoren && (
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-            <View style={styles.sectie}>
-              <PrijsGrafiek candles={candles} niveaus={niveaus} />
-            </View>
-
-            {heeftNiveaus && (
-              <View style={styles.sectie}>
-                <LevelRow
-                  stop={getoondeStop!}
-                  entry={data.entry!}
-                  doel={data.takeProfit!}
-                  richting={data.richting}
-                  stopAangepast={etoro?.aangepast ?? false}
-                />
-                {getoondeRr !== undefined && (
-                  <Text style={[Type.caption, styles.rrTekst, { color: colors.tekstGedimd }]}>R/R {fmtRR(getoondeRr)}</Text>
-                )}
-                {etoro?.uitleg ? (
-                  <Text style={[Type.caption, styles.rrTekst, { color: colors.letOp, lineHeight: 18 }]}>
-                    {etoro.uitleg}
-                  </Text>
-                ) : null}
-              </View>
-            )}
-
-            {advies && (
-              <View style={styles.sectie}>
-                <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>
-                  {data.richting === 'short' ? 'Waarom short' : 'Waarom'}
-                </Text>
-                <View style={[styles.waaromBadge, { backgroundColor: adviesKleur + '1A', borderColor: adviesKleur }]}>
-                  <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
+    <PodiumScherm zichtbaar={dataProp !== null} onSluiten={onSluiten}>
+      {sluit => (
+        <>
+          <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
+            <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
+              <View style={styles.headerLinks}>
+                <View style={styles.symboolRij}>
+                  <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
+                  {/* Alleen bij een short. Vrijwel alles is long, dus daar hoort geen label bij; bij een
+                      short moet je het meteen zien, want stop en doel liggen omgekeerd. */}
+                  {data.richting === 'short' && <RichtingBadge richting="short" />}
                 </View>
-                {advies.uitleg ? (
-                  <Text style={[Type.body, styles.waaromUitleg, { color: colors.tekstGedimd }]}>{advies.uitleg}</Text>
-                ) : null}
+                <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{data.naam}</Text>
               </View>
-            )}
-
-            <View style={styles.sectie}>
-              <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Indicatoren</Text>
-              <View style={styles.indicatorGrid}>
-                <IndicatorItem label="RSI" waarde={Math.round(indicatoren.rsi).toString()} />
-                <IndicatorItem
-                  label="TREND"
-                  waarde={indicatoren.trendOp ? 'Opwaarts' : 'Neerwaarts'}
-                  kleur={indicatoren.trendOp ? colors.winst : colors.verlies}
-                />
-                <IndicatorItem
-                  label="MACD"
-                  waarde={indicatoren.macdBullish ? 'Bullish' : 'Bearish'}
-                  kleur={indicatoren.macdBullish ? colors.winst : colors.verlies}
-                />
-                <IndicatorItem label="VOLUME" waarde={`${indicatoren.volumeRatio.toFixed(1)}×`} />
-                {data.versusBtc !== undefined && (
-                  <IndicatorItem
-                    label="30D VS BTC"
-                    waarde={`${data.versusBtc >= 0 ? '+' : ''}${data.versusBtc.toFixed(0)}%`}
-                  />
+              <View style={styles.headerRechts}>
+                {data.prijs !== undefined && (
+                  <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(data.prijs)}</Text>
                 )}
+                {typeof data.score === 'number' && <ScoreBadge score={data.score} />}
               </View>
-              {/* De duiding staat hier en niet op de kaart: dit is de plek waar ruimte is om te
-                  zeggen wat het cijfer volgens de backtest betekent voor een instap. */}
-              {data.versusBtc !== undefined && rsUitleg(data.versusBtc) ? (
-                <Text style={[Type.caption, styles.rsUitleg, { color: colors.tekstGedimd }]}>
-                  {rsUitleg(data.versusBtc)}
-                </Text>
-              ) : null}
+              {/* Een alert kan op elke coin, ook op een die je al hebt en ook zonder eToro-koppeling:
+                  het is een melding, geen order. Daarom in de header en niet in de actiebalk onderin,
+                  die staat er alleen bij een coin met niveaus. */}
+              <Pressable
+                onPress={() => setAlertOpen(true)}
+                style={styles.sluitKnop}
+                accessibilityRole="button"
+                accessibilityLabel={`Prijsalert instellen voor ${data.symbool}`}
+                hitSlop={8}
+              >
+                <Bell size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+              </Pressable>
+              <Pressable
+                onPress={() => sluit()}
+                style={styles.sluitKnop}
+                accessibilityRole="button"
+                accessibilityLabel="Sluiten"
+                hitSlop={8}
+              >
+                <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
+              </Pressable>
             </View>
 
-            {data.context === 'portfolio' && (
-              <View style={styles.sectie}>
-                <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Jouw positie</Text>
-                {isOpen && portfolioAdvies && (
-                  <View style={[styles.portfolioAdvies, { backgroundColor: colors.verhoogd }]}>
-                    <Text style={[Type.caption, { color: portfolioAdviesKleur, lineHeight: 18 }]}>{portfolioAdvies.tekst}</Text>
+            {/* Skeleton in de vorm van het uiteindelijke scherm (grafiek, niveaus, indicatoren) in
+                plaats van een kale spinner: dat scheelt een sprong zodra de data binnen is. */}
+            {status === 'loading' && (
+              <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+                <View style={styles.sectie}>
+                  <SkeletonGrafiek />
+                </View>
+                {heeftNiveaus && (
+                  <View style={styles.sectie}>
+                    <SkeletonRegel aantal={3} />
                   </View>
                 )}
-                {!isOpen && (
-                  <View style={[styles.portfolioAdvies, { backgroundColor: colors.verhoogd }]}>
-                    <Text style={[Type.caption, { color: behaaldKleur, lineHeight: 18 }]}>
-                      {`Gesloten op ${fmtPrijs(data.exitPrijs ?? data.entryPrijs ?? 0)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
+                <View style={styles.sectie}>
+                  <SkeletonRegel aantal={5} />
+                </View>
+              </ScrollView>
+            )}
+
+            {status === 'error' && (
+              <OfflineMelding
+                titel="Geen koersdata"
+                beschrijving={`Kon geen actuele koersdata ophalen voor ${data.symbool}. Controleer je verbinding.`}
+                melding="Binance en CoinGecko niet bereikbaar"
+                lastAttempt={foutTijd}
+                onRetry={() => laadData(data.symbool)}
+              />
+            )}
+
+            {status === 'success' && indicatoren && (
+              <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+                <Animated.View entering={binnenkomst()} style={styles.sectie}>
+                  <PrijsGrafiek candles={candles} niveaus={niveaus} />
+                </Animated.View>
+
+                {heeftNiveaus && (
+                  <Animated.View entering={binnenkomst()} style={styles.sectie}>
+                    <LevelRow
+                      stop={getoondeStop!}
+                      entry={data.entry!}
+                      doel={data.takeProfit!}
+                      richting={data.richting}
+                      stopAangepast={etoro?.aangepast ?? false}
+                    />
+                    {getoondeRr !== undefined && (
+                      <Text style={[Type.caption, styles.rrTekst, { color: colors.tekstGedimd }]}>R/R {fmtRR(getoondeRr)}</Text>
+                    )}
+                    {etoro?.uitleg ? (
+                      <Text style={[Type.caption, styles.rrTekst, { color: colors.letOp, lineHeight: 18 }]}>
+                        {etoro.uitleg}
+                      </Text>
+                    ) : null}
+                  </Animated.View>
+                )}
+
+                {advies && (
+                  <Animated.View entering={binnenkomst()} style={styles.sectie}>
+                    <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>
+                      {data.richting === 'short' ? 'Waarom short' : 'Waarom'}
                     </Text>
-                  </View>
+                    <View style={[styles.waaromBadge, { backgroundColor: adviesKleur + '1A', borderColor: adviesKleur }]}>
+                      <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
+                    </View>
+                    {advies.uitleg ? (
+                      <Text style={[Type.body, styles.waaromUitleg, { color: colors.tekstGedimd }]}>{advies.uitleg}</Text>
+                    ) : null}
+                  </Animated.View>
                 )}
-                <View style={styles.indicatorGrid}>
-                  <IndicatorItem label="STATUS" waarde={statusLabel} />
-                  <IndicatorItem label="INLEG" waarde={data.bedragUsd ? fmtPrijs(data.bedragUsd) : '—'} />
-                  {isOpen && (
-                    <>
+
+                <Animated.View entering={binnenkomst()} style={styles.sectie}>
+                  <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Indicatoren</Text>
+                  <View style={styles.indicatorGrid}>
+                    <IndicatorItem label="RSI" waarde={Math.round(indicatoren.rsi).toString()} />
+                    <IndicatorItem
+                      label="TREND"
+                      waarde={indicatoren.trendOp ? 'Opwaarts' : 'Neerwaarts'}
+                      kleur={indicatoren.trendOp ? colors.winst : colors.verlies}
+                    />
+                    <IndicatorItem
+                      label="MACD"
+                      waarde={indicatoren.macdBullish ? 'Bullish' : 'Bearish'}
+                      kleur={indicatoren.macdBullish ? colors.winst : colors.verlies}
+                    />
+                    <IndicatorItem label="VOLUME" waarde={`${indicatoren.volumeRatio.toFixed(1)}×`} />
+                    {data.versusBtc !== undefined && (
                       <IndicatorItem
-                        label="RESULTAAT"
-                        waarde={resultaatPct !== null ? fmtPct(resultaatPct) : '—'}
-                        kleur={resultaatKleur}
+                        label="30D VS BTC"
+                        waarde={`${data.versusBtc >= 0 ? '+' : ''}${data.versusBtc.toFixed(0)}%`}
                       />
-                      {resultaatUsd !== null && (
-                        <IndicatorItem
-                          label="WINST/VERLIES"
-                          waarde={fmtResultaatUsd(resultaatUsd)}
-                          kleur={resultaatKleur}
-                        />
+                    )}
+                  </View>
+                  {/* De duiding staat hier en niet op de kaart: dit is de plek waar ruimte is om te
+                      zeggen wat het cijfer volgens de backtest betekent voor een instap. */}
+                  {data.versusBtc !== undefined && rsUitleg(data.versusBtc) ? (
+                    <Text style={[Type.caption, styles.rsUitleg, { color: colors.tekstGedimd }]}>
+                      {rsUitleg(data.versusBtc)}
+                    </Text>
+                  ) : null}
+                </Animated.View>
+
+                {data.context === 'portfolio' && (
+                  <Animated.View entering={binnenkomst()} style={styles.sectie}>
+                    <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Jouw positie</Text>
+                    {isOpen && portfolioAdvies && (
+                      <View style={[styles.portfolioAdvies, { backgroundColor: colors.verhoogd }]}>
+                        <Text style={[Type.caption, { color: portfolioAdviesKleur, lineHeight: 18 }]}>{portfolioAdvies.tekst}</Text>
+                      </View>
+                    )}
+                    {!isOpen && (
+                      <View style={[styles.portfolioAdvies, { backgroundColor: colors.verhoogd }]}>
+                        <Text style={[Type.caption, { color: behaaldKleur, lineHeight: 18 }]}>
+                          {`Gesloten op ${fmtPrijs(data.exitPrijs ?? data.entryPrijs ?? 0)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.indicatorGrid}>
+                      <IndicatorItem label="STATUS" waarde={statusLabel} />
+                      <IndicatorItem label="INLEG" waarde={data.bedragUsd ? fmtPrijs(data.bedragUsd) : '—'} />
+                      {isOpen && (
+                        <>
+                          <IndicatorItem
+                            label="RESULTAAT"
+                            waarde={resultaatPct !== null ? fmtPct(resultaatPct) : '—'}
+                            kleur={resultaatKleur}
+                          />
+                          {resultaatUsd !== null && (
+                            <IndicatorItem
+                              label="WINST/VERLIES"
+                              waarde={fmtResultaatUsd(resultaatUsd)}
+                              kleur={resultaatKleur}
+                            />
+                          )}
+                          {afstandStopPct !== null && (
+                            <IndicatorItem label="AFSTAND STOP" waarde={fmtPct(-afstandStopPct)} kleur={colors.verlies} />
+                          )}
+                          {afstandDoelPct !== null && (
+                            <IndicatorItem label="AFSTAND DOEL" waarde={fmtPct(afstandDoelPct)} kleur={colors.winst} />
+                          )}
+                        </>
                       )}
-                      {afstandStopPct !== null && (
-                        <IndicatorItem label="AFSTAND STOP" waarde={fmtPct(-afstandStopPct)} kleur={colors.verlies} />
+                      {!isOpen && (
+                        <>
+                          {data.exitPrijs !== undefined && (
+                            <IndicatorItem label="EXITPRIJS" waarde={fmtPrijs(data.exitPrijs)} />
+                          )}
+                          {data.slotDatum && (
+                            <IndicatorItem label="SLOTDATUM" waarde={data.slotDatum} />
+                          )}
+                          {behaaldPct !== null && (
+                            <IndicatorItem label="BEHAALD" waarde={fmtPct(behaaldPct)} kleur={behaaldKleur} />
+                          )}
+                          {behaaldUsd !== null && (
+                            <IndicatorItem
+                              label="WINST/VERLIES"
+                              waarde={fmtResultaatUsd(behaaldUsd)}
+                              kleur={behaaldKleur}
+                            />
+                          )}
+                        </>
                       )}
-                      {afstandDoelPct !== null && (
-                        <IndicatorItem label="AFSTAND DOEL" waarde={fmtPct(afstandDoelPct)} kleur={colors.winst} />
-                      )}
-                    </>
-                  )}
-                  {!isOpen && (
-                    <>
-                      {data.exitPrijs !== undefined && (
-                        <IndicatorItem label="EXITPRIJS" waarde={fmtPrijs(data.exitPrijs)} />
-                      )}
-                      {data.slotDatum && (
-                        <IndicatorItem label="SLOTDATUM" waarde={data.slotDatum} />
-                      )}
-                      {behaaldPct !== null && (
-                        <IndicatorItem label="BEHAALD" waarde={fmtPct(behaaldPct)} kleur={behaaldKleur} />
-                      )}
-                      {behaaldUsd !== null && (
-                        <IndicatorItem
-                          label="WINST/VERLIES"
-                          waarde={fmtResultaatUsd(behaaldUsd)}
-                          kleur={behaaldKleur}
-                        />
-                      )}
-                    </>
-                  )}
-                </View>
-                {data.notitie ? (
-                  <Text style={[Type.caption, styles.notitie, { color: colors.tekstGedimd }]}>{data.notitie}</Text>
-                ) : null}
-              </View>
+                    </View>
+                    {data.notitie ? (
+                      <Text style={[Type.caption, styles.notitie, { color: colors.tekstGedimd }]}>{data.notitie}</Text>
+                    ) : null}
+                  </Animated.View>
+                )}
+
+                <Animated.View entering={binnenkomst()} style={styles.sectie}>
+                  <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Over {data.naam}</Text>
+                  <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{coinInfo.categorie}</Text>
+                  <Text style={[Type.body, styles.coinUitleg, { color: colors.tekstPrimair }]}>{coinInfo.wat}</Text>
+                </Animated.View>
+
+                <Animated.View entering={binnenkomst()}>
+                  <Disclaimer />
+                </Animated.View>
+              </ScrollView>
             )}
 
-            <View style={styles.sectie}>
-              <Text style={[Type.sectiekop, styles.kopje, { color: colors.tekstPrimair }]}>Over {data.naam}</Text>
-              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{coinInfo.categorie}</Text>
-              <Text style={[Type.body, styles.coinUitleg, { color: colors.tekstPrimair }]}>{coinInfo.wat}</Text>
-            </View>
+            {kanGetrade && (
+              <View style={[styles.actiebalk, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
+                {/* De reden staat boven de balk en niet in plaats van de knop: een knop die er niet is
+                    laat je raden of Kader dit überhaupt kan. */}
+                {handelReden ? (
+                  <Text style={[Type.caption, styles.handelReden, { color: colors.letOp }]}>{handelReden}</Text>
+                ) : null}
+                <View style={styles.actiebalkRij}>
+                  {/* Traden is de hoofdactie, Getrade (zelf overtikken) is de uitzondering ernaast. */}
+                  <Pressable
+                    style={[styles.getradeKnop, { borderColor: colors.rand, borderWidth: 1.5 }]}
+                    onPress={() => setGetradeOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Zelf ingevoerde trade opslaan"
+                  >
+                    <CheckCircle size={16} color={colors.tekstGedimd} strokeWidth={1.75} />
+                    <Text style={[Type.body, styles.getradeTekst, { color: colors.tekstGedimd }]}>Getrade</Text>
+                  </Pressable>
 
-            <Disclaimer />
-          </ScrollView>
-        )}
-
-        {kanGetrade && (
-          <View style={[styles.actiebalk, { borderTopColor: colors.rand, backgroundColor: colors.achtergrond }]}>
-            {/* De reden staat boven de balk en niet in plaats van de knop: een knop die er niet is
-                laat je raden of Kader dit überhaupt kan. */}
-            {handelReden ? (
-              <Text style={[Type.caption, styles.handelReden, { color: colors.letOp }]}>{handelReden}</Text>
-            ) : null}
-            <View style={styles.actiebalkRij}>
-              {/* Traden is de hoofdactie, Getrade (zelf overtikken) is de uitzondering ernaast. */}
-              <Pressable
-                style={[styles.getradeKnop, { borderColor: colors.rand, borderWidth: 1.5 }]}
-                onPress={() => setGetradeOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Zelf ingevoerde trade opslaan"
-              >
-                <CheckCircle size={16} color={colors.tekstGedimd} strokeWidth={1.75} />
-                <Text style={[Type.body, styles.getradeTekst, { color: colors.tekstGedimd }]}>Getrade</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
-                onPress={openHandel}
-                accessibilityRole="button"
-                accessibilityLabel={`${data.symbool} ${isShort ? 'shorten' : 'kopen'} via eToro`}
-              >
-                <ShoppingCart size={16} color="white" strokeWidth={1.75} />
-                <Text style={[Type.body, styles.getradeTekst]}>
-                  {isShort ? 'Short via eToro' : 'Trade via eToro'}
-                </Text>
-              </Pressable>
-            </View>
+                  <Pressable
+                    style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
+                    onPress={openHandel}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${data.symbool} ${isShort ? 'shorten' : 'kopen'} via eToro`}
+                  >
+                    <ShoppingCart size={16} color="white" strokeWidth={1.75} />
+                    <Text style={[Type.body, styles.getradeTekst]}>
+                      {isShort ? 'Short via eToro' : 'Trade via eToro'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </View>
-        )}
-      </SafeAreaView>
 
-      <PrijsalertSheet
-        zichtbaar={alertOpen}
-        onSluiten={() => setAlertOpen(false)}
-        symbool={data.symbool}
-        naam={data.naam}
-        huidigePrijs={data.prijs}
-      />
+          <PrijsalertSheet
+            zichtbaar={alertOpen}
+            onSluiten={() => setAlertOpen(false)}
+            symbool={data.symbool}
+            naam={data.naam}
+            huidigePrijs={data.prijs}
+          />
 
-      <GetradeFormulier
-        zichtbaar={getradeOpen}
-        trade={getradeBron}
-        onSluiten={() => setGetradeOpen(false)}
-      />
+          <GetradeFormulier
+            zichtbaar={getradeOpen}
+            trade={getradeBron}
+            onSluiten={() => setGetradeOpen(false)}
+          />
 
-      {koopOpen && data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined && (
-        <KooporderSheet
-          zichtbaar
-          symbool={data.symbool}
-          naam={data.naam}
-          entry={data.entry}
-          stop={data.stopLoss}
-          doel={data.takeProfit}
-          richting={data.richting}
-          onSluiten={() => setKoopOpen(false)}
-          // Dit scherm ligt als full-screen Modal over de tabs heen, dus "Naar portfolio" moet hem
-          // eerst weghalen voordat de tabwissel eronder te zien is.
-          onVerlaatScherm={onSluiten}
-        />
+          {koopOpen && data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined && (
+            <KooporderSheet
+              zichtbaar
+              symbool={data.symbool}
+              naam={data.naam}
+              entry={data.entry}
+              stop={data.stopLoss}
+              doel={data.takeProfit}
+              richting={data.richting}
+              onSluiten={() => setKoopOpen(false)}
+              // Dit scherm ligt als full-screen Modal over de tabs heen, dus "Naar portfolio" moet hem
+              // eerst weghalen voordat de tabwissel eronder te zien is. Niet terug de kaart in: die
+              // ligt op de tab die we net verlaten. Een korte fade, en de tab wisselt er meteen onder.
+              onVerlaatScherm={() => sluit({ naarBron: false })}
+            />
+          )}
+        </>
       )}
-    </Modal>
+    </PodiumScherm>
   );
 }
 
@@ -549,4 +619,28 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   getradeTekst: { color: 'white', fontWeight: '600' },
+});
+
+type ZetDetail = (data: CoinDetailData | null) => void;
+
+// Opent en sluit het detailscherm zonder dat het scherm met de lijst opnieuw rendert. Met de
+// open-state in MarktScreen zelf rendert elke tik de hele lijst met twintig kaarten opnieuw: in
+// een dev-build kostte dat 600ms voordat het detailscherm ook maar kon beginnen, en dan was de
+// gemeten kaartrechthoek al verlopen (zie neemBron) en schoof het scherm binnen in plaats van uit
+// de kaart te groeien. Hier zit de state in een eigen, gememoiseerd onderdeel; de lijst merkt er
+// niets van.
+export function useCoinDetail() {
+  const zetData = useRef<ZetDetail | null>(null);
+  const openDetail = useCallback((data: CoinDetailData) => zetData.current?.(data), []);
+  const detailScherm = <CoinDetailHouder koppel={zetData} />;
+  return { openDetail, detailScherm };
+}
+
+const CoinDetailHouder = memo(function CoinDetailHouder({ koppel }: { koppel: React.RefObject<ZetDetail | null> }) {
+  const [data, setData] = useState<CoinDetailData | null>(null);
+  useLayoutEffect(() => {
+    koppel.current = setData;
+    return () => { koppel.current = null; };
+  }, [koppel]);
+  return <CoinDetailScherm data={data} onSluiten={() => setData(null)} />;
 });

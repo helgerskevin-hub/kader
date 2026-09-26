@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
-import { Info, CheckCircle, ChevronDown, ChevronUp, Star, ShoppingCart } from 'lucide-react-native';
+import React, { memo, useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { Info, CheckCircle, Star, ShoppingCart } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
@@ -9,6 +10,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
@@ -18,6 +20,8 @@ import { useValutaStand } from '../state/useValuta';
 import { handelbaarOp, noemPlatforms } from '../engine/platforms';
 import { PlatformChips } from './PlatformChip';
 import { PlatformSheet } from './PlatformSheet';
+import { useDrukVeer } from './Drukbaar';
+import { UitklapPijl } from './UitklapPijl';
 
 interface Props {
   trade: Trade;
@@ -115,7 +119,9 @@ function gloedSchaduw(kleur: string, dekking: number, straal: number, hoogte: nu
   };
 }
 
-export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
+// Memo: tijdens de marktscan tekent MarktScreen bij elk voortgangstikje opnieuw, en zonder memo
+// tekenden alle al gelande kaarten dan mee, net terwijl de nieuwe kaarten binnen komen vliegen.
+export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -127,6 +133,9 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
   const opmaak = niveauOpmaak(advies, colors);
+  // De hele kaart veert mee als je het bovenste deel indrukt, niet alleen dat deel: anders krimpt
+  // de inhoud binnen een stilstaande rand en schaduw. Het detailscherm groeit uit deze kaart.
+  const druk = useDrukVeer(undefined, { kleur: opmaak.achtergrond, radius: radii.kaart });
   const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
   // Het merkje betekent: KADER kan deze order plaatsen. Niet "deze coin bestaat op eToro". Moet je
   // het bij de provider zelf doen, dan hoort er geen merkje te staan, want dan doet de koopknop het
@@ -147,15 +156,16 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
     highConviction: trade.highConviction,
   });
 
+  // De kaart groeit op een veer mee met de uitklap, en de actierij schuift op dezelfde veer naar
+  // zijn nieuwe plek. De kaarten eronder volgen via de lijst (itemLayoutAnimation op MarktScreen).
+  const schuif = schuifOvergang(reduceMotion);
+
   function wisselUitgeklapt() {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     setUitgeklapt(v => !v);
   }
 
   return (
-    <View style={[
+    <Animated.View ref={druk.ref} layout={schuif} style={[
       styles.kaart,
       // Bij de twee sterkste niveaus draagt de schaduw de kleur van het niveau; de rest houdt de
       // gewone neutrale kaartschaduw.
@@ -169,9 +179,15 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
         borderWidth: opmaak.borderWidth,
         borderColor: opmaak.borderColor,
       },
+      druk.stijl,
     ]}>
       <Pressable
-        onPress={() => onOpenDetail?.(trade)}
+        onPress={() => {
+          druk.legBronVast();
+          onOpenDetail?.(trade);
+        }}
+        onPressIn={druk.drukIn}
+        onPressOut={druk.drukUit}
         accessibilityRole="button"
         accessibilityLabel={`${trade.symbool} detail bekijken`}
         disabled={!onOpenDetail}
@@ -289,7 +305,11 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
 
       {/* Uitklapbare redenen + waarom-kopen onderbouwing */}
       {uitgeklapt && (
-        <View style={[styles.redenen, { backgroundColor: colors.verhoogd }]}>
+        <Animated.View
+          entering={uitklapIn(reduceMotion)}
+          exiting={uitklapUit()}
+          style={[styles.redenen, { backgroundColor: colors.verhoogd }]}
+        >
           {trade.redenen.map((r, i) => (
             <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
           ))}
@@ -310,11 +330,11 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
               {rsUitleg(versusBtc)}
             </Text>
           ) : null}
-        </View>
+        </Animated.View>
       )}
 
       {/* Acties */}
-      <View style={[styles.actiesRij, { borderTopColor: colors.rand }]}>
+      <Animated.View layout={schuif} style={[styles.actiesRij, { borderTopColor: colors.rand }]}>
         <Pressable
           style={[styles.actieKnop, { minHeight: 44 }]}
           onPress={wisselUitgeklapt}
@@ -325,9 +345,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           <Text style={[Type.caption, styles.actieLabel, { color: colors.cta }]}>
             {uitgeklapt ? 'Minder' : 'Over deze coin'}
           </Text>
-          {uitgeklapt
-            ? <ChevronUp size={12} color={colors.cta} strokeWidth={1.75} />
-            : <ChevronDown size={12} color={colors.cta} strokeWidth={1.75} />}
+          <UitklapPijl open={uitgeklapt} size={12} color={colors.cta} />
         </Pressable>
 
         <View style={[styles.scheiding, { backgroundColor: colors.rand }]} />
@@ -356,7 +374,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
             </Pressable>
           </>
         )}
-      </View>
+      </Animated.View>
 
       {/* Alleen mounten als hij open is: anders staat er per kaart een Modal in de boom, en dat zijn
           er twintig in een lijst die je aan het scrollen bent. */}
@@ -368,9 +386,9 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           platforms={platforms}
         />
       )}
-    </View>
+    </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   kaart: {

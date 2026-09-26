@@ -23,7 +23,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
-import { OrderBevestigKnop } from './OrderBevestigKnop';
+import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
 import { RichtingBadge } from './RichtingBadge';
 
 // eToro rekent orders in dollars af en het bedrag dat je hier intikt gaat letterlijk zo de order in.
@@ -86,6 +86,7 @@ export function KooporderSheet({
   // Kader dat geld als beschikbaar en werd de order die je erop baseerde door eToro geweigerd.
   const vrijSaldo = saldo?.besteedbaarUsd ?? null;
   const [bezig, setBezig] = useState(false);
+  const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
   // Eén verzoekId per keer dat de sheet opengaat, zodat een handmatige herhaling na een afwijzing
@@ -99,6 +100,7 @@ export function KooporderSheet({
     setBedrag('');
     setFout('');
     setBezig(false);
+    wis();
     setSaldo(null);
     setSaldoBezig(true);
   }, [zichtbaar]);
@@ -209,27 +211,30 @@ export function KooporderSheet({
 
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
-        onSluiten();
-        toonDialoog({
-          variant: 'gelukt',
-          titel: isShort ? 'Short staat bij eToro' : 'Koop staat bij eToro',
-          tekst: isShort
-            ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`
-            : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`,
-          // De tekst wijst naar je portfolio, dus daar hoort ook een knop naartoe te gaan. Eerst het
-          // scherm eronder sluiten als daarom gevraagd is, anders wisselt de tab onzichtbaar onder
-          // een openstaande Modal.
-          knoppen: [
-            { label: 'Oké' },
-            {
-              label: 'Naar portfolio',
-              soort: 'omlijnd',
-              onDruk: () => {
-                onVerlaatScherm?.();
-                gaNaar({ soort: 'portfolio' });
+        // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
+        vier(() => {
+          onSluiten();
+          toonDialoog({
+            variant: 'gelukt',
+            titel: isShort ? 'Short staat bij eToro' : 'Koop staat bij eToro',
+            tekst: isShort
+              ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`
+              : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`,
+            // De tekst wijst naar je portfolio, dus daar hoort ook een knop naartoe te gaan. Eerst het
+            // scherm eronder sluiten als daarom gevraagd is, anders wisselt de tab onzichtbaar onder
+            // een openstaande Modal.
+            knoppen: [
+              { label: 'Oké' },
+              {
+                label: 'Naar portfolio',
+                soort: 'omlijnd',
+                onDruk: () => {
+                  onVerlaatScherm?.();
+                  gaNaar({ soort: 'portfolio' });
+                },
               },
-            },
-          ],
+            ],
+          });
         });
         return;
       }
@@ -286,11 +291,11 @@ export function KooporderSheet({
   }];
 
   return (
-    <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={sluit} velStijl={stijlen.vel}>
       <View style={stijlen.titelRij}>
         <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{symbool} {isShort ? 'shorten' : 'kopen'}</Text>
         <Pressable
-          onPress={onSluiten}
+          onPress={sluit}
           accessibilityLabel="Sluiten"
           accessibilityRole="button"
           style={stijlen.sluitKnop}
@@ -409,6 +414,7 @@ export function KooporderSheet({
           bezig={bezig}
           uitgeschakeld={!magBevestigen}
           onBevestig={bevestig}
+          gelukt={gelukt}
         />
       </ScrollView>
     </BottomSheet>

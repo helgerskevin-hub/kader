@@ -15,8 +15,7 @@
 // en dit is het cijfer dat er nog niet stond. Het rekent over exact dezelfde posities als de ring:
 // beide tellen alleen open posities met een aantal munten en een live koers.
 import React, { useMemo } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { ChartPie, X } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
@@ -33,6 +32,7 @@ import { PortfolioTrade } from '../state/portfolioTypes';
 import { berekenPortfolioWaarde } from '../state/statistieken';
 import { useValutaStand } from '../state/useValuta';
 import { PlatformChip, PlatformChips } from './PlatformChip';
+import { PodiumScherm } from './PodiumScherm';
 
 // Iets kleiner dan op de kaart: hier staat het bedrag er al boven in Type.display, dus de ring
 // hoeft het niet nog een keer te dragen.
@@ -98,340 +98,342 @@ export function VerdelingScherm({ zichtbaar, trades, livePrijzen, onSluiten }: P
       : colors.tekstGedimd;
 
   return (
-    <Modal visible={zichtbaar} animationType="slide" onRequestClose={onSluiten} presentationStyle="fullScreen">
-      <SafeAreaView style={[stijlen.root, { backgroundColor: colors.achtergrond }]}>
-        <View style={[stijlen.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
-          <View style={stijlen.headerLinks}>
-            <ChartPie size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-            <Text style={[Type.titel, { color: colors.tekstPrimair }]} accessibilityRole="header">Verdeling</Text>
+    <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
+      {sluit => (
+        <View style={[stijlen.root, { backgroundColor: colors.achtergrond }]}>
+          <View style={[stijlen.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
+            <View style={stijlen.headerLinks}>
+              <ChartPie size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+              <Text style={[Type.titel, { color: colors.tekstPrimair }]} accessibilityRole="header">Verdeling</Text>
+            </View>
+            <Pressable
+              onPress={() => sluit()}
+              style={stijlen.sluitKnop}
+              accessibilityRole="button"
+              accessibilityLabel="Sluiten"
+              hitSlop={8}
+            >
+              <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
+            </Pressable>
           </View>
-          <Pressable
-            onPress={onSluiten}
-            style={stijlen.sluitKnop}
-            accessibilityRole="button"
-            accessibilityLabel="Sluiten"
-            hitSlop={8}
-          >
-            <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
-          </Pressable>
-        </View>
 
-        {vol === null || verdeling === null || waarde === null ? null : vol.coins.length === 0 && vol.nietGewogen.length === 0 ? (
-          <View style={stijlen.leeg}>
-            <ChartPie size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
-            <Text style={[Type.body, stijlen.leegTekst, { color: colors.tekstGedimd }]}>
-              Je hebt nog geen open posities. Zodra er iets openstaat, verschijnt hier hoe het verdeeld is.
-            </Text>
-          </View>
-        ) : (
-          <ScrollView contentContainerStyle={stijlen.scroll} showsVerticalScrollIndicator={false}>
-
-            {/* ---------- Blok 1: totaal en ring ---------- */}
-            <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">
-                IN POSITIES
+          {vol === null || verdeling === null || waarde === null ? null : vol.coins.length === 0 && vol.nietGewogen.length === 0 ? (
+            <View style={stijlen.leeg}>
+              <ChartPie size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
+              <Text style={[Type.body, stijlen.leegTekst, { color: colors.tekstGedimd }]}>
+                Je hebt nog geen open posities. Zodra er iets openstaat, verschijnt hier hoe het verdeeld is.
               </Text>
-              <Text style={[Type.display, { color: vol.gewaardeerd === 0 ? colors.tekstGedimd : colors.tekstPrimair }]}>
-                {vol.gewaardeerd === 0 ? '—' : fmtBedrag(vol.totaalUsd)}
-              </Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={stijlen.scroll} showsVerticalScrollIndicator={false}>
 
-              <View
-                style={stijlen.ringHouder}
-                accessible
-                accessibilityLabel={
-                  vol.gewaardeerd === 0
-                    ? 'Nog geen live koersen om je posities te wegen.'
-                    : (waarde.ongerealiseerdPct === null
-                      ? ''
-                      : `Resultaat ${fmtPct(waarde.ongerealiseerdPct)}, ${fmtResultaatUsd(waarde.ongerealiseerdUsd)}, over een inleg van ${fmtBedrag(waarde.ingelegdUsd)}. `)
-                      + 'Verdeling: ' + vol.coins
-                        .slice(0, EIGEN_KLEUREN)
-                        .map(c => `${c.symbool} ${spreekAandeel(c.aandeel)}`)
-                        .join(', ') + '.'
-                }
-              >
-                <Svg
-                  width={RING_MAAT}
-                  height={RING_MAAT}
-                  viewBox={`0 0 ${RING_MAAT} ${RING_MAAT}`}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
+              {/* ---------- Blok 1: totaal en ring ---------- */}
+              <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">
+                  IN POSITIES
+                </Text>
+                <Text style={[Type.display, { color: vol.gewaardeerd === 0 ? colors.tekstGedimd : colors.tekstPrimair }]}>
+                  {vol.gewaardeerd === 0 ? '—' : fmtBedrag(vol.totaalUsd)}
+                </Text>
+
+                <View
+                  style={stijlen.ringHouder}
+                  accessible
+                  accessibilityLabel={
+                    vol.gewaardeerd === 0
+                      ? 'Nog geen live koersen om je posities te wegen.'
+                      : (waarde.ongerealiseerdPct === null
+                        ? ''
+                        : `Resultaat ${fmtPct(waarde.ongerealiseerdPct)}, ${fmtResultaatUsd(waarde.ongerealiseerdUsd)}, over een inleg van ${fmtBedrag(waarde.ingelegdUsd)}. `)
+                        + 'Verdeling: ' + vol.coins
+                          .slice(0, EIGEN_KLEUREN)
+                          .map(c => `${c.symbool} ${spreekAandeel(c.aandeel)}`)
+                          .join(', ') + '.'
+                  }
                 >
-                  {vol.gewaardeerd === 0 ? (
-                    <Circle
-                      cx={MIDDEN}
-                      cy={MIDDEN}
-                      r={STRAAL}
-                      fill="none"
-                      stroke={colors.rand}
-                      strokeWidth={DIKTE}
-                      strokeDasharray="6 8"
-                    />
-                  ) : (
-                    <G transform={`rotate(-90 ${MIDDEN} ${MIDDEN})`}>
-                      {verdeling.segmenten.length === 1 ? (
-                        <Circle
-                          cx={MIDDEN}
-                          cy={MIDDEN}
-                          r={STRAAL}
-                          fill="none"
-                          stroke={kleurVoorSegment(verdeling.segmenten[0], 0)}
-                          strokeWidth={DIKTE}
-                        />
-                      ) : verdeling.segmenten.map((s, i) => {
-                        const begin = verdeling.segmenten.slice(0, i).reduce((som, v) => som + v.aandeel, 0);
-                        return (
+                  <Svg
+                    width={RING_MAAT}
+                    height={RING_MAAT}
+                    viewBox={`0 0 ${RING_MAAT} ${RING_MAAT}`}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    {vol.gewaardeerd === 0 ? (
+                      <Circle
+                        cx={MIDDEN}
+                        cy={MIDDEN}
+                        r={STRAAL}
+                        fill="none"
+                        stroke={colors.rand}
+                        strokeWidth={DIKTE}
+                        strokeDasharray="6 8"
+                      />
+                    ) : (
+                      <G transform={`rotate(-90 ${MIDDEN} ${MIDDEN})`}>
+                        {verdeling.segmenten.length === 1 ? (
                           <Circle
-                            key={s.sleutel}
                             cx={MIDDEN}
                             cy={MIDDEN}
                             r={STRAAL}
                             fill="none"
-                            stroke={kleurVoorSegment(s, i)}
+                            stroke={kleurVoorSegment(verdeling.segmenten[0], 0)}
                             strokeWidth={DIKTE}
-                            strokeDasharray={`${Math.max(0.5, s.aandeel * OMTREK - NAAD)} ${OMTREK}`}
-                            strokeDashoffset={-(begin * OMTREK)}
                           />
-                        );
-                      })}
-                    </G>
+                        ) : verdeling.segmenten.map((s, i) => {
+                          const begin = verdeling.segmenten.slice(0, i).reduce((som, v) => som + v.aandeel, 0);
+                          return (
+                            <Circle
+                              key={s.sleutel}
+                              cx={MIDDEN}
+                              cy={MIDDEN}
+                              r={STRAAL}
+                              fill="none"
+                              stroke={kleurVoorSegment(s, i)}
+                              strokeWidth={DIKTE}
+                              strokeDasharray={`${Math.max(0.5, s.aandeel * OMTREK - NAAD)} ${OMTREK}`}
+                              strokeDashoffset={-(begin * OMTREK)}
+                            />
+                          );
+                        })}
+                      </G>
+                    )}
+                  </Svg>
+
+                  {/* Het gat in de ring. Alleen als er ook echt iets te melden valt: zonder inleg is
+                      er geen percentage, en een streepje in het midden van een gevulde ring leest als
+                      een fout in plaats van als "onbekend". */}
+                  {vol.gewaardeerd > 0 && waarde.ongerealiseerdPct !== null && (
+                    <View style={stijlen.ringMidden} pointerEvents="none">
+                      <Text style={[Type.overline, stijlen.ringLabel, { color: colors.tekstGedimd }]} numberOfLines={1}>
+                        RESULTAAT
+                      </Text>
+                      <Text
+                        style={[Type.prijs, stijlen.ringPct, { color: resultaatKleur }]}
+                        numberOfLines={1}
+                      >
+                        {fmtPct(waarde.ongerealiseerdPct)}
+                      </Text>
+                      <Text style={[Type.prijs, stijlen.ringBedrag, { color: colors.tekstGedimd }]} numberOfLines={1}>
+                        {fmtResultaatUsd(waarde.ongerealiseerdUsd)}
+                      </Text>
+                    </View>
                   )}
-                </Svg>
-
-                {/* Het gat in de ring. Alleen als er ook echt iets te melden valt: zonder inleg is
-                    er geen percentage, en een streepje in het midden van een gevulde ring leest als
-                    een fout in plaats van als "onbekend". */}
-                {vol.gewaardeerd > 0 && waarde.ongerealiseerdPct !== null && (
-                  <View style={stijlen.ringMidden} pointerEvents="none">
-                    <Text style={[Type.overline, stijlen.ringLabel, { color: colors.tekstGedimd }]} numberOfLines={1}>
-                      RESULTAAT
-                    </Text>
-                    <Text
-                      style={[Type.prijs, stijlen.ringPct, { color: resultaatKleur }]}
-                      numberOfLines={1}
-                    >
-                      {fmtPct(waarde.ongerealiseerdPct)}
-                    </Text>
-                    <Text style={[Type.prijs, stijlen.ringBedrag, { color: colors.tekstGedimd }]} numberOfLines={1}>
-                      {fmtResultaatUsd(waarde.ongerealiseerdUsd)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <Text style={[Type.caption, stijlen.onderregel, { color: colors.tekstGedimd }]}>
-                {vol.gewaardeerd === 0
-                  ? 'Kader heeft nog geen live koersen om je posities te wegen. De verdeling verschijnt na de eerste sync.'
-                  : [
-                    meervoud(vol.gewaardeerd, 'positie', 'posities'),
-                    meervoud(vol.coins.length, 'coin', 'coins'),
-                    meervoud(vol.platforms.length, 'platform', 'platforms'),
-                  ].join(' · ')}
-              </Text>
-            </View>
-
-            {/* ---------- Blok 2: per coin ---------- */}
-            {vol.coins.length > 0 && (
-              <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
-                <View style={stijlen.blokKop}>
-                  <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">PER COIN</Text>
-                  <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-                    {meervoud(vol.coins.length, 'coin', 'coins')}
-                  </Text>
                 </View>
 
-                <View style={stijlen.rijen}>
-                  {vol.coins.map((c, i) => (
-                    <View
-                      key={c.symbool}
-                      accessible
-                      accessibilityLabel={`${c.symbool}, op ${noemPlatforms(c.platforms)}, ${fmtBedrag(c.waardeUsd)}, ${spreekAandeel(c.aandeel)} van je posities.`}
-                    >
-                      <View style={stijlen.regel}>
+                <Text style={[Type.caption, stijlen.onderregel, { color: colors.tekstGedimd }]}>
+                  {vol.gewaardeerd === 0
+                    ? 'Kader heeft nog geen live koersen om je posities te wegen. De verdeling verschijnt na de eerste sync.'
+                    : [
+                      meervoud(vol.gewaardeerd, 'positie', 'posities'),
+                      meervoud(vol.coins.length, 'coin', 'coins'),
+                      meervoud(vol.platforms.length, 'platform', 'platforms'),
+                    ].join(' · ')}
+                </Text>
+              </View>
+
+              {/* ---------- Blok 2: per coin ---------- */}
+              {vol.coins.length > 0 && (
+                <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
+                  <View style={stijlen.blokKop}>
+                    <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">PER COIN</Text>
+                    <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+                      {meervoud(vol.coins.length, 'coin', 'coins')}
+                    </Text>
+                  </View>
+
+                  <View style={stijlen.rijen}>
+                    {vol.coins.map((c, i) => (
+                      <View
+                        key={c.symbool}
+                        accessible
+                        accessibilityLabel={`${c.symbool}, op ${noemPlatforms(c.platforms)}, ${fmtBedrag(c.waardeUsd)}, ${spreekAandeel(c.aandeel)} van je posities.`}
+                      >
+                        <View style={stijlen.regel}>
+                          <View
+                            style={[stijlen.vierkantje, { backgroundColor: kleurVoorIndex(i) }]}
+                            accessibilityElementsHidden
+                            importantForAccessibility="no-hide-descendants"
+                          />
+                          <Text style={[Type.caption, stijlen.symbool, { color: colors.tekstPrimair }]}>
+                            {c.symbool}
+                          </Text>
+                          <PlatformChips platforms={c.platforms} maat={16} />
+                          <View style={stijlen.vulling} />
+                          <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
+                            {fmtBedrag(c.waardeUsd)}
+                          </Text>
+                          <Text style={[Type.label, stijlen.aandeel, { color: colors.tekstPrimair }]}>
+                            {aandeelTekst(c.aandeel)}
+                          </Text>
+                        </View>
+                        <Staaf aandeel={c.aandeel} kleur={kleurVoorIndex(i)} inspringen={17} />
+                      </View>
+                    ))}
+                  </View>
+
+                  {vol.coins.length > EIGEN_KLEUREN && (
+                    <Text style={[Type.caption, stijlen.voetregel, { color: colors.tekstGedimd }]}>
+                      De zes grootste hebben de kleur uit de ring. De rest deelt één grijs.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* ---------- Blok 3: per platform ---------- */}
+              {vol.platforms.length > 0 && (
+                <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
+                  <View style={stijlen.blokKop}>
+                    <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">PER PLATFORM</Text>
+                    <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+                      {meervoud(vol.platforms.length, 'platform', 'platforms')}
+                    </Text>
+                  </View>
+
+                  <View style={stijlen.rijen}>
+                    {vol.platforms.map(p => {
+                      const info = platformInfo(p.id);
+                      return (
                         <View
-                          style={[stijlen.vierkantje, { backgroundColor: kleurVoorIndex(i) }]}
+                          key={p.id}
+                          accessible
+                          accessibilityLabel={`${info.naam}${info.demo ? ', speelgeld' : ''}, ${fmtBedrag(p.waardeUsd)}, ${spreekAandeel(p.aandeel)}, ${meervoud(p.posities, 'positie', 'posities')} in ${meervoud(p.coins, 'coin', 'coins')}.`}
+                        >
+                          <View style={stijlen.regel}>
+                            <PlatformChip platform={p.id} maat={24} />
+                            <Text style={[Type.caption, stijlen.platformNaam, { color: colors.tekstPrimair }]}>
+                              {info.naam}
+                            </Text>
+                            {info.demo && (
+                              <View style={[stijlen.demoPil, { backgroundColor: colors.letOp + '1A' }]}>
+                                <Text style={[Type.label, stijlen.demoTekst, { color: colors.letOp }]}>DEMO</Text>
+                              </View>
+                            )}
+                            <View style={stijlen.vulling} />
+                            <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
+                              {fmtBedrag(p.waardeUsd)}
+                            </Text>
+                            <Text style={[Type.label, stijlen.aandeel, { color: colors.tekstPrimair }]}>
+                              {aandeelTekst(p.aandeel)}
+                            </Text>
+                          </View>
+                          <Staaf aandeel={p.aandeel} kleur={platformKleur(info.kleurIndex)} inspringen={32} />
+                          <Text style={[Type.caption, stijlen.platformDetail, { color: colors.tekstGedimd }]}>
+                            {meervoud(p.posities, 'positie', 'posities')} · {meervoud(p.coins, 'coin', 'coins')}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Staat elke coin op één plek, dan vervalt blok 4 en hoort die conclusie hier. */}
+                  {vol.kruis.length === 0 && vol.coins.length > 0 && (
+                    <Text style={[Type.caption, stijlen.voetregel, { color: colors.tekstGedimd }]}>
+                      Elke coin staat op één platform.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* ---------- Blok 4: op meer dan één plek ---------- */}
+              {vol.kruis.length > 0 && (
+                <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">
+                    OP MEER DAN ÉÉN PLEK
+                  </Text>
+                  <Text style={[Type.caption, stijlen.blokUitleg, { color: colors.tekstGedimd }]}>
+                    De percentages hieronder gaan over de coin zelf, niet over je hele portfolio.
+                  </Text>
+
+                  <View style={stijlen.kruisRijen}>
+                    {vol.kruis.map(k => (
+                      <View key={k.symbool} style={stijlen.kruisCoin}>
+                        <View style={stijlen.regel}>
+                          <Text style={[Type.caption, stijlen.symbool, { color: colors.tekstPrimair }]}>
+                            {k.symbool}
+                          </Text>
+                          <View style={stijlen.vulling} />
+                          <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
+                            {fmtBedrag(k.waardeUsd)}
+                          </Text>
+                        </View>
+                        {k.delen.map(d => (
+                          <View
+                            key={d.platform}
+                            style={[stijlen.regel, stijlen.kruisDeel]}
+                            accessible
+                            accessibilityLabel={`${k.symbool} op ${platformNaam(d.platform)}: ${fmtBedrag(d.waardeUsd)}, ${spreekAandeel(d.aandeel)} van deze coin.`}
+                          >
+                            <PlatformChip platform={d.platform} maat={16} />
+                            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+                              {platformNaam(d.platform)}
+                            </Text>
+                            <View style={stijlen.vulling} />
+                            <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
+                              {fmtBedrag(d.waardeUsd)}
+                            </Text>
+                            <Text style={[Type.label, stijlen.aandeel, { color: colors.tekstPrimair }]}>
+                              {aandeelTekst(d.aandeel)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* ---------- Blok 5: wat opvalt ---------- */}
+              {duidingen(vol).length > 0 && (
+                <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">WAT OPVALT</Text>
+                  <View style={stijlen.duidingen}>
+                    {duidingen(vol).map(zin => (
+                      <View key={zin} style={stijlen.duidingRij}>
+                        <View
+                          style={[stijlen.bolletje, { backgroundColor: colors.tekstGedimd }]}
                           accessibilityElementsHidden
                           importantForAccessibility="no-hide-descendants"
                         />
-                        <Text style={[Type.caption, stijlen.symbool, { color: colors.tekstPrimair }]}>
-                          {c.symbool}
-                        </Text>
-                        <PlatformChips platforms={c.platforms} maat={16} />
-                        <View style={stijlen.vulling} />
-                        <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
-                          {fmtBedrag(c.waardeUsd)}
-                        </Text>
-                        <Text style={[Type.label, stijlen.aandeel, { color: colors.tekstPrimair }]}>
-                          {aandeelTekst(c.aandeel)}
-                        </Text>
+                        <Text style={[Type.body, stijlen.duidingTekst, { color: colors.tekstPrimair }]}>{zin}</Text>
                       </View>
-                      <Staaf aandeel={c.aandeel} kleur={kleurVoorIndex(i)} inspringen={17} />
-                    </View>
-                  ))}
-                </View>
-
-                {vol.coins.length > EIGEN_KLEUREN && (
-                  <Text style={[Type.caption, stijlen.voetregel, { color: colors.tekstGedimd }]}>
-                    De zes grootste hebben de kleur uit de ring. De rest deelt één grijs.
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* ---------- Blok 3: per platform ---------- */}
-            {vol.platforms.length > 0 && (
-              <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
-                <View style={stijlen.blokKop}>
-                  <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">PER PLATFORM</Text>
-                  <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-                    {meervoud(vol.platforms.length, 'platform', 'platforms')}
+                    ))}
+                  </View>
+                  <Text style={[Type.caption, stijlen.slotregel, { color: colors.tekstGedimd, borderTopColor: colors.rand }]}>
+                    Dit zijn observaties, geen advies.
                   </Text>
                 </View>
+              )}
 
-                <View style={stijlen.rijen}>
-                  {vol.platforms.map(p => {
-                    const info = platformInfo(p.id);
-                    return (
+              {/* ---------- Blok 6: niet meegeteld ---------- */}
+              {vol.nietGewogen.length > 0 && (
+                <View style={[stijlen.terzijde, { backgroundColor: colors.verhoogd }]}>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">NIET MEEGETELD</Text>
+                  <Text style={[Type.caption, stijlen.blokUitleg, { color: colors.tekstGedimd }]}>
+                    Deze posities staan open, maar Kader kan ze niet wegen. Ze tellen niet mee in de
+                    percentages hierboven.
+                  </Text>
+                  <View style={stijlen.nietGewogenRijen}>
+                    {vol.nietGewogen.map((n, i) => (
                       <View
-                        key={p.id}
+                        key={`${n.platform}-${n.symbool}-${i}`}
+                        style={stijlen.regel}
                         accessible
-                        accessibilityLabel={`${info.naam}${info.demo ? ', speelgeld' : ''}, ${fmtBedrag(p.waardeUsd)}, ${spreekAandeel(p.aandeel)}, ${meervoud(p.posities, 'positie', 'posities')} in ${meervoud(p.coins, 'coin', 'coins')}.`}
+                        accessibilityLabel={`${n.symbool} op ${platformNaam(n.platform)}: ${n.reden}.`}
                       >
-                        <View style={stijlen.regel}>
-                          <PlatformChip platform={p.id} maat={24} />
-                          <Text style={[Type.caption, stijlen.platformNaam, { color: colors.tekstPrimair }]}>
-                            {info.naam}
-                          </Text>
-                          {info.demo && (
-                            <View style={[stijlen.demoPil, { backgroundColor: colors.letOp + '1A' }]}>
-                              <Text style={[Type.label, stijlen.demoTekst, { color: colors.letOp }]}>DEMO</Text>
-                            </View>
-                          )}
-                          <View style={stijlen.vulling} />
-                          <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
-                            {fmtBedrag(p.waardeUsd)}
-                          </Text>
-                          <Text style={[Type.label, stijlen.aandeel, { color: colors.tekstPrimair }]}>
-                            {aandeelTekst(p.aandeel)}
-                          </Text>
-                        </View>
-                        <Staaf aandeel={p.aandeel} kleur={platformKleur(info.kleurIndex)} inspringen={32} />
-                        <Text style={[Type.caption, stijlen.platformDetail, { color: colors.tekstGedimd }]}>
-                          {meervoud(p.posities, 'positie', 'posities')} · {meervoud(p.coins, 'coin', 'coins')}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                {/* Staat elke coin op één plek, dan vervalt blok 4 en hoort die conclusie hier. */}
-                {vol.kruis.length === 0 && vol.coins.length > 0 && (
-                  <Text style={[Type.caption, stijlen.voetregel, { color: colors.tekstGedimd }]}>
-                    Elke coin staat op één platform.
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* ---------- Blok 4: op meer dan één plek ---------- */}
-            {vol.kruis.length > 0 && (
-              <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">
-                  OP MEER DAN ÉÉN PLEK
-                </Text>
-                <Text style={[Type.caption, stijlen.blokUitleg, { color: colors.tekstGedimd }]}>
-                  De percentages hieronder gaan over de coin zelf, niet over je hele portfolio.
-                </Text>
-
-                <View style={stijlen.kruisRijen}>
-                  {vol.kruis.map(k => (
-                    <View key={k.symbool} style={stijlen.kruisCoin}>
-                      <View style={stijlen.regel}>
-                        <Text style={[Type.caption, stijlen.symbool, { color: colors.tekstPrimair }]}>
-                          {k.symbool}
-                        </Text>
+                        <PlatformChip platform={n.platform} maat={16} />
+                        <Text style={[Type.caption, stijlen.symbool, { color: colors.tekstPrimair }]}>{n.symbool}</Text>
                         <View style={stijlen.vulling} />
-                        <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
-                          {fmtBedrag(k.waardeUsd)}
-                        </Text>
+                        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{n.reden}</Text>
                       </View>
-                      {k.delen.map(d => (
-                        <View
-                          key={d.platform}
-                          style={[stijlen.regel, stijlen.kruisDeel]}
-                          accessible
-                          accessibilityLabel={`${k.symbool} op ${platformNaam(d.platform)}: ${fmtBedrag(d.waardeUsd)}, ${spreekAandeel(d.aandeel)} van deze coin.`}
-                        >
-                          <PlatformChip platform={d.platform} maat={16} />
-                          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-                            {platformNaam(d.platform)}
-                          </Text>
-                          <View style={stijlen.vulling} />
-                          <Text style={[Type.prijs, stijlen.bedrag, { color: colors.tekstGedimd }]}>
-                            {fmtBedrag(d.waardeUsd)}
-                          </Text>
-                          <Text style={[Type.label, stijlen.aandeel, { color: colors.tekstPrimair }]}>
-                            {aandeelTekst(d.aandeel)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  ))}
+                    ))}
+                  </View>
                 </View>
-              </View>
-            )}
-
-            {/* ---------- Blok 5: wat opvalt ---------- */}
-            {duidingen(vol).length > 0 && (
-              <View style={[stijlen.blok, shadow.kaart, { backgroundColor: colors.kaart }]}>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">WAT OPVALT</Text>
-                <View style={stijlen.duidingen}>
-                  {duidingen(vol).map(zin => (
-                    <View key={zin} style={stijlen.duidingRij}>
-                      <View
-                        style={[stijlen.bolletje, { backgroundColor: colors.tekstGedimd }]}
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                      />
-                      <Text style={[Type.body, stijlen.duidingTekst, { color: colors.tekstPrimair }]}>{zin}</Text>
-                    </View>
-                  ))}
-                </View>
-                <Text style={[Type.caption, stijlen.slotregel, { color: colors.tekstGedimd, borderTopColor: colors.rand }]}>
-                  Dit zijn observaties, geen advies.
-                </Text>
-              </View>
-            )}
-
-            {/* ---------- Blok 6: niet meegeteld ---------- */}
-            {vol.nietGewogen.length > 0 && (
-              <View style={[stijlen.terzijde, { backgroundColor: colors.verhoogd }]}>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]} accessibilityRole="header">NIET MEEGETELD</Text>
-                <Text style={[Type.caption, stijlen.blokUitleg, { color: colors.tekstGedimd }]}>
-                  Deze posities staan open, maar Kader kan ze niet wegen. Ze tellen niet mee in de
-                  percentages hierboven.
-                </Text>
-                <View style={stijlen.nietGewogenRijen}>
-                  {vol.nietGewogen.map((n, i) => (
-                    <View
-                      key={`${n.platform}-${n.symbool}-${i}`}
-                      style={stijlen.regel}
-                      accessible
-                      accessibilityLabel={`${n.symbool} op ${platformNaam(n.platform)}: ${n.reden}.`}
-                    >
-                      <PlatformChip platform={n.platform} maat={16} />
-                      <Text style={[Type.caption, stijlen.symbool, { color: colors.tekstPrimair }]}>{n.symbool}</Text>
-                      <View style={stijlen.vulling} />
-                      <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{n.reden}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-          </ScrollView>
-        )}
-      </SafeAreaView>
-    </Modal>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      )}
+    </PodiumScherm>
   );
 }
 

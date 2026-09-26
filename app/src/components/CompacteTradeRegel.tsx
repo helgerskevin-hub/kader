@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { MoreVertical } from 'lucide-react-native';
 import { fmtPrijs, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
@@ -11,6 +12,7 @@ import { AfbouwAdvies } from '../state/afbouw';
 import { RichtingBadge } from './RichtingBadge';
 import { PositieBalk } from './PositieBalk';
 import { useValutaStand } from '../state/useValuta';
+import { useDrukVeer } from './Drukbaar';
 
 interface Props {
   trade: PortfolioTrade;
@@ -29,6 +31,9 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
   useValutaStand();
 
   const { colors } = useTheme();
+  // Het detailscherm groeit uit deze kaart; de kaart veert daarom ook mee bij indrukken, net als
+  // op het marktscherm.
+  const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
 
   const richting = richtingVan(trade);
   const teken = tekenVan(trade);
@@ -54,10 +59,18 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
   const accessibilityLabel = `${trade.symbool}${richting === 'short' ? ', short' : ''}, ${advies.kort}${afbouw ? `, ${afbouw.kort}` : ''}${resultaatPct !== null ? `, resultaat ${fmtPct(resultaatPct)}` : ''}`;
 
   return (
-    <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: adviesKleur }]}>
+    <Animated.View
+      ref={druk.ref}
+      style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: adviesKleur }, druk.stijl]}
+    >
       <Pressable
         style={styles.inhoud}
-        onPress={() => onOpenDetail(trade)}
+        onPress={() => {
+          druk.legBronVast();
+          onOpenDetail(trade);
+        }}
+        onPressIn={druk.drukIn}
+        onPressOut={druk.drukUit}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
       >
@@ -112,7 +125,7 @@ export function CompacteTradeRegel({ trade, livePrijs, onOpenDetail, onOpenActie
       >
         <MoreVertical size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
