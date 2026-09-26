@@ -14,6 +14,7 @@ import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
+import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
 import { laadLijst, bewaarLijst, SLEUTELS } from '../storage/opslag';
 
 // ---------- Helpers ----------
@@ -505,23 +506,34 @@ export function TradersScreen() {
         </View>
       ) : traders.length === 0 ? (
         <View style={tradersStyles.leeg}>
-          <Users size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
-          <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
-            Geen traders beoordeeld
-          </Text>
-          <Text style={[Type.body, {
-            color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24,
-          }]}>
-            Vul de statistieken van een eToro Popular Investor in voor een GROEN/GEEL/ROOD oordeel en een aanbevolen Copy Stop Loss.
-          </Text>
-          <Pressable
-            style={[tradersStyles.leegKnop, { backgroundColor: colors.cta }]}
-            onPress={() => setFormulierZichtbaar(true)}
-            accessibilityRole="button"
-          >
-            <Plus size={16} color="white" strokeWidth={2} />
-            <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Eerste trader beoordelen</Text>
-          </Pressable>
+          {/* Het mensen-icoon blijft, nu tussen de ademende hoekhaken, net als de andere lege staten. */}
+          <Opkomst volgorde={0}>
+            <LegeStaatBeeld>
+              <Users size={26} color={colors.tekstGedimd} strokeWidth={1.5} />
+            </LegeStaatBeeld>
+          </Opkomst>
+          <Opkomst volgorde={1}>
+            <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
+              Geen traders beoordeeld
+            </Text>
+          </Opkomst>
+          <Opkomst volgorde={2}>
+            <Text style={[Type.body, {
+              color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24,
+            }]}>
+              Vul de statistieken van een eToro Popular Investor in voor een GROEN/GEEL/ROOD oordeel en een aanbevolen Copy Stop Loss.
+            </Text>
+          </Opkomst>
+          <Opkomst volgorde={3}>
+            <Pressable
+              style={[tradersStyles.leegKnop, { backgroundColor: colors.cta }]}
+              onPress={() => setFormulierZichtbaar(true)}
+              accessibilityRole="button"
+            >
+              <Plus size={16} color="white" strokeWidth={2} />
+              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Eerste trader beoordelen</Text>
+            </Pressable>
+          </Opkomst>
         </View>
       ) : (
         <FlatList

@@ -7,6 +7,7 @@ import { infoVoor } from '../engine/coinInfo';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import Animated from 'react-native-reanimated';
 import { useUitleg, UitlegKnop, UitlegTekst } from './UitlegKnop';
 
 interface Props {
@@ -25,7 +26,7 @@ const UITLEG = `Dit is het rendement van elke coin over ${RS_PERIODE} dagen, min
 // in mengen zou alle drempels in drempels.ts stilzwijgend verschuiven.
 export function RelatieveSterkteKaart({ lijst, klimaat, onOpenCoin }: Props) {
   const { colors } = useTheme();
-  const { open, wissel } = useUitleg();
+  const { open, wissel, schuif } = useUitleg();
 
   if (lijst.length === 0) return null;
 
@@ -33,7 +34,7 @@ export function RelatieveSterkteKaart({ lijst, klimaat, onOpenCoin }: Props) {
   const aantalSterker = lijst.filter(r => r.versusBtc > 0).length;
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
+    <Animated.View layout={schuif} style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
       <View style={styles.titelRij}>
         <View style={styles.titelLinks}>
           <TrendingUp size={15} color={colors.tekstGedimd} strokeWidth={2} />
@@ -59,7 +60,7 @@ export function RelatieveSterkteKaart({ lijst, klimaat, onOpenCoin }: Props) {
       </Text>
 
       <UitlegTekst open={open} tekst={UITLEG} />
-    </View>
+    </Animated.View>
   );
 }
 

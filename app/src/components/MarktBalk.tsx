@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Info, TriangleAlert } from 'lucide-react-native';
 import { Marktklimaat } from '../engine/marktklimaat';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 
 interface Props {
   klimaat: Marktklimaat;
@@ -36,15 +38,14 @@ export function MarktBalk({ klimaat }: Props) {
     : klimaat.klimaat === 'gemengd' ? colors.letOp
     : colors.verlies;
 
+  const schuif = schuifOvergang(reduceMotion);
+
   function wisselUitgeklapt() {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     setUitgeklapt(v => !v);
   }
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
+    <Animated.View layout={schuif} style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
       <View style={styles.bovenkant}>
         <View style={styles.titelRij}>
           <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MARKTKLIMAAT</Text>
@@ -62,9 +63,17 @@ export function MarktBalk({ klimaat }: Props) {
         </View>
       </View>
       {uitgeklapt && (
-        <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>{UITLEG}</Text>
+        <Animated.Text
+          entering={uitklapIn(reduceMotion)}
+          exiting={uitklapUit()}
+          style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}
+        >
+          {UITLEG}
+        </Animated.Text>
       )}
 
+      {/* Alles onder de uitleg schuift als één blok mee naar zijn nieuwe plek. */}
+      <Animated.View layout={schuif} style={styles.onderUitleg}>
       <View style={styles.detailRij}>
         <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
           BTC {klimaat.btcBovenEma50 ? 'boven' : 'onder'} EMA50 · marktbreedte {Math.round(klimaat.breedte * 100)}%
@@ -99,7 +108,8 @@ export function MarktBalk({ klimaat }: Props) {
           <View style={[styles.indicator, { backgroundColor: knopKleur }]} />
         </View>
       </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -130,6 +140,10 @@ const styles = StyleSheet.create({
   },
   uitleg: {
     lineHeight: 18,
+  },
+  // Zelfde tussenruimte als de wrapper, zodat het groeperen niets aan de opmaak verandert.
+  onderUitleg: {
+    gap: spacing.sm,
   },
   scoreRij: {
     flexDirection: 'row',

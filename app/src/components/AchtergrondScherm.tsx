@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import {
-  ScrollView, View, Text, Pressable, StyleSheet,
-  LayoutAnimation,
-} from 'react-native';
-import { X, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { X } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { useTheme } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
@@ -19,6 +18,7 @@ import { AngstHebzucht } from './AngstHebzucht';
 import { PrijsGrafiek } from './PrijsGrafiek';
 import { Disclaimer } from './Disclaimer';
 import { PodiumScherm } from './PodiumScherm';
+import { UitklapPijl } from './UitklapPijl';
 
 interface Props {
   zichtbaar: boolean;
@@ -63,13 +63,9 @@ type SectieId = typeof SECTIES[number]['id'];
 export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
   const { colors } = useTheme();
   const extraKopruimte = useModalKopruimte();
-  const reduceMotion = useReduceMotion();
   const [open, setOpen] = useState<SectieId | null>(null);
 
   function wisselOpen(id: SectieId) {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     setOpen(v => (v === id ? null : id));
   }
 
@@ -472,8 +468,13 @@ function Sectie({
   children: React.ReactNode;
 }) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
+  // Elke sectie groeit en krimpt op een veer, en de secties eronder schuiven mee omdat ze
+  // dezelfde transitie hebben. Dat werkt ook als je van de ene open sectie naar de andere tikt:
+  // de ene klapt dicht terwijl de andere opengaat. overflow: hidden op de sectie zorgt dat de
+  // inhoud tijdens het groeien achter de rand verdwijnt in plaats van eroverheen te lopen.
   return (
-    <View style={[styles.sectie, { borderColor: colors.rand }]}>
+    <Animated.View layout={schuifOvergang(reduceMotion)} style={[styles.sectie, { borderColor: colors.rand }]}>
       <Pressable
         onPress={() => onToggle(id)}
         style={styles.sectieKop}
@@ -482,12 +483,14 @@ function Sectie({
         accessibilityState={{ expanded: open }}
       >
         <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{titel}</Text>
-        {open
-          ? <ChevronUp size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-          : <ChevronDown size={18} color={colors.tekstGedimd} strokeWidth={1.75} />}
+        <UitklapPijl open={open} size={18} color={colors.tekstGedimd} />
       </Pressable>
-      {open && <View style={styles.sectieInhoud}>{children}</View>}
-    </View>
+      {open && (
+        <Animated.View entering={uitklapIn(reduceMotion)} exiting={uitklapUit()} style={styles.sectieInhoud}>
+          {children}
+        </Animated.View>
+      )}
+    </Animated.View>
   );
 }
 

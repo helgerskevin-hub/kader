@@ -120,6 +120,11 @@ export async function zoekKansen(
   topN = 10,
   onProgress?: (gescand: number, totaal: number) => void,
   alleenEtoro = true,
+  // Na elk blok de kansen tot nu toe, zodat het scherm kaarten kan laten landen terwijl de scan
+  // nog loopt. De kandidaten zijn vóór het ophalen al op kansscore gesorteerd en elk blok wordt
+  // achteraan toegevoegd, dus de tussenstand is altijd het begin van de eindlijst, in dezelfde
+  // volgorde. Alleen voor weergave: de returnwaarde hieronder blijft de enige uitkomst.
+  onTussenstand?: (kansen: Opportunity[]) => void,
 ): Promise<Opportunity[]> {
   const markten = await haalCoingeckoMarkten();
   const kandidaten: Array<Record<string, unknown> & { _score: number }> = [];
@@ -162,6 +167,8 @@ export async function zoekKansen(
       }),
     );
     resultaten.push(...uitkomsten);
+    // Een kopie, zodat de ontvanger nooit dezelfde array vasthoudt als die hier nog groeit.
+    onTussenstand?.([...resultaten]);
   }
   return resultaten;
 }

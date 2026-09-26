@@ -6,6 +6,7 @@ import { fmtPct } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import Animated from 'react-native-reanimated';
 import { useUitleg, UitlegKnop, UitlegTekst } from './UitlegKnop';
 import { useValutaStand } from '../state/useValuta';
 
@@ -25,14 +26,14 @@ export function BearModusKaart({ stand }: Props) {
   useValutaStand();
 
   const { colors } = useTheme();
-  const { open, wissel } = useUitleg();
+  const { open, wissel, schuif } = useUitleg();
 
   // Pas vanaf een hele dag heeft de teller iets te zeggen. Op dag nul zou er "0 dagen" en "+0,0%"
   // staan, wat de kaart eerder kapot laat lijken dan informatief.
   const toonTeller = stand !== null && stand.dagen >= 1;
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: colors.kaart, borderColor: colors.verlies }]}>
+    <Animated.View layout={schuif} style={[styles.wrapper, { backgroundColor: colors.kaart, borderColor: colors.verlies }]}>
       <View style={styles.titelRij}>
         <View style={styles.titelLinks}>
           <ShieldAlert size={16} color={colors.verlies} strokeWidth={2} />
@@ -83,7 +84,7 @@ export function BearModusKaart({ stand }: Props) {
       </View>
 
       <UitlegTekst open={open} tekst={UITLEG} />
-    </View>
+    </Animated.View>
   );
 }
 

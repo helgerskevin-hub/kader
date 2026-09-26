@@ -1,13 +1,15 @@
 import React, { useCallback, useReducer, useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, LayoutAnimation, RefreshControl,
+  View, Text, Pressable, StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
-import { RefreshCw, ChevronDown, ChevronUp, Zap, CheckCircle, ShoppingCart } from 'lucide-react-native';
+import { RefreshCw, Zap, CheckCircle, ShoppingCart } from 'lucide-react-native';
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
+import { haptiek } from '../theme/haptiek';
 import { fmtPrijs, fmtPct, fmtRR, fmtMarktcap, fmtScore } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -27,24 +29,41 @@ import { GetradeFormulier } from '../components/GetradeFormulier';
 import { KooporderSheet } from '../components/KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useValutaStand } from '../state/useValuta';
+import { UitklapPijl } from '../components/UitklapPijl';
+import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
 
 // ---------- State machine ----------
 type KansenState =
   | { status: 'idle' }
-  | { status: 'loading'; gescand: number; totaal: number }
+  | {
+      status: 'loading';
+      gescand: number;
+      totaal: number;
+      // De kansen tot nu toe, na elk blok bijgewerkt. Altijd het begin van de eindlijst in dezelfde
+      // volgorde (zie onTussenstand in opportunities.ts), dus kaarten landen en blijven liggen.
+      tussenstand: Opportunity[];
+      // Hoeveel kaarten er vóór het laatste blok al lagen: de kaarten daarna landen samen, gestaffeld.
+      vorigAantal: number;
+    }
   | { status: 'error'; melding: string; lastAttempt: Date }
   | { status: 'success'; kansen: Opportunity[]; lastUpdate: Date };
 
 type Action =
   | { type: 'START' }
   | { type: 'PROGRESS'; gescand: number; totaal: number }
+  | { type: 'TUSSENSTAND'; kansen: Opportunity[] }
   | { type: 'SUCCESS'; kansen: Opportunity[] }
   | { type: 'FOUT'; melding: string };
 
 function reducer(state: KansenState, action: Action): KansenState {
   switch (action.type) {
-    case 'START': return { status: 'loading', gescand: 0, totaal: 0 };
-    case 'PROGRESS': return { status: 'loading', gescand: action.gescand, totaal: action.totaal };
+    case 'START': return { status: 'loading', gescand: 0, totaal: 0, tussenstand: [], vorigAantal: 0 };
+    case 'PROGRESS':
+      if (state.status !== 'loading') return state;
+      return { ...state, gescand: action.gescand, totaal: action.totaal };
+    case 'TUSSENSTAND':
+      if (state.status !== 'loading') return state;
+      return { ...state, tussenstand: action.kansen, vorigAantal: state.tussenstand.length };
     case 'SUCCESS': return { status: 'success', kansen: action.kansen, lastUpdate: new Date() };
     case 'FOUT': return { status: 'error', melding: action.melding, lastAttempt: new Date() };
     default: return state;
@@ -76,15 +95,16 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
   const pctKleur = (p: number) =>
     p > 0 ? colors.winst : p < 0 ? colors.verlies : colors.tekstGedimd;
 
+  // Zelfde uitklap als TradeCard: de kaart groeit op een veer, de redenen vervagen in en de voet
+  // schuift mee. Kaarten eronder volgen via itemLayoutAnimation op de lijst.
+  const schuif = schuifOvergang(reduceMotion);
+
   function wisselUitgeklapt() {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     setUitgeklapt(v => !v);
   }
 
   return (
-    <Animated.View ref={druk.ref} style={[cardStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }, druk.stijl]}>
+    <Animated.View ref={druk.ref} layout={schuif} style={[cardStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }, druk.stijl]}>
       <Pressable
         onPress={() => {
           druk.legBronVast();
@@ -183,15 +203,19 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
 
       {/* Uitklapbare redenen */}
       {uitgeklapt && (
-        <View style={[cardStyles.redenen, { backgroundColor: colors.verhoogd }]}>
+        <Animated.View
+          entering={uitklapIn(reduceMotion)}
+          exiting={uitklapUit()}
+          style={[cardStyles.redenen, { backgroundColor: colors.verhoogd }]}
+        >
           {kans.redenen.map((r, i) => (
             <Text key={i} style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>• {r}</Text>
           ))}
-        </View>
+        </Animated.View>
       )}
 
       {/* Voet */}
-      <View style={[
+      <Animated.View layout={schuif} style={[
         cardStyles.voet,
         { borderTopColor: colors.rand, justifyContent: kans.heeftTechnisch ? 'space-between' : 'flex-end' },
       ]}>
@@ -228,11 +252,9 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
           <Text style={[Type.caption, { color: colors.cta }]}>
             {uitgeklapt ? 'Minder' : 'Waarom'}
           </Text>
-          {uitgeklapt
-            ? <ChevronUp size={12} color={colors.cta} strokeWidth={1.75} />
-            : <ChevronDown size={12} color={colors.cta} strokeWidth={1.75} />}
+          <UitklapPijl open={uitgeklapt} size={12} color={colors.cta} />
         </Pressable>
-      </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -308,6 +330,7 @@ export function KansenScreen() {
   useValutaStand();
 
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
   const [ververst, setVerverstState] = useState(false);
   const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
@@ -323,9 +346,15 @@ export function KansenScreen() {
   const startScan = useCallback(async (stil = false) => {
     if (!stil) dispatch({ type: 'START' });
     try {
-      const kansen = await zoekKansen(20, (gescand, totaal) => {
-        if (!stil) dispatch({ type: 'PROGRESS', gescand, totaal });
-      });
+      const kansen = await zoekKansen(
+        20,
+        (gescand, totaal) => {
+          if (!stil) dispatch({ type: 'PROGRESS', gescand, totaal });
+        },
+        undefined,
+        // Een stille refresh houdt de oude lijst staan tot de nieuwe klaar is, zonder tussenstanden.
+        stil ? undefined : tussenstand => dispatch({ type: 'TUSSENSTAND', kansen: tussenstand }),
+      );
       dispatch({ type: 'SUCCESS', kansen });
     } catch (e) {
       if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
@@ -338,6 +367,20 @@ export function KansenScreen() {
     await startScan(true);
     setVerverstState(false);
   }
+
+  // Pull-to-refresh: haptic op het moment dat de lijst vastklikt, niet bij de verversknop.
+  function trekVervers() {
+    haptiek('vastklikken');
+    handleVervers();
+  }
+
+  // Eén lijst voor laden en klaar, net als op het Marktscherm: kaarten die tijdens de scan landen
+  // blijven gewoon liggen als hij afrondt. Ze zijn meteen tikbaar, want elke kaart is op dat moment
+  // al definitief: de tussenstand is letterlijk het begin van de eindlijst, en anders dan op Markt
+  // hangt hier geen signaal af van de rest van de scan.
+  const laden = state.status === 'loading';
+  const lijst = state.status === 'success' ? state.kansen : state.status === 'loading' ? state.tussenstand : [];
+  const vorigAantal = state.status === 'loading' ? state.vorigAantal : 0;
 
   const metaText = state.status === 'success'
     ? `${state.kansen.length} coins · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
@@ -365,39 +408,39 @@ export function KansenScreen() {
 
       {state.status === 'idle' && (
         <View style={screenStyles.midden}>
-          <Zap size={40} color={colors.letOp} strokeWidth={1.5} />
-          <Text style={[Type.titel, screenStyles.middenTitel, { color: colors.tekstPrimair }]}>
-            Zoek grote kansen
-          </Text>
-          <Text style={[Type.body, screenStyles.middenBody, { color: colors.tekstGedimd }]}>
-            Scant de top 250 coins buiten het standaard universum op momentum, volume en technische signalen.
-          </Text>
-          <Drukbaar
-            style={[screenStyles.ctaKnop, { backgroundColor: colors.letOp }]}
-            onPress={() => startScan()}
-            accessibilityRole="button"
-            accessibilityLabel="Start scan"
-          >
-            <Zap size={16} color="white" strokeWidth={2} />
-            <Text style={[Type.body, screenStyles.ctaTekst]}>Start scan</Text>
-          </Drukbaar>
-          <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base }]}>
-            Data via CoinGecko & Binance · geen financieel advies
-          </Text>
-        </View>
-      )}
-
-      {state.status === 'loading' && (
-        <View style={{ flex: 1 }}>
-          {state.totaal > 0 && <Laadbalk huidig={state.gescand} totaal={state.totaal} kleur={colors.letOp} />}
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          {state.totaal > 0 && (
-            <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm }]}>
-              {state.gescand} van {state.totaal} kandidaten
+          {/* Het bliksemicoon blijft, nu tussen de ademende hoekhaken: dit scherm houdt zijn eigen
+              kleur en betekenis, maar hoort zichtbaar bij dezelfde familie als de andere lege staten. */}
+          <Opkomst volgorde={0}>
+            <LegeStaatBeeld>
+              <Zap size={26} color={colors.letOp} strokeWidth={1.5} />
+            </LegeStaatBeeld>
+          </Opkomst>
+          <Opkomst volgorde={1}>
+            <Text style={[Type.titel, screenStyles.middenTitel, { color: colors.tekstPrimair }]}>
+              Zoek grote kansen
             </Text>
-          )}
+          </Opkomst>
+          <Opkomst volgorde={2}>
+            <Text style={[Type.body, screenStyles.middenBody, { color: colors.tekstGedimd }]}>
+              Scant de top 250 coins buiten het standaard universum op momentum, volume en technische signalen.
+            </Text>
+          </Opkomst>
+          <Opkomst volgorde={3}>
+            <Drukbaar
+              style={[screenStyles.ctaKnop, { backgroundColor: colors.letOp }]}
+              onPress={() => startScan()}
+              accessibilityRole="button"
+              accessibilityLabel="Start scan"
+            >
+              <Zap size={16} color="white" strokeWidth={2} />
+              <Text style={[Type.body, screenStyles.ctaTekst]}>Start scan</Text>
+            </Drukbaar>
+          </Opkomst>
+          <Opkomst volgorde={4}>
+            <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base }]}>
+              Data via CoinGecko & Binance · geen financieel advies
+            </Text>
+          </Opkomst>
         </View>
       )}
 
@@ -411,36 +454,70 @@ export function KansenScreen() {
         />
       )}
 
-      {state.status === 'success' && (
-        <FlatList
-          data={state.kansen}
+      {(state.status === 'loading' || state.status === 'success') && (
+        <Animated.FlatList
+          data={lijst}
           keyExtractor={item => item.symbool}
-          renderItem={({ item }) => (
-            <OpportunityCard
-              kans={item}
-              onOpenDetail={k => setDetailCoin(vanOpportunity(k))}
-              onGetrade={setGetradeteKans}
-              onKoop={magHandelen ? setKoopKans : undefined}
-              limiet={limietVoor(stopLimieten, item.symbool)}
-            />
+          itemLayoutAnimation={schuifOvergang(reduceMotion)}
+          renderItem={({ item, index }) => (
+            // Tijdens het laden landen de kaarten van één blok samen, gestaffeld vanaf de eerste
+            // nieuwe. Daarna is de volgorde gewoon de plek in de lijst.
+            <Animated.View
+              entering={kaartLandt(laden ? Math.max(0, index - vorigAantal) : index, reduceMotion)}
+              exiting={uitklapUit()}
+            >
+              <OpportunityCard
+                kans={item}
+                onOpenDetail={k => setDetailCoin(vanOpportunity(k))}
+                onGetrade={setGetradeteKans}
+                onKoop={magHandelen ? setKoopKans : undefined}
+                limiet={limietVoor(stopLimieten, item.symbool)}
+              />
+            </Animated.View>
           )}
           contentContainerStyle={screenStyles.lijst}
           refreshControl={
+            // Altijd aanwezig, tijdens het laden alleen uitgeschakeld: zie MarktScreen voor waarom
+            // hem weghalen de lijst opnieuw zou opbouwen.
             <RefreshControl
               refreshing={ververst}
-              onRefresh={handleVervers}
+              onRefresh={trekVervers}
+              enabled={!laden}
               colors={[colors.letOp]}
               tintColor={colors.letOp}
             />
           }
           ListHeaderComponent={
-            <View style={screenStyles.lijstKop}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                {state.kansen.length} coins gevonden · gesorteerd op kansscore
-              </Text>
-            </View>
+            state.status === 'loading' ? (
+              <Animated.View exiting={uitklapUit()}>
+                {state.totaal > 0 && <Laadbalk huidig={state.gescand} totaal={state.totaal} kleur={colors.letOp} />}
+                <View style={screenStyles.lijstKop}>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                    {state.totaal > 0 ? `${state.gescand} van ${state.totaal} kandidaten bekeken` : 'Kandidaten zoeken'}
+                  </Text>
+                </View>
+              </Animated.View>
+            ) : (
+              <Animated.View entering={uitklapIn(reduceMotion)} style={screenStyles.lijstKop}>
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                  {state.kansen.length} coins gevonden · gesorteerd op kansscore
+                </Text>
+              </Animated.View>
+            )
           }
-          ListFooterComponent={<Disclaimer />}
+          ListFooterComponent={
+            laden ? (
+              <>
+                {Array.from({ length: Math.max(1, 3 - lijst.length) }).map((_, i) => (
+                  <Animated.View key={i} exiting={uitklapUit()}>
+                    <SkeletonCard />
+                  </Animated.View>
+                ))}
+              </>
+            ) : (
+              <Disclaimer />
+            )
+          }
         />
       )}
 

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Info } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 
 interface Props {
   waarde: number; // 0–100
@@ -29,14 +31,12 @@ export function AngstHebzucht({ waarde, klasse }: Props) {
   const kleur = waarde <= 45 ? colors.verlies : waarde >= 55 ? colors.winst : colors.letOp;
 
   function wisselUitgeklapt() {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     setUitgeklapt(v => !v);
   }
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
+    // De kaart groeit mee op een veer terwijl de uitleg invervaagt, in plaats van in één frame.
+    <Animated.View layout={schuifOvergang(reduceMotion)} style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
       <View style={styles.kopRij}>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>FEAR & GREED</Text>
         <Pressable
@@ -53,9 +53,15 @@ export function AngstHebzucht({ waarde, klasse }: Props) {
         <Text style={[Type.overline, { color: kleur }]}>{label}</Text>
       </View>
       {uitgeklapt && (
-        <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>{UITLEG}</Text>
+        <Animated.Text
+          entering={uitklapIn(reduceMotion)}
+          exiting={uitklapUit()}
+          style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}
+        >
+          {UITLEG}
+        </Animated.Text>
       )}
-    </View>
+    </Animated.View>
   );
 }
 

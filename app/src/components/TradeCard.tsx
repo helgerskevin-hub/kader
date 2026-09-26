@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { Info, CheckCircle, ChevronDown, ChevronUp, Star, ShoppingCart } from 'lucide-react-native';
+import { Info, CheckCircle, Star, ShoppingCart } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR } from '../engine/format';
@@ -10,6 +10,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { AdviceBadge } from './AdviceBadge';
 import { LevelRow } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
@@ -20,6 +21,7 @@ import { handelbaarOp, noemPlatforms } from '../engine/platforms';
 import { PlatformChips } from './PlatformChip';
 import { PlatformSheet } from './PlatformSheet';
 import { useDrukVeer } from './Drukbaar';
+import { UitklapPijl } from './UitklapPijl';
 
 interface Props {
   trade: Trade;
@@ -152,15 +154,16 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
     highConviction: trade.highConviction,
   });
 
+  // De kaart groeit op een veer mee met de uitklap, en de actierij schuift op dezelfde veer naar
+  // zijn nieuwe plek. De kaarten eronder volgen via de lijst (itemLayoutAnimation op MarktScreen).
+  const schuif = schuifOvergang(reduceMotion);
+
   function wisselUitgeklapt() {
-    if (!reduceMotion) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     setUitgeklapt(v => !v);
   }
 
   return (
-    <Animated.View ref={druk.ref} style={[
+    <Animated.View ref={druk.ref} layout={schuif} style={[
       styles.kaart,
       // Bij de twee sterkste niveaus draagt de schaduw de kleur van het niveau; de rest houdt de
       // gewone neutrale kaartschaduw.
@@ -300,7 +303,11 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
 
       {/* Uitklapbare redenen + waarom-kopen onderbouwing */}
       {uitgeklapt && (
-        <View style={[styles.redenen, { backgroundColor: colors.verhoogd }]}>
+        <Animated.View
+          entering={uitklapIn(reduceMotion)}
+          exiting={uitklapUit()}
+          style={[styles.redenen, { backgroundColor: colors.verhoogd }]}
+        >
           {trade.redenen.map((r, i) => (
             <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
           ))}
@@ -321,11 +328,11 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
               {rsUitleg(versusBtc)}
             </Text>
           ) : null}
-        </View>
+        </Animated.View>
       )}
 
       {/* Acties */}
-      <View style={[styles.actiesRij, { borderTopColor: colors.rand }]}>
+      <Animated.View layout={schuif} style={[styles.actiesRij, { borderTopColor: colors.rand }]}>
         <Pressable
           style={[styles.actieKnop, { minHeight: 44 }]}
           onPress={wisselUitgeklapt}
@@ -336,9 +343,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           <Text style={[Type.caption, styles.actieLabel, { color: colors.cta }]}>
             {uitgeklapt ? 'Minder' : 'Over deze coin'}
           </Text>
-          {uitgeklapt
-            ? <ChevronUp size={12} color={colors.cta} strokeWidth={1.75} />
-            : <ChevronDown size={12} color={colors.cta} strokeWidth={1.75} />}
+          <UitklapPijl open={uitgeklapt} size={12} color={colors.cta} />
         </Pressable>
 
         <View style={[styles.scheiding, { backgroundColor: colors.rand }]} />
@@ -367,7 +372,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
             </Pressable>
           </>
         )}
-      </View>
+      </Animated.View>
 
       {/* Alleen mounten als hij open is: anders staat er per kaart een Modal in de boom, en dat zijn
           er twintig in een lijst die je aan het scrollen bent. */}

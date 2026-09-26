@@ -7,6 +7,7 @@ import { fmtBedrag } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import Animated from 'react-native-reanimated';
 import { useUitleg, UitlegKnop, UitlegTekst } from './UitlegKnop';
 import { useValutaStand } from '../state/useValuta';
 
@@ -35,7 +36,7 @@ export function BlootstellingKaart({ inMarktUsd, nietGewaardeerd, klimaat, kapit
   useValutaStand();
 
   const { colors } = useTheme();
-  const { open, wissel } = useUitleg();
+  const { open, wissel, schuif } = useUitleg();
   const oordeel = beoordeelBlootstelling(inMarktUsd, kapitaalUsd, klimaat);
 
   const teVeel = oordeel.binnenPlafond === false;
@@ -44,7 +45,7 @@ export function BlootstellingKaart({ inMarktUsd, nietGewaardeerd, klimaat, kapit
     : colors.winst;
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
+    <Animated.View layout={schuif} style={[styles.wrapper, { backgroundColor: colors.kaart }]}>
       <View style={styles.titelRij}>
         <View style={styles.titelLinks}>
           <Gauge size={15} color={colors.tekstGedimd} strokeWidth={2} />
@@ -107,7 +108,7 @@ export function BlootstellingKaart({ inMarktUsd, nietGewaardeerd, klimaat, kapit
       </Pressable>
 
       <UitlegTekst open={open} tekst={UITLEG} />
-    </View>
+    </Animated.View>
   );
 }
 

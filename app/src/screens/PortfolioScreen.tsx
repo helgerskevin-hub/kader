@@ -1,16 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, Pressable, FlatList, TextInput, ScrollView,
-  StyleSheet, RefreshControl, LayoutAnimation,
+  View, Text, Pressable, TextInput, ScrollView,
+  StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
-import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3, ChevronDown, ChevronRight } from 'lucide-react-native';
+import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3 } from 'lucide-react-native';
 import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
+import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
+import { haptiek } from '../theme/haptiek';
+import { UitklapPijl } from '../components/UitklapPijl';
+import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
 import { useDrukVeer } from '../components/Drukbaar';
 import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
@@ -848,9 +852,7 @@ function BronKop({ bron, aantal, dicht, onWissel }: {
       <Text style={[Type.overline, { color: colors.tekstPrimair }]}>{label}</Text>
       <View style={bronKopStyles.rechts}>
         <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{aantal}</Text>
-        {dicht
-          ? <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-          : <ChevronDown size={18} color={colors.tekstGedimd} strokeWidth={1.75} />}
+        <UitklapPijl open={!dicht} richting="rechts" size={18} color={colors.tekstGedimd} />
       </View>
     </Pressable>
   );
@@ -946,14 +948,22 @@ export function PortfolioScreen() {
     wisDoel();
   }, [navigatieDoel, trades, livePrijzen, wisDoel]);
 
+  // Een groep dichtklappen animeert zichzelf: de rijen vervagen weg (exiting) en de groep eronder
+  // schuift op via itemLayoutAnimation op de lijst. Openklappen laat de rijen weer invervagen.
   function wisselBron(bron: 'etoro' | 'handmatig') {
-    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setDichteBronnen(vorige => {
       const volgende = new Set(vorige);
       if (volgende.has(bron)) volgende.delete(bron); else volgende.add(bron);
       bewaarTekst(SLEUTELS.portfolioBronDicht, Array.from(volgende).join(','));
       return volgende;
     });
+  }
+
+  // Alleen de swipe krijgt een haptic, op het moment dat de lijst vastklikt. De verversknop in de
+  // statuskaart heeft zijn eigen druk-feedback.
+  function trekSync() {
+    haptiek('vastklikken');
+    swipeSync();
   }
 
   // Swipe omlaag en de verversknop: stil synchroniseren. Geen meldingen, ook niet als er geen
@@ -1101,9 +1111,14 @@ export function PortfolioScreen() {
           <SkeletonCard />
         </View>
       ) : (
-      <FlatList
+      <Animated.FlatList
         data={lijstData}
         keyExtractor={item => item.soort === 'kop' ? `kop-${item.bron}` : item.trade.id}
+        itemLayoutAnimation={schuifOvergang(reduceMotion)}
+        // De eerste keer staan de trades er in één keer, net als voorheen na de skeletons. Alleen
+        // wat er daarna bijkomt of weggaat (een groep open- of dichtklappen, een trade toevoegen of
+        // sluiten) vervaagt in of uit.
+        skipEnteringExitingAnimations
         renderItem={({ item }) => {
           if (item.soort === 'kop') {
             return (
@@ -1116,7 +1131,9 @@ export function PortfolioScreen() {
             );
           }
           const trade = item.trade;
-          return weergave === 'compact' ? (
+          return (
+            <Animated.View entering={uitklapIn(reduceMotion)} exiting={uitklapUit()}>
+            {weergave === 'compact' ? (
             <CompacteTradeRegel
               trade={trade}
               livePrijs={livePrijzen[trade.symbool]}
@@ -1136,13 +1153,15 @@ export function PortfolioScreen() {
               onNiveaus={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setNiveausTrade : undefined}
               onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
             />
+            )}
+            </Animated.View>
           );
         }}
         contentContainerStyle={portfolioStyles.lijst}
         refreshControl={
           <RefreshControl
             refreshing={ververst}
-            onRefresh={swipeSync}
+            onRefresh={trekSync}
             tintColor={colors.cta}
             colors={[colors.cta]}
           />
@@ -1220,33 +1239,45 @@ export function PortfolioScreen() {
               />
             )}
 
+            {/* Schuift op een veer mee als de blootstellingskaart erboven zijn uitleg openklapt. */}
             {openTrades.length > 0 && (
-              <View style={portfolioStyles.weergaveRij}>
+              <Animated.View layout={schuifOvergang(reduceMotion)} style={portfolioStyles.weergaveRij}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {openTrades.length} {openTrades.length === 1 ? 'OPEN POSITIE' : 'OPEN POSITIES'}
                 </Text>
                 <WeergaveSchakelaar actief={weergave} onWijzig={setWeergave} />
-              </View>
+              </Animated.View>
             )}
           </>
         }
         ListEmptyComponent={
           <View style={portfolioStyles.leeg}>
-            <Wallet size={40} color={colors.tekstGedimd} strokeWidth={1.5} />
-            <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
-              Geen open posities
-            </Text>
-            <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24 }]}>
-              Voeg een trade toe vanuit het Markt-scherm of via de knop rechtsboven{afgeslotenCount > 0 ? ', of bekijk je afgesloten trades in de historie' : ''}.
-            </Text>
-            <Pressable
-              style={[portfolioStyles.leegKnop, { backgroundColor: colors.cta }]}
-              onPress={() => setFormulierZichtbaar(true)}
-              accessibilityRole="button"
-            >
-              <Plus size={16} color="white" strokeWidth={2} />
-              <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade toevoegen</Text>
-            </Pressable>
+            {/* De portemonnee blijft, nu tussen de ademende hoekhaken van het logo. */}
+            <Opkomst volgorde={0}>
+              <LegeStaatBeeld>
+                <Wallet size={26} color={colors.tekstGedimd} strokeWidth={1.5} />
+              </LegeStaatBeeld>
+            </Opkomst>
+            <Opkomst volgorde={1}>
+              <Text style={[Type.titel, { color: colors.tekstPrimair, textAlign: 'center', marginTop: spacing.base }]}>
+                Geen open posities
+              </Text>
+            </Opkomst>
+            <Opkomst volgorde={2}>
+              <Text style={[Type.body, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.sm, lineHeight: 24 }]}>
+                Voeg een trade toe vanuit het Markt-scherm of via de knop rechtsboven{afgeslotenCount > 0 ? ', of bekijk je afgesloten trades in de historie' : ''}.
+              </Text>
+            </Opkomst>
+            <Opkomst volgorde={3}>
+              <Pressable
+                style={[portfolioStyles.leegKnop, { backgroundColor: colors.cta }]}
+                onPress={() => setFormulierZichtbaar(true)}
+                accessibilityRole="button"
+              >
+                <Plus size={16} color="white" strokeWidth={2} />
+                <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade toevoegen</Text>
+              </Pressable>
+            </Opkomst>
           </View>
         }
         ListFooterComponent={<Disclaimer metRand={openTrades.length > 0} />}
