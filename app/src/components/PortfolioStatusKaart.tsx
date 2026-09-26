@@ -14,6 +14,7 @@ import {
 import { useResultaatHistorie } from '../state/useResultaatHistorie';
 import { bepaalSyncStand } from '../state/syncStatus';
 import { AnimatedGetal } from './AnimatedGetal';
+import { Drukbaar } from './Drukbaar';
 import { useValutaStand } from '../state/useValuta';
 
 const fmtResultaatPct = (n: number) => `(${fmtPct(n)})`;
@@ -154,28 +155,30 @@ export function PortfolioStatusKaart({
           {heeftSaldo ? 'TOTAAL VERMOGEN' : 'WAARDE OPEN POSITIES'}
         </Text>
         <View style={styles.acties}>
-          <Pressable
+          <Drukbaar
             onPress={onVerversen}
             disabled={syncing}
             accessibilityRole="button"
             accessibilityLabel={`Synchroniseren. ${stand.wanneer}. ${stand.advies}`}
             style={styles.actieKnop}
+            schaal={0.9}
           >
             {syncing
               ? <ActivityIndicator size="small" color={syncKleur} />
               : <RefreshCw size={18} color={syncKleur} strokeWidth={1.75} />}
-          </Pressable>
-          <Pressable
+          </Drukbaar>
+          <Drukbaar
             onPress={onImporteren}
             disabled={etoroBezig}
             accessibilityRole="button"
             accessibilityLabel="Importeer uit eToro"
             style={styles.actieKnop}
+            schaal={0.9}
           >
             {etoroBezig
               ? <ActivityIndicator size="small" color={colors.cta} />
               : <CloudDownload size={18} color={syncKleur} strokeWidth={1.75} />}
-          </Pressable>
+          </Drukbaar>
         </View>
       </View>
 
@@ -370,9 +373,13 @@ export function PortfolioStatusKaart({
             const isActief = p.id === periode;
             const isAlles = p.id === 'alles';
             return (
-              <Pressable
+              // Een ander tijdvak kiezen is een keuze die wisselt, dus een lichte tik. Nogmaals op
+              // het actieve tijdvak tikken verandert niets en blijft dus stil.
+              <Drukbaar
                 key={p.id}
                 onPress={() => setPeriode(p.id)}
+                haptiek={isActief ? undefined : 'tik'}
+                schaal={0.92}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isActief }}
                 accessibilityLabel={PERIODE_UITLEG[p.id]}
@@ -389,7 +396,7 @@ export function PortfolioStatusKaart({
                 <Text style={[Type.caption, { color: isActief ? 'white' : colors.tekstGedimd, fontWeight: '600' }]}>
                   {p.label}
                 </Text>
-              </Pressable>
+              </Drukbaar>
             );
           })}
         </View>

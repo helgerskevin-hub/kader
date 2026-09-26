@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, LayoutAnimation } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Info, CheckCircle, ChevronDown, ChevronUp, Star, ShoppingCart } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
@@ -18,6 +19,7 @@ import { useValutaStand } from '../state/useValuta';
 import { handelbaarOp, noemPlatforms } from '../engine/platforms';
 import { PlatformChips } from './PlatformChip';
 import { PlatformSheet } from './PlatformSheet';
+import { useDrukVeer } from './Drukbaar';
 
 interface Props {
   trade: Trade;
@@ -124,6 +126,9 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
   const [platformsOpen, setPlatformsOpen] = useState(false);
+  // De hele kaart veert mee als je het bovenste deel indrukt, niet alleen dat deel: anders krimpt
+  // de inhoud binnen een stilstaande rand en schaduw.
+  const druk = useDrukVeer();
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
   const opmaak = niveauOpmaak(advies, colors);
@@ -155,7 +160,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
   }
 
   return (
-    <View style={[
+    <Animated.View style={[
       styles.kaart,
       // Bij de twee sterkste niveaus draagt de schaduw de kleur van het niveau; de rest houdt de
       // gewone neutrale kaartschaduw.
@@ -169,9 +174,12 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
         borderWidth: opmaak.borderWidth,
         borderColor: opmaak.borderColor,
       },
+      druk.stijl,
     ]}>
       <Pressable
         onPress={() => onOpenDetail?.(trade)}
+        onPressIn={druk.drukIn}
+        onPressOut={druk.drukUit}
         accessibilityRole="button"
         accessibilityLabel={`${trade.symbool} detail bekijken`}
         disabled={!onOpenDetail}
@@ -368,7 +376,7 @@ export function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFa
           platforms={platforms}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 

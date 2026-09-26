@@ -22,6 +22,7 @@ import { infoVoor } from '../engine/coinInfo';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
+import { Drukbaar } from '../components/Drukbaar';
 import { MarktBalk } from '../components/MarktBalk';
 import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
@@ -163,14 +164,15 @@ export function MarktScreen() {
         meta={metaText}
         rechts={
           state.status === 'success' ? (
-            <Pressable
+            <Drukbaar
               onPress={handleVervers}
               accessibilityRole="button"
               accessibilityLabel="Ververs analyse"
               style={styles.ververskOp}
+              schaal={0.9}
             >
               <RefreshCw size={18} color={colors.cta} strokeWidth={1.75} />
-            </Pressable>
+            </Drukbaar>
           ) : undefined
         }
       />
@@ -255,8 +257,9 @@ export function MarktScreen() {
               {fearGreed && <AngstHebzucht waarde={fearGreed.waarde} klasse={fearGreed.klasse} />}
               <View style={styles.tabsRij}>
                 <FilterTabs actief={filter} onWijzig={wisselFilterTab} aantalFavorieten={aantalFavorieten} />
-                <Pressable
+                <Drukbaar
                   style={[styles.filterKnop, { backgroundColor: colors.verhoogd }]}
+                  schaal={0.92}
                   onPress={() => setFiltersOpen(true)}
                   accessibilityRole="button"
                   accessibilityLabel="Filters op RSI, score en R/R"
@@ -267,7 +270,7 @@ export function MarktScreen() {
                       <Text style={styles.filterBadgeTekst}>{aantalActieveFilters(marktFilters)}</Text>
                     </View>
                   )}
-                </Pressable>
+                </Drukbaar>
               </View>
               <View style={styles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
@@ -357,14 +360,14 @@ function IdleView({ onStart }: { onStart: () => void }) {
       <Text style={[Type.body, styles.middenBody, { color: colors.tekstGedimd }]}>
         Start een analyse om kansrijke trades met entry, stop en take-profit te zien.
       </Text>
-      <Pressable
+      <Drukbaar
         style={[styles.ctaKnop, { backgroundColor: colors.cta }]}
         onPress={onStart}
         accessibilityRole="button"
         accessibilityLabel="Start analyse"
       >
         <Text style={[Type.body, styles.ctaTekst]}>Start analyse</Text>
-      </Pressable>
+      </Drukbaar>
       {/* Alle drie de bronnen die dit scherm gebruikt: de candles komen van Binance met CoinGecko
           als terugval, en de angst-en-hebzuchtmeter onder de analyse van Alternative.me. Die derde
           stond hier niet, terwijl hij wel op dit scherm staat. */}

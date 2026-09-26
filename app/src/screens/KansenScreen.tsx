@@ -3,6 +3,7 @@ import {
   View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet, LayoutAnimation, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated from 'react-native-reanimated';
 import { RefreshCw, ChevronDown, ChevronUp, Zap, CheckCircle, ShoppingCart } from 'lucide-react-native';
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
@@ -17,6 +18,7 @@ import { limietVoor, useStopLossLimieten } from '../state/useStopLossLimiet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SkeletonCard } from '../components/SkeletonCard';
+import { Drukbaar, useDrukVeer } from '../components/Drukbaar';
 import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { CoinDetailScherm } from '../components/CoinDetailScherm';
@@ -62,6 +64,8 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
+  // Zelfde als TradeCard: de hele kaart veert mee, ook al druk je alleen het bovenste deel in.
+  const druk = useDrukVeer();
   const niveaus = etoroNiveaus(kans.entry, kans.stopLoss, kans.takeProfit, limiet);
 
   const randKleur = kans.trendOp === true ? colors.winst
@@ -79,9 +83,11 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
   }
 
   return (
-    <View style={[cardStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }]}>
+    <Animated.View style={[cardStyles.kaart, shadow.kaart, { backgroundColor: colors.kaart, borderLeftColor: randKleur }, druk.stijl]}>
       <Pressable
         onPress={() => onOpenDetail(kans)}
+        onPressIn={druk.drukIn}
+        onPressOut={druk.drukUit}
         accessibilityRole="button"
         accessibilityLabel={`${kans.symbool} detail bekijken`}
       >
@@ -223,7 +229,7 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
             : <ChevronDown size={12} color={colors.cta} strokeWidth={1.75} />}
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -340,14 +346,15 @@ export function KansenScreen() {
         meta={metaText}
         rechts={
           state.status === 'success' ? (
-            <Pressable
+            <Drukbaar
               onPress={handleVervers}
               accessibilityRole="button"
               accessibilityLabel="Ververs scan"
               style={screenStyles.ververskOp}
+              schaal={0.9}
             >
               <RefreshCw size={18} color={colors.letOp} strokeWidth={1.75} />
-            </Pressable>
+            </Drukbaar>
           ) : undefined
         }
       />
@@ -361,7 +368,7 @@ export function KansenScreen() {
           <Text style={[Type.body, screenStyles.middenBody, { color: colors.tekstGedimd }]}>
             Scant de top 250 coins buiten het standaard universum op momentum, volume en technische signalen.
           </Text>
-          <Pressable
+          <Drukbaar
             style={[screenStyles.ctaKnop, { backgroundColor: colors.letOp }]}
             onPress={() => startScan()}
             accessibilityRole="button"
@@ -369,7 +376,7 @@ export function KansenScreen() {
           >
             <Zap size={16} color="white" strokeWidth={2} />
             <Text style={[Type.body, screenStyles.ctaTekst]}>Start scan</Text>
-          </Pressable>
+          </Drukbaar>
           <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center', marginTop: spacing.base }]}>
             Data via CoinGecko & Binance · geen financieel advies
           </Text>

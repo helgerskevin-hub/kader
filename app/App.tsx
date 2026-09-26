@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/ibm-plex-mono';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
 import { FoutGrens } from './src/components/FoutGrens';
 import { Tab, BottomNav } from './src/components/BottomNav';
@@ -248,18 +249,22 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <MarktProvider>
-          <PortfolioProvider>
-            {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
-            <DialoogProvider>
-              <AppInhoud />
-            </DialoogProvider>
-          </PortfolioProvider>
-        </MarktProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    // Helemaal buitenaan: gesture-handler herkent alleen gebaren binnen deze root, en elk gebaar
+    // (swipe-terug, sheet dichtslepen, grafiek scrubben) moet overal in de app kunnen werken.
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <MarktProvider>
+            <PortfolioProvider>
+              {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
+              <DialoogProvider>
+                <AppInhoud />
+              </DialoogProvider>
+            </PortfolioProvider>
+          </MarktProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -233,9 +233,25 @@ label of vorm-icoon (kleurenblindheid).
 - **12-koloms grid** op breder scherm; **mobile-first** met breekpunten
   **375 / 768 / 1024 / 1440px**; geen horizontale scroll.
 - **Kaart-grid** (auto-fill, min ~320px) met ruime binnenmarge (~16–20px).
-- **Motion:** micro-interacties **150–300ms**, alleen `transform`/`opacity`,
-  exit-animaties ~60–70% sneller dan entry, en **`prefers-reduced-motion`
-  respecteren**. KPI-cijfers mogen "count-up", trendpijl-richting animeren.
+- **Motion:** levendig en premium, maar rustig, in de lijn van Apple. De
+  principes:
+  - **Veren, geen vaste duren.** Beweging loopt op springs en is altijd
+    **onderbreekbaar**: tik je halverwege opnieuw, dan draait de beweging vanaf
+    waar hij is om, zonder sprong of wachten.
+  - **Gebaren volgen de vinger.** Wat je sleept (sheet, scherm, grafiekcursor)
+    zit onder je vinger; bij loslaten neemt de veer de snelheid van het gebaar
+    over.
+  - **Alleen `transform`, `opacity` en Skia.** Nooit `width`/`height` of andere
+    layout-eigenschappen animeren; een balk vult met `scaleX`, niet met breedte.
+  - **Haptics spaarzaam**, alleen op betekenisvolle momenten: een keuze wisselt,
+    iets klikt vast, een grens in de grafiek wordt gepasseerd, een order lukt.
+    Nooit op elke tik.
+  - **Minder beweging** (Android "Animaties verwijderen"): geen glijden, zoomen
+    of veren, alleen korte cross-fades. Haptics blijven.
+  - Getallen mogen rollen en kleuren mogen vloeien, maar geen confetti of
+    feestelijk vertoon bij winst of verlies.
+  - Alle veren, duren, curves en de stagger staan als tokens in
+    `app/src/theme/beweging.ts`; gebruik die in plaats van losse ms-waarden.
 - **Safe areas** voor notch/statusbar; sticky header + onderbalk, content nooit
   achter de balken verborgen.
 
@@ -295,7 +311,8 @@ alleen; bied een tabel-fallback met tijdstempels en waarden.
   iconen/afbeeldingen krijgen tekstalternatief; zichtbare focus-ringen voor
   toetsenbordnavigatie.
 - **Touch:** raakdoelen ≥ **44×44px**, ≥ 8px tussenruimte, duidelijke
-  pressed-feedback (opacity/ripple) binnen 80–150ms zonder layout-verschuiving.
+  pressed-feedback zonder layout-verschuiving: kaarten en knoppen krimpen op een
+  snelle veer (`Drukbaar`), onder Minder beweging dimmen ze kort.
 - **Forms & Feedback:** zichtbare labels (geen placeholder-only), inline-validatie
   on-blur, foutmelding náást het veld, hulptekst bij complexe opties.
 - **Navigatie:** onderbalk **≤ 5 items** met icoon + label; scrollpositie bewaren
@@ -309,7 +326,8 @@ alleen; bied een tabel-fallback met tijdstempels en waarden.
 - [ ] Light mode: primaire tekst ≥ 4.5:1, secundair ≥ 3:1 — onafhankelijk getest
 - [ ] Randen/dividers zichtbaar in light mode
 - [ ] Raakdoelen ≥ 44×44px, duidelijke pressed-feedback zonder layout-shift
-- [ ] Micro-interacties 150–300ms, `prefers-reduced-motion` gerespecteerd
+- [ ] Beweging op veren uit `beweging.ts`, onderbreekbaar, alleen transform/opacity/Skia;
+      Minder beweging geeft alleen korte cross-fades
 - [ ] Responsief geverifieerd op 375 / 768 / 1024 / 1440px, geen horizontale scroll
 - [ ] Getallen geformatteerd (`tabular-nums` + scheidingstekens), `inputmode` op
       numerieke velden
