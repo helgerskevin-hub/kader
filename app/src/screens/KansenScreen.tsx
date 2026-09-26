@@ -23,8 +23,8 @@ import { SkeletonCard } from '../components/SkeletonCard';
 import { Drukbaar, useDrukVeer } from '../components/Drukbaar';
 import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
-import { CoinDetailScherm } from '../components/CoinDetailScherm';
-import { CoinDetailData, vanOpportunity } from '../engine/coinDetailData';
+import { useCoinDetail } from '../components/CoinDetailScherm';
+import { vanOpportunity } from '../engine/coinDetailData';
 import { GetradeFormulier } from '../components/GetradeFormulier';
 import { KooporderSheet } from '../components/KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
@@ -333,7 +333,7 @@ export function KansenScreen() {
   const reduceMotion = useReduceMotion();
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
   const [ververst, setVerverstState] = useState(false);
-  const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
+  const { openDetail, detailScherm } = useCoinDetail();
   const [getradeteKans, setGetradeteKans] = useState<Opportunity | null>(null);
   const [koopKans, setKoopKans] = useState<Opportunity | null>(null);
   // Eén keer per scherm de stop-loss-grenzen van eToro, zie MarktScreen voor het waarom.
@@ -468,7 +468,7 @@ export function KansenScreen() {
             >
               <OpportunityCard
                 kans={item}
-                onOpenDetail={k => setDetailCoin(vanOpportunity(k))}
+                onOpenDetail={k => openDetail(vanOpportunity(k))}
                 onGetrade={setGetradeteKans}
                 onKoop={magHandelen ? setKoopKans : undefined}
                 limiet={limietVoor(stopLimieten, item.symbool)}
@@ -521,7 +521,7 @@ export function KansenScreen() {
         />
       )}
 
-      <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+      {detailScherm}
       <GetradeFormulier
         zichtbaar={getradeteKans !== null}
         trade={getradeteKans}

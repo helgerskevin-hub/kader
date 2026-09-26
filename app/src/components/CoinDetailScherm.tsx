@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ScrollView, View, Text, Pressable, StyleSheet,
 } from 'react-native';
@@ -606,4 +606,28 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   getradeTekst: { color: 'white', fontWeight: '600' },
+});
+
+type ZetDetail = (data: CoinDetailData | null) => void;
+
+// Opent en sluit het detailscherm zonder dat het scherm met de lijst opnieuw rendert. Met de
+// open-state in MarktScreen zelf rendert elke tik de hele lijst met twintig kaarten opnieuw: in
+// een dev-build kostte dat 600ms voordat het detailscherm ook maar kon beginnen, en dan was de
+// gemeten kaartrechthoek al verlopen (zie neemBron) en schoof het scherm binnen in plaats van uit
+// de kaart te groeien. Hier zit de state in een eigen, gememoiseerd onderdeel; de lijst merkt er
+// niets van.
+export function useCoinDetail() {
+  const zetData = useRef<ZetDetail | null>(null);
+  const openDetail = useCallback((data: CoinDetailData) => zetData.current?.(data), []);
+  const detailScherm = <CoinDetailHouder koppel={zetData} />;
+  return { openDetail, detailScherm };
+}
+
+const CoinDetailHouder = memo(function CoinDetailHouder({ koppel }: { koppel: React.RefObject<ZetDetail | null> }) {
+  const [data, setData] = useState<CoinDetailData | null>(null);
+  useLayoutEffect(() => {
+    koppel.current = setData;
+    return () => { koppel.current = null; };
+  }, [koppel]);
+  return <CoinDetailScherm data={data} onSluiten={() => setData(null)} />;
 });

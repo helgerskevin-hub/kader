@@ -45,8 +45,8 @@ import { useNavigatie } from '../state/navigatie';
 import { MeldingNotitie } from '../components/MeldingNotitie';
 import { berekenPortfolioWaarde } from '../state/statistieken';
 import { useWeergave, Weergave } from '../state/useWeergave';
-import { CoinDetailScherm } from '../components/CoinDetailScherm';
-import { CoinDetailData, vanPortfolioTrade } from '../engine/coinDetailData';
+import { useCoinDetail } from '../components/CoinDetailScherm';
+import { vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
 import { sleutelUitkomst } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
@@ -897,7 +897,7 @@ export function PortfolioScreen() {
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
-  const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
+  const { openDetail, detailScherm } = useCoinDetail();
   const [etoroBezig, setEtoroBezig] = useState(false);
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
@@ -939,7 +939,7 @@ export function PortfolioScreen() {
       ?? trades.find(t => t.symbool === navigatieDoel.symbool && t.status === 'open');
 
     if (trade) {
-      setDetailCoin(vanPortfolioTrade(trade, livePrijzen[trade.symbool]));
+      openDetail(vanPortfolioTrade(trade, livePrijzen[trade.symbool]));
     } else {
       setMeldingNotitie(
         `Die melding ging over ${navigatieDoel.symbool}, maar die positie is inmiddels gesloten of verwijderd.`,
@@ -1138,7 +1138,7 @@ export function PortfolioScreen() {
               trade={trade}
               livePrijs={livePrijzen[trade.symbool]}
               afbouw={afbouwPerTrade[trade.id]}
-              onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+              onOpenDetail={t => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
               onOpenActies={setActiesVoor}
             />
           ) : (
@@ -1151,7 +1151,7 @@ export function PortfolioScreen() {
               onBewerk={setBewerkTrade}
               onVerkoop={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setVerkoopTrade : undefined}
               onNiveaus={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setNiveausTrade : undefined}
-              onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+              onOpenDetail={t => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
             />
             )}
             </Animated.View>
@@ -1321,7 +1321,7 @@ export function PortfolioScreen() {
         />
       )}
 
-      <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+      {detailScherm}
 
       <TradeActiesSheet
         trade={actiesVoor}
@@ -1338,7 +1338,7 @@ export function PortfolioScreen() {
         zichtbaar={historieOpen}
         trades={trades}
         onSluiten={() => setHistorieOpen(false)}
-        onOpenDetail={t => setDetailCoin(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+        onOpenDetail={t => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
         onVerwijder={verwijderTrade}
       />
 

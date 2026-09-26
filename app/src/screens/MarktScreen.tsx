@@ -35,8 +35,8 @@ import { ShortSignalenKaart } from '../components/ShortSignalenKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { magDoorRsFilter } from '../engine/relatieveSterkte';
 import { haalFearGreed } from '../engine/marketData';
-import { CoinDetailScherm } from '../components/CoinDetailScherm';
-import { CoinDetailData, vanTrade } from '../engine/coinDetailData';
+import { useCoinDetail } from '../components/CoinDetailScherm';
+import { vanTrade } from '../engine/coinDetailData';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { haptiek } from '../theme/haptiek';
@@ -55,7 +55,7 @@ export function MarktScreen() {
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
   const [koopTrade, setKoopTrade] = useState<Trade | null>(null);
-  const [detailCoin, setDetailCoin] = useState<CoinDetailData | null>(null);
+  const { openDetail, detailScherm } = useCoinDetail();
   // Geen schrijfrecht in de actieve omgeving betekent geen koopknop. De kaart is dan identiek
   // aan hoe hij altijd was.
   const { magHandelen } = usePortfolio();
@@ -109,7 +109,7 @@ export function MarktScreen() {
 
     const trade = state.alle.find(t => t.symbool === navigatieDoel.symbool);
     if (trade) {
-      setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
+      openDetail(vanTrade(trade, rsPerSymbool[trade.symbool]));
     } else {
       setMeldingNotitie(
         `${navigatieDoel.symbool} zat niet in de laatste analyse. Ververs de markt en probeer het opnieuw.`,
@@ -180,7 +180,7 @@ export function MarktScreen() {
   function openCoinDetail(symbool: string) {
     if (state.status !== 'success') return;
     const trade = state.alle.find(t => t.symbool === symbool);
-    if (trade) setDetailCoin(vanTrade(trade, rsPerSymbool[trade.symbool]));
+    if (trade) openDetail(vanTrade(trade, rsPerSymbool[trade.symbool]));
   }
 
   return (
@@ -236,7 +236,7 @@ export function MarktScreen() {
               <TradeCard
                 trade={item}
                 onGetrade={setGetradeteTrade}
-                onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))}
+                onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))}
                 favoriet={isFavoriet(item.symbool)}
                 onToggleFavoriet={wisselFavoriet}
                 onKoop={magHandelen ? setKoopTrade : undefined}
@@ -283,7 +283,7 @@ export function MarktScreen() {
               {bearModus ? (
                 <BearModusKaart stand={state.bearModus} />
               ) : (
-                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))} />
+                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))} />
               )}
               {/* Short-signalen zijn de actionable tegenhanger van de bear-modus-kaart: die legt uit
                   waarom er geen koopsignaal is, dit is wat er dan wél te doen valt. Leeg zolang het
@@ -297,7 +297,7 @@ export function MarktScreen() {
                   magHandelen={magHandelen}
                   onGetrade={setGetradeteTrade}
                   onKoop={magHandelen ? setKoopTrade : undefined}
-                  onOpenDetail={t => setDetailCoin(vanTrade(t, rsPerSymbool[t.symbool]))}
+                  onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))}
                 />
               </Animated.View>
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
@@ -384,7 +384,7 @@ export function MarktScreen() {
         />
       )}
 
-      <CoinDetailScherm data={detailCoin} onSluiten={() => setDetailCoin(null)} />
+      {detailScherm}
 
       <MarktFilters
         zichtbaar={filtersOpen}

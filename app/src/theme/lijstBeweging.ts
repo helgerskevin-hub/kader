@@ -27,9 +27,16 @@ export function schuifOvergang(reduceMotion: boolean) {
   return reduceMotion ? undefined : SCHUIF;
 }
 
+// Waarom de functies hieronder gecachet zijn: elke aanroep maakt een nieuwe worklet, en Reanimated
+// registreert een layout-animatie opnieuw zodra de functie een andere identiteit heeft. Voor
+// `exiting` gebeurt dat bij elke render, inclusief het overzetten van de worklet naar de UI-thread.
+// Met twintig kaarten in een lijst kostte dat bij elke state-wijziging honderden milliseconden op
+// de JS-thread: een tik op een kaart opende het detailscherm pas na een seconde en de marktscan
+// liep merkbaar trager. Zelfde invoer geeft daarom dezelfde functie terug.
+
 // Inhoud die openklapt: vervaagt in en zakt een paar punten op zijn plek, zodat hij uit de kop
 // lijkt te komen. Met Minder beweging alleen de fade.
-export function uitklapIn(reduceMotion: boolean): EntryExitAnimationFunction {
+function maakUitklapIn(reduceMotion: boolean): EntryExitAnimationFunction {
   return () => {
     'worklet';
     if (reduceMotion) {
@@ -44,20 +51,28 @@ export function uitklapIn(reduceMotion: boolean): EntryExitAnimationFunction {
     };
   };
 }
+const UITKLAP_IN = maakUitklapIn(false);
+const UITKLAP_IN_RUSTIG = maakUitklapIn(true);
+
+export function uitklapIn(reduceMotion: boolean): EntryExitAnimationFunction {
+  return reduceMotion ? UITKLAP_IN_RUSTIG : UITKLAP_IN;
+}
 
 // Inhoud die dichtklapt: alleen een korte fade, want wat eronder ligt schuift er al overheen.
 // Ook met Minder beweging, daarom via vervaag().
+const UITKLAP_UIT: EntryExitAnimationFunction = () => {
+  'worklet';
+  return { initialValues: { opacity: 1 }, animations: { opacity: vervaag(0, duur.kort) } };
+};
+
 export function uitklapUit(): EntryExitAnimationFunction {
-  return () => {
-    'worklet';
-    return { initialValues: { opacity: 1 }, animations: { opacity: vervaag(0, duur.kort) } };
-  };
+  return UITKLAP_UIT;
 }
 
 // Een kaart die in een lijst landt: vervaagt in en komt 12 punten omhoog op een veer. `index` is
 // de plek binnen de groep die tegelijk binnenkwam, zodat een blok van zes kaarten gestaffeld landt
 // in plaats van als één klap. Met Minder beweging alleen een korte fade, zonder staffeling.
-export function kaartLandt(index: number, reduceMotion: boolean): EntryExitAnimationFunction {
+function maakKaartLandt(index: number, reduceMotion: boolean): EntryExitAnimationFunction {
   const vertraging = staggerVertraging(index);
   return () => {
     'worklet';
@@ -72,4 +87,17 @@ export function kaartLandt(index: number, reduceMotion: boolean): EntryExitAnima
       },
     };
   };
+}
+
+// Per plek in de staffeling en per stand van Minder beweging precies één functie.
+const kaartLandtCache = new Map<string, EntryExitAnimationFunction>();
+
+export function kaartLandt(index: number, reduceMotion: boolean): EntryExitAnimationFunction {
+  const sleutel = `${index}:${reduceMotion ? 1 : 0}`;
+  let functie = kaartLandtCache.get(sleutel);
+  if (!functie) {
+    functie = maakKaartLandt(index, reduceMotion);
+    kaartLandtCache.set(sleutel, functie);
+  }
+  return functie;
 }
