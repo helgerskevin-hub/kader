@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-09-27',
+    punten: [
+      'Na een koop, verkoop of wijziging van je stop-loss en doel via eToro synchroniseert Kader nu meteen, in Demo en in Echt. Eerder kwam de eerste sync pas na vijf seconden en gaf Kader het na drie pogingen binnen een minuut op, terwijl eToro een order niet altijd direct in je portfolio zet. Nu kijkt Kader direct, en daarna nog een paar keer tot anderhalve minuut na de order',
+      'Het percentage achter je resultaat op de portfoliokaart stond sinds 0.1.23 uit elkaar getrokken, met cijfers die half wegvielen. De ruimte die tussen het bedrag en het percentage hoort, kwam op elk los cijfer terecht in plaats van op het getal als geheel. Dat staat weer goed',
+      'De cijfers van je totale vermogen stonden sinds de rollende cijfers verder uit elkaar dan voorheen, omdat elk cijfer een vaste, even brede kolom kreeg. Elk cijfer houdt nu zijn eigen breedte, dus in rust ziet het bedrag er weer uit als gewone tekst. Tijdens het rollen schuift de breedte vloeiend mee',
+    ],
+  },
+  {
     versie: '0.1.23',
     datum: '2026-09-26',
     punten: [

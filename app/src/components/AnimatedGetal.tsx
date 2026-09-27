@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from 'react-native';
+import { StyleSheet, Text, View, type LayoutChangeEvent, type TextLayoutEvent, type StyleProp, type TextStyle } from 'react-native';
 import Animated, {
+  Extrapolation,
   FadeIn,
   FadeOut,
+  interpolate,
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
@@ -16,6 +18,7 @@ const TEKEN_IN = FadeIn.duration(duur.kort);
 const TEKEN_UIT = FadeOut.duration(duur.kort);
 
 const CIJFERS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const CIJFER_POSITIES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 interface KleurBijTeken {
   positief: string;
@@ -73,22 +76,26 @@ export function AnimatedGetal({ waarde, format, style, kleurBijTeken }: Props) {
   const { naar } = useBeweging();
 
   const gevlakt = useMemo(() => (StyleSheet.flatten(style) ?? {}) as TextStyle, [style]);
+  // Marges horen bij het getal als geheel, niet bij elk teken. Kwamen ze mee in de tekststijl, dan
+  // kreeg elk los cijfer en elk los teken zijn eigen marginLeft: het percentage viel daardoor uit
+  // elkaar en de cijfers schoven half buiten hun kolom.
+  const { buitenStijl, tekstStijl } = useMemo(() => {
+    const buiten: TextStyle = {};
+    const tekst: TextStyle = {};
+    for (const [sleutel, waardeVanStijl] of Object.entries(gevlakt)) {
+      const doel = sleutel.startsWith('margin') ? buiten : tekst;
+      (doel as Record<string, unknown>)[sleutel] = waardeVanStijl;
+    }
+    return { buitenStijl: buiten, tekstStijl: tekst };
+  }, [gevlakt]);
   // Zonder kleurBijTeken blijft de kleur van de aanroeper gewoon in de stijl staan. Mét
   // kleurBijTeken wordt de kleur straks door interpolateColor geleverd, dus dan mag de statische
   // kleur niet meer meekomen (die zou de animatie overschrijven).
-  const basisStijl = useMemo<TextStyle>(() => {
-    if (!kleurBijTeken) return gevlakt;
-    const { color, ...rest } = gevlakt;
+  const cijferStijl = useMemo<TextStyle>(() => {
+    if (!kleurBijTeken) return tekstStijl;
+    const { color, ...rest } = tekstStijl;
     return rest;
-  }, [gevlakt, kleurBijTeken]);
-  // Tabular figures zijn een harde eis voor rollende cijfers: zonder gelijke breedte per cijfer
-  // schuift een kolom bij elke rol een fractie opzij. IBM Plex Sans en Mono ondersteunen tabular
-  // figures via deze OpenType-feature, dus dit voegt alleen de cijfervariant toe, nooit het
-  // lettertype zelf.
-  const cijferStijl = useMemo<TextStyle>(
-    () => ({ ...basisStijl, fontVariant: ['tabular-nums'] }),
-    [basisStijl],
-  );
+  }, [tekstStijl, kleurBijTeken]);
 
   const geformatteerd = format(waarde);
 
@@ -123,18 +130,45 @@ export function AnimatedGetal({ waarde, format, style, kleurBijTeken }: Props) {
     };
   });
 
-  // Eén keer de afmeting van een cijfer meten in dit lettertype en deze grootte, via een
-  // onzichtbaar exemplaar. Zonder een vaste breedte en hoogte kan de verticale stapel van 0-9 niet
-  // los van de tekststroom gepositioneerd worden.
-  const [afmeting, setAfmeting] = useState<{ width: number; height: number } | null>(null);
-  const metingSleutel = `${cijferStijl.fontFamily ?? ''}|${cijferStijl.fontSize ?? ''}|${cijferStijl.fontWeight ?? ''}|${cijferStijl.lineHeight ?? ''}`;
-  const gemeten = useRef<string | null>(null);
+  // Per cijfer de breedte meten in dit lettertype en deze grootte, via onzichtbare exemplaren.
+  // Bewust de eigen breedte van elk cijfer en geen vaste kolombreedte met tabular figures: dan
+  // staat het getal in rust precies zoals gewone tekst, met dezelfde afstand als voorheen. Tijdens
+  // een rol vloeit de kolombreedte mee van het oude naar het nieuwe cijfer.
+  const [afmeting, setAfmeting] = useState<Afmeting | null>(null);
+  const metingSleutel = `${cijferStijl.fontFamily ?? ''}|${cijferStijl.fontSize ?? ''}|${cijferStijl.fontWeight ?? ''}|${cijferStijl.lineHeight ?? ''}|${String(cijferStijl.fontVariant ?? '')}|${cijferStijl.letterSpacing ?? ''}`;
+  const metingen = useRef<{ sleutel: string; breedtes: (number | undefined)[]; hoogte?: number }>({
+    sleutel: metingSleutel,
+    breedtes: [],
+  });
 
-  function opMeting(e: LayoutChangeEvent) {
-    if (gemeten.current === metingSleutel) return;
-    gemeten.current = metingSleutel;
-    const { width, height } = e.nativeEvent.layout;
-    setAfmeting({ width, height });
+  function meting() {
+    if (metingen.current.sleutel !== metingSleutel) {
+      metingen.current = { sleutel: metingSleutel, breedtes: [] };
+    }
+    return metingen.current;
+  }
+
+  function probeerAf() {
+    const m = meting();
+    if (m.hoogte === undefined || !CIJFERS.every((_, i) => m.breedtes[i] !== undefined)) return;
+    const breedtes = [...m.breedtes] as number[];
+    setAfmeting({ breedtes, maxBreedte: Math.max(...breedtes), hoogte: m.hoogte });
+  }
+
+  // Breedte via onTextLayout: die geeft de regelbreedte als kommagetal, onLayout rondt op hele
+  // pixels af en dat telt over een heel bedrag merkbaar op.
+  function opBreedte(cijfer: number, e: TextLayoutEvent) {
+    const regel = e.nativeEvent.lines[0];
+    if (!regel) return;
+    meting().breedtes[cijfer] = regel.width;
+    probeerAf();
+  }
+
+  // Hoogte via onLayout, zoals voorheen: dat is de hoogte die de tekst in de layout echt inneemt,
+  // inclusief de font-padding die Android erbij rekent.
+  function opHoogte(e: LayoutChangeEvent) {
+    meting().hoogte = e.nativeEvent.layout.height;
+    probeerAf();
   }
 
   const slots = useMemo(() => naarSlots(geformatteerd), [geformatteerd]);
@@ -155,17 +189,21 @@ export function AnimatedGetal({ waarde, format, style, kleurBijTeken }: Props) {
   const fadeStijl = useAnimatedStyle(() => ({ opacity: fadeOpacity.value }));
 
   return (
-    <View>
-      {/* Onzichtbare meter: zelfde stijl als de echte cijfers, buiten beeld geplaatst zodat hij de
-          layout niet raakt. */}
-      <Text
-        style={[cijferStijl, styles.meter]}
-        onLayout={opMeting}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      >
-        0
-      </Text>
+    <View style={buitenStijl}>
+      {/* Onzichtbare meters: zelfde stijl als de echte cijfers, buiten beeld geplaatst zodat ze de
+          layout niet raken. */}
+      {CIJFERS.map((c, i) => (
+        <Text
+          key={`${metingSleutel}-${c}`}
+          style={[cijferStijl, styles.meter]}
+          onTextLayout={e => opBreedte(i, e)}
+          onLayout={i === 0 ? opHoogte : undefined}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {c}
+        </Text>
+      ))}
 
       {reduceMotion ? (
         <Animated.Text style={[cijferStijl, kleurStijl, fadeStijl]}>{geformatteerd}</Animated.Text>
@@ -204,9 +242,16 @@ export function AnimatedGetal({ waarde, format, style, kleurBijTeken }: Props) {
   );
 }
 
+interface Afmeting {
+  // Breedte van elk cijfer 0-9, index = cijfer.
+  breedtes: number[];
+  maxBreedte: number;
+  hoogte: number;
+}
+
 interface RollendCijferProps {
   cijfer: number;
-  afmeting: { width: number; height: number };
+  afmeting: Afmeting;
   stijl: TextStyle;
   kleurStijl: ReturnType<typeof useAnimatedStyle>;
   naar: ReturnType<typeof useBeweging>['naar'];
@@ -215,7 +260,9 @@ interface RollendCijferProps {
 // Eén kolom: een verticale stapel van de cijfers 0-9, geclipt op de hoogte van één regel en
 // verschoven met -cijfer * hoogte. De kolom houdt zijn identiteit vast over renders heen (de key
 // in de ouder is de positie, niet de waarde), dus een wijziging rolt door in plaats van dat de
-// kolom opnieuw opgebouwd wordt.
+// kolom opnieuw opgebouwd wordt. De kolom is zo breed als het cijfer dat erin staat; de stapel is
+// zo breed als het breedste cijfer en staat daarin gecentreerd, zodat het zichtbare cijfer precies
+// in zijn eigen breedte valt.
 function RollendCijfer({ cijfer, afmeting, stijl, kleurStijl, naar }: RollendCijferProps) {
   const positie = useSharedValue(cijfer);
   const eerste = useRef(true);
@@ -229,27 +276,39 @@ function RollendCijfer({ cijfer, afmeting, stijl, kleurStijl, naar }: RollendCij
     positie.value = naar(cijfer, 'standaard');
   }, [cijfer, naar]);
 
-  const rijStijl = useAnimatedStyle(() => ({
-    transform: [{ translateY: -positie.value * afmeting.height }],
+  const { breedtes, maxBreedte, hoogte } = afmeting;
+
+  const kolomStijl = useAnimatedStyle(() => ({
+    width: interpolate(positie.value, CIJFER_POSITIES, breedtes, Extrapolation.CLAMP),
   }));
 
+  const rijStijl = useAnimatedStyle(() => {
+    const breedte = interpolate(positie.value, CIJFER_POSITIES, breedtes, Extrapolation.CLAMP);
+    return {
+      transform: [
+        { translateX: (breedte - maxBreedte) / 2 },
+        { translateY: -positie.value * hoogte },
+      ],
+    };
+  });
+
   return (
-    <View style={{ width: afmeting.width, height: afmeting.height, overflow: 'hidden' }}>
-      <Animated.View style={rijStijl}>
+    <Animated.View style={[{ height: hoogte, overflow: 'hidden' }, kolomStijl]}>
+      <Animated.View style={[{ width: maxBreedte }, rijStijl]}>
         {CIJFERS.map(c => (
           <Animated.Text
             key={c}
             style={[
               stijl,
               kleurStijl,
-              { width: afmeting.width, height: afmeting.height, textAlign: 'center' },
+              { width: maxBreedte, height: hoogte, textAlign: 'center' },
             ]}
           >
             {c}
           </Animated.Text>
         ))}
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

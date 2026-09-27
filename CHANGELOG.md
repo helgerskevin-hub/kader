@@ -4,6 +4,12 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Na een koop, verkoop of wijziging van je stop-loss en doel via eToro synchroniseert Kader nu meteen, in Demo en in Echt. Eerder kwam de eerste sync pas na vijf seconden en gaf Kader het na drie pogingen binnen een minuut op, terwijl eToro een order niet altijd direct in je portfolio zet. Nu kijkt Kader direct, en daarna nog een paar keer tot anderhalve minuut na de order
+- Het percentage achter je resultaat op de portfoliokaart stond sinds 0.1.23 uit elkaar getrokken, met cijfers die half wegvielen. De ruimte die tussen het bedrag en het percentage hoort, kwam op elk los cijfer terecht in plaats van op het getal als geheel. Dat staat weer goed
+- De cijfers van je totale vermogen stonden sinds de rollende cijfers verder uit elkaar dan voorheen, omdat elk cijfer een vaste, even brede kolom kreeg. Elk cijfer houdt nu zijn eigen breedte, dus in rust ziet het bedrag er weer uit als gewone tekst. Tijdens het rollen schuift de breedte vloeiend mee
+
 ## 0.1.23
 
 - De hele app beweegt nu vloeiender, in lijn met hoe een moderne Apple-app aanvoelt. Een kaart tikken op Markt of Portfolio laat het detailscherm uit die kaart groeien in plaats van omhoog schuiven, en je veegt het weer dicht vanaf de linkerrand. Tussen de tabs onderin wissel je ook met een veeg, niet meer alleen met een tik, en de blauwe indicator in de tabbalk glijdt mee

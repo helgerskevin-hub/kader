@@ -154,19 +154,19 @@ Doorlopen na elke grote wijziging, er is geen testsuite.
 
 ## 🐛 Bugs
 
-- [ ] **Portfolio: winst/verlies-percentage bij Totaal vermogen klopt niet.**
+- [x] **Portfolio: winst/verlies-percentage bij Totaal vermogen klopt niet.**
       Het percentage achter het ongerealiseerde resultaat (`waarde.ongerealiseerdPct`, via
       `fmtResultaatPct` in `PortfolioStatusKaart.tsx`) wordt verkeerd weergegeven. Sinds v0.1.23 loopt
       dit getal via de rollende cijfers van `AnimatedGetal.tsx`; de props zijn gelijk aan v0.1.22, dus
       eerst kijken of het rollen per cijferkolom het getal verkeerd opbouwt. Terug naar hoe het in
       v0.1.22 werd getoond.
 
-- [ ] **Portfolio: cijferafstand van de totale portfoliowaarde is te groot.**
+- [x] **Portfolio: cijferafstand van de totale portfoliowaarde is te groot.**
       Sinds de rollende cijfers (v0.1.23) staat elk cijfer in een eigen kolom met een vaste breedte,
       en daardoor staan de cijfers van het grote bedrag verder uit elkaar dan voorheen. Terug naar de
       oude afstand van v0.1.22: het getal moet er weer uitzien als gewone tekst, ook als het rolt.
 
-- [ ] **Na elke koop- of verkooporder direct een sync en import van je portfolio.**
+- [x] **Na elke koop- of verkooporder direct een sync en import van je portfolio.**
       Zowel in Demo als in Echt. Nu verschijnt een nieuwe positie pas bij de volgende sync (app-start
       buiten de cooldown, swipe of de eToro-knop), terwijl je na een order juist wilt zien dat hij
       erin staat. Geldt voor kopen (`KooporderSheet`), verkopen (`VerkoopOrderSheet`) en niveaus

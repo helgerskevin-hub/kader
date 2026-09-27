@@ -73,8 +73,8 @@ interface PortfolioContextWaarde {
   // hem niet kwijtraakt.
   noteerOnbekendeOrder: (order: OnbekendeOrder) => Promise<void>;
   controleerOnbekendeOrders: () => Promise<void>;
-  // Na een geslaagde order: herhaald kijken of de positie verschijnt. Gemeten loopt eToro's
-  // portfolio-endpoint achter, dus een enkele sync na twee seconden ziet bijna nooit iets.
+  // Na een geslaagde order: meteen synchroniseren en daarna herhaald kijken of de positie
+  // verschijnt, want eToro's portfolio-endpoint loopt vaak achter.
   verzoenNaOrder: () => void;
 }
 
@@ -518,15 +518,23 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
   }, [onbekendeOrders, synchroniseer, bewaarOnbekende]);
 
-  // Gemeten: het portfolio-endpoint van eToro loopt achter. De positie bestond al terwijl hij na 0
-  // en na 5 seconden nog niet in het portfolio stond. Eén sync na twee seconden ziet dus bijna
-  // nooit iets, en de gebruiker zou denken dat zijn koop niet is doorgegaan. Vandaar een paar
-  // keer kijken, met ruimere tussenpozen.
+  // Na elke order meteen synchroniseren, zodat een order die eToro direct vult ook direct in je
+  // portfolio staat. Gemeten loopt het portfolio-endpoint van eToro wel vaak achter: de positie
+  // bestond al terwijl hij na 0 en na 5 seconden nog niet in het portfolio stond. Vandaar daarna
+  // nog een paar keer kijken, met ruimere tussenpozen. Vijf syncs van vier requests blijven ruim
+  // binnen eToro's quotum van 60 per minuut.
+  const verzoenTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const verzoenNaOrder = useCallback(() => {
-    for (const na of [5_000, 20_000, 45_000]) {
-      setTimeout(() => { synchroniseer().catch(() => {}); }, na);
-    }
+    // Een tweede order kort na de eerste start een nieuwe reeks; de oude reeks erbij laten lopen
+    // zou alleen dubbel het quotum opmaken.
+    verzoenTimers.current.forEach(clearTimeout);
+    synchroniseer().catch(() => {});
+    verzoenTimers.current = [5_000, 20_000, 45_000, 90_000].map(na =>
+      setTimeout(() => { synchroniseer().catch(() => {}); }, na),
+    );
   }, [synchroniseer]);
+
+  useEffect(() => () => verzoenTimers.current.forEach(clearTimeout), []);
 
   // Eén filter, één keer bij de bron, zodat elke consument het erft: het portfolio, de statistieken
   // en de historie tonen alleen de actieve omgeving. Handmatige trades horen bij geen omgeving en
