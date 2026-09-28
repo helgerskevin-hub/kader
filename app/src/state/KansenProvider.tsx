@@ -24,9 +24,11 @@ export type KansenState =
       gescand: number;
       totaal: number;
       // De radar tot nu toe, al gesorteerd. Een kaart die hier landt staat ook in de eindlijst,
-      // maar kan nog schuiven; zie onTussenstand in opportunities.ts. Zonder rangverschil, want een
-      // halve lijst heeft geen eerlijke plek.
-      tussenstand: Opportunity[];
+      // maar kan nog schuiven; zie onTussenstand in opportunities.ts. Rangverschil staat altijd op
+      // null, want een halve lijst heeft geen eerlijke plek. Dat gebeurt hier in de reducer en niet
+      // in het scherm: zo blijft deze array dezelfde bij elk voortgangstikje en tekenen de
+      // gememoiseerde kaarten niet mee.
+      tussenstand: KansMetRang[];
     }
   | { status: 'error'; melding: string; lastAttempt: Date }
   | {
@@ -38,8 +40,13 @@ export type KansenState =
       lastUpdate: Date;
     };
 
+// Versie van de bewaarde vorm. Verhoog hem als BewaardeScan of Opportunity verandert: een scan in
+// een andere versie wordt dan niet getoond maar gewoon opnieuw gedaan.
+const BEWAAR_VERSIE = 1;
+
 // Wat er in AsyncStorage staat.
 interface BewaardeScan {
+  versie: number;
   kansen: Opportunity[];
   radarLeeg: boolean;
   gescand: number;
@@ -93,7 +100,7 @@ function reducer(state: KansenState, action: Action): KansenState {
       return { ...state, gescand: action.gescand, totaal: action.totaal };
     case 'TUSSENSTAND':
       if (state.status !== 'loading') return state;
-      return { ...state, tussenstand: action.kansen };
+      return { ...state, tussenstand: action.kansen.map(k => ({ ...k, rangVerschil: null })) };
     // Het bewaarde resultaat mag alleen een leeg scherm vullen, nooit een lopende of verse scan
     // overschrijven.
     case 'GELADEN': return state.status === 'idle' ? naarSucces(action.scan) : state;
@@ -108,6 +115,9 @@ interface KansenContextWaarde {
   // True zolang er een scan loopt, ook een stille. Bij een stille scan blijft `state` op success
   // staan met de oude lijst, dus zonder deze vlag ziet het scherm niet dat er ververst wordt.
   bezig: boolean;
+  // True als de laatste stille scan mislukte. De oude lijst blijft dan staan (zie `scan`), maar het
+  // scherm hoort te laten zien dat verversen niet lukte. Gaat terug op false bij de volgende scan.
+  stilMislukt: boolean;
   // stil = true: de bestaande lijst blijft zichtbaar tot de nieuwe klaar is, zonder voortgang of
   // tussenstanden. Mislukt een stille scan, dan blijft de oude lijst gewoon staan.
   scan: (stil?: boolean) => Promise<void>;
@@ -121,6 +131,7 @@ const KansenContext = createContext<KansenContextWaarde | null>(null);
 export function KansenProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, { status: 'idle' });
   const [bezig, setBezig] = useState(false);
+  const [stilMislukt, setStilMislukt] = useState(false);
   // Het laatst bewaarde resultaat: basis voor de cooldown en voor de ranking van de volgende scan.
   const laatsteRef = useRef<BewaardeScan | null>(null);
   // Eén keer laden, gedeeld door het mount-effect en de scanfuncties. Nodig omdat het scherm
@@ -133,9 +144,9 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
     if (!ladenRef.current) {
       ladenRef.current = (async () => {
         const bewaard = await laadObject<BewaardeScan>(SLEUTELS.kansenScan);
-        // Een scan van vóór de momentum-radar heeft een andere vorm; die tonen we niet.
-        if (!bewaard || !Array.isArray(bewaard.kansen) || typeof bewaard.tijdstip !== 'number'
-          || bewaard.kansen.some(k => typeof k?.momentumScore !== 'number')) return;
+        // Een scan in een andere vorm (van vóór de momentum-radar, of een oudere versie) tonen we niet.
+        if (!bewaard || bewaard.versie !== BEWAAR_VERSIE || !Array.isArray(bewaard.kansen)
+          || typeof bewaard.tijdstip !== 'number') return;
         laatsteRef.current = bewaard;
         dispatch({ type: 'GELADEN', scan: bewaard });
       })();
@@ -152,6 +163,7 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
     if (lopendRef.current) return lopendRef.current;
     const loop = (async () => {
       setBezig(true);
+      setStilMislukt(false);
       if (!stil) dispatch({ type: 'START' });
       try {
         await laadBewaard();
@@ -163,6 +175,7 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
         );
         const vorige = laatsteRef.current;
         const nieuw: BewaardeScan = {
+          versie: BEWAAR_VERSIE,
           kansen, radarLeeg, gescand,
           tijdstip: Date.now(),
           vorigeRanking: vorige ? rankingVan(vorige) : null,
@@ -171,7 +184,8 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SUCCESS', scan: nieuw });
         await bewaarObject(SLEUTELS.kansenScan, nieuw);
       } catch (e) {
-        if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
+        if (stil) setStilMislukt(true);
+        else dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
       } finally {
         lopendRef.current = null;
         setBezig(false);
@@ -188,7 +202,10 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
     await scan(laatste !== null);
   }, [laadBewaard, scan]);
 
-  const waarde = useMemo(() => ({ state, bezig, scan, scanAlsVerouderd }), [state, bezig, scan, scanAlsVerouderd]);
+  const waarde = useMemo(
+    () => ({ state, bezig, stilMislukt, scan, scanAlsVerouderd }),
+    [state, bezig, stilMislukt, scan, scanAlsVerouderd],
+  );
 
   return (
     <KansenContext.Provider value={waarde}>

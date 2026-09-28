@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, RefreshControl,
+  View, Text, StyleSheet, RefreshControl, AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { RefreshCw, Radar } from 'lucide-react-native';
-import { useKansen, KansMetRang } from '../state/KansenProvider';
+import { useKansen, KansMetRang, KANSEN_COOLDOWN_MS } from '../state/KansenProvider';
+import { effectiefSignaal } from '../engine/opportunities';
 import { useTabZichtbaar } from '../state/tabZichtbaar';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
@@ -36,6 +37,17 @@ import { KansenTop3 } from '../components/KansenTop3';
 // want dat komt zelden voor; de carrousel is de drie die het dichtst bij hun top staan.
 const TOP_AANTAL = 3;
 
+// Eén vaste lege lijst, zodat de FlatList zonder data niet bij elke render een nieuwe array krijgt.
+const GEEN_KANSEN: KansMetRang[] = [];
+
+// "14:05" voor een scan van vandaag, anders "27 sep 14:05": een bewaarde scan van gisteren mag niet
+// lezen alsof hij van vanmiddag is.
+function scanMoment(d: Date): string {
+  const tijd = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+  const vandaag = new Date().toDateString() === d.toDateString();
+  return vandaag ? tijd : `${d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} ${tijd}`;
+}
+
 // ---------- Scherm ----------
 export function KansenScreen() {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
@@ -44,7 +56,7 @@ export function KansenScreen() {
 
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
-  const { state, bezig, scan, scanAlsVerouderd } = useKansen();
+  const { state, bezig, stilMislukt, scan, scanAlsVerouderd } = useKansen();
   const [ververst, setVerverstState] = useState(false);
   const { openDetail, detailScherm } = useCoinDetail();
   const [getradeteKans, setGetradeteKans] = useState<GetradeBron | null>(null);
@@ -62,6 +74,33 @@ export function KansenScreen() {
     if (inBeeld) scanAlsVerouderd();
   }, [inBeeld, scanAlsVerouderd]);
 
+  // Terug in de app terwijl dit tabblad openstaat telt ook als "in beeld komen": de app kan uren op
+  // de achtergrond hebben gestaan, en dan veranderde inBeeld zelf niet.
+  const inBeeldRef = useRef(inBeeld);
+  inBeeldRef.current = inBeeld;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', stand => {
+      if (stand === 'active' && inBeeldRef.current) scanAlsVerouderd();
+    });
+    return () => sub.remove();
+  }, [scanAlsVerouderd]);
+
+  // Is de getoonde scan ouder dan de cooldown? Dan geen Koop-knop tot er ververst is. Een timer op
+  // het moment van verlopen, want blijf je op dit scherm staan dan tekent er verder niets opnieuw.
+  const scanTijd = state.status === 'success' ? state.lastUpdate.getTime() : null;
+  const [nu, setNu] = useState(() => Date.now());
+  useEffect(() => {
+    if (scanTijd === null) return;
+    const resterend = scanTijd + KANSEN_COOLDOWN_MS - Date.now();
+    if (resterend <= 0) {
+      setNu(Date.now());
+      return;
+    }
+    const klok = setTimeout(() => setNu(Date.now()), resterend + 1000);
+    return () => clearTimeout(klok);
+  }, [scanTijd]);
+  const verouderd = scanTijd !== null && nu - scanTijd >= KANSEN_COOLDOWN_MS;
+
   async function handleVervers() {
     if (ververst) return;
     setVerverstState(true);
@@ -76,9 +115,14 @@ export function KansenScreen() {
   }
 
   // Stabiele callbacks, zodat de gememoiseerde kaarten niet bij elke scan-tik opnieuw tekenen.
+  // Het detailscherm krijgt het signaal zoals de kaart het toont: na de eToro-stopcorrectie, en
+  // WATCH zolang de scan verouderd is. Zo biedt het nooit een trade aan die de kaart niet biedt.
   const opOpenDetail = useCallback(
-    (k: KansMetRang) => openDetail(vanOpportunity(k)),
-    [openDetail],
+    (k: KansMetRang) => {
+      const { signaal } = effectiefSignaal(k, limietVoor(stopLimieten, k.symbool));
+      openDetail(vanOpportunity(k, verouderd ? 'WATCH' : signaal));
+    },
+    [openDetail, stopLimieten, verouderd],
   );
   // Het radar-uitbraakplan, niet de Markt-niveaus: k.niveaus heeft entry, stopLoss, takeProfit, rr.
   const opGetrade = useCallback(
@@ -89,14 +133,13 @@ export function KansenScreen() {
   // Eén lijst voor laden en klaar, net als op het Marktscherm: kaarten die tijdens de scan landen
   // blijven gewoon liggen als hij afrondt. Ze zijn meteen tikbaar, want elke kaart is op dat moment
   // al definitief: de tussenstand is een deelverzameling van de eindlijst in dezelfde volgorde (zie
-  // onTussenstand in opportunities.ts). Een kaart kan nog schuiven, maar verdwijnt niet. Een halve
-  // lijst heeft geen eerlijke plek, dus zonder rangverschil.
+  // onTussenstand in opportunities.ts). Een kaart kan nog schuiven, maar verdwijnt niet. De
+  // tussenstand komt al met rangVerschil null uit de provider, dus deze array blijft dezelfde bij
+  // elk voortgangstikje en de gememoiseerde kaarten tekenen niet mee.
   const laden = state.status === 'loading';
-  const tussenstand = state.status === 'loading' ? state.tussenstand : null;
-  const lijst: KansMetRang[] = useMemo(() => {
-    if (state.status === 'success') return state.kansen;
-    return tussenstand ? tussenstand.map(k => ({ ...k, rangVerschil: null })) : [];
-  }, [state, tussenstand]);
+  const lijst: KansMetRang[] = state.status === 'success' ? state.kansen
+    : state.status === 'loading' ? state.tussenstand
+    : GEEN_KANSEN;
 
   const radarLeeg = state.status === 'success' && state.radarLeeg;
   const top = useMemo(
@@ -107,7 +150,7 @@ export function KansenScreen() {
   );
 
   const metaText = state.status === 'success'
-    ? `${state.kansen.length} ${state.kansen.length === 1 ? 'coin' : 'coins'} · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+    ? `${state.kansen.length} ${state.kansen.length === 1 ? 'coin' : 'coins'} · ${scanMoment(state.lastUpdate)}${stilMislukt ? ' · verversen mislukt' : ''}`
     : undefined;
 
   return (
@@ -198,6 +241,7 @@ export function KansenScreen() {
                 favoriet={isFavoriet(item.symbool)}
                 onToggleFavoriet={wisselFavoriet}
                 limiet={limietVoor(stopLimieten, item.symbool)}
+                verouderd={verouderd}
               />
             </Animated.View>
           )}
@@ -229,6 +273,11 @@ export function KansenScreen() {
                 <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
                   Coins die dicht bij hun hoogste koers van 90 dagen staan.
                 </Text>
+                {verouderd && (
+                  <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
+                    Deze radar is van {scanMoment(new Date(scanTijd!))}. Ververs voor actuele niveaus en een koopknop.
+                  </Text>
+                )}
                 {radarLeeg ? (
                   <View style={[styles.leeg, { backgroundColor: colors.kaart }]}>
                     <LegeStaatBeeld maat={64}>
@@ -246,7 +295,7 @@ export function KansenScreen() {
                 ) : (
                   <>
                     {top.length === TOP_AANTAL && (
-                      <KansenTop3 kansen={top} onOpenDetail={opOpenDetail} />
+                      <KansenTop3 kansen={top} onOpenDetail={opOpenDetail} stopLimieten={stopLimieten} />
                     )}
                     <Text style={[Type.overline, styles.lijstKop, { color: colors.tekstGedimd }]}>
                       {state.status === 'success'

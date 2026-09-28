@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { memo, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { fmtPct } from '../engine/format';
@@ -23,7 +23,13 @@ export function afstandLabel(afstand: number): string {
   return `${getal}% onder 90d-top`;
 }
 
-function Balk({ fractie, kleur, hoogte, volgorde }: {
+// Kleinste zichtbare vulling voor een rendement dat niet precies nul is. Zonder dit staat +0,4% als
+// een lege balk naast een lege balk voor 0%, en dat leest als "geen gegevens".
+const MIN_VULLING = 0.04;
+
+// Memo: de kaart tekent opnieuw bij elke favoriet- of valutawissel, en dan hoeven de balkjes met
+// dezelfde stand niet mee.
+const Balk = memo(function Balk({ fractie, kleur, hoogte, volgorde }: {
   fractie: number;
   kleur: string;
   hoogte: number;
@@ -49,7 +55,7 @@ function Balk({ fractie, kleur, hoogte, volgorde }: {
       <Animated.View style={[styles.vulling, { backgroundColor: kleur }, stijl]} />
     </View>
   );
-}
+});
 
 interface Props {
   ingredienten: MomentumIngredienten;
@@ -96,7 +102,7 @@ export function MomentumBalken({ ingredienten, volgorde = 0 }: Props) {
               </Text>
             </View>
             <Balk
-              fractie={Math.abs(waarde) / vol}
+              fractie={waarde === 0 ? 0 : Math.max(Math.abs(waarde) / vol, MIN_VULLING)}
               kleur={rendementKleur(waarde)}
               hoogte={4}
               volgorde={volgorde + i + 1}

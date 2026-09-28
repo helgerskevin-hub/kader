@@ -2,8 +2,10 @@ import React, { memo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { CheckCircle, Star, ShoppingCart } from 'lucide-react-native';
-import { fmtPrijs } from '../engine/format';
-import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
+import { fmtPrijs, fmtRR } from '../engine/format';
+import { StopLossLimiet } from '../engine/etoroLimieten';
+import { MIN_RISK_REWARD } from '../engine/analyzer';
+import { effectiefSignaal } from '../engine/opportunities';
 import { handelbaarOp, noemPlatforms } from '../engine/platforms';
 import { KansMetRang, RangVerschil } from '../state/KansenProvider';
 import { useValutaStand } from '../state/useValuta';
@@ -34,6 +36,9 @@ interface Props {
   onToggleFavoriet?: (symbool: string) => void;
   // De stop-loss-grens van eToro voor deze coin. Zonder grens blijft het niveau van Kader staan.
   limiet?: StopLossLimiet | null;
+  // De scan is ouder dan KANSEN_COOLDOWN_MS: het plan kan al achterhaald zijn, dus geen Koop-knop
+  // tot er ververst is. Het scherm legt dat boven de lijst in één regel uit.
+  verouderd?: boolean;
 }
 
 // Kleine rangwissel naast de badge: pijl plus getal, dus niet alleen kleur. 'nieuw' is een eigen
@@ -68,6 +73,7 @@ export function RangLabel({ verschil }: { verschil: RangVerschil }) {
 // tekenden alle al gelande kaarten mee (en startten hun balkjes en sparkline opnieuw op).
 export const KansKaart = memo(function KansKaart({
   kans, volgorde = 0, onOpenDetail, onGetrade, onKoop, favoriet, onToggleFavoriet, limiet = null,
+  verouderd = false,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
@@ -82,7 +88,9 @@ export const KansKaart = memo(function KansKaart({
 
   // Het uitbraak-plan van de radar, niet de Markt-niveaus uit kans.trade (zie momentum.ts).
   const plan = kans.niveaus;
-  const niveaus = plan ? etoroNiveaus(plan.entry, plan.stopLoss, plan.takeProfit, limiet) : null;
+  // Na de eToro-stopcorrectie: schuift eToro de stop op en zakt de R/R onder de drempel, dan is het
+  // hier WATCH, ook als de scan KOOP zei. Badge, R/R-regel en Koop-knop lezen alle drie hieruit.
+  const { signaal, haaltRr, niveaus } = effectiefSignaal(kans, limiet);
   // Zelfde regel als TradeCard: het merkje betekent dat Kader deze order kan plaatsen, dus het
   // hangt aan precies dezelfde voorwaarde als de koopknop.
   const platforms = onKoop ? handelbaarOp(kans.symbool) : [];
@@ -106,7 +114,7 @@ export const KansKaart = memo(function KansKaart({
       >
         <View style={styles.badgeRij}>
           <View style={styles.badgeLinks}>
-            <AdviceBadge advies={kans.signaal} score={kans.momentumScore} />
+            <AdviceBadge advies={signaal} score={kans.momentumScore} />
             <RangLabel verschil={kans.rangVerschil} />
           </View>
           {platforms.length > 0 && (
@@ -170,6 +178,13 @@ export const KansKaart = memo(function KansKaart({
               <Text style={[Type.caption, styles.plannotitie, { color: colors.tekstGedimd }]}>
                 Uitbraak-plan: stop op de EMA20, doel boven de 90d-top.
               </Text>
+              {/* Zelfde waarschuwing als TradeCard: onder de drempel in de letOp-kleur, met de
+                  drempel in dezelfde opmaak als de waarde zodat "onder 1 : 2.0" niet als "1,2" leest. */}
+              {!haaltRr && (
+                <Text style={[Type.caption, styles.plannotitie, { color: colors.letOp }]}>
+                  R/R {fmtRR(niveaus.rr)}, onder {fmtRR(MIN_RISK_REWARD)}: geen koopsignaal.
+                </Text>
+              )}
               {niveaus.uitleg ? (
                 <Text style={[Type.caption, styles.plannotitie, { color: colors.letOp }]}>
                   {niveaus.uitleg}
@@ -229,8 +244,9 @@ export const KansKaart = memo(function KansKaart({
         )}
 
         {/* Alleen bij een KOOP met een plan: zonder entry, stop en doel valt er geen order te
-            bouwen, en bij WATCH zegt Kader zelf dat het nog niet klopt. */}
-        {plan && kans.signaal === 'KOOP' && onKoop && (
+            bouwen, en bij WATCH zegt Kader zelf dat het nog niet klopt. Bij een verouderde scan ook
+            niet: dan kan het plan al achterhaald zijn. */}
+        {plan && signaal === 'KOOP' && !verouderd && onKoop && (
           <>
             <View style={[styles.scheiding, { backgroundColor: colors.rand }]} />
             <Pressable

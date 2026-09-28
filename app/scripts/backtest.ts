@@ -27,6 +27,7 @@ import { ema } from '../src/engine/indicators';
 import { momentumIngredienten, momentumScore, radarNiveaus, RADAR_DREMPEL, MomentumIngredienten } from '../src/engine/momentum';
 import { Candle, Trade } from '../src/engine/types';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
+import { radarSignaal } from '../src/engine/opportunities';
 
 const HIER = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HIER, '..', '..', 'data', 'historie');
@@ -1048,9 +1049,10 @@ const uitbraakDoel = (k: number): DoelRegel => ({
 const doelRegels: DoelRegel[] = [atrDoel(3), atrDoel(4), atrDoel(5), uitbraakDoel(1), uitbraakDoel(2)];
 
 // Draait een instapregel met eigen niveaus, zonder overlap per coin. `rrEis` filtert op de R/R die
-// deze variant op dat moment zou tonen.
+// deze variant op dat moment zou tonen. `kiest` krijgt ook de candles van de coin mee, zodat een
+// regel de app-functies zelf kan aanroepen (zie J3).
 function draaiNiveaus(
-  kiest: (s: Signaal) => boolean,
+  kiest: (s: Signaal, c: Candle[]) => boolean,
   stop: StopRegel,
   doel: DoelRegel,
   rrEis: 'alle' | 'rr>=2' | 'rr<2',
@@ -1060,7 +1062,7 @@ function draaiNiveaus(
     const c = candlesVan(symbool);
     let bezetTot = -1;
     for (const s of signalenPerCoin[symbool] ?? []) {
-      if (s.i <= bezetTot || !kiest(s)) continue;
+      if (s.i <= bezetTot || !kiest(s, c)) continue;
       const risico = stop.afstand(c, s);
       const d = doel.doel(c, s);
       if (risico === null || d === null || !(risico > 0)) continue;
@@ -1156,7 +1158,17 @@ const appHoog = draaiNiveaus(radarJ, appStop, appDoel, 'rr>=2');
 const roosterHoog = draaiNiveaus(radarJ, emaStop(0), uitbraakDoel(2), 'rr>=2');
 jaarKop('J3 radarNiveaus() uit momentum.ts, ter controle:');
 jaarRegel('radar + R/R>=2 via radarNiveaus', appHoog);
-jaarRegel('radar + score>=55 + R/R>=2', draaiNiveaus(radarKoopJ, appStop, appDoel, 'rr>=2'));
+// De KOOP-regel zoals de app hem neemt: radarSignaal() uit opportunities.ts op de radarNiveaus, in
+// plaats van de nagebouwde conditie score >= DREMPEL_KOOP plus R/R >= 2. Moet hetzelfde opleveren.
+const appKoop = draaiNiveaus(
+  (s, c) => radarJ(s) && radarSignaal(viaApp(c, s), s.score).signaal === 'KOOP', appStop, appDoel, 'alle',
+);
+const nagebouwdKoop = draaiNiveaus(radarKoopJ, appStop, appDoel, 'rr>=2');
+jaarRegel('radar + score>=55 + R/R>=2', appKoop);
+console.assert(
+  appKoop.length === nagebouwdKoop.length && Math.abs(gem(appKoop.map(x => x.r)) - gem(nagebouwdKoop.map(x => x.r))) < 1e-9,
+  `radarSignaal wijkt af van de nagebouwde KOOP-regel: ${appKoop.length} tegen ${nagebouwdKoop.length} trades`,
+);
 console.assert(
   appHoog.length === roosterHoog.length && Math.abs(gem(appHoog.map(x => x.r)) - gem(roosterHoog.map(x => x.r))) < 1e-9,
   `radarNiveaus wijkt af van de roosterregel: ${appHoog.length} tegen ${roosterHoog.length} trades`,

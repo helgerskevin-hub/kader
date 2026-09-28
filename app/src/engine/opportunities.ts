@@ -3,6 +3,7 @@ import { haalData, haalCoingeckoMarkten } from './marketData';
 import { STANDAARD_UNIVERSUM, MIN_RISK_REWARD, scoorCandles } from './analyzer';
 import { DREMPEL_KOOP } from './drempels';
 import { infoVoor } from './coinInfo';
+import { StopLossLimiet, EtoroNiveaus, etoroNiveaus } from './etoroLimieten';
 import {
   momentumIngredienten, momentumScore, momentumRedenen, radarNiveaus, RADAR_DREMPEL, RadarNiveaus,
 } from './momentum';
@@ -65,6 +66,32 @@ const GELIJKTIJDIG = 6;
 export function radarSignaal(niveaus: RadarNiveaus | null, score: number): { signaal: 'KOOP' | 'WATCH'; voldoetAanRR: boolean } {
   const voldoetAanRR = niveaus !== null && niveaus.rr >= MIN_RISK_REWARD - 1e-9;
   return { signaal: voldoetAanRR && score >= DREMPEL_KOOP ? 'KOOP' : 'WATCH', voldoetAanRR };
+}
+
+export interface EffectiefSignaal {
+  signaal: 'KOOP' | 'WATCH';
+  // Haalt het plan MIN_RISK_REWARD met de stop zoals hij bij eToro werkelijk te zetten is?
+  haaltRr: boolean;
+  // De niveaus na de eToro-correctie. Null als er geen plan is (koers niet boven de EMA20).
+  niveaus: EtoroNiveaus | null;
+}
+
+/**
+ * Het signaal zoals het scherm het mag tonen. eToro accepteert Kaders stop niet altijd (bij BTC
+ * minimaal 10% onder de entry); schuift de stop op, dan zakt de R/R mee en kan een KOOP uit de scan
+ * er bij eToro onder de drempel uitkomen. Zelfde regel als TradeCard: bij een verschoven stop telt
+ * de nieuwe R/R, anders die van de scan zelf. Eén functie voor badge, Koop-knop, carrousel en
+ * detailscherm, zodat die nooit uit elkaar lopen. Zonder limiet blijft alles zoals de scan het zei.
+ */
+export function effectiefSignaal(
+  kans: Pick<Opportunity, 'signaal' | 'niveaus' | 'voldoetAanRR'>,
+  limiet: StopLossLimiet | null,
+): EffectiefSignaal {
+  const plan = kans.niveaus;
+  if (!plan) return { signaal: 'WATCH', haaltRr: false, niveaus: null };
+  const niveaus = etoroNiveaus(plan.entry, plan.stopLoss, plan.takeProfit, limiet);
+  const haaltRr = niveaus.aangepast ? niveaus.rr >= MIN_RISK_REWARD - 1e-9 : kans.voldoetAanRR;
+  return { signaal: kans.signaal === 'KOOP' && haaltRr ? 'KOOP' : 'WATCH', haaltRr, niveaus };
 }
 
 // Hoogste momentumscore eerst. Die is afgerond, dus bij gelijkspel wint wie dichter bij zijn top
@@ -268,6 +295,22 @@ if (require.main === module) {
   const leeg = bouwRadar([met('A', 20, -24), met('B', 60, -12), met('C', 50, -15), met('D', 10, -27)]);
   console.assert(leeg.radarLeeg && leeg.kansen.length === 3 && leeg.kansen[0].symbool === 'B', 'lege radar hoort de drie sterkste te geven');
   console.assert(leeg.kansen.every(x => x.signaal === 'WATCH'), 'op een lege radar is alles WATCH');
+
+  // effectiefSignaal: zonder limiet blijft het signaal staan; schuift eToro de stop zo ver op dat de
+  // R/R onder 2 zakt, dan wordt een KOOP een WATCH.
+  const plan: RadarNiveaus = { entry: 100, stopLoss: 97, takeProfit: 109, rr: 3 };
+  const koopKans = { signaal: 'KOOP' as const, niveaus: plan, voldoetAanRR: true };
+  const zonder = effectiefSignaal(koopKans, null);
+  console.assert(zonder.signaal === 'KOOP' && zonder.haaltRr && zonder.niveaus?.aangepast === false,
+    `zonder limiet hoort KOOP te blijven: ${JSON.stringify(zonder)}`);
+  // Minimaal 10% stop: risico 10, doel 9 verder, R/R 0,9.
+  const limiet: StopLossLimiet = { symbool: 'TEST', richting: 'long', bewerkbaar: true, minPct: 10, maxPct: 100 };
+  const krap = effectiefSignaal(koopKans, limiet);
+  console.assert(krap.niveaus?.aangepast === true, `een te krappe stop hoort aangepast te worden: ${JSON.stringify(krap.niveaus)}`);
+  console.assert(krap.signaal === 'WATCH' && !krap.haaltRr, `onder 1:2 na de correctie hoort WATCH te zijn: ${JSON.stringify(krap)}`);
+  console.assert(effectiefSignaal({ ...koopKans, signaal: 'WATCH' }, null).signaal === 'WATCH', 'een WATCH wordt nooit KOOP');
+  const geenPlan = effectiefSignaal({ ...koopKans, niveaus: null }, null);
+  console.assert(geenPlan.signaal === 'WATCH' && geenPlan.niveaus === null, 'zonder plan geen KOOP en geen niveaus');
 
   console.log('opportunities.ts self-check geslaagd');
 }

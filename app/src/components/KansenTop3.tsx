@@ -4,6 +4,9 @@ import {
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { fmtPrijs } from '../engine/format';
+import { StopLossLimiet } from '../engine/etoroLimieten';
+import { effectiefSignaal } from '../engine/opportunities';
+import { limietVoor } from '../state/useStopLossLimiet';
 import { KansMetRang } from '../state/KansenProvider';
 import { useValutaStand } from '../state/useValuta';
 import { useTheme } from '../theme/ThemeProvider';
@@ -19,6 +22,9 @@ interface Props {
   // De kaarten die in de carrousel komen, al gesorteerd op momentum. Het scherm kiest er drie.
   kansen: KansMetRang[];
   onOpenDetail: (kans: KansMetRang) => void;
+  // De stop-loss-grenzen van eToro, zodat de badge hier hetzelfde signaal toont als de kaart eronder
+  // (zie effectiefSignaal in opportunities.ts).
+  stopLimieten: Record<string, StopLossLimiet> | null;
 }
 
 // Een kaart is breed genoeg voor symbool, prijs en sparkline, en smal genoeg dat de volgende
@@ -27,7 +33,7 @@ const BREEDTE_FACTOR = 0.72;
 
 // Patroon van WatKopenNu: horizontale ScrollView met snapToInterval op de werkelijke kaartstap.
 // pagingEnabled zou op veelvouden van de schermbreedte klikken en de kaarten uit de maat trekken.
-export function KansenTop3({ kansen, onOpenDetail }: Props) {
+export function KansenTop3({ kansen, onOpenDetail, stopLimieten }: Props) {
   const { width } = useWindowDimensions();
   const [actief, setActief] = useState(0);
   // De laatst gemelde pagina, zodat een scroll-event met dezelfde pagina geen setState doet.
@@ -65,6 +71,7 @@ export function KansenTop3({ kansen, onOpenDetail }: Props) {
           <MiniKaart
             key={kans.symbool}
             kans={kans}
+            signaal={effectiefSignaal(kans, limietVoor(stopLimieten, kans.symbool)).signaal}
             volgorde={i}
             breedte={kaartBreedte}
             onOpenDetail={onOpenDetail}
@@ -91,8 +98,9 @@ export function KansenTop3({ kansen, onOpenDetail }: Props) {
   );
 }
 
-const MiniKaart = memo(function MiniKaart({ kans, volgorde, breedte, onOpenDetail }: {
+const MiniKaart = memo(function MiniKaart({ kans, signaal, volgorde, breedte, onOpenDetail }: {
   kans: KansMetRang;
+  signaal: 'KOOP' | 'WATCH';
   volgorde: number;
   breedte: number;
   onOpenDetail: (kans: KansMetRang) => void;
@@ -110,7 +118,7 @@ const MiniKaart = memo(function MiniKaart({ kans, volgorde, breedte, onOpenDetai
       accessibilityLabel={`Bekijk ${kans.symbool}, momentumscore ${Math.round(kans.momentumScore)}`}
     >
       <View style={styles.kaartKop}>
-        <AdviceBadge advies={kans.signaal} score={kans.momentumScore} />
+        <AdviceBadge advies={signaal} score={kans.momentumScore} />
         <RangLabel verschil={kans.rangVerschil} />
       </View>
       <View style={styles.rij}>
