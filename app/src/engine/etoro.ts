@@ -2,6 +2,7 @@ import { PortfolioTrade, Richting, nieuweId } from '../state/portfolioTypes';
 import { ETORO_TRADABLE } from './opportunities';
 import { COIN_INFO } from './coinInfo';
 import { EtoroEligibility, StopLossLimiet, kiesLimiet } from './etoroLimieten';
+import { naarEtoroSymbool, vanEtoroSymbool, koersFactor } from './etoroSymbolen';
 
 const BASIS_URL = 'https://public-api.etoro.com/api';
 // Lezen mag kort falen; een schrijfactie krijgt langer de tijd, want afbreken lost daar niets op
@@ -629,16 +630,22 @@ export function kiesInstrumentTreffer(treffers: ZoekTreffer[], symbool: string):
 }
 
 // Geeft null bij elke twijfel, en dan is kopen geblokkeerd.
+//
+// Zes coins voert eToro onder een andere naam (zie engine/etoroSymbolen.ts), dus we zoeken op het
+// eToro-symbool, in eToro's exacte schrijfwijze (bijv. SHIBxM, niet SHIBXM): kiesInstrumentTreffer
+// vergelijkt zelf al hoofdletterongevoelig, maar de query naar eToro moet de precieze schrijfwijze
+// zijn, anders levert de zoekopdracht niets op.
 export async function zoekInstrumentId(symbool: string, sleutels: EtoroSleutels): Promise<number | null> {
-  const gezocht = symbool.trim().toUpperCase();
+  const gezocht = symbool.trim();
   if (!gezocht) return null;
+  const etoroSymbool = naarEtoroSymbool(gezocht);
 
   const data = await etoroFetch<{ items?: ZoekTreffer[] }>(
-    `/market-data/search?internalSymbolFull=${encodeURIComponent(gezocht)}&fields=${ZOEK_VELDEN}`,
+    `/market-data/search?internalSymbolFull=${encodeURIComponent(etoroSymbool)}&fields=${ZOEK_VELDEN}`,
     sleutels,
   );
 
-  return kiesInstrumentTreffer(data?.items ?? [], gezocht);
+  return kiesInstrumentTreffer(data?.items ?? [], etoroSymbool);
 }
 
 // ---------- Kooporder ----------
@@ -649,8 +656,14 @@ export interface KooporderInvoer {
   // Long of short. Ontbreekt = long, zodat elke bestaande aanroep exact hetzelfde blijft doen.
   richting?: Richting;
   // Absolute koersen, geen percentages. Weglaten betekent: geen niveau meesturen, eToro kiest zelf.
+  // Dit zijn Kaders eigen koersen (per coin); bouwKooporderBody rekent ze naar eToro's eenheid om.
   stopLossRate?: number;
   takeProfitRate?: number;
+  // Sommige coins voert eToro in een andere eenheid (SHIB en PEPE per miljoen munten, zie
+  // engine/etoroSymbolen.ts): eToro-koers = Kader-koers * koersFactor. Ontbreekt hij, of is hij niet
+  // eindig of <= 0, dan geldt factor 1 (geen omrekening), zodat elke bestaande aanroep zonder dit
+  // veld exact hetzelfde blijft doen.
+  koersFactor?: number;
 }
 
 // eToro accepteerde 51592.8, dus een paar decimalen mag. Zonder afronden stuur je drijvendekomma-
@@ -683,14 +696,19 @@ export function bouwKooporderBody(invoer: KooporderInvoer): Record<string, unkno
   };
   if (short) body.settlementType = 'cfd';
 
+  // Ontbreekt de factor, of is hij niet bruikbaar (0, negatief, NaN), dan verandert er niets: 1 is
+  // geen omrekening.
+  const factor = typeof invoer.koersFactor === 'number' && isFinite(invoer.koersFactor) && invoer.koersFactor > 0
+    ? invoer.koersFactor : 1;
+
   const stop = invoer.stopLossRate;
   if (typeof stop === 'number' && isFinite(stop) && stop > 0) {
-    body.stopLossRate = afgerond(stop);
+    body.stopLossRate = afgerond(stop * factor);
     body.stopLossType = 'fixed';
   }
   const doel = invoer.takeProfitRate;
   if (typeof doel === 'number' && isFinite(doel) && doel > 0) {
-    body.takeProfitRate = afgerond(doel);
+    body.takeProfitRate = afgerond(doel * factor);
   }
   return body;
 }
@@ -759,24 +777,31 @@ export async function sluitPositie(
 // ---------- Niveaus wijzigen ----------
 
 export interface NiveauWijziging {
+  // Kaders eigen koersen (per coin); bouwNiveauBody rekent ze met koersFactor om naar eToro's
+  // eenheid.
   stopLossRate?: number;
   takeProfitRate?: number;
   // Een niveau weghalen in plaats van verzetten.
   clearStopLoss?: boolean;
   clearTakeProfit?: boolean;
+  // Zie KooporderInvoer.koersFactor: dezelfde omrekening, voor dezelfde zes coins.
+  koersFactor?: number;
 }
 
 // Gemeten: een veld dat je niet meestuurt blijft ongemoeid, dus een gedeeltelijke wijziging kan.
 export function bouwNiveauBody(wijziging: NiveauWijziging): Record<string, unknown> {
+  const factor = typeof wijziging.koersFactor === 'number' && isFinite(wijziging.koersFactor) && wijziging.koersFactor > 0
+    ? wijziging.koersFactor : 1;
+
   const body: Record<string, unknown> = {};
   if (wijziging.clearStopLoss) body.clearStopLoss = true;
   else if (typeof wijziging.stopLossRate === 'number' && wijziging.stopLossRate > 0) {
-    body.stopLossRate = afgerond(wijziging.stopLossRate);
+    body.stopLossRate = afgerond(wijziging.stopLossRate * factor);
     body.stopLossType = 'fixed';
   }
   if (wijziging.clearTakeProfit) body.clearTakeProfit = true;
   else if (typeof wijziging.takeProfitRate === 'number' && wijziging.takeProfitRate > 0) {
-    body.takeProfitRate = afgerond(wijziging.takeProfitRate);
+    body.takeProfitRate = afgerond(wijziging.takeProfitRate * factor);
   }
   return body;
 }
@@ -949,7 +974,9 @@ export async function haalStopLossLimieten(
   symbolen: string[],
   sleutels: EtoroSleutels,
 ): Promise<Record<string, StopLossLimiet>> {
-  const uniek = [...new Set(symbolen.map(s => s.toUpperCase()))].slice(0, MAX_SYMBOLEN);
+  // eToro verwacht hier zijn eigen schrijfwijze (bijv. SHIBxM), dus niet zomaar uppercasen zoals de
+  // rest van dit bestand doet: naarEtoroSymbool levert de exacte schrijfwijze, en ontdubbelt daarop.
+  const uniek = [...new Set(symbolen.map(s => naarEtoroSymbool(s)))].slice(0, MAX_SYMBOLEN);
   if (uniek.length === 0) return {};
 
   const data = await etoroFetch<EligibilityRespons>('/trading/info/eligibility', sleutels, {
@@ -960,12 +987,16 @@ export async function haalStopLossLimieten(
   // Beide richtingen uit dezelfde respons: eToro levert de long- en de short-config naast elkaar,
   // dus dit kost geen extra verzoek en dat is belangrijk, het endpoint heeft maar 20 per minuut.
   // De sleutel is SYMBOOL:richting, want de grenzen verschillen echt (gemeten: short max 50%,
-  // long max 100%).
+  // long max 100%). Grenzen zijn percentages van de inleg, dus geen koers om om te rekenen; wel
+  // moet het symbool zelf terug naar Kaders eigen naam, anders staat de grens onder SHIBxM in de
+  // kaart terwijl de rest van de app onder SHIB zoekt, en komt hij ook zo in uitlegteksten terecht.
   const kaart: Record<string, StopLossLimiet> = {};
   for (const item of data.eligibilities ?? []) {
     for (const richting of ['long', 'short'] as const) {
-      const limiet = kiesLimiet(item, richting);
-      if (limiet) kaart[`${limiet.symbool}:${richting}`] = limiet;
+      const ruw = kiesLimiet(item, richting);
+      if (!ruw) continue;
+      const limiet: StopLossLimiet = { ...ruw, symbool: vanEtoroSymbool(ruw.symbool) };
+      kaart[`${limiet.symbool}:${richting}`] = limiet;
     }
   }
   return kaart;
@@ -1029,20 +1060,25 @@ function berekenRR(stopLoss: number, takeProfit: number, openRate: number, richt
 }
 
 export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgeving: EtoroOmgeving = 'real'): PortfolioTrade {
-  const stopLoss = positie.stopLossRate ?? 0;
-  const takeProfit = positie.takeProfitRate ?? 0;
+  // eToro levert koers en aantal in zijn eigen eenheid (SHIB en PEPE bijvoorbeeld per miljoen
+  // munten); hier rekenen we ze terug naar Kaders eigen koers per coin, zie engine/etoroSymbolen.ts.
+  // Voor elke andere coin is de factor 1 en verandert er niets.
+  const factor = koersFactor(symbool);
+  const openRate = positie.openRate / factor;
+  const stopLoss = (positie.stopLossRate ?? 0) / factor;
+  const takeProfit = (positie.takeProfitRate ?? 0) / factor;
   // Bewust `=== false` en niet de waarheidswaarde van isBuy: het veld is getypeerd als verplicht,
   // maar dat is een aanname over ongevalideerde JSON. Ontbreekt hij, dan is long de veilige uitkomst
   // (zelfde keuze als in de historie hieronder). Met een waarheidstest zou een ontbrekend veld een
   // stilzwijgende short opleveren, met omgekeerde winst, balk en trailing stop.
   const richting: Richting = positie.isBuy === false ? 'short' : 'long';
-  const rr = berekenRR(stopLoss, takeProfit, positie.openRate, richting);
+  const rr = berekenRR(stopLoss, takeProfit, openRate, richting);
 
   return {
     id: nieuweId(),
     symbool,
     naam: COIN_INFO[symbool]?.naam ?? symbool,
-    entryPrijs: positie.openRate,
+    entryPrijs: openRate,
     stopLoss,
     takeProfit,
     rr,
@@ -1052,7 +1088,7 @@ export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgev
     openTijd: Number.isNaN(Date.parse(positie.openDateTime)) ? undefined : Date.parse(positie.openDateTime),
     status: 'open',
     bedragUsd: positie.amount ?? positie.initialAmountInDollars ?? 0,
-    aantalCoins: positie.units,
+    aantalCoins: positie.units * factor,
     richting,
     etoroPositionID: positie.positionID,
     // Allebei nodig om deze positie later te kunnen sluiten: het sluit-endpoint wil naast het
@@ -1082,7 +1118,9 @@ function duidInstrument(
   cryptoTypeIds: Set<number> | null,
 ): { symbool: string; naam: string; isCrypto: boolean } {
   const instrument = instrumentKaart.get(instrumentID);
-  const symbool = symboolVan(instrument);
+  // eToro levert hier zijn eigen symbool (bijv. SHIBxM); vanEtoroSymbool zet dat terug naar Kaders
+  // eigen naam, anders herkent ETORO_TRADABLE de coin niet en klopt de naam uit COIN_INFO niet meer.
+  const symbool = vanEtoroSymbool(symboolVan(instrument));
   const naam = instrument?.instrumentDisplayName || symbool || `instrument ${instrumentID}`;
   const isCrypto = !cryptoTypeIds || (instrument?.instrumentTypeID !== undefined && cryptoTypeIds.has(instrument.instrumentTypeID))
     || ETORO_TRADABLE.has(symbool);
@@ -1160,27 +1198,32 @@ export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string, om
   if (typeof positionID !== 'number' || typeof regel.openRate !== 'number'
     || typeof regel.closeRate !== 'number' || isNaN(slotTijd)) return null;
 
-  const stopLoss = regel.stopLossRate ?? 0;
-  const takeProfit = regel.takeProfitRate ?? 0;
+  // Zelfde omrekening als naarPortfolioTrade hierboven: eToro's koers en aantal terug naar Kaders
+  // eigen koers per coin.
+  const factor = koersFactor(symbool);
+  const openRate = regel.openRate / factor;
+  const closeRate = regel.closeRate / factor;
+  const stopLoss = (regel.stopLossRate ?? 0) / factor;
+  const takeProfit = (regel.takeProfitRate ?? 0) / factor;
   // isBuy ontbreekt soms in de historie-respons; ontbreken betekent long, hetzelfde als vóór deze
   // versie toen shorts nog overgeslagen werden (zie ook bouwGeslotenTrades hieronder).
   const richting: Richting = regel.isBuy === false ? 'short' : 'long';
-  const rr = berekenRR(stopLoss, takeProfit, regel.openRate, richting);
+  const rr = berekenRR(stopLoss, takeProfit, openRate, richting);
   const netProfit = regel.netProfit ?? 0;
 
   return {
     id: nieuweId(),
     symbool,
     naam: COIN_INFO[symbool]?.naam ?? symbool,
-    entryPrijs: regel.openRate,
+    entryPrijs: openRate,
     stopLoss,
     takeProfit,
     rr,
     datum: nlDatum(isNaN(openTijd) ? slotTijd : openTijd),
     status: netProfit >= 0 ? 'gewonnen' : 'verloren',
     bedragUsd: regel.investment ?? regel.initialInvestment ?? 0,
-    aantalCoins: regel.units,
-    exitPrijs: regel.closeRate,
+    aantalCoins: typeof regel.units === 'number' ? regel.units * factor : regel.units,
+    exitPrijs: closeRate,
     slotDatum: nlDatum(slotTijd),
     slotTijd,
     // Alleen bewaren als eToro het echt meestuurde. Een ontbrekende netProfit als 0 wegschrijven
@@ -1244,7 +1287,19 @@ function bouwWachtendeOrders(
       const { symbool, naam } = order.instrumentId === null
         ? { symbool: '', naam: 'onbekend instrument' }
         : duidInstrument(order.instrumentId, instrumentKaart, cryptoTypeIds);
-      return { ...order, symbool: symbool || naam, naam, omgeving };
+      const uiteindelijkSymbool = symbool || naam;
+      // limietKoers, stopLoss en takeProfit komen nog in eToro's eenheid binnen (zelfde omrekening
+      // als bij naarPortfolioTrade hierboven); bedragUsd is dollars en blijft ongemoeid.
+      const factor = koersFactor(uiteindelijkSymbool);
+      return {
+        ...order,
+        symbool: uiteindelijkSymbool,
+        naam,
+        omgeving,
+        limietKoers: order.limietKoers !== null ? order.limietKoers / factor : null,
+        stopLoss: order.stopLoss !== null ? order.stopLoss / factor : null,
+        takeProfit: order.takeProfit !== null ? order.takeProfit / factor : null,
+      };
     })
     .sort((a, b) => (b.openTijd ?? 0) - (a.openTijd ?? 0));
 }
@@ -1330,6 +1385,18 @@ if (require.main === module) {
   console.assert(shortTrade.richting === 'short', 'isBuy false moet short worden');
   console.assert(shortTrade.rr === 3, `short RR moet 3 zijn ((50000-35000)/(55000-50000)), was ${shortTrade.rr}`);
 
+  // eToro voert SHIB per miljoen munten: een positie met instrumentID 100080 (SHIBxM), openRate 5.6
+  // en stopLossRate 5.0 moet terugkomen als Kaders eigen koers per coin.
+  const shibPositie: EtoroPositie = {
+    positionID: 999, instrumentID: 100080, isBuy: true, amount: 56, units: 10,
+    openRate: 5.6, openDateTime: '2026-01-15T10:00:00Z', stopLossRate: 5.0,
+  };
+  const shibTrade = naarPortfolioTrade(shibPositie, 'SHIB');
+  console.assert(Math.abs(shibTrade.entryPrijs - 0.0000056) < 1e-12, `SHIB-entry moet ~0,0000056 zijn, was ${shibTrade.entryPrijs}`);
+  console.assert(shibTrade.aantalCoins === 10_000_000, `SHIB-aantal moet 10 miljoen zijn, was ${shibTrade.aantalCoins}`);
+  console.assert(Math.abs(shibTrade.stopLoss - 0.000005) < 1e-12, `SHIB-stop moet ~0,000005 zijn, was ${shibTrade.stopLoss}`);
+  console.assert(shibTrade.bedragUsd === 56, 'bedragUsd blijft in dollars, geen omrekening');
+
   // Historie: gesloten trade uit een ruwe historie-regel.
   const ruw = {
     positionId: 123, instrumentId: 1, isBuy: true, openRate: 50000, closeRate: 65000,
@@ -1346,6 +1413,19 @@ if (require.main === module) {
   console.assert(gesloten?.bron === 'etoro', 'bron moet etoro zijn');
   console.assert(gesloten?.resultaatUsd === 150, `netProfit moet als resultaatUsd bewaard blijven, was ${gesloten?.resultaatUsd}`);
   console.assert(gesloten?.richting === 'long', 'isBuy true in de historie moet long worden');
+
+  // Dezelfde omrekening in de historie: een gesloten SHIB-trade (SHIBxM) moet ook terugkomen in
+  // Kaders eigen koers per coin.
+  const shibRuw = {
+    positionId: 111, instrumentId: 100080, isBuy: true, openRate: 5.6, closeRate: 6.72,
+    openTimestamp: '2026-01-15T10:00:00Z', closeTimestamp: '2026-02-01T12:00:00Z',
+    netProfit: 11.2, units: 10, investment: 56, stopLossRate: 5.0, takeProfitRate: 8.4,
+  };
+  const shibGesloten = naarGeslotenTrade(shibRuw, 'SHIB');
+  console.assert(Math.abs((shibGesloten?.entryPrijs ?? 0) - 0.0000056) < 1e-12, `SHIB-historie-entry moet ~0,0000056 zijn, was ${shibGesloten?.entryPrijs}`);
+  console.assert(Math.abs((shibGesloten?.exitPrijs ?? 0) - 0.00000672) < 1e-12, `SHIB-historie-exit moet ~0,00000672 zijn, was ${shibGesloten?.exitPrijs}`);
+  console.assert(shibGesloten?.aantalCoins === 10_000_000, `SHIB-historie-aantal moet 10 miljoen zijn, was ${shibGesloten?.aantalCoins}`);
+  console.assert(shibGesloten?.resultaatUsd === 11.2, 'resultaatUsd blijft in dollars, geen omrekening');
 
   // isBuy ontbreekt in deze regel (zoals bij een deel van de echte historie-respons): dat moet
   // hetzelfde long-gedrag geven als isBuy: true, niet stilzwijgend als short gelezen worden.
@@ -1464,12 +1544,32 @@ if (require.main === module) {
   console.assert(ruis.amount === 0.3, `bedrag moet afgerond worden, was ${ruis.amount}`);
   console.assert(ruis.stopLossRate === 51592.8, `stop moet afgerond worden, was ${ruis.stopLossRate}`);
 
+  // eToro voert SHIB per miljoen munten (SHIBxM): Kaders koers van 0,0000054 moet als 5.4 de deur
+  // uitgaan, niet als 0,0000054.
+  const shibBody = bouwKooporderBody({
+    instrumentId: 100080, bedragUsd: 10, stopLossRate: 0.0000054, takeProfitRate: 0.0000081, koersFactor: 1_000_000,
+  });
+  console.assert(Math.abs((shibBody.stopLossRate as number) - 5.4) < 1e-9, `SHIB-stop moet 5.4 zijn, was ${shibBody.stopLossRate}`);
+  console.assert(Math.abs((shibBody.takeProfitRate as number) - 8.1) < 1e-9, `SHIB-doel moet 8.1 zijn, was ${shibBody.takeProfitRate}`);
+
+  // Zonder koersFactor, en met koersFactor 1, blijft de body exact zoals voorheen: bestaande
+  // aanroepen mogen niet veranderen door dit nieuwe, optionele veld.
+  console.assert(
+    JSON.stringify(bouwKooporderBody({ instrumentId: 100000, bedragUsd: 10, stopLossRate: 51592.8, takeProfitRate: 83838.3, koersFactor: 1 }))
+      === JSON.stringify(koopBody),
+    'koersFactor 1 mag de body niet veranderen, dat is per definitie geen omrekening');
+
   // ---------- Niveaubody ----------
   const alleenStop = bouwNiveauBody({ stopLossRate: 54000 });
   console.assert(alleenStop.stopLossRate === 54000 && !('takeProfitRate' in alleenStop),
     'een veld dat je niet wijzigt blijft weg, zodat eToro het ongemoeid laat');
   const wissen = bouwNiveauBody({ clearStopLoss: true, stopLossRate: 54000 });
   console.assert(wissen.clearStopLoss === true && !('stopLossRate' in wissen), 'wissen wint van een meegegeven niveau');
+
+  // Zelfde omrekening bij het wijzigen van niveaus.
+  const shibNiveau = bouwNiveauBody({ stopLossRate: 0.0000054, takeProfitRate: 0.0000081, koersFactor: 1_000_000 });
+  console.assert(Math.abs((shibNiveau.stopLossRate as number) - 5.4) < 1e-9, `SHIB-niveauwijziging stop moet 5.4 zijn, was ${shibNiveau.stopLossRate}`);
+  console.assert(Math.abs((shibNiveau.takeProfitRate as number) - 8.1) < 1e-9, `SHIB-niveauwijziging doel moet 8.1 zijn, was ${shibNiveau.takeProfitRate}`);
   console.assert(Object.keys(bouwNiveauBody({})).length === 0, 'een lege wijziging levert een lege body');
 
   // ---------- Foutduiding ----------
@@ -1566,6 +1666,12 @@ if (require.main === module) {
   // internalInstrumentId is de tweede naam voor hetzelfde veld.
   console.assert(kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', internalInstrumentId: 42 }], 'PEPE') === 42,
     'internalInstrumentId telt ook als id');
+
+  // eToro voert SHIB onder een ander symbool (SHIBxM, per miljoen munten). zoekInstrumentId zoekt
+  // dus op naarEtoroSymbool('SHIB') in plaats van op 'SHIB' zelf, en die treffer moet gekozen worden.
+  const shibxm: ZoekTreffer = { internalSymbolFull: 'SHIBxM', instrumentId: 100080, internalAssetClassName: 'Crypto' };
+  console.assert(kiesInstrumentTreffer([shibxm], naarEtoroSymbool('SHIB')) === 100080,
+    'de SHIBxM-treffer moet gekozen worden als er op het eToro-symbool gezocht wordt');
 
   // ---------- Omgeving op geimporteerde trades ----------
   const demoTrade = naarPortfolioTrade(mock, 'BTC', 'demo');

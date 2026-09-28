@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- SHIB, PEPE, MATIC, FTM, MKR en RNDR zijn nu ook via de app te kopen. eToro voert ze onder een andere naam (POL, S, SKY, RENDER, en SHIB en PEPE per miljoen coins), en Kader kon ze daardoor niet vinden. Posities in deze coins komen nu ook met de juiste naam en koers uit eToro binnen
+
 ## 0.1.24
 
 - Portfolio heeft een nieuwe kaart "Wachtende orders": orders die eToro nog niet heeft uitgevoerd, met coin, koop of short, bedrag, markt- of limietorder, stop-loss en doel, wanneer je hem plaatste en wat eToro ermee doet. Wil je er vanaf, tik dan op Annuleren; Kader vraagt altijd eerst om bevestiging

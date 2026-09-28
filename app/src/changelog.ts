@@ -12,6 +12,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-09-28',
+    punten: [
+      'SHIB, PEPE, MATIC, FTM, MKR en RNDR zijn nu ook via de app te kopen. eToro voert ze onder een andere naam (POL, S, SKY, RENDER, en SHIB en PEPE per miljoen coins), en Kader kon ze daardoor niet vinden. Posities in deze coins komen nu ook met de juiste naam en koers uit eToro binnen',
+    ],
+  },
+  {
     versie: '0.1.24',
     datum: '2026-09-28',
     punten: [

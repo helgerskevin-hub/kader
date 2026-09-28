@@ -18,7 +18,9 @@ const TTL_MS = 24 * 60 * 60 * 1000;
 // altijd de long-config was; sinds fase 4 staat er een per richting, met SYMBOOL:richting als
 // sleutel. Zonder deze controle zou een cache van gisteren gewoon geldig lijken, zouden alle
 // opzoekingen niets vinden en zou de stopvalidatie een dag lang stil uit staan.
-const CACHE_VERSIE = 2;
+// Versie 3: sinds etoroSymbolen.ts staan SHIB, PEPE, MATIC, FTM, MKR en RNDR er ook in. Een cache
+// van daarvoor mist ze, en dan kreeg zo'n coin een dag lang een stop die eToro weigert.
+const CACHE_VERSIE = 3;
 
 interface Cache {
   versie?: number;
