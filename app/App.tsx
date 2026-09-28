@@ -39,6 +39,7 @@ import { meldingenAan } from './src/state/meldingVoorkeur';
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
 import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
 import { MarktProvider, useMarkt } from './src/state/MarktProvider';
+import { KansenProvider } from './src/state/KansenProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { DialoogProvider } from './src/state/DialoogProvider';
@@ -181,8 +182,9 @@ function AppInhoud() {
   // per keer (zie het effect hieronder). Eerst deden we dat pas bij de eerste swipe erheen, maar
   // dan lag er op de emulator 0,3 s (Kansen) tot 0,6 s (Portfolio, dat al je trades tekent) een
   // lege pagina onder je vinger. Geen scherm doet bij het mounten iets duurs over het netwerk (de
-  // Kansen-scan start pas op een knop, de marktanalyse zit in MarktProvider), dus het enige wat
-  // het kost is die JS-tijd, en die valt nu in een moment waarop niemand iets doet. Swipe je
+  // Kansen-scan start pas als dat scherm echt in beeld komt, zie useTabZichtbaar in KansenScreen;
+  // de marktanalyse zit in MarktProvider), dus het enige wat het kost is die JS-tijd, en die valt
+  // nu in een moment waarop niemand iets doet. Swipe je
   // eerder dan dat, dan mount de buur alsnog meteen bij het begin van de swipe.
   // "Stil" betekent ook: er loopt geen marktscan. Tijdens de scan tekent elke useMarkt-gebruiker bij
   // elk voortgangstikje opnieuw, en een vooruit gemount Portfolio deed dat dan onzichtbaar mee.
@@ -524,12 +526,14 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <MarktProvider>
-            <PortfolioProvider>
-              {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
-              <DialoogProvider>
-                <AppInhoud />
-              </DialoogProvider>
-            </PortfolioProvider>
+            <KansenProvider>
+              <PortfolioProvider>
+                {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
+                <DialoogProvider>
+                  <AppInhoud />
+                </DialoogProvider>
+              </PortfolioProvider>
+            </KansenProvider>
           </MarktProvider>
         </ThemeProvider>
       </SafeAreaProvider>

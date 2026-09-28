@@ -1,4 +1,4 @@
-import React, { useCallback, useReducer, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, RefreshControl,
 } from 'react-native';
@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { RefreshCw, Zap, CheckCircle, ShoppingCart } from 'lucide-react-native';
 import { Opportunity } from '../engine/types';
-import { zoekKansen } from '../engine/opportunities';
+import { useKansen } from '../state/KansenProvider';
+import { useTabZichtbaar } from '../state/tabZichtbaar';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { haptiek } from '../theme/haptiek';
@@ -25,50 +26,12 @@ import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { useCoinDetail } from '../components/CoinDetailScherm';
 import { vanOpportunity } from '../engine/coinDetailData';
-import { GetradeFormulier } from '../components/GetradeFormulier';
+import { GetradeFormulier, GetradeBron } from '../components/GetradeFormulier';
 import { KooporderSheet } from '../components/KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useValutaStand } from '../state/useValuta';
 import { UitklapPijl } from '../components/UitklapPijl';
 import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
-
-// ---------- State machine ----------
-type KansenState =
-  | { status: 'idle' }
-  | {
-      status: 'loading';
-      gescand: number;
-      totaal: number;
-      // De kansen tot nu toe, na elk blok bijgewerkt. Altijd het begin van de eindlijst in dezelfde
-      // volgorde (zie onTussenstand in opportunities.ts), dus kaarten landen en blijven liggen.
-      tussenstand: Opportunity[];
-      // Hoeveel kaarten er vóór het laatste blok al lagen: de kaarten daarna landen samen, gestaffeld.
-      vorigAantal: number;
-    }
-  | { status: 'error'; melding: string; lastAttempt: Date }
-  | { status: 'success'; kansen: Opportunity[]; lastUpdate: Date };
-
-type Action =
-  | { type: 'START' }
-  | { type: 'PROGRESS'; gescand: number; totaal: number }
-  | { type: 'TUSSENSTAND'; kansen: Opportunity[] }
-  | { type: 'SUCCESS'; kansen: Opportunity[] }
-  | { type: 'FOUT'; melding: string };
-
-function reducer(state: KansenState, action: Action): KansenState {
-  switch (action.type) {
-    case 'START': return { status: 'loading', gescand: 0, totaal: 0, tussenstand: [], vorigAantal: 0 };
-    case 'PROGRESS':
-      if (state.status !== 'loading') return state;
-      return { ...state, gescand: action.gescand, totaal: action.totaal };
-    case 'TUSSENSTAND':
-      if (state.status !== 'loading') return state;
-      return { ...state, tussenstand: action.kansen, vorigAantal: state.tussenstand.length };
-    case 'SUCCESS': return { status: 'success', kansen: action.kansen, lastUpdate: new Date() };
-    case 'FOUT': return { status: 'error', melding: action.melding, lastAttempt: new Date() };
-    default: return state;
-  }
-}
 
 // ---------- OpportunityCard ----------
 function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null }: {
@@ -86,11 +49,12 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
   // Zelfde als TradeCard: de hele kaart veert mee, ook al druk je alleen het bovenste deel in, en
   // het detailscherm groeit uit de hele kaart.
   const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
-  const niveaus = etoroNiveaus(kans.entry, kans.stopLoss, kans.takeProfit, limiet);
+  // Het uitbraak-plan van de radar, niet de Markt-niveaus uit kans.trade (zie momentum.ts).
+  const plan = kans.niveaus;
+  const niveaus = plan ? etoroNiveaus(plan.entry, plan.stopLoss, plan.takeProfit, limiet) : null;
+  const trendOp = kans.trade.ema20 > kans.trade.ema50;
 
-  const randKleur = kans.trendOp === true ? colors.winst
-    : kans.trendOp === false ? colors.verlies
-    : colors.letOp;
+  const randKleur = kans.signaal === 'KOOP' ? colors.winst : colors.letOp;
 
   const pctKleur = (p: number) =>
     p > 0 ? colors.winst : p < 0 ? colors.verlies : colors.tekstGedimd;
@@ -119,7 +83,9 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
       <View style={cardStyles.kop}>
         <View style={cardStyles.kopLinks}>
           <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{kans.naam}</Text>
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>#{kans.rang} · {kans.symbool} · {fmtMarktcap(kans.marktcap)}</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+            {kans.symbool}{kans.marktcap !== null ? ` · ${fmtMarktcap(kans.marktcap)}` : ''}
+          </Text>
         </View>
         <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(kans.prijs)}</Text>
       </View>
@@ -127,10 +93,10 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
       {/* Percentage-rij */}
       <View style={cardStyles.pctRij}>
         {([
-          { label: '24U', val: kans.p24 },
-          { label: '7D', val: kans.p7 },
-          { label: '30D', val: kans.p30 },
-        ] as const).map(({ label, val }) => (
+          { label: '7D', val: kans.ingredienten.rendement7d },
+          { label: '30D', val: kans.ingredienten.rendement30d },
+          { label: 'VS BTC 30D', val: kans.ingredienten.rsBtc30d },
+        ] as const).map(({ label, val }) => val !== null && (
           <View key={label} style={cardStyles.pctItem}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{label}</Text>
             <Text style={[Type.prijs, { color: pctKleur(val), fontSize: 13 }]}>{fmtPct(val)}</Text>
@@ -139,40 +105,32 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
       </View>
 
       {/* Technische rij */}
-      {(kans.rsi !== null || kans.trendOp !== null || kans.macdBullish !== null) && (
-        <View style={[cardStyles.pctRij, { paddingTop: 0 }]}>
-          {kans.rsi !== null && (
-            <View style={cardStyles.pctItem}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{kans.rsi}</Text>
-            </View>
-          )}
-          {kans.trendOp !== null && (
-            <View style={cardStyles.pctItem}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TREND</Text>
-              <Text style={[Type.prijs, { color: kans.trendOp ? colors.winst : colors.verlies, fontSize: 13 }]}>
-                {kans.trendOp ? 'Op' : 'Neer'}
-              </Text>
-            </View>
-          )}
-          {kans.macdBullish !== null && (
-            <View style={cardStyles.pctItem}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MACD</Text>
-              <Text style={[Type.prijs, { color: kans.macdBullish ? colors.winst : colors.verlies, fontSize: 13 }]}>
-                {kans.macdBullish ? 'Bullish' : 'Bearish'}
-              </Text>
-            </View>
-          )}
+      <View style={[cardStyles.pctRij, { paddingTop: 0 }]}>
+        <View style={cardStyles.pctItem}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RSI</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{Math.round(kans.trade.rsi)}</Text>
         </View>
-      )}
+        <View style={cardStyles.pctItem}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>TREND</Text>
+          <Text style={[Type.prijs, { color: trendOp ? colors.winst : colors.verlies, fontSize: 13 }]}>
+            {trendOp ? 'Op' : 'Neer'}
+          </Text>
+        </View>
+        <View style={cardStyles.pctItem}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MACD</Text>
+          <Text style={[Type.prijs, { color: kans.trade.macdBullish ? colors.winst : colors.verlies, fontSize: 13 }]}>
+            {kans.trade.macdBullish ? 'Bullish' : 'Bearish'}
+          </Text>
+        </View>
+      </View>
 
       {/* Niveaus */}
-      {kans.heeftTechnisch && (
+      {plan && niveaus && (
         <View style={cardStyles.sectie}>
           <LevelRow
             stop={niveaus.stop}
-            entry={kans.entry}
-            doel={kans.takeProfit}
+            entry={plan.entry}
+            doel={plan.takeProfit}
             stopAangepast={niveaus.aangepast}
           />
           {niveaus.uitleg ? (
@@ -183,20 +141,20 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
         </View>
       )}
 
-      {/* R/R + kansscore + methode */}
+      {/* R/R + momentumscore + signaal */}
       <View style={cardStyles.rrRij}>
-        {kans.heeftTechnisch && (
+        {niveaus && (
           <View style={cardStyles.rrItem}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
             <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtRR(niveaus.rr)}</Text>
           </View>
         )}
         <View style={cardStyles.rrItem}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>KANSSCORE</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtScore(kans.kansScore)}</Text>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MOMENTUM</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtScore(kans.momentumScore)}</Text>
         </View>
         <View style={[cardStyles.methodeBadge, { backgroundColor: colors.verhoogd }]}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{kans.methode.toUpperCase()}</Text>
+          <Text style={[Type.overline, { color: kans.signaal === 'KOOP' ? colors.winst : colors.tekstGedimd }]}>{kans.signaal}</Text>
         </View>
       </View>
       </Pressable>
@@ -217,9 +175,9 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
       {/* Voet */}
       <Animated.View layout={schuif} style={[
         cardStyles.voet,
-        { borderTopColor: colors.rand, justifyContent: kans.heeftTechnisch ? 'space-between' : 'flex-end' },
+        { borderTopColor: colors.rand, justifyContent: plan ? 'space-between' : 'flex-end' },
       ]}>
-        {kans.heeftTechnisch && (
+        {plan && (
           <Pressable
             style={cardStyles.voetKnop}
             onPress={() => onGetrade(kans)}
@@ -230,9 +188,9 @@ function OpportunityCard({ kans, onOpenDetail, onGetrade, onKoop, limiet = null 
             <Text style={[Type.caption, { color: colors.winst }]}>Getrade</Text>
           </Pressable>
         )}
-        {/* Alleen bij een kans met technische niveaus: zonder entry, stop en doel valt er geen
-            order te bouwen die Kaders eigen plan volgt. */}
-        {kans.heeftTechnisch && onKoop && (
+        {/* Alleen bij een KOOP met een plan: zonder entry, stop en doel valt er geen order te bouwen
+            die Kaders eigen plan volgt, en bij WATCH zegt Kader zelf dat het nog niet klopt. */}
+        {plan && kans.signaal === 'KOOP' && onKoop && (
           <Pressable
             style={cardStyles.voetKnop}
             onPress={() => onKoop(kans)}
@@ -331,40 +289,27 @@ export function KansenScreen() {
 
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
-  const [state, dispatch] = useReducer(reducer, { status: 'idle' });
+  const { state, bezig, scan, scanAlsVerouderd } = useKansen();
   const [ververst, setVerverstState] = useState(false);
   const { openDetail, detailScherm } = useCoinDetail();
-  const [getradeteKans, setGetradeteKans] = useState<Opportunity | null>(null);
+  const [getradeteKans, setGetradeteKans] = useState<GetradeBron | null>(null);
   const [koopKans, setKoopKans] = useState<Opportunity | null>(null);
   // Eén keer per scherm de stop-loss-grenzen van eToro, zie MarktScreen voor het waarom.
   const stopLimieten = useStopLossLimieten();
   const { magHandelen } = usePortfolio();
 
-  // stil = true (pull-to-refresh): de bestaande lijst blijft zichtbaar terwijl er ververst wordt,
-  // in plaats van naar het laadscherm te springen. Mislukt de stille refresh, dan blijft de oude
-  // lijst gewoon staan i.p.v. plaats te maken voor een foutscherm.
-  const startScan = useCallback(async (stil = false) => {
-    if (!stil) dispatch({ type: 'START' });
-    try {
-      const kansen = await zoekKansen(
-        20,
-        (gescand, totaal) => {
-          if (!stil) dispatch({ type: 'PROGRESS', gescand, totaal });
-        },
-        undefined,
-        // Een stille refresh houdt de oude lijst staan tot de nieuwe klaar is, zonder tussenstanden.
-        stil ? undefined : tussenstand => dispatch({ type: 'TUSSENSTAND', kansen: tussenstand }),
-      );
-      dispatch({ type: 'SUCCESS', kansen });
-    } catch (e) {
-      if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
-    }
-  }, []);
+  // Scannen zodra dit tabblad in beeld komt, maar alleen als het bewaarde resultaat verouderd is
+  // (zie KANSEN_COOLDOWN_MS in KansenProvider). Het scherm wordt vooruit gemount terwijl het nog
+  // niet zichtbaar is, dus op mount alleen zou de scan draaien zonder dat iemand kijkt.
+  const inBeeld = useTabZichtbaar();
+  useEffect(() => {
+    if (inBeeld) scanAlsVerouderd();
+  }, [inBeeld, scanAlsVerouderd]);
 
   async function handleVervers() {
     if (ververst) return;
     setVerverstState(true);
-    await startScan(true);
+    await scan(true);
     setVerverstState(false);
   }
 
@@ -376,11 +321,10 @@ export function KansenScreen() {
 
   // Eén lijst voor laden en klaar, net als op het Marktscherm: kaarten die tijdens de scan landen
   // blijven gewoon liggen als hij afrondt. Ze zijn meteen tikbaar, want elke kaart is op dat moment
-  // al definitief: de tussenstand is letterlijk het begin van de eindlijst, en anders dan op Markt
-  // hangt hier geen signaal af van de rest van de scan.
+  // al definitief: de tussenstand is een deelverzameling van de eindlijst in dezelfde volgorde (zie
+  // onTussenstand in opportunities.ts). Een kaart kan nog schuiven, maar verdwijnt niet.
   const laden = state.status === 'loading';
-  const lijst = state.status === 'success' ? state.kansen : state.status === 'loading' ? state.tussenstand : [];
-  const vorigAantal = state.status === 'loading' ? state.vorigAantal : 0;
+  const lijst: Opportunity[] = state.status === 'success' ? state.kansen : state.status === 'loading' ? state.tussenstand : [];
 
   const metaText = state.status === 'success'
     ? `${state.kansen.length} coins · ${state.lastUpdate.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
@@ -422,13 +366,13 @@ export function KansenScreen() {
           </Opkomst>
           <Opkomst volgorde={2}>
             <Text style={[Type.body, screenStyles.middenBody, { color: colors.tekstGedimd }]}>
-              Scant de top 250 coins buiten het standaard universum op momentum, volume en technische signalen.
+              Zoekt welke coins vlak onder hun hoogste koers van 90 dagen staan en dus voorop lopen.
             </Text>
           </Opkomst>
           <Opkomst volgorde={3}>
             <Drukbaar
               style={[screenStyles.ctaKnop, { backgroundColor: colors.letOp }]}
-              onPress={() => startScan()}
+              onPress={() => scan()}
               accessibilityRole="button"
               accessibilityLabel="Start scan"
             >
@@ -450,7 +394,7 @@ export function KansenScreen() {
           beschrijving="CoinGecko of Binance is niet bereikbaar. Controleer je verbinding."
           melding={state.melding}
           lastAttempt={state.lastAttempt}
-          onRetry={() => startScan()}
+          onRetry={() => scan()}
         />
       )}
 
@@ -463,13 +407,13 @@ export function KansenScreen() {
             // Tijdens het laden landen de kaarten van één blok samen, gestaffeld vanaf de eerste
             // nieuwe. Daarna is de volgorde gewoon de plek in de lijst.
             <Animated.View
-              entering={kaartLandt(laden ? Math.max(0, index - vorigAantal) : index, reduceMotion)}
+              entering={kaartLandt(index, reduceMotion)}
               exiting={uitklapUit()}
             >
               <OpportunityCard
                 kans={item}
                 onOpenDetail={k => openDetail(vanOpportunity(k))}
-                onGetrade={setGetradeteKans}
+                onGetrade={k => k.niveaus && setGetradeteKans({ symbool: k.symbool, ...k.niveaus })}
                 onKoop={magHandelen ? setKoopKans : undefined}
                 limiet={limietVoor(stopLimieten, item.symbool)}
               />
@@ -478,9 +422,10 @@ export function KansenScreen() {
           contentContainerStyle={screenStyles.lijst}
           refreshControl={
             // Altijd aanwezig, tijdens het laden alleen uitgeschakeld: zie MarktScreen voor waarom
-            // hem weghalen de lijst opnieuw zou opbouwen.
+            // hem weghalen de lijst opnieuw zou opbouwen. Een stille scan die vanzelf start (zie
+            // scanAlsVerouderd) laat ook de draaier zien, anders ververst de lijst ongemerkt.
             <RefreshControl
-              refreshing={ververst}
+              refreshing={ververst || (bezig && !laden)}
               onRefresh={trekVervers}
               enabled={!laden}
               colors={[colors.letOp]}
@@ -493,14 +438,16 @@ export function KansenScreen() {
                 {state.totaal > 0 && <Laadbalk huidig={state.gescand} totaal={state.totaal} kleur={colors.letOp} />}
                 <View style={screenStyles.lijstKop}>
                   <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                    {state.totaal > 0 ? `${state.gescand} van ${state.totaal} kandidaten bekeken` : 'Kandidaten zoeken'}
+                    {state.totaal > 0 ? `${state.gescand} van ${state.totaal} coins bekeken` : 'Coins ophalen'}
                   </Text>
                 </View>
               </Animated.View>
             ) : (
               <Animated.View entering={uitklapIn(reduceMotion)} style={screenStyles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                  {state.kansen.length} coins gevonden · gesorteerd op kansscore
+                  {state.radarLeeg
+                    ? `Niets loopt echt voorop · de sterkste ${state.kansen.length} van ${state.gescand} coins`
+                    : `${state.kansen.length} van ${state.gescand} coins op de radar · gesorteerd op momentum`}
                 </Text>
               </Animated.View>
             )
@@ -528,14 +475,14 @@ export function KansenScreen() {
         onSluiten={() => setGetradeteKans(null)}
       />
 
-      {koopKans && (
+      {koopKans?.niveaus && (
         <KooporderSheet
           zichtbaar
           symbool={koopKans.symbool}
           naam={koopKans.naam}
-          entry={koopKans.entry}
-          stop={koopKans.stopLoss}
-          doel={koopKans.takeProfit}
+          entry={koopKans.niveaus.entry}
+          stop={koopKans.niveaus.stopLoss}
+          doel={koopKans.niveaus.takeProfit}
           onSluiten={() => setKoopKans(null)}
         />
       )}

@@ -1,16 +1,11 @@
-import { Opportunity } from './types';
+import { Candle, Opportunity, Trade } from './types';
 import { haalData, haalCoingeckoMarkten } from './marketData';
-import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berekenAtr } from './indicators';
+import { STANDAARD_UNIVERSUM, MIN_RISK_REWARD, scoorCandles } from './analyzer';
+import { DREMPEL_KOOP } from './drempels';
+import { infoVoor } from './coinInfo';
 import {
-  REWARD_MULTIPLIER, ATR_PERIODE, EMA_KORT, EMA_LANG, RSI_PERIODE,
-  stopAfstandStructuur,
-} from './analyzer';
-
-const UITSLUITEN = new Set([
-  'USDT', 'USDC', 'DAI', 'TUSD', 'FDUSD', 'USDE', 'PYUSD', 'USDD', 'BUSD',
-  'GUSD', 'FRAX', 'LUSD', 'USDS', 'USD0', 'WBTC', 'WETH', 'STETH', 'WSTETH',
-  'WEETH', 'WBETH', 'RETH', 'CBETH', 'BSC-USD', 'SOLVBTC', 'LBTC',
-]);
+  momentumIngredienten, momentumScore, momentumRedenen, radarNiveaus, RADAR_DREMPEL, RadarNiveaus,
+} from './momentum';
 
 // Cryptos die verhandelbaar zijn op eToro (NL/EU). Controleer etoro.com voor updates.
 //
@@ -39,139 +34,240 @@ export const ETORO_TRADABLE = new Set([
   'TIA',
 ]);
 
-function kansScore(c: Record<string, unknown>): number {
-  const p7 = (c['price_change_percentage_7d_in_currency'] as number) ?? 0;
-  const p30 = (c['price_change_percentage_30d_in_currency'] as number) ?? 0;
-  const p24 = (c['price_change_percentage_24h_in_currency'] as number) ?? 0;
-  const vol = (c['total_volume'] as number) ?? 0;
-  const mcap = (c['market_cap'] as number) ?? 1;
-  const rank = (c['market_cap_rank'] as number) ?? 999;
-  const athChg = (c['ath_change_percentage'] as number) ?? 0;
+// De Kansen-scan is een momentum-radar over hetzelfde universum als de Markt: welke coins staan
+// vlak onder hun 90-dagen-high? Score, drempel en niveaus komen uit engine/momentum.ts en zijn
+// gemeten in meting I en J van app/scripts/backtest.ts; hier staat alleen het ophalen en het
+// samenvoegen tot een lijst.
 
-  let score = 0;
-  score += Math.max(Math.min(p7, 40), -20) * 1.2;
-  score += Math.max(Math.min(p30, 80), -30) * 0.5;
-  const volratio = mcap ? vol / mcap : 0;
-  score += Math.min(volratio * 100, 25);
-  if (athChg < 0) score += Math.min(Math.abs(athChg) * 0.15, 20);
-  if (rank > 50) score += 10;
-  if (rank > 120) score += 5;
-  if (p24 > 35) score -= 25;
-  else if (p24 > 20) score -= 10;
-  return score;
+// Minder coins dan dit op de radar = de radar geldt als leeg. Bewust 1 en niet hoger: de drempel
+// van 70 is in meting I-c0 als lijst gemeten, ook op de dagen met maar één of twee coins erop.
+// Een coin die hem haalt is dus een gemeten signaal. Aanvullen tot een vast aantal zou coins onder
+// de drempel ertussen zetten die nooit als radar gemeten zijn, en de lijst mooier laten lijken dan
+// de markt is.
+export const RADAR_MIN = 1;
+
+// Zonder radar laten we de sterkste paar coins zien, als WATCH, zodat het scherm uitlegt waarom
+// het leeg is in plaats van niets te tonen.
+const LEGE_RADAR_TOON = 3;
+
+// Aantal slotkoersen voor de sparkline op de kaart.
+const SPARKLINE_DAGEN = 30;
+
+// ponytail: zelfde blokgrootte als analyzer.ts, zie de comment daar.
+const GELIJKTIJDIG = 6;
+
+/**
+ * KOOP of WATCH voor een coin op de radar. KOOP vraagt allebei: de uitbraak-niveaus halen de
+ * gewone R/R-drempel (MIN_RISK_REWARD, niet verlaagd) en de technische score uit scoorCandles
+ * haalt DREMPEL_KOOP. Dat is precies de combinatie uit meting J (radar + score >= 55 + R/R >= 2).
+ * Zonder niveaus (koers niet boven de EMA20) valt er geen plan te maken en blijft het WATCH.
+ */
+export function radarSignaal(niveaus: RadarNiveaus | null, score: number): { signaal: 'KOOP' | 'WATCH'; voldoetAanRR: boolean } {
+  const voldoetAanRR = niveaus !== null && niveaus.rr >= MIN_RISK_REWARD - 1e-9;
+  return { signaal: voldoetAanRR && score >= DREMPEL_KOOP ? 'KOOP' : 'WATCH', voldoetAanRR };
 }
 
-function waaromKans(c: Record<string, unknown>): string[] {
-  const p7 = (c['price_change_percentage_7d_in_currency'] as number) ?? 0;
-  const p30 = (c['price_change_percentage_30d_in_currency'] as number) ?? 0;
-  const vol = (c['total_volume'] as number) ?? 0;
-  const mcap = (c['market_cap'] as number) ?? 1;
-  const rank = (c['market_cap_rank'] as number) ?? 999;
-  const athChg = (c['ath_change_percentage'] as number) ?? 0;
-  const r: string[] = [];
-  if (p7 >= 12) r.push(`sterk momentum: +${p7.toFixed(0)}% in 7 dagen`);
-  else if (p7 >= 4) r.push(`opwaarts: +${p7.toFixed(0)}% in 7 dagen`);
-  if (p30 >= 25) r.push(`+${p30.toFixed(0)}% over 30 dagen, trend intact`);
-  if (mcap && vol / mcap >= 0.12) r.push('hoge handelsactiviteit t.o.v. marktcap (groeiende interesse)');
-  if (athChg <= -55) r.push(`${Math.abs(athChg).toFixed(0)}% onder all-time high, veel herstelruimte`);
-  if (rank >= 60) r.push(`kleinere marktcap (#${rank}), meer ruimte om te groeien`);
-  if (r.length === 0) r.push('solide combinatie van momentum, liquiditeit en marktpositie');
-  return r;
+// Hoogste momentumscore eerst. Die is afgerond, dus bij gelijkspel wint wie dichter bij zijn top
+// staat, en daarna de hogere technische score.
+export function vergelijkKansen(a: Opportunity, b: Opportunity): number {
+  if (b.momentumScore !== a.momentumScore) return b.momentumScore - a.momentumScore;
+  const afstandA = a.ingredienten.afstandHigh90d ?? -Infinity;
+  const afstandB = b.ingredienten.afstandHigh90d ?? -Infinity;
+  if (afstandB !== afstandA) return afstandB - afstandA;
+  return b.trade.score - a.trade.score;
 }
 
-async function kansNiveaus(symbool: string, prijsFallback: number): Promise<Omit<Opportunity, 'symbool' | 'naam' | 'rang' | 'marktcap' | 'p24' | 'p7' | 'p30' | 'redenen' | 'kansScore'>> {
-  const result = await haalData(symbool);
-  // EMA50/MACD hebben genoeg candles nodig om te settelen (net als analyseerCoin: EMA_LANG + 5)
-  if (result && result.candles.length > EMA_LANG + 5) {
-    const { candles } = result;
-    const close = candles.map(c => c.close);
-    const prijs = close[close.length - 1];
-    const atrArr = berekenAtr(candles, ATR_PERIODE);
-    let atrVal = atrArr[atrArr.length - 1];
-    if (isNaN(atrVal) || atrVal <= 0) atrVal = prijs * 0.04;
-    const ema20 = berekenEma(close, EMA_KORT);
-    const ema50 = berekenEma(close, EMA_LANG);
-    const { macdLine, signalLine } = berekenMacd(close);
-    const n = close.length;
-    const stopAfstand = stopAfstandStructuur(candles, prijs, atrVal);
-    const stop = prijs - stopAfstand;
-    const tp = prijs + REWARD_MULTIPLIER * atrVal;
-    const rr = Math.round(((tp - prijs) / stopAfstand) * 10) / 10;
-    return {
-      prijs, entry: prijs, stopLoss: stop, takeProfit: tp, rr,
-      rsi: Math.round(berekenRsi(close, RSI_PERIODE)[n - 1]),
-      trendOp: ema20[n - 1] > ema50[n - 1],
-      macdBullish: macdLine[n - 1] > signalLine[n - 1],
-      methode: 'ATR (candle-data)', heeftTechnisch: true,
-    };
-  }
-  const prijs = prijsFallback || 0;
+/**
+ * Van alle gescoorde coins naar de lijst voor het scherm. Staan er genoeg op de radar, dan zijn
+ * dat precies de coins met momentumScore >= RADAR_DREMPEL. Anders is `radarLeeg` true en komen de
+ * LEGE_RADAR_TOON hoogste scores terug, allemaal als WATCH: ze lopen niet echt voorop, dus er
+ * hoort geen koopsignaal bij.
+ */
+export function bouwRadar(alle: Opportunity[]): { kansen: Opportunity[]; radarLeeg: boolean } {
+  const gesorteerd = [...alle].sort(vergelijkKansen);
+  const opRadar = gesorteerd.filter(k => k.momentumScore >= RADAR_DREMPEL);
+  if (opRadar.length >= RADAR_MIN) return { kansen: opRadar, radarLeeg: false };
   return {
-    prijs, entry: prijs,
-    stopLoss: prijs * 0.875, takeProfit: prijs * 1.25, rr: 2.0,
-    rsi: null, trendOp: null, macdBullish: null,
-    methode: 'richtlijn (−12,5% / +25%)', heeftTechnisch: false,
+    kansen: gesorteerd.slice(0, LEGE_RADAR_TOON).map(k => ({ ...k, signaal: 'WATCH' as const })),
+    radarLeeg: true,
   };
 }
 
-// ponytail: zelfde blokgrootte als analyzer.ts. kansNiveaus geeft altijd een
-// resultaat (candle-data of statische richtlijn), dus er wordt precies topN
-// keer gefetcht, nooit meer.
-const GELIJKTIJDIG = 6;
+/**
+ * BTC-slotkoersen op dezelfde dagen als `candles`, zoals momentumIngredienten ze verwacht. Hebben
+ * beide reeksen een `tijd`, dan op kalenderdag uitgelijnd (net als btcUitgelijnd in de backtest);
+ * een dag zonder BTC-koers wordt NaN en levert dan geen relatieve sterkte op. Zonder tijd vallen
+ * we terug op het laatste element: dan hoort de laatste candle bij de laatste BTC-candle.
+ */
+export function btcUitgelijnd(candles: Candle[], btc: Candle[]): number[] {
+  const dag = (t: number) => Math.floor(t / 86_400_000);
+  if (candles.every(c => c.tijd !== undefined) && btc.every(c => c.tijd !== undefined)) {
+    const perDag = new Map<number, number>();
+    for (const c of btc) perDag.set(dag(c.tijd!), c.close);
+    return candles.map(c => perDag.get(dag(c.tijd!)) ?? NaN);
+  }
+  const closes = btc.map(c => c.close);
+  const tekort = candles.length - closes.length;
+  return tekort > 0 ? [...Array<number>(tekort).fill(NaN), ...closes] : closes.slice(-candles.length);
+}
+
+/**
+ * Eén coin naar een kans, zonder netwerk. Null als er te weinig dagcandles zijn voor de
+ * 90-dagen-high of scoorCandles niets geeft: zo'n coin kan niet op de radar.
+ */
+export function maakKans(
+  symbool: string,
+  candles: Candle[],
+  bron: string,
+  btcCloses: number[] | undefined,
+  info?: { naam?: string; marktcap?: number },
+): Opportunity | null {
+  if (candles.length < 90) return null;
+  // minRR: 0, want de R/R van de Markt-niveaus telt hier niet; het signaal volgt uit de
+  // radar-niveaus hieronder.
+  const trade: Trade | null = scoorCandles(symbool, candles, bron, { minRR: 0 });
+  if (!trade) return null;
+  const ingredienten = momentumIngredienten(candles, btcCloses);
+  const niveaus = radarNiveaus(candles, trade.atr, trade.ema20);
+  const { signaal, voldoetAanRR } = radarSignaal(niveaus, trade.score);
+  return {
+    symbool,
+    naam: info?.naam || infoVoor(symbool).naam,
+    marktcap: info?.marktcap ?? null,
+    prijs: trade.prijs,
+    momentumScore: momentumScore(ingredienten),
+    ingredienten,
+    redenen: momentumRedenen(ingredienten),
+    sparkline: candles.slice(-SPARKLINE_DAGEN).map(c => c.close),
+    signaal,
+    niveaus,
+    voldoetAanRR,
+    trade,
+  };
+}
+
+export interface KansenUitkomst {
+  kansen: Opportunity[];
+  // True als er te weinig coins op de radar staan; `kansen` zijn dan de sterkste paar, als WATCH.
+  radarLeeg: boolean;
+  // Van hoeveel coins er bruikbare dagcandles waren.
+  gescand: number;
+}
+
+// Naam en marktcap uit CoinGecko, puur als aanvulling. Faalt het, dan gaat de scan door met de
+// namen uit coinInfo.ts en zonder marktcap. Bij dubbele tickers wint de grootste (de lijst staat
+// op marktcap, dus de eerste).
+async function haalMarktInfo(): Promise<Map<string, { naam?: string; marktcap?: number }>> {
+  const info = new Map<string, { naam?: string; marktcap?: number }>();
+  try {
+    for (const c of await haalCoingeckoMarkten()) {
+      const sym = ((c['symbol'] as string) ?? '').toUpperCase();
+      if (!sym || info.has(sym)) continue;
+      const mcap = c['market_cap'];
+      info.set(sym, {
+        naam: typeof c['name'] === 'string' ? c['name'] : undefined,
+        marktcap: typeof mcap === 'number' && mcap > 0 ? mcap : undefined,
+      });
+    }
+  } catch {
+    // Geen aanvulling, verder niets aan de hand.
+  }
+  return info;
+}
+
+async function haalDagcandles(symbool: string): Promise<Candle[] | null> {
+  try {
+    const res = await haalData(symbool);
+    // Alleen Binance: de CoinGecko-fallback levert vier-uurs candles (zie marketData.ts), en dan
+    // zou "90 dagen" hier 15 dagen betekenen. Liever geen coin dan een verkeerd gemeten coin.
+    return res && res.bron === 'Binance' ? res.candles : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function zoekKansen(
-  topN = 10,
   onProgress?: (gescand: number, totaal: number) => void,
-  alleenEtoro = true,
-  // Na elk blok de kansen tot nu toe, zodat het scherm kaarten kan laten landen terwijl de scan
-  // nog loopt. De kandidaten zijn vóór het ophalen al op kansscore gesorteerd en elk blok wordt
-  // achteraan toegevoegd, dus de tussenstand is altijd het begin van de eindlijst, in dezelfde
-  // volgorde. Alleen voor weergave: de returnwaarde hieronder blijft de enige uitkomst.
+  // Na elk blok de radar tot nu toe, al gesorteerd zoals de eindlijst. Eerlijk omdat elke kans per
+  // coin definitief is (alleen de eigen candles tellen) en omdat een coin die de radar haalt ook
+  // in de eindlijst staat: de tussenstand is altijd een deelverzameling van de uitkomst, in
+  // dezelfde volgorde. Een kaart die landt kan dus nog schuiven, maar verdwijnt niet meer. Alleen
+  // radar-coins: of de radar leeg blijft (en welke drie dan als WATCH komen) weet je pas aan het
+  // eind, dus die lijst komt uitsluitend via de returnwaarde.
   onTussenstand?: (kansen: Opportunity[]) => void,
-): Promise<Opportunity[]> {
-  const markten = await haalCoingeckoMarkten();
-  const kandidaten: Array<Record<string, unknown> & { _score: number }> = [];
+): Promise<KansenUitkomst> {
+  const universum = STANDAARD_UNIVERSUM;
+  const [btcCandles, marktInfo] = await Promise.all([haalDagcandles('BTC'), haalMarktInfo()]);
 
-  for (const c of markten) {
-    const sym = ((c['symbol'] as string) ?? '').toUpperCase();
-    const rank = (c['market_cap_rank'] as number) ?? 999;
-    const vol = (c['total_volume'] as number) ?? 0;
-    if (!sym || UITSLUITEN.has(sym)) continue;
-    if (alleenEtoro && !ETORO_TRADABLE.has(sym)) continue;
-    if (rank < 12 || rank > 260) continue;
-    if (vol < 15_000_000) continue;
-    kandidaten.push({ ...c, _score: kansScore(c) });
-  }
-
-  kandidaten.sort((a, b) => b._score - a._score);
-  const top = kandidaten.slice(0, topN);
-
-  const resultaten: Opportunity[] = [];
+  const alle: Opportunity[] = [];
+  let klaar = 0;
   let gescand = 0;
-  for (let i = 0; i < top.length; i += GELIJKTIJDIG) {
-    const blok = top.slice(i, i + GELIJKTIJDIG);
+  for (let i = 0; i < universum.length; i += GELIJKTIJDIG) {
+    const blok = universum.slice(i, i + GELIJKTIJDIG);
     const uitkomsten = await Promise.all(
-      blok.map(async c => {
-        const sym = ((c['symbol'] as string) ?? '').toUpperCase();
-        const niveaus = await kansNiveaus(sym, c['current_price'] as number);
-        onProgress?.(++gescand, top.length);
-        return {
-          symbool: sym,
-          naam: (c['name'] as string) ?? sym,
-          rang: c['market_cap_rank'] as number,
-          marktcap: c['market_cap'] as number,
-          p24: Math.round(((c['price_change_percentage_24h_in_currency'] as number) ?? 0) * 10) / 10,
-          p7: Math.round(((c['price_change_percentage_7d_in_currency'] as number) ?? 0) * 10) / 10,
-          p30: Math.round(((c['price_change_percentage_30d_in_currency'] as number) ?? 0) * 10) / 10,
-          redenen: waaromKans(c),
-          kansScore: Math.round(c._score),
-          ...niveaus,
-        };
+      blok.map(async sym => {
+        // BTC hebben we al; niet nog een keer ophalen.
+        const candles = sym === 'BTC' ? btcCandles : await haalDagcandles(sym);
+        onProgress?.(++klaar, universum.length);
+        if (!candles) return null;
+        gescand++;
+        // BTC tegen zichzelf is altijd 0 en zegt niets; zonder BTC-reeks blijft rsBtc30d null.
+        const btcCloses = btcCandles && sym !== 'BTC' ? btcUitgelijnd(candles, btcCandles) : undefined;
+        return maakKans(sym, candles, 'Binance', btcCloses, marktInfo.get(sym));
       }),
     );
-    resultaten.push(...uitkomsten);
-    // Een kopie, zodat de ontvanger nooit dezelfde array vasthoudt als die hier nog groeit.
-    onTussenstand?.([...resultaten]);
+    for (const k of uitkomsten) if (k) alle.push(k);
+    if (onTussenstand) {
+      // Een fout in de weergave mag de scan zelf nooit laten mislukken.
+      try {
+        onTussenstand(alle.filter(k => k.momentumScore >= RADAR_DREMPEL).sort(vergelijkKansen));
+      } catch {
+        // Alleen de tussenstand valt weg.
+      }
+    }
   }
-  return resultaten;
+
+  if (gescand === 0) throw new Error('Geen marktdata ontvangen van Binance');
+  return { ...bouwRadar(alle), gescand };
+}
+
+// ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/opportunities.ts`
+if (require.main === module) {
+  // radarSignaal: KOOP alleen met R/R >= 2 en score >= DREMPEL_KOOP.
+  const nv = (rr: number): RadarNiveaus => ({ entry: 100, stopLoss: 95, takeProfit: 100 + 5 * rr, rr });
+  console.assert(radarSignaal(nv(2.5), DREMPEL_KOOP).signaal === 'KOOP', 'R/R en score op orde hoort KOOP te zijn');
+  console.assert(radarSignaal(nv(2), 60).signaal === 'KOOP', 'R/R precies 2 hoort mee te tellen');
+  console.assert(radarSignaal(nv(1.9), 90).signaal === 'WATCH', 'R/R onder 2 hoort WATCH te zijn');
+  console.assert(radarSignaal(nv(3), DREMPEL_KOOP - 1).signaal === 'WATCH', 'score onder de drempel hoort WATCH te zijn');
+  console.assert(radarSignaal(null, 90).signaal === 'WATCH' && !radarSignaal(null, 90).voldoetAanRR,
+    'zonder niveaus geen KOOP');
+
+  // maakKans: 100 dagen oplopend staat op zijn top, dus score 100. Te weinig historie geeft null.
+  const oplopend: Candle[] = Array.from({ length: 100 }, (_, i) => ({
+    open: 100 + i, high: 101 + i, low: 99 + i, close: 100 + i, volume: 1000, tijd: i * 86_400_000,
+  }));
+  const k = maakKans('TEST', oplopend, 'Binance', undefined);
+  console.assert(k !== null && k.momentumScore >= RADAR_DREMPEL, `een stijgende reeks hoort op de radar: ${k?.momentumScore}`);
+  console.assert(k !== null && k.sparkline.length === SPARKLINE_DAGEN && k.sparkline[29] === 199, 'sparkline hoort de laatste 30 closes te zijn');
+  console.assert(maakKans('TEST', oplopend.slice(0, 80), 'Binance', undefined) === null, 'onder 90 candles geen kans');
+
+  // btcUitgelijnd: op dag uitgelijnd, en zonder tijd op het laatste element.
+  const btc: Candle[] = oplopend.slice(10).map(c => ({ ...c, close: c.close * 2 }));
+  const uit = btcUitgelijnd(oplopend, btc);
+  console.assert(uit.length === 100 && isNaN(uit[5]) && uit[99] === 398, `uitlijnen op dag klopt niet: ${uit[5]}, ${uit[99]}`);
+  const zonderTijd = oplopend.map(({ tijd: _t, ...c }) => c);
+  const uit2 = btcUitgelijnd(zonderTijd, btc.slice(0, 50));
+  console.assert(uit2.length === 100 && isNaN(uit2[49]) && uit2[99] === btc[49].close, 'zonder tijd hoort het laatste element te kloppen');
+
+  // bouwRadar: sorteert, en een lege radar geeft de drie sterkste als WATCH.
+  const met = (sym: string, score: number, afstand: number, signaal: 'KOOP' | 'WATCH' = 'KOOP'): Opportunity => ({
+    ...k!, symbool: sym, momentumScore: score, signaal, ingredienten: { ...k!.ingredienten, afstandHigh90d: afstand },
+  });
+  const r = bouwRadar([met('A', 72, -8), met('B', 90, -3), met('C', 72, -7), met('D', 40, -18)]);
+  console.assert(!r.radarLeeg && r.kansen.map(x => x.symbool).join() === 'B,C,A', `radar-volgorde klopt niet: ${r.kansen.map(x => x.symbool)}`);
+  const leeg = bouwRadar([met('A', 20, -24), met('B', 60, -12), met('C', 50, -15), met('D', 10, -27)]);
+  console.assert(leeg.radarLeeg && leeg.kansen.length === 3 && leeg.kansen[0].symbool === 'B', 'lege radar hoort de drie sterkste te geven');
+  console.assert(leeg.kansen.every(x => x.signaal === 'WATCH'), 'op een lege radar is alles WATCH');
+
+  console.log('opportunities.ts self-check geslaagd');
 }

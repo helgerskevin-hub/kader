@@ -96,6 +96,9 @@ export const SLEUTELS = {
   // Staan Kaders meldingen aan? 'aan' of 'uit'. Ontbreekt de waarde, dan staan ze aan: dat is het
   // gedrag van elke versie tot nu toe.
   meldingenAan: 'meldingen_aan',
+  // De laatste Kansen-scan (de momentum-radar) met tijdstip en de ranking van de scan ervoor, zodat
+  // het scherm bij het openen meteen iets toont en per coin kan zeggen of hij gestegen of gezakt is.
+  kansenScan: 'kansen_scan',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
