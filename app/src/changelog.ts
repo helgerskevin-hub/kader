@@ -15,6 +15,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-09-28',
     punten: [
+      'Grote Kansen is vernieuwd tot Momentum-radar. Het scherm scant dezelfde coins als Markt, maar zoekt coins die dicht bij hun hoogste koers van de afgelopen 90 dagen staan. Dat was in de backtest het enige momentum-kenmerk dat echt betere coins koos; de oude kansscore (kleine marktcap, ver onder de all-time high) was nooit getest en is weg',
+      'Elke kaart op de radar heeft een uitbraak-plan: stop op de EMA20 en doel 2x ATR boven de 90-dagen-top. Dat wijkt bewust af van de niveaus op Markt. KOOP verschijnt alleen als de verhouding tussen risico en opbrengst minstens 1:2 is, anders staat er WATCH. Coins zonder genoeg koersdata krijgen geen verzonnen stop en doel meer',
+      'De radar scant vanzelf als je de tab opent (hooguit eens per half uur) en onthoudt het laatste resultaat, dus je hoeft niet meer op Start scan te drukken. Bovenaan staan de drie sterkste coins in een carrousel, en elke kaart laat zien of een coin sinds de vorige scan gestegen, gezakt of nieuw is',
+      'Nieuwe kaarten op de radar: een koerslijntje van 30 dagen dat zichzelf tekent, balkjes die vollopen voor de afstand tot de top en het rendement over 7 en 30 dagen, plus een favoriet-ster zoals op Markt. Staat er niets dicht bij zijn top, dan zegt het scherm dat eerlijk',
       'SHIB, PEPE, MATIC, FTM, MKR en RNDR zijn nu ook via de app te kopen. eToro voert ze onder een andere naam (POL, S, SKY, RENDER, en SHIB en PEPE per miljoen coins), en Kader kon ze daardoor niet vinden. Posities in deze coins komen nu ook met de juiste naam en koers uit eToro binnen',
     ],
   },
