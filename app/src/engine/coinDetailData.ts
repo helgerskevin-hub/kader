@@ -18,9 +18,13 @@ export interface CoinDetailData {
   takeProfit?: number;
   rr?: number;
   score?: number | null;
-  // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het marktscherm,
-  // want daar draait de scan die het uitrekent.
+  // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het markt- en
+  // het kansenscherm, want daar draaien de scans die het uitrekenen.
   versusBtc?: number;
+  // Alleen vanaf Kansen: het signaal zoals de kaart het toont (na de eToro-stopcorrectie, en WATCH
+  // zolang de scan verouderd is). Bij WATCH biedt het detailscherm geen trade-knop, want dan zegt
+  // Kader zelf dat het plan nu niet klopt. Ontbreekt het, dan verandert er niets (Markt, Portfolio).
+  signaal?: 'KOOP' | 'WATCH';
   // alleen relevant voor context 'portfolio'
   entryPrijs?: number;
   bedragUsd?: number;
@@ -50,18 +54,21 @@ export function vanTrade(trade: Trade, versusBtc?: number): CoinDetailData {
   };
 }
 
-export function vanOpportunity(kans: Opportunity): CoinDetailData {
+export function vanOpportunity(kans: Opportunity, signaal: 'KOOP' | 'WATCH'): CoinDetailData {
   return {
     symbool: kans.symbool,
     naam: kans.naam || infoVoor(kans.symbool).naam,
     context: 'kansen',
     richting: 'long',
     prijs: kans.prijs,
-    entry: kans.heeftTechnisch ? kans.entry : undefined,
-    stopLoss: kans.heeftTechnisch ? kans.stopLoss : undefined,
-    takeProfit: kans.heeftTechnisch ? kans.takeProfit : undefined,
-    rr: kans.heeftTechnisch ? kans.rr : undefined,
-    score: null,
+    // De radar-niveaus (uitbraak-plan), niet die van de Markt; zonder plan geen niveaus.
+    entry: kans.niveaus?.entry,
+    stopLoss: kans.niveaus?.stopLoss,
+    takeProfit: kans.niveaus?.takeProfit,
+    rr: kans.niveaus?.rr,
+    score: kans.trade.score,
+    versusBtc: kans.ingredienten.rsBtc30d ?? undefined,
+    signaal,
   };
 }
 

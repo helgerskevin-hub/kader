@@ -1,3 +1,5 @@
+import type { MomentumIngredienten, RadarNiveaus } from './momentum';
+
 export interface Candle {
   open: number;
   high: number;
@@ -51,26 +53,28 @@ export interface Trade {
   profiel: Scoreprofiel;
 }
 
+// Eén coin op de momentum-radar van het Kansen-scherm, zie engine/opportunities.ts.
 export interface Opportunity {
   symbool: string;
   naam: string;
-  rang: number;
-  marktcap: number;
-  p24: number;
-  p7: number;
-  p30: number;
-  redenen: string[];
+  // Uit CoinGecko, als aanvulling. Null als die niet bereikbaar was of de coin niet kende.
+  marktcap: number | null;
   prijs: number;
-  entry: number;
-  stopLoss: number;
-  takeProfit: number;
-  rr: number;
-  rsi: number | null;
-  trendOp: boolean | null;
-  macdBullish: boolean | null;
-  methode: string;
-  heeftTechnisch: boolean;
-  kansScore: number;
+  // 0-100, alleen de nabijheid tot de 90-dagen-high (zie momentumScore in momentum.ts).
+  momentumScore: number;
+  ingredienten: MomentumIngredienten;
+  redenen: string[];
+  // De laatste ~30 slotkoersen, oudste eerst.
+  sparkline: number[];
+  // KOOP vraagt R/R >= MIN_RISK_REWARD op de radar-niveaus én trade.score >= DREMPEL_KOOP.
+  signaal: 'KOOP' | 'WATCH';
+  // Het uitbraak-plan (stop op EMA20, doel boven de 90d-high), NIET de niveaus uit trade. Null als
+  // de koers niet boven zijn EMA20 staat: dan is er geen plan en dus geen Koop-knop.
+  niveaus: RadarNiveaus | null;
+  voldoetAanRR: boolean;
+  // Het volledige scoorCandles-resultaat, voor RSI, trend, MACD en de technische score. Let op:
+  // de niveaus hierin zijn die van de Markt en horen niet op de Kansen-kaart.
+  trade: Trade;
 }
 
 export interface ConsistentieAnalyse {

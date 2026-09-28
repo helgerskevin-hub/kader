@@ -141,6 +141,10 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const coinInfo = infoVoor(data.symbool);
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
   const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
+  // Vanaf Kansen alleen bij KOOP: een WATCH-kans heeft soms wel een plan, maar Kader zegt er zelf
+  // bij dat het nu niet klopt. Markt en Portfolio geven geen signaal mee en houden de knop zoals
+  // hij was.
+  const kanTraden = !(data.context === 'kansen' && data.signaal !== 'KOOP');
   const getradeBron: GetradeBron | null = kanGetrade
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0, richting: data.richting }
     : null;
@@ -494,17 +498,19 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                     <Text style={[Type.body, styles.getradeTekst, { color: colors.tekstGedimd }]}>Getrade</Text>
                   </Pressable>
 
-                  <Pressable
-                    style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
-                    onPress={openHandel}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${data.symbool} ${isShort ? 'shorten' : 'kopen'} via eToro`}
-                  >
-                    <ShoppingCart size={16} color="white" strokeWidth={1.75} />
-                    <Text style={[Type.body, styles.getradeTekst]}>
-                      {isShort ? 'Short via eToro' : 'Trade via eToro'}
-                    </Text>
-                  </Pressable>
+                  {kanTraden && (
+                    <Pressable
+                      style={[styles.getradeKnop, { backgroundColor: colors.cta }]}
+                      onPress={openHandel}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${data.symbool} ${isShort ? 'shorten' : 'kopen'} via eToro`}
+                    >
+                      <ShoppingCart size={16} color="white" strokeWidth={1.75} />
+                      <Text style={[Type.body, styles.getradeTekst]}>
+                        {isShort ? 'Short via eToro' : 'Trade via eToro'}
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
             )}

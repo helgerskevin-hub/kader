@@ -24,7 +24,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scoorCandles, stopAfstandStructuur, MIN_CANDLES, MIN_RISK_REWARD, STANDAARD_UNIVERSUM } from '../src/engine/analyzer';
 import { ema } from '../src/engine/indicators';
+import { momentumIngredienten, momentumScore, radarNiveaus, RADAR_DREMPEL, MomentumIngredienten } from '../src/engine/momentum';
 import { Candle, Trade } from '../src/engine/types';
+import { DREMPEL_KOOP } from '../src/engine/drempels';
+import { radarSignaal } from '../src/engine/opportunities';
 
 const HIER = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HIER, '..', '..', 'data', 'historie');
@@ -204,6 +207,11 @@ type Signaal = {
   bovenEma100: boolean | null;   // staat de coin boven zijn eigen EMA100?
   rs30: number | null;           // rendement over 30 dagen min dat van BTC over dezelfde dagen
   uitgerekt: number;             // (prijs - EMA20) / ATR: hoe laat je instapt in de beweging
+  // Voor meting I: de momentum-ingrediënten op dat moment (zelfde venster als de engine) en de
+  // uitkomst van de trade op deze bar met de niveaus van scoorCandles, zoals in meting A.
+  mom: MomentumIngredienten;
+  rBar: number;
+  ema20: number;                 // EMA20 van de engine op die bar, voor de EMA20-stop in meting J
 };
 
 // Alles wat de markt op een gegeven dag over zichzelf zei. Een poort mag hier alleen uit putten,
@@ -249,9 +257,14 @@ for (const symbool of coins) {
   let bezetTot = -1; // voor meting B: geen overlappende trades in dezelfde coin
   signalenPerCoin[symbool] = [];
 
+  // BTC-slotkoers op dezelfde dagen als deze coin, voor de relatieve sterkte in meting I. Op datum
+  // uitgelijnd, net als rsVoor; een dag zonder BTC-koers wordt NaN en levert dan geen RS op.
+  const btcUitgelijnd = candles.map(c => btcCloseOpDag[datumVan(c.tijd)] ?? NaN);
+
   for (let i = MIN_CANDLES - 1; i < candles.length - 1; i++) {
     // minRR: 0 zet de R/R-filter uit, zodat we óók de afgewezen signalen kunnen meten.
-    const venster = candles.slice(Math.max(0, i - VENSTER + 1), i + 1);
+    const vensterStart = Math.max(0, i - VENSTER + 1);
+    const venster = candles.slice(vensterStart, i + 1);
     const t: Trade | null = scoorCandles(symbool, venster, 'binance', { minRR: 0 });
     if (!t) continue;
 
@@ -279,6 +292,9 @@ for (const symbool of coins) {
       bovenEma100: i >= 100 ? candles[i].close > ema100[i] : null,
       rs30: rsVoor(candles, i),
       uitgerekt: t.atr > 0 ? (t.entry - t.ema20) / t.atr : 0,
+      mom: momentumIngredienten(venster, btcUitgelijnd.slice(vensterStart, i + 1)),
+      rBar: uitkomst.r,
+      ema20: t.ema20,
     });
     const sim: Simulatie = {
       symbool,
@@ -309,7 +325,7 @@ for (const symbool of coins) {
 
 type Stat = { n: number; treffer: number; gemR: number; totaalR: number; medR: number };
 
-function stat(rijen: Simulatie[]): Stat {
+function stat(rijen: { r: number }[]): Stat {
   if (rijen.length === 0) return { n: 0, treffer: 0, gemR: 0, totaalR: 0, medR: 0 };
   const rs = rijen.map(r => r.r).sort((a, b) => a - b);
   const totaal = rs.reduce((s, r) => s + r, 0);
@@ -322,7 +338,7 @@ function stat(rijen: Simulatie[]): Stat {
   };
 }
 
-function tabel(titel: string, rijen: [string, Simulatie[]][]) {
+function tabel(titel: string, rijen: [string, { r: number }[]][]) {
   console.log(`\n${titel}`);
   console.log('  ' + 'groep'.padEnd(22) + 'n'.padStart(7) + 'treffer%'.padStart(10) + 'gem R'.padStart(9) + 'mediaan R'.padStart(11) + 'totaal R'.padStart(11));
   console.log('  ' + '-'.repeat(70));
@@ -806,6 +822,357 @@ console.log(`    vandaag                 ${dagenMet(basisKoop)}`);
 console.log(`    zonder voorlopers >25%  ${dagenMet(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.25))}`);
 console.log(`    zonder voorlopers >10%  ${dagenMet(s => basisKoop(s) && (s.rs30 === null || s.rs30 <= 0.10))}`);
 console.log(`    alleen achterblijvers   ${dagenMet(s => basisKoop(s) && s.rs30 !== null && s.rs30 <= -0.10)}`);
+
+// --- meting I: momentum-radar voor het Kansen-scherm ------------------------------------
+//
+// Het Kansen-scherm wordt een momentum-radar: welke coins lopen de laatste 1 tot 4 weken voorop, en
+// is er nu een nette instap? De oude kansScore (7d/30d-rendement, volume/marktcap, afstand tot ATH,
+// kleine marktcap) is nooit gemeten. Hier meten we elk ingrediënt uit engine/momentum.ts los, met de
+// niveaus die scoorCandles op die bar gaf (momentumprofiel, minRR 0, doel 3x ATR, 30 dagen).
+//
+//   I-a  Per ingrediënt in kwintielen over ALLE bars (overlappend, zoals meting A). Een kwintiel is
+//        pas iets waard als het de nulmeting "alle bars" verslaat, en het effect hoort monotoon te
+//        lopen; een enkel uitschietend kwintiel is ruis.
+//   I-a2 Dezelfde kwintielen binnen KOOP + R/R: voegt het ingrediënt iets toe BOVENOP wat Markt al
+//        doet? Dat is de vraag die het scherm straks stelt.
+//   I-b  De samengestelde momentumScore per bucket.
+//   I-c  Radar (momentumScore >= RADAR_DREMPEL) EN KOOP + R/R, tegen Markt's gewone KOOP, als echte
+//        strategie (geen overlap per coin) en per jaar (I-d).
+//
+// Kwintielgrenzen komen uit de hele steekproef. Voor een meting is dat prima; de drempels die in
+// momentum.ts belanden zijn ronde getallen in de buurt, geen tot op de komma gepaste grenzen.
+
+console.log('\n\n' + '='.repeat(72));
+console.log('METING I: momentum-radar (ingrediënten voor het Kansen-scherm)');
+console.log('='.repeat(72));
+
+const alleSignalen: Signaal[] = coins.flatMap(s => signalenPerCoin[s] ?? []);
+const rijR = (set: Signaal[]) => set.map(s => ({ r: s.rBar }));
+const nulI = stat(rijR(alleSignalen));
+console.log(`\nNulmeting: ${nulI.n} bars, treffer ${nulI.treffer.toFixed(1)}%, gem R ${nulI.gemR.toFixed(3)}`);
+const koopRr = alleSignalen.filter(s => s.koop && s.rrOk);
+const nulKoop = stat(rijR(koopRr));
+console.log(`KOOP + R/R: ${nulKoop.n} bars, treffer ${nulKoop.treffer.toFixed(1)}%, gem R ${nulKoop.gemR.toFixed(3)}`);
+
+type IngredientNaam = keyof MomentumIngredienten;
+const ingredienten: [IngredientNaam, string][] = [
+  ['rendement7d', 'rendement 7d (%)'],
+  ['rendement30d', 'rendement 30d (%)'],
+  ['volumeTrend', 'volumetrend 7/30'],
+  ['rsBtc30d', 'RS vs BTC 30d (pp)'],
+  ['afstandHigh90d', 'afstand 90d-high (%)'],
+  ['trendConsistentie', 'dagen boven EMA20'],
+];
+
+// Grenzen op 20/40/60/80% van de waarden in de hele steekproef.
+function kwintielGrenzen(waarden: number[]): number[] {
+  const s = [...waarden].sort((a, b) => a - b);
+  return [0.2, 0.4, 0.6, 0.8].map(p => s[Math.floor(p * (s.length - 1))]);
+}
+const kwintielVan = (v: number, g: number[]) => g.filter(x => v > x).length;
+const fmt = (v: number) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(2));
+
+const grenzenPer: Partial<Record<IngredientNaam, number[]>> = {};
+for (const [sleutel, label] of ingredienten) {
+  const metWaarde = alleSignalen.filter(s => s.mom[sleutel] !== null);
+  const g = kwintielGrenzen(metWaarde.map(s => s.mom[sleutel] as number));
+  grenzenPer[sleutel] = g;
+  const naamVan = (k: number) =>
+    `Q${k + 1} ${k === 0 ? '<=' + fmt(g[0]) : k === 4 ? '>' + fmt(g[3]) : fmt(g[k - 1]) + '..' + fmt(g[k])}`;
+  const emmers = (set: Signaal[]): [string, { r: number }[]][] =>
+    [0, 1, 2, 3, 4].map(k => [
+      naamVan(k),
+      rijR(set.filter(s => s.mom[sleutel] !== null && kwintielVan(s.mom[sleutel] as number, g) === k)),
+    ]);
+  tabel(`I-a ${label}, alle bars (nulmeting gem R ${nulI.gemR.toFixed(3)}):`, emmers(metWaarde));
+  tabel(`I-a2 ${label}, binnen KOOP + R/R (basis gem R ${nulKoop.gemR.toFixed(3)}):`, emmers(koopRr));
+}
+
+// Per jaar, als echte strategie zonder overlap: het bovenste en onderste kwintiel van elk
+// ingrediënt naast de nulmeting. Zakt het bovenste kwintiel in de dalende jaren (2018, 2022, 2025)
+// ver onder de nulmeting, dan is het een bullmarkt-effect en geen radar.
+const inKwintiel = (sleutel: IngredientNaam, k: number) => (s: Signaal) =>
+  s.mom[sleutel] !== null && kwintielVan(s.mom[sleutel] as number, grenzenPer[sleutel]!) === k;
+jaarKop('I-d per ingrediënt, onderste en bovenste kwintiel, alle bars, 3x ATR / 30 dagen:');
+jaarRegel('nulmeting (alle bars)', draai(() => true));
+for (const [sleutel, label] of ingredienten) {
+  jaarRegel(`${label} Q1`, draai(inKwintiel(sleutel, 0)));
+  jaarRegel(`${label} Q5`, draai(inKwintiel(sleutel, 4)));
+}
+
+// I-e: dezelfde kwintielen, maar gemeten TEGEN DE ANDERE COINS OP DEZELFDE DAG. Een radar
+// rangschikt coins op één moment, dus dit is de eerlijke vraag. De pooled cijfers van I-a mengen er
+// een markteffect doorheen: op dagen dat veel coins hard stijgen staat de hele markt in een
+// bullfase, en dan doet elke instap het beter. Excess R = R van de bar min de gemiddelde R van
+// alle coins op die dag (alleen dagen met minstens 15 coins).
+const perDagR: Record<string, number[]> = {};
+for (const s of alleSignalen) (perDagR[s.datum] ??= []).push(s.rBar);
+const excessVan = (s: Signaal) => {
+  const d = perDagR[s.datum];
+  return d.length >= 15 ? s.rBar - gem(d) : null;
+};
+console.log('\nI-e excess R per kwintiel t.o.v. de andere coins op dezelfde dag (0 = niets beter):');
+console.log('  ' + 'ingrediënt'.padEnd(22) + ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map(q => q.padStart(9)).join(''));
+console.log('  ' + '-'.repeat(67));
+for (const [sleutel, label] of ingredienten) {
+  let regel = '  ' + label.padEnd(22);
+  for (let k = 0; k < 5; k++) {
+    const ex = alleSignalen.filter(inKwintiel(sleutel, k)).map(excessVan).filter((x): x is number => x !== null);
+    regel += gem(ex).toFixed(3).padStart(9);
+  }
+  console.log(regel);
+}
+
+// I-b: de samengestelde score.
+const scoreVan = (s: Signaal) => momentumScore(s.mom);
+const scoreEmmers: [string, (s: Signaal) => boolean][] = [
+  ['score 0-20', s => scoreVan(s) < 20],
+  ['score 20-40', s => scoreVan(s) >= 20 && scoreVan(s) < 40],
+  ['score 40-60', s => scoreVan(s) >= 40 && scoreVan(s) < 60],
+  ['score 60-80', s => scoreVan(s) >= 60 && scoreVan(s) < 80],
+  ['score 80-100', s => scoreVan(s) >= 80],
+];
+tabel(`I-b momentumScore, alle bars (nulmeting gem R ${nulI.gemR.toFixed(3)}):`,
+  scoreEmmers.map(([naam, f]) => [naam, rijR(alleSignalen.filter(f))]));
+tabel(`I-b momentumScore, binnen KOOP + R/R (basis gem R ${nulKoop.gemR.toFixed(3)}):`,
+  scoreEmmers.map(([naam, f]) => [naam, rijR(koopRr.filter(f))]));
+tabel('I-b R/R-effect binnen de radar (momentumScore >= RADAR_DREMPEL, alle bars):', [
+  ['radar, R/R >= 2', rijR(alleSignalen.filter(s => scoreVan(s) >= RADAR_DREMPEL && s.rrOk))],
+  ['radar, R/R < 2', rijR(alleSignalen.filter(s => scoreVan(s) >= RADAR_DREMPEL && !s.rrOk))],
+]);
+
+// I-c/I-d: wat het scherm straks als KOOP toont, naast Markt. Met en zonder de marktpoort, want
+// Markt zet zijn KOOP op WATCH zodra bepaalKlimaat() de poort sluit.
+const radar = (s: Signaal) => scoreVan(s) >= RADAR_DREMPEL;
+const radarVanaf = (t: number) => (s: Signaal) => scoreVan(s) >= t;
+
+// Welke drempel? Hoe hoger, hoe beter per trade maar hoe leger de lijst. Meting I-c hieronder
+// draait op RADAR_DREMPEL; deze regels laten de buren zien.
+jaarKop('I-c0 drempelkeuze: radar + KOOP + R/R, 3x ATR / 30 dagen:');
+for (const t of [40, 50, 60, 70, 80]) jaarRegel(`score >= ${t} + KOOP + R/R`, draai(s => radarVanaf(t)(s) && s.koop && s.rrOk));
+for (const t of [40, 50, 60, 70, 80]) jaarRegel(`score >= ${t} (elke bar)`, draai(radarVanaf(t)));
+jaarKop(`I-c radar (score >= ${RADAR_DREMPEL}) + KOOP + R/R versus Markt, 3x ATR / 30 dagen:`);
+jaarRegel('nulmeting (alle bars)', draai(() => true));
+jaarRegel('radar alleen (elke bar)', draai(radar));
+jaarRegel('Markt KOOP + R/R', draai(s => s.koop && s.rrOk));
+jaarRegel('radar + KOOP + R/R', draai(s => radar(s) && s.koop && s.rrOk));
+jaarRegel('KOOP + R/R, NIET op radar', draai(s => !radar(s) && s.koop && s.rrOk));
+jaarRegel('Markt KOOP + R/R, poort open', draai(basisKoop));
+jaarRegel('radar + KOOP + R/R, poort open', draai(s => radar(s) && basisKoop(s)));
+jaarRegel('high conviction', draai(s => s.hc));
+jaarRegel('radar + high conviction', draai(s => radar(s) && s.hc));
+
+// I-f: dezelfde excess-vraag als I-e, nu per jaar voor de radar zelf. Een radar die alleen in
+// bulljaren boven de andere coins uitkomt, rangschikt niets: dan meet hij de markt.
+console.log('\nI-f excess R per jaar t.o.v. de andere coins op dezelfde dag (alle bars, overlappend):');
+let kopF = '  ' + 'groep'.padEnd(30) + 'n'.padStart(7) + 'excess'.padStart(8) + ' |';
+for (const jaar of jaren) kopF += jaar.slice(2).padStart(7);
+console.log(kopF);
+console.log('  ' + '-'.repeat(kopF.length - 2));
+const excessGroepen: [string, (s: Signaal) => boolean][] = [
+  [`radar (score >= ${RADAR_DREMPEL})`, radar],
+  ['niet op radar', s => !radar(s)],
+  ['radar + KOOP + R/R', s => radar(s) && s.koop && s.rrOk],
+  ['Markt KOOP + R/R', s => s.koop && s.rrOk],
+];
+for (const [naam, f] of excessGroepen) {
+  const set = alleSignalen.filter(f).flatMap(s => {
+    const ex = excessVan(s);
+    return ex === null ? [] : [{ ex, jaar: jaarVan(s.datum) }];
+  });
+  let regel = '  ' + naam.padEnd(30) + String(set.length).padStart(7) + gem(set.map(x => x.ex)).toFixed(3).padStart(8) + ' |';
+  for (const jaar of jaren) {
+    const ex = set.filter(x => x.jaar === jaar).map(x => x.ex);
+    regel += (ex.length >= 30 ? gem(ex).toFixed(2) : '.').padStart(7);
+  }
+  console.log(regel);
+}
+
+console.log('\n  Dagen met minstens een signaal:');
+console.log(`    Markt KOOP + R/R         ${dagenMet(s => s.koop && s.rrOk)}`);
+console.log(`    radar + KOOP + R/R       ${dagenMet(s => radar(s) && s.koop && s.rrOk)}`);
+console.log(`    radar (elke bar)         ${dagenMet(radar)}`);
+
+// --- meting J: radar-niveaus ------------------------------------------------------------
+//
+// Meting I liet zien dat binnen de radar de R/R-filter averechts werkt: bars met R/R < 2 deden het
+// beter dan bars erboven, omdat een coin vlak onder zijn top zijn swing-low ver weg heeft. Een
+// KOOP-oordeel met de vaste regel R/R >= MIN_RISK_REWARD (die drempel gaat NIET omlaag) zegt op
+// Kansen dan niets. De vraag hier: bestaat er een stop/doel-constructie waarbij R/R binnen de radar
+// wel sorteert, dus waarbij R/R >= 2 BETER presteert dan R/R < 2?
+//
+// Het rooster: vijf stops maal vijf doelen = 25 varianten. Dat is veel, dus het risico op
+// overfitting is reëel; daarom staat per jaar erbij en telt de winnaar alleen als hij in de
+// meeste jaren wint, niet alleen gemiddeld. Alles causaal: niveaus uit candles[0..i], de
+// uitkomst via simuleer() met dezelfde 30 dagen houdtijd. Alleen radar-bars, geen overlap per coin.
+//
+//   stops:  swing-low met cap 3x ATR (huidig), cap 2x, cap 1,5x; EMA20; EMA20 - 0,5x ATR. De
+//           EMA20-stops krijgen dezelfde vloer (0,5x ATR) en cap (3x ATR) als de swing-stop, anders
+//           geeft een koers vlak boven zijn EMA20 een ruis-krappe stop en een absurde R/R.
+//   doelen: 3x ATR (huidig), 4x, 5x ATR; 90d-high + 1x ATR, 90d-high + 2x ATR (uitbraakdoel).
+
+console.log('\n\n' + '='.repeat(72));
+console.log('METING J: radar-niveaus. Kan R/R binnen de radar wel sorteren?');
+console.log('='.repeat(72));
+
+const candlesCache: Record<string, Candle[]> = {};
+const candlesVan = (s: string) => (candlesCache[s] ??= laadCandles(s));
+
+type StopRegel = { naam: string; afstand: (c: Candle[], s: Signaal) => number | null };
+type DoelRegel = { naam: string; doel: (c: Candle[], s: Signaal) => number | null };
+
+const swingStop = (cap: number): StopRegel => ({
+  naam: `swing cap ${cap}x`,
+  afstand: (c, s) => stopAfstandStructuur(c.slice(Math.max(0, s.i - 20), s.i + 1), s.entry, s.atr, cap),
+});
+const emaStop = (buffer: number): StopRegel => ({
+  naam: buffer === 0 ? 'EMA20' : `EMA20 - ${buffer}x ATR`,
+  afstand: (_c, s) => {
+    const ruw = s.entry - (s.ema20 - buffer * s.atr);
+    // Koers onder (of op) de EMA20: deze stop bestaat dan niet.
+    if (!(s.entry > s.ema20)) return null;
+    return Math.min(Math.max(ruw, 0.5 * s.atr), 3 * s.atr);
+  },
+});
+const stopRegels: StopRegel[] = [swingStop(3), swingStop(2), swingStop(1.5), emaStop(0), emaStop(0.5)];
+
+const hoogste90 = (c: Candle[], i: number) => {
+  let top = -Infinity;
+  for (let j = Math.max(0, i - 89); j <= i; j++) top = Math.max(top, c[j].high);
+  return top;
+};
+const atrDoel = (k: number): DoelRegel => ({ naam: `${k}x ATR`, doel: (_c, s) => s.entry + k * s.atr });
+const uitbraakDoel = (k: number): DoelRegel => ({
+  naam: `90d-high + ${k}x ATR`,
+  doel: (c, s) => Math.max(hoogste90(c, s.i), s.entry) + k * s.atr,
+});
+const doelRegels: DoelRegel[] = [atrDoel(3), atrDoel(4), atrDoel(5), uitbraakDoel(1), uitbraakDoel(2)];
+
+// Draait een instapregel met eigen niveaus, zonder overlap per coin. `rrEis` filtert op de R/R die
+// deze variant op dat moment zou tonen. `kiest` krijgt ook de candles van de coin mee, zodat een
+// regel de app-functies zelf kan aanroepen (zie J3).
+function draaiNiveaus(
+  kiest: (s: Signaal, c: Candle[]) => boolean,
+  stop: StopRegel,
+  doel: DoelRegel,
+  rrEis: 'alle' | 'rr>=2' | 'rr<2',
+): { r: number; datum: string }[] {
+  const uit: { r: number; datum: string }[] = [];
+  for (const symbool of coins) {
+    const c = candlesVan(symbool);
+    let bezetTot = -1;
+    for (const s of signalenPerCoin[symbool] ?? []) {
+      if (s.i <= bezetTot || !kiest(s, c)) continue;
+      const risico = stop.afstand(c, s);
+      const d = doel.doel(c, s);
+      if (risico === null || d === null || !(risico > 0)) continue;
+      const rr = (d - s.entry) / risico;
+      const rrOk = rr >= MIN_RISK_REWARD - 1e-9;
+      if (rrEis === 'rr>=2' && !rrOk) continue;
+      if (rrEis === 'rr<2' && rrOk) continue;
+      const u = simuleer(c, s.i, s.entry, s.entry - risico, d);
+      if (!u) continue;
+      uit.push({ r: u.r, datum: s.datum });
+      bezetTot = s.i + u.bars;
+    }
+  }
+  return uit;
+}
+
+const radarJ = (s: Signaal) => momentumScore(s.mom) >= RADAR_DREMPEL;
+const radarKoopJ = (s: Signaal) => radarJ(s) && s.score >= DREMPEL_KOOP;
+
+// Referentie per jaar: radar alleen onder de huidige niveaus. Een variant "wint een jaar" als zijn
+// R/R >= 2-regel daar hoger uitkomt.
+const refRadar = draaiNiveaus(radarJ, stopRegels[0], doelRegels[0], 'alle');
+const perJaar = (t: { r: number; datum: string }[]) =>
+  Object.fromEntries(jaren.map(j => {
+    const rs = t.filter(x => jaarVan(x.datum) === j).map(x => x.r);
+    return [j, rs.length >= 10 ? gem(rs) : null];
+  })) as Record<string, number | null>;
+const refJaar = perJaar(refRadar);
+
+const kort = (t: { r: number }[]) =>
+  t.length ? `${String(t.length).padStart(5)} ${gem(t.map(x => x.r)).toFixed(3).padStart(7)}` : '    0       -';
+
+console.log('\nJ1 rooster, alleen radar-bars zonder overlap. Per kolom: n en gem R.');
+console.log('   "rr>=2 wint" = in hoeveel jaren R/R >= 2 beter is dan R/R < 2 (jaren met >= 10 trades in beide).');
+console.log('   "vs radar" = in hoeveel jaren R/R >= 2 beter is dan radar alleen onder de huidige niveaus.');
+console.log('  ' + 'stop'.padEnd(16) + 'doel'.padEnd(20) + '   alle radar' + '      R/R >= 2' + '       R/R < 2' + '  +score55,rr>=2' + '  rr>=2 wint' + '  vs radar');
+console.log('  ' + '-'.repeat(132));
+
+type Uitkomst = { stop: StopRegel; doel: DoelRegel; hoog: { r: number; datum: string }[]; wintJaren: number; vsRadar: number; jarenGeteld: number };
+const uitkomsten: Uitkomst[] = [];
+for (const stop of stopRegels) {
+  for (const doel of doelRegels) {
+    const alleR = draaiNiveaus(radarJ, stop, doel, 'alle');
+    const hoog = draaiNiveaus(radarJ, stop, doel, 'rr>=2');
+    const laag = draaiNiveaus(radarJ, stop, doel, 'rr<2');
+    const koop = draaiNiveaus(radarKoopJ, stop, doel, 'rr>=2');
+    const jh = perJaar(hoog);
+    const jl = perJaar(laag);
+    let wint = 0, geteld = 0, vsRadar = 0, vsGeteld = 0;
+    for (const j of jaren) {
+      if (jh[j] !== null && jl[j] !== null) { geteld++; if (jh[j]! > jl[j]!) wint++; }
+      if (jh[j] !== null && refJaar[j] !== null) { vsGeteld++; if (jh[j]! > refJaar[j]!) vsRadar++; }
+    }
+    uitkomsten.push({ stop, doel, hoog, wintJaren: wint, vsRadar, jarenGeteld: vsGeteld });
+    console.log(
+      '  ' + stop.naam.padEnd(16) + doel.naam.padEnd(20) +
+      kort(alleR).padStart(13) + kort(hoog).padStart(14) + kort(laag).padStart(14) + kort(koop).padStart(16) +
+      `${wint}/${geteld}`.padStart(12) + `${vsRadar}/${vsGeteld}`.padStart(10),
+    );
+  }
+}
+
+// Per jaar voor de varianten waar R/R >= 2 het vaakst wint van R/R < 2, plus de referentie.
+const top = [...uitkomsten]
+  .filter(u => u.hoog.length >= 200)
+  .sort((a, b) => (b.wintJaren - a.wintJaren) || (gem(b.hoog.map(x => x.r)) - gem(a.hoog.map(x => x.r))))
+  .slice(0, 4);
+
+jaarKop('J2 per jaar, referenties en de vier varianten waar R/R >= 2 het vaakst wint (n >= 200):');
+jaarRegel('nulmeting (alle bars)', draai(() => true));
+jaarRegel('radar alleen (huidig)', refRadar);
+jaarRegel('Markt KOOP + R/R', draai(s => s.koop && s.rrOk));
+jaarRegel('Markt KOOP + R/R, poort open', draai(basisKoop));
+jaarRegel('radar + R/R>=2 (huidig)', draaiNiveaus(radarJ, stopRegels[0], doelRegels[0], 'rr>=2'));
+for (const u of top) {
+  const naam = `${u.stop.naam} / ${u.doel.naam}`;
+  console.log(`\n  ${naam}:`);
+  jaarRegel('  radar, R/R >= 2', u.hoog);
+  jaarRegel('  radar, R/R < 2', draaiNiveaus(radarJ, u.stop, u.doel, 'rr<2'));
+  jaarRegel('  radar + score>=55 + R/R>=2', draaiNiveaus(radarKoopJ, u.stop, u.doel, 'rr>=2'));
+  jaarRegel('  idem, poort open', draaiNiveaus(s => radarKoopJ(s) && poortOpenNu(s), u.stop, u.doel, 'rr>=2'));
+  jaarRegel('  radar + R/R>=2, poort open', draaiNiveaus(s => radarJ(s) && poortOpenNu(s), u.stop, u.doel, 'rr>=2'));
+}
+
+// J3: de gekozen variant zoals de app hem krijgt, via radarNiveaus() uit momentum.ts. Moet exact
+// gelijk zijn aan de roosterregel "EMA20 / 90d-high + 2x ATR"; anders meet de backtest iets anders
+// dan de app straks draait.
+const viaApp = (c: Candle[], s: Signaal) =>
+  radarNiveaus(c.slice(Math.max(0, s.i - VENSTER + 1), s.i + 1), s.atr, s.ema20);
+const appStop: StopRegel = { naam: 'radarNiveaus', afstand: (c, s) => { const n = viaApp(c, s); return n ? n.entry - n.stopLoss : null; } };
+const appDoel: DoelRegel = { naam: 'radarNiveaus', doel: (c, s) => viaApp(c, s)?.takeProfit ?? null };
+const appHoog = draaiNiveaus(radarJ, appStop, appDoel, 'rr>=2');
+const roosterHoog = draaiNiveaus(radarJ, emaStop(0), uitbraakDoel(2), 'rr>=2');
+jaarKop('J3 radarNiveaus() uit momentum.ts, ter controle:');
+jaarRegel('radar + R/R>=2 via radarNiveaus', appHoog);
+// De KOOP-regel zoals de app hem neemt: radarSignaal() uit opportunities.ts op de radarNiveaus, in
+// plaats van de nagebouwde conditie score >= DREMPEL_KOOP plus R/R >= 2. Moet hetzelfde opleveren.
+const appKoop = draaiNiveaus(
+  (s, c) => radarJ(s) && radarSignaal(viaApp(c, s), s.score).signaal === 'KOOP', appStop, appDoel, 'alle',
+);
+const nagebouwdKoop = draaiNiveaus(radarKoopJ, appStop, appDoel, 'rr>=2');
+jaarRegel('radar + score>=55 + R/R>=2', appKoop);
+console.assert(
+  appKoop.length === nagebouwdKoop.length && Math.abs(gem(appKoop.map(x => x.r)) - gem(nagebouwdKoop.map(x => x.r))) < 1e-9,
+  `radarSignaal wijkt af van de nagebouwde KOOP-regel: ${appKoop.length} tegen ${nagebouwdKoop.length} trades`,
+);
+console.assert(
+  appHoog.length === roosterHoog.length && Math.abs(gem(appHoog.map(x => x.r)) - gem(roosterHoog.map(x => x.r))) < 1e-9,
+  `radarNiveaus wijkt af van de roosterregel: ${appHoog.length} tegen ${roosterHoog.length} trades`,
+);
 
 // --- wegschrijven -----------------------------------------------------------------------
 

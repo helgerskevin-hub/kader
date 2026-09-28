@@ -48,9 +48,14 @@ Bevat 3 sub-tabbladen:
   "ℹ️ Over deze coin"-blok. Knoppen per kaart: "✅ Getrade" en "✏️ Aanpassen".
 - **👥 Traders kopiëren** — toont per opgeslagen trader hun huidige posities met
   live entry/stop/take-profit in een tabel; per rij een "✅ Getrade"-knop.
-- **🚀 Grote kansen** — scant honderden coins op momentum/kleine marktcap/
-  herstelruimte. Speculatieve kandidaten met uitleg "waarom potentiële grote
-  winst". Duidelijke risico-waarschuwing.
+- **⚡ Momentum-radar (tab Kansen)**: scant dezelfde 57 eToro-coins als Markt,
+  maar vraagt iets anders: welke coins staan dicht bij hun hoogste koers van 90
+  dagen (gebacktest, meting I en J). Scant vanzelf bij openen (hooguit elke 30
+  minuten) en onthoudt het laatste resultaat. Bovenaan een top-3 carrousel,
+  daaronder kaarten met rangpijltje, sparkline, momentumbalkjes, een uitbraak-plan
+  (stop op de EMA20, doel 2x ATR boven de 90d-top) en een KOOP/WATCH-oordeel (KOOP
+  alleen bij R/R vanaf 1:2). Staat niets dicht bij zijn top, dan zegt het scherm
+  dat eerlijk en toont het de drie sterkste als WATCH.
 
 ### Tab 2 — 📈 Mijn Trades
 - Formulier om een trade toe te voegen: Symbool, Aantal (optioneel), Entry-prijs,
