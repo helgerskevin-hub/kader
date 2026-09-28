@@ -4,7 +4,9 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii } from '../theme/tokens';
 
-type Advies = 'KOOPZONE' | 'AFWACHTEN' | 'HIGH CONVICTION' | 'STERK KOOP';
+// KOOP en WATCH zijn de twee oordelen van de momentum-radar op Kansen: KOOP ziet er uit als
+// KOOPZONE, WATCH als AFWACHTEN.
+type Advies = 'KOOPZONE' | 'AFWACHTEN' | 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOP' | 'WATCH';
 
 interface Props {
   advies: Advies;
@@ -36,6 +38,8 @@ export function AdviceBadge({ advies, score }: Props) {
     'STERK KOOP': { bg: 'transparent', tekst: colors.winst, border: colors.winst, randBreedte: 1.5, stip: true, gewicht: '700' },
     KOOPZONE: { bg: colors.winst + '1A', tekst: colors.winst, border: 'transparent', randBreedte: 0, stip: false, gewicht: '700' },
     AFWACHTEN: { bg: colors.verhoogd, tekst: colors.tekstGedimd, border: 'transparent', randBreedte: 0, stip: false, gewicht: '600' },
+    KOOP: { bg: colors.winst + '1A', tekst: colors.winst, border: 'transparent', randBreedte: 0, stip: false, gewicht: '700' },
+    WATCH: { bg: colors.verhoogd, tekst: colors.tekstGedimd, border: 'transparent', randBreedte: 0, stip: false, gewicht: '600' },
   };
 
   const { bg, tekst, border, randBreedte, stip, gewicht } = config[advies] ?? config.AFWACHTEN;
@@ -51,7 +55,7 @@ export function AdviceBadge({ advies, score }: Props) {
           style={[
             Type.label,
             styles.score,
-            { color: tekst, opacity: advies === 'AFWACHTEN' ? 1 : 0.85 },
+            { color: tekst, opacity: advies === 'AFWACHTEN' || advies === 'WATCH' ? 1 : 0.85 },
           ]}
         >
           · {Math.round(score)}
