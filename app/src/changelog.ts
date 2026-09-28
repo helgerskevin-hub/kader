@@ -12,8 +12,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
-    datum: '2026-09-27',
+    versie: '0.1.24',
+    datum: '2026-09-28',
     punten: [
       'Portfolio heeft een nieuwe kaart "Wachtende orders": orders die eToro nog niet heeft uitgevoerd, met coin, koop of short, bedrag, markt- of limietorder, stop-loss en doel, wanneer je hem plaatste en wat eToro ermee doet. Wil je er vanaf, tik dan op Annuleren; Kader vraagt altijd eerst om bevestiging',
       'Kader onthoudt elke order die het voor je plaatst en vraagt eToro daarna wat ermee gebeurd is. Wordt een order geweigerd, geannuleerd of verloopt hij, dan zie je dat in Portfolio, met eToro\'s eigen reden erbij. Aanleiding: een kooporder bleef bij eToro wachten en werd later geannuleerd, zonder dat Kader dat liet zien',
