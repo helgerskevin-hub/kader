@@ -13,6 +13,7 @@ import { bouwKooporderBody, guid, haalSaldoStand, KooporderInvoer, plaatsKoopord
 import { actieveSleutels } from '../state/etoroSleutels';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
+import { GeplaatsteOrder } from '../state/orderUitkomsten';
 import { useDialoog } from '../state/DialoogProvider';
 import { Richting } from '../state/portfolioTypes';
 import { useInstrumentId } from '../state/useInstrumentId';
@@ -66,7 +67,7 @@ export function KooporderSheet({
   const { toonDialoog } = useDialoog();
   const { gaNaar } = useNavigatie();
   const isShort = richting === 'short';
-  const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
+  const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder, noteerGeplaatsteOrder } = usePortfolio();
   const instrumentStand = useInstrumentId(zichtbaar ? symbool : null);
   const instrumentId = instrumentStand.soort === 'gevonden' ? instrumentStand.id : null;
   // Zolang het zoeken loopt is er nog niets mis: dan hoort er geen rode melding te staan en is
@@ -211,6 +212,22 @@ export function KooporderSheet({
 
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
+        // Fire-and-forget: het noteren van de uitkomst mag de bevestiging aan de gebruiker niet
+        // blokkeren. Mislukt het wegschrijven, dan mist alleen de "geannuleerd/geweigerd"-melding
+        // later, de order zelf is al bij eToro binnen.
+        const geplaatst: GeplaatsteOrder = {
+          verzoekId: verzoekId.current,
+          orderId: uitkomst.orderId,
+          soort: 'koop',
+          symbool,
+          // De omgeving van de sleutels waarmee de order echt de deur uitging, niet de context-state:
+          // die kan net gewisseld zijn, en dan zou de sync de status bij het verkeerde account opvragen.
+          omgeving: sleutels.omgeving ?? 'real',
+          bedragUsd: bedragGetal,
+          richting,
+          tijd: Date.now(),
+        };
+        noteerGeplaatsteOrder(geplaatst).catch(() => {});
         // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
         vier(() => {
           onSluiten();
@@ -218,8 +235,8 @@ export function KooporderSheet({
             variant: 'gelukt',
             titel: isShort ? 'Short staat bij eToro' : 'Koop staat bij eToro',
             tekst: isShort
-              ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`
-              : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld.`,
+              ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`
+              : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`,
             // De tekst wijst naar je portfolio, dus daar hoort ook een knop naartoe te gaan. Eerst het
             // scherm eronder sluiten als daarom gevraagd is, anders wisselt de tab onzichtbaar onder
             // een openstaande Modal.

@@ -29,6 +29,14 @@
 //                      geen bevestigd endpoint: het staat niet in eToro's endpoint-index en de
 //                      pagina over positie-informatie noemt zichzelf read-only. Fase 4 van het plan
 //                      hangt hierop, dus dit moet uitgezocht worden voor die gebouwd wordt.
+//   --wachtend         meet wachtende orders: plaats één demo-marktorder zonder SL/TP, kijk onder
+//                      welke clientPortfolio-lijst hij staat (orders, ordersForOpen, ordersForClose),
+//                      vraag de status op via orders:lookup, en annuleer hem via DELETE op het
+//                      demo-pad. Standaard symbool is hier AAPL in plaats van BTC, want crypto
+//                      handelt altijd en vult dus direct; --symbool en --bedrag werken gewoon.
+//                      Draai dit BUITEN Amerikaanse beursuren (voor 15:30 of na 22:00 NL-tijd, of in
+//                      het weekend), anders wordt de order meteen gevuld en valt er niets te wachten.
+//                      Gaat voor --order: met beide vlaggen draait alleen deze meting.
 
 const BASIS = 'https://public-api.etoro.com/api';
 
@@ -42,7 +50,8 @@ const waarde = (naam: string, standaard: string) => {
   return treffer ? treffer.slice(naam.length + 3) : standaard;
 };
 
-const SYMBOOL = waarde('symbool', 'BTC').toUpperCase();
+const WACHTEND = heeft('--wachtend');
+const SYMBOOL = waarde('symbool', WACHTEND ? 'AAPL' : 'BTC').toUpperCase();
 const BEDRAG = Number(waarde('bedrag', '10'));
 const LEVERAGE = Number(waarde('leverage', '1'));
 const SETTLEMENT = waarde('settlement', '');
@@ -110,7 +119,7 @@ async function main() {
   }
 
   console.log('eToro demo-verkenning. Alle schrijfacties gaan naar het /demo/-pad, nooit naar een echt account.');
-  console.log(`symbool=${SYMBOOL} bedrag=${BEDRAG} leverage=${LEVERAGE} order=${PLAATS_ORDER} dubbel=${DUBBEL} geenSL=${GEEN_SL}`);
+  console.log(`symbool=${SYMBOOL} bedrag=${BEDRAG} leverage=${LEVERAGE} order=${PLAATS_ORDER} dubbel=${DUBBEL} geenSL=${GEEN_SL} wachtend=${WACHTEND}`);
 
   // ---------- 1. Wie ben ik en wat mag deze sleutel? (open vraag 9) ----------
   streep('1. GET /api/v1/me  -> scopes, demoCid, realCid');
@@ -163,6 +172,12 @@ async function main() {
   noteer(`vrij saldo (clientPortfolio.credit) = ${credit}`);
   const posities: any[] = (portfolio.data as any)?.clientPortfolio?.positions ?? [];
   noteer(`open demo-posities voor de order: ${posities.length}`);
+
+  if (WACHTEND) {
+    await meetWachtendeOrder(instrumentId, portfolioPad, posities);
+    toonBevindingen();
+    return;
+  }
 
   // ---------- 3b. Eligibility: minimumbedrag en stop-loss-grenzen (open vraag 2) ----------
   // Volgens de documentatie zit het minimum per instrument in leverageConfigs[].minPositionAmount.
@@ -372,6 +387,172 @@ async function main() {
 
   toonBevindingen();
   console.log('\nRuim de demo-positie handmatig op in eToro, of gebruik fase 3 zodra sluitPositie bestaat.');
+}
+
+// ---------- Wachtende orders (--wachtend) ----------
+// Nog niet gemeten, alleen uit eToro's docs: limietorders staan in clientPortfolio.orders met
+// orderID/instrumentID, wachtende marktorders in clientPortfolio.ordersForOpen met orderId/instrumentId.
+// Die hoofdletterverschillen zijn precies wat deze meting moet vastleggen, dus we lezen beide.
+
+const WACHT_LIJSTEN = ['orders', 'ordersForOpen', 'ordersForClose'] as const;
+
+const orderIdVan = (o: any) => o?.orderId ?? o?.orderID;
+const instrumentIdVan = (o: any) => o?.instrumentId ?? o?.instrumentID;
+const wacht = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Zoekt diep in een antwoord naar het eerste veld met een van deze namen. Het pad komt mee terug,
+// zodat de bevindingen laten zien waar eToro het orderId neerlegt en niet alleen dat het er is.
+function zoekVeld(obj: unknown, namen: string[], pad = ''): { pad: string; waarde: string | number } | null {
+  if (obj === null || typeof obj !== 'object') return null;
+  for (const [k, v] of Object.entries(obj)) {
+    if (namen.includes(k) && (typeof v === 'number' || typeof v === 'string')) return { pad: pad + k, waarde: v };
+  }
+  for (const [k, v] of Object.entries(obj)) {
+    const treffer = zoekVeld(v, namen, `${pad}${k}.`);
+    if (treffer) return treffer;
+  }
+  return null;
+}
+
+// Volgens de docs: status: { id, name, errorCode, errorMessage }. Wijkt de vorm af, dan in elk geval
+// een los statusId-veld proberen, en anders eerlijk melden dat er niets gevonden is.
+function statusVan(data: any): { id: number | undefined; tekst: string } {
+  const s = data?.status ?? data?.order?.status ?? data?.orders?.[0]?.status;
+  if (s && typeof s === 'object') {
+    return { id: s.id, tekst: `id=${s.id} name=${s.name} errorCode=${s.errorCode} errorMessage=${s.errorMessage}` };
+  }
+  const los = zoekVeld(data, ['statusId', 'statusID']);
+  if (los) return { id: Number(los.waarde), tekst: `${los.pad}=${los.waarde}` };
+  return { id: undefined, tekst: 'geen status gevonden in het antwoord' };
+}
+
+async function dumpWachtendeLijsten(portfolioPad: string, moment: string) {
+  const antwoord = await roep(portfolioPad);
+  const cp = (antwoord.data as any)?.clientPortfolio ?? {};
+  console.log(`\nclientPortfolio-keys (${moment}): ${Object.keys(cp).join(', ') || '(geen clientPortfolio)'}`);
+  const lijsten: Record<string, any[]> = {};
+  for (const naam of WACHT_LIJSTEN) {
+    const ruw = cp[naam];
+    lijsten[naam] = Array.isArray(ruw) ? ruw : [];
+    console.log(`\n--- clientPortfolio.${naam} (${moment}) ---`);
+    console.log(ruw === undefined ? '(veld ontbreekt)' : JSON.stringify(ruw, null, 2));
+  }
+  const posities: any[] = Array.isArray(cp.positions) ? cp.positions : [];
+  return { keys: Object.keys(cp), lijsten, posities };
+}
+
+async function meetWachtendeOrder(instrumentId: number, portfolioPad: string, positiesVoor: any[]) {
+  streep('W1. Wachtende lijsten VOOR de order  -> wat staat er al, zodat de nieuwe herkenbaar is');
+  const voor = await dumpWachtendeLijsten(portfolioPad, 'voor de order');
+  noteer(`clientPortfolio-keys: ${voor.keys.join(', ')}`);
+  for (const naam of WACHT_LIJSTEN) {
+    if (!voor.keys.includes(naam)) noteer(`clientPortfolio.${naam} ontbreekt in de respons (docs noemen het wel)`);
+  }
+  const bestaandeIds = new Set(WACHT_LIJSTEN.flatMap(n => voor.lijsten[n].map(o => String(orderIdVan(o)))));
+
+  // ---------- W2. De order: markt, geen SL/TP, zelfde body-vorm als stap 4 ----------
+  streep('W2. POST /api/v2/trading/execution/demo/orders  -> marktorder zonder SL/TP die moet blijven wachten');
+  const verzoekId = guid();
+  console.log(`\nx-request-id voor deze order: ${verzoekId}`);
+  const order = await roep('/trading/execution/demo/orders', {
+    versie: 'v2',
+    body: {
+      action: 'open',
+      transaction: 'buy',
+      instrumentId,
+      orderType: 'mkt',
+      leverage: 1,
+      amount: BEDRAG,
+      orderCurrency: 'usd',
+    },
+    verzoekId,
+  });
+  if (order.status < 200 || order.status >= 300) {
+    noteer(`wachtende order niet geaccepteerd: ${order.status} ${order.ruw.slice(0, 300)}`);
+    if (order.status >= 500) noteer('5xx: onbekend of hij toch is geplaatst. Kijk handmatig in het demo-portfolio.');
+    return;
+  }
+  noteer(`wachtende order geaccepteerd (${order.status}): ${JSON.stringify(order.data)}`);
+  noteer(`referenceId in het antwoord: ${(order.data as any)?.referenceId ?? '(ontbreekt)'} (verstuurd: ${verzoekId})`);
+
+  const idUitAntwoord = zoekVeld(order.data, ['orderId', 'orderID', 'OrderID']);
+  let orderId: string | number | undefined = idUitAntwoord?.waarde;
+  noteer(idUitAntwoord
+    ? `orderId staat in het orderantwoord onder '${idUitAntwoord.pad}' = ${idUitAntwoord.waarde}`
+    : 'geen orderId-veld in het orderantwoord; hieronder uit het portfolio halen');
+
+  // ---------- W3. Onder welke lijst staat hij, en met welke veldnamen? ----------
+  for (const [ms, label] of [[3000, '~3s na de order'], [10000, '~13s na de order']] as const) {
+    await wacht(ms);
+    streep(`W3. Wachtende lijsten ${label}`);
+    const naOrder = await dumpWachtendeLijsten(portfolioPad, label);
+
+    const gevonden: string[] = [];
+    for (const naam of WACHT_LIJSTEN) {
+      const nieuw = naOrder.lijsten[naam].filter(o =>
+        orderId !== undefined
+          ? String(orderIdVan(o)) === String(orderId)
+          : !bestaandeIds.has(String(orderIdVan(o))) && instrumentIdVan(o) === instrumentId,
+      );
+      for (const o of nieuw) {
+        gevonden.push(naam);
+        noteer(`${label}: order staat in clientPortfolio.${naam} met velden [${Object.keys(o).join(', ')}]`);
+        if (orderId === undefined) orderId = orderIdVan(o);
+      }
+    }
+    if (gevonden.length === 0) noteer(`${label}: order in GEEN van de drie wachtende lijsten gevonden`);
+
+    const nieuwePosities = naOrder.posities.filter(p => !positiesVoor.some(o => o.positionID === p.positionID));
+    if (nieuwePosities.length > 0) {
+      noteer(`${label}: LET OP, ${nieuwePosities.length} nieuwe positie(s). De order is gevuld; draaide dit binnen beursuren? positionID=${nieuwePosities.map(p => p.positionID).join(', ')}`);
+    }
+  }
+
+  // ---------- W4. Status via lookup, op orderId en op referenceId ----------
+  streep('W4. GET /api/v2/trading/info/demo/orders:lookup  -> op orderId en op referenceId');
+  if (orderId !== undefined) {
+    const opId = await roep(`/trading/info/demo/orders:lookup?orderId=${encodeURIComponent(String(orderId))}`, { versie: 'v2' });
+    noteer(`lookup op orderId=${orderId} gaf ${opId.status}: ${statusVan(opId.data).tekst}`);
+  } else {
+    noteer('lookup op orderId overgeslagen: geen orderId gevonden in antwoord of portfolio');
+  }
+  const opRef = await roep(`/trading/info/demo/orders:lookup?referenceId=${encodeURIComponent(verzoekId)}`, { versie: 'v2' });
+  noteer(`lookup op referenceId=${verzoekId} gaf ${opRef.status}: ${statusVan(opRef.data).tekst}`);
+  if (orderId === undefined) {
+    const idUitLookup = zoekVeld(opRef.data, ['orderId', 'orderID', 'OrderID']);
+    if (idUitLookup) {
+      orderId = idUitLookup.waarde;
+      noteer(`orderId alsnog uit de referenceId-lookup, veld '${idUitLookup.pad}' = ${orderId}`);
+    }
+  }
+
+  // ---------- W5. Annuleren, alleen op het demo-pad ----------
+  if (orderId === undefined) {
+    noteer('annuleren overgeslagen: nergens een orderId gevonden. Annuleer de order handmatig in eToro (demo).');
+    return;
+  }
+  streep(`W5. DELETE /api/v2/trading/execution/demo/orders/${orderId}  -> annuleren`);
+  const annuleer = await roep(`/trading/execution/demo/orders/${encodeURIComponent(String(orderId))}`, {
+    versie: 'v2',
+    methode: 'DELETE',
+  });
+  noteer(`DELETE op de wachtende order gaf ${annuleer.status}: ${annuleer.ruw.slice(0, 300) || '(lege body)'}`);
+
+  // ---------- W6. Status na het annuleren: verwacht id 7 (Canceled) ----------
+  await wacht(3000);
+  streep('W6. Lookup ~3s na het annuleren  -> verwacht status id 7 (Canceled)');
+  const naAnnuleren = await roep(`/trading/info/demo/orders:lookup?orderId=${encodeURIComponent(String(orderId))}`, { versie: 'v2' });
+  const eind = statusVan(naAnnuleren.data);
+  noteer(`lookup na annuleren gaf ${naAnnuleren.status}: ${eind.tekst}`);
+  noteer(eind.id === 7
+    ? 'status 7 (Canceled) bevestigd: annuleren via DELETE op het demo-pad werkt'
+    : `status is NIET 7 maar ${eind.id ?? 'onbekend'}; controleer in eToro of de order echt weg is`);
+
+  const naAnnulerenLijsten = await dumpWachtendeLijsten(portfolioPad, 'na het annuleren');
+  const nogAanwezig = WACHT_LIJSTEN.filter(n => naAnnulerenLijsten.lijsten[n].some(o => String(orderIdVan(o)) === String(orderId)));
+  noteer(nogAanwezig.length === 0
+    ? 'na het annuleren staat de order in geen enkele wachtende lijst meer'
+    : `na het annuleren staat de order NOG in: ${nogAanwezig.join(', ')}`);
 }
 
 function toonBevindingen() {

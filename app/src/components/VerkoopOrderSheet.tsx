@@ -14,6 +14,7 @@ import { useDialoog } from '../state/DialoogProvider';
 import { actieveSleutels } from '../state/etoroSleutels';
 import { PortfolioTrade, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { OnbekendeOrder } from '../state/lopendeOrders';
+import { GeplaatsteOrder } from '../state/orderUitkomsten';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
@@ -35,7 +36,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
 
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
-  const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
+  const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder, noteerGeplaatsteOrder } = usePortfolio();
 
   // Bij een short heb je de positie geopend door te verkopen; sluiten gebeurt dan door terug te
   // kopen. "Verkopen" zou dus verwarrend zijn, "sluiten" klopt voor beide richtingen.
@@ -121,6 +122,22 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
 
       if (uitkomst.soort === 'ok') {
         verzoenNaOrder();
+        // Fire-and-forget: mag de bevestiging aan de gebruiker niet blokkeren. Mislukt het
+        // wegschrijven, dan mist alleen de latere "geannuleerd/geweigerd"-melding, de order zelf is
+        // al bij eToro binnen.
+        const geplaatst: GeplaatsteOrder = {
+          verzoekId,
+          orderId: uitkomst.orderId,
+          soort: 'verkoop',
+          symbool: trade.symbool,
+          // De omgeving van de sleutels waarmee de order echt de deur uitging, niet de context-state:
+          // die kan net gewisseld zijn, en dan zou de sync de status bij het verkeerde account opvragen.
+          omgeving: sleutels.omgeving ?? 'real',
+          bedragUsd: trade.bedragUsd,
+          richting,
+          tijd: Date.now(),
+        };
+        noteerGeplaatsteOrder(geplaatst).catch(() => {});
         // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
         vier(() => {
           onSluiten();

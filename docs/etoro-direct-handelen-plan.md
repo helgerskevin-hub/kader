@@ -210,7 +210,9 @@ Dat gaat als `trades` de context in. `tradesRef`, `importeerEtoroTrades` en `ver
 
 **Fase 5, echt.** Wizard voor de echte schrijfsleutel, bevestig-Alert bij omschakelen, ingedrukt-houden, alle alleen-lezen-teksten herschreven, changelog-regel, en tot slot één echte order op het minimumbedrag.
 
-**Geschrapt:** het annuleer-endpoint (`DELETE /orders/{orderId}`), want marktorders vullen direct en er is niets in de wacht. En een rate limiter: 20 requests per 60 seconden tegenover een mens die twee keer per minuut een knop ingedrukt houdt; de single-flight-guard volstaat.
+**Geschrapt:** een rate limiter (20 requests per 60 seconden tegenover een mens die twee keer per minuut een knop ingedrukt houdt; de single-flight-guard volstaat).
+
+> **Correctie (september 2026):** het annuleer-endpoint wordt niet geschrapt. Marktorders kunnen wel blijven wachten (gezien in september 2026), als eToro bijvoorbeeld de beurs gesloten is. Annuleren is gebouwd.
 
 ## 8. Verificatie
 
@@ -309,3 +311,24 @@ Wat wel per richting verschilt, en wat dus gebouwd moet worden:
 
 Nog niet gemeten: of een demo-sell-order daadwerkelijk doorgaat en of `PATCH` op een shortpositie
 werkt. Dat vraagt een echte order en is de laatste stap voor de UI af is.
+
+## 11. Wachtende orders en annuleren (september 2026)
+
+Aanleiding: een kooporder vanuit Kader bleef bij eToro wachten en werd later geannuleerd, zonder dat Kader er iets van liet zien. Kader stuurt een marktorder zonder koers (`orderType: 'mkt'`), dus een meegegeven prijs kan de oorzaak niet zijn. Wat wel de oorzaak was, is achteraf niet meer na te gaan: Kader bewaarde het `orderId` toen nog niet. Vanaf nu wel, en de status-lookup hieronder geeft eToro's eigen reden.
+
+### Uit eToro's docs
+
+- **Annuleren:** `DELETE /api/v2/trading/execution/orders/{orderId}`, demo `/api/v2/trading/execution/demo/orders/{orderId}`. Geen body. 404 = order niet gevonden.
+- **Status:** `GET /api/v2/trading/info/orders:lookup?orderId=...` (of `?referenceId=...`), demo `/api/v2/trading/info/demo/orders:lookup`. Status-ids: 1 Received, 2 Placed, 3 Filled, 4 Rejected, 5 PartiallyFilled, 6 PendingCancel, 7 Canceled, 8 Expired, 9 CanceledPartiallyFilled, 10 RejectedPartiallyFilled, 11 WaitingForMarket, 12 PendingTriggeredRate. Definitief: 3, 4, 7, 8, 9, 10.
+- Quota: annuleren telt mee in de gedeelde 20/60s voor execution, de lookup in de 60/60s die ook portfolio gebruikt.
+
+### Gemeten op 28 sep 2026 (demo, $10 AAPL-marktorder, 11:02)
+
+- **De portfolio-respons bevat altijd deze lijsten**, ook als ze leeg zijn: `orders`, `stockOrders`, `entryOrders`, `exitOrders`, `ordersForOpen`, `ordersForClose`, `ordersForCloseMultiple`. Kader telt `ordersForOpen`, `stockOrders`, `orders` en `entryOrders` als wachtende koop, ontdubbeld op `orderId`. `exitOrders` en de `ordersForClose`-lijsten zijn sluitorders en reserveren geen geld. De veldnamen binnen een gevulde lijst zijn nog niet gezien, zie hieronder.
+- **Een AAPL-order vult ook om 11:00 NL-tijd direct.** eToro handelt AAPL blijkbaar buiten de Amerikaanse beursuren, dus "een aandeel buiten beursuren" levert geen wachtende order op. Zo'n order in demo naspelen lukte daarom niet.
+- **De lookup werkt op `orderId`**: 200, met `status: { id: 3, name: "Filled", errorCode: 0 }`, `requestedAmount`, `frozenAmount`, `totalCosts` en `positionExecutions[].positionId`.
+- **De lookup op `referenceId` werkt NIET**: 404 `No external operation was found for referenceId ...`, ook voor de x-request-id die eToro in het orderantwoord net als `referenceId` had teruggestuurd. Kader zoekt daarom alleen op `orderId`. Een order zonder `orderId` (antwoord nooit aangekomen) blijft bij de bestaande onbekend-afhandeling uit `lopendeOrders.ts`.
+- **DELETE op een al gevulde order geeft 200** `{"orderId":...,"referenceId":""}`, maar de status blijft 3 Filled en de positie blijft open. Een 200 betekent dus "verzoek aangenomen", niet "geannuleerd". De app zegt daarom "annulering doorgegeven" en laat de sync uitwijzen wat er gebeurd is.
+- Posities dragen hun `orderID`. Een gevulde order is dus aan zijn positie te koppelen, mocht dat ooit nodig zijn.
+
+**Nog open:** de veldnamen in een gevulde `ordersForOpen`/`stockOrders`/`entryOrders`. De parser leest beide schrijfwijzen (`orderId`/`orderID`, `instrumentId`/`instrumentID`) en een onleesbaar bedrag wordt nooit als 0 geteld. De eerstvolgende echte wachtende order bevestigt of verfijnt dit.
