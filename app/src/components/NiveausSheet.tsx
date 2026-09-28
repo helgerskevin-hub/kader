@@ -9,6 +9,7 @@ import { AlertTriangle, X } from 'lucide-react-native';
 import { fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { guid, wijzigNiveaus, NiveauWijziging } from '../engine/etoro';
+import { koersFactor } from '../engine/etoroSymbolen';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
@@ -121,7 +122,9 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
   const magBevestigen = poortOpen && ietsGewijzigd && !geblokkeerdDoorStop;
 
   function bouwWijziging(): NiveauWijziging {
-    const wijziging: NiveauWijziging = {};
+    // De velden hierboven blijven in Kaders eigen koers per coin; alleen wat er echt de deur uitgaat
+    // naar eToro krijgt de omrekening, zie KooporderSheet voor dezelfde aanpak bij een kooporder.
+    const wijziging: NiveauWijziging = { koersFactor: koersFactor(trade.symbool) };
     if (wisStop) wijziging.clearStopLoss = true;
     else if (stopWijzigt && stopTeSturen !== undefined) wijziging.stopLossRate = stopTeSturen;
     if (wisDoel) wijziging.clearTakeProfit = true;

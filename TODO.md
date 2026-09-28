@@ -187,9 +187,18 @@ Doorlopen na elke grote wijziging, er is geen testsuite.
       oorzaak: de sheet toonde die rode regel ook al terwijl het zoeken nog liep, en bij een coin die
       nog niet in de cache stond duurde dat een netwerkbeurt lang. Dat is opgelost, en `kiesInstrumentTreffer()`
       gooit dubbele regels (delisted, niet koopbaar, andere assetclass) nu weg vóór het de eis stelt
-      dat er precies één treffer overblijft. Of dat genoeg is, is niet gemeten: daar is een echte
-      sleutel voor nodig. Blijft de melding staan nadat het zoeken klaar is, dump dan wat
-      `/market-data/search?internalSymbolFull=PEPE` teruggeeft en leg hier vast onder welke naam
-      eToro de coin voert. Let op de tegenstelling die dan zichtbaar wordt: het merkje op de kaart
-      komt uit Kaders eigen `ETORO_TRADABLE`-lijst, de koopsheet vraagt het live aan eToro. Die twee
-      kunnen uit elkaar lopen, en dan is de lijst het ding dat bijgewerkt moet worden.
+      dat er precies één treffer overblijft.
+      Inmiddels ook de echte oorzaak gevonden en gemeten (28 sep 2026): eToro voert PEPE niet onder
+      zijn eigen symbool, maar als `PEPExM` ("Pepe (in millions)"), met een koers per miljoen munten.
+      `zoekInstrumentId()` zocht op het Kader-symbool zelf en vond dus nooit een treffer. Vijf andere
+      coins hadden hetzelfde probleem: SHIB (`SHIBxM`, ook per miljoen), en MATIC/FTM/MKR/RNDR onder
+      respectievelijk POL/S/SKY/RENDER (gelijke koers, geen omrekening nodig). De vertaling en de
+      koersomrekening zitten nu in `engine/etoroSymbolen.ts`, toegepast bij zoeken, kopen, niveaus
+      wijzigen, de stop-loss-limieten en het importeren van posities en historie.
+      Gemeten op demo (28 sep 2026): een koop van $10 in SHIB via de app kwam door met stop en doel
+      (eToro zoek gaf `SHIBxM` id 100080, de stop werd naar eToro's minimum van 10% geschoven), en de
+      positie kwam na de sync terug als SHIB met entry $0.00000562 en stop $0.00000506. Voor de
+      andere vijf live opgevraagd met dezelfde demo-sleutel: `zoekInstrumentId` gaf PEPE 100303,
+      MATIC 100056, FTM 100065, MKR 100038 en RNDR 100334 (gelijk aan eToro's publieke lijst), en de
+      stop-loss-limieten kwamen terug onder de Kader-namen. Hun koopsheet is niet per coin geopend,
+      ze stonden die dag niet in de top 20; de sheet zelf is voor elke coin dezelfde code.

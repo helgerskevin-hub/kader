@@ -10,6 +10,7 @@ import { Wallet, X } from 'lucide-react-native';
 import { fmtBedrag, fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { bouwKooporderBody, guid, haalSaldoStand, KooporderInvoer, plaatsKooporder, SaldoStand } from '../engine/etoro';
+import { koersFactor } from '../engine/etoroSymbolen';
 import { actieveSleutels } from '../state/etoroSleutels';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
@@ -145,14 +146,18 @@ export function KooporderSheet({
     richting,
     stopLossRate,
     takeProfitRate: doel,
+    // Sommige coins voert eToro in een andere eenheid (SHIB en PEPE per miljoen munten); de body
+    // rekent dat om, maar op dit scherm blijft alles in Kaders eigen koers per coin staan.
+    koersFactor: koersFactor(symbool),
   };
 
-  // De samenvatting komt uit de body die daadwerkelijk verstuurd wordt, niet uit de formuliervelden.
-  // Anders kan er iets anders op het scherm staan dan wat er de deur uitgaat.
+  // De samenvatting toont Kaders eigen koersen (per coin), niet de omgerekende body-waarden die
+  // naar eToro gaan. Wélk niveau er in de samenvatting verschijnt komt wel uit de body: die bepaalt,
+  // via dezelfde validatie als bij het versturen, of een niveau meegaat of wegvalt.
   const body = bouwKooporderBody(invoer);
   const niveaus: string[] = [];
-  if (typeof body.stopLossRate === 'number') niveaus.push(`stop-loss ${fmtPrijs(body.stopLossRate, DOLLARS)}`);
-  if (typeof body.takeProfitRate === 'number') niveaus.push(`doel ${fmtPrijs(body.takeProfitRate, DOLLARS)}`);
+  if (typeof body.stopLossRate === 'number' && typeof stopLossRate === 'number') niveaus.push(`stop-loss ${fmtPrijs(stopLossRate, DOLLARS)}`);
+  if (typeof body.takeProfitRate === 'number') niveaus.push(`doel ${fmtPrijs(doel, DOLLARS)}`);
   const niveauZin = niveaus.length > 0
     ? ` ${niveaus.join(', ').replace(/^./, t => t.toUpperCase())}.`
     : '';

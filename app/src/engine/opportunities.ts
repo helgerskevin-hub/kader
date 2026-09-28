@@ -21,6 +21,9 @@ const UITSLUITEN = new Set([
 // is, en dan zou een TON-positie stilzwijgend als "geen crypto" worden overgeslagen.
 // STANDAARD_UNIVERSUM moet een deelverzameling van deze lijst zijn; scripts/check-universum.mjs
 // bewaakt dat.
+//
+// Zes coins hier voert eToro onder een andere naam of in een andere eenheid (SHIB en PEPE per
+// miljoen munten, MATIC/FTM/MKR/RNDR onder POL/S/SKY/RENDER); zie engine/etoroSymbolen.ts.
 export const ETORO_TRADABLE = new Set([
   'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
   'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',

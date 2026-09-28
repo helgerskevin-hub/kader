@@ -6,3 +6,4 @@ export * from './opportunities';
 export * from './auditor';
 export * from './coinInfo';
 export * from './format';
+export * from './etoroSymbolen';

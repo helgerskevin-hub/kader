@@ -9,6 +9,8 @@ import { HIGH_CONVICTION_SCORE, HIGH_CONVICTION_VOLUME_MIN, DREMPEL_KOOP, DREMPE
 // een alias, zie BINANCE_ALIAS in marketData.ts). Dit is dus een deelverzameling van ETORO_TRADABLE
 // in opportunities.ts, niet dezelfde lijst: TON kun je op eToro aanhouden maar niet op Binance
 // uitlezen, dus die analyseren we niet. `node scripts/check-universum.mjs` controleert allebei.
+// Zes coins hier (SHIB, PEPE, MATIC, FTM, MKR, RNDR) voert eToro onder een andere naam of in een
+// andere eenheid; zie engine/etoroSymbolen.ts voor de vertaling en de omrekening.
 export const STANDAARD_UNIVERSUM = [
   'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
   'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',
