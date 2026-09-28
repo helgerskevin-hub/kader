@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3 } from 'lucide-react-native';
-import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
+import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd, fmtBedrag } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
@@ -21,6 +21,7 @@ import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
 import { VerdelingKaart } from '../components/VerdelingKaart';
+import { WachtendeOrdersKaart } from '../components/WachtendeOrdersKaart';
 import { SkeletonCard } from '../components/SkeletonCard';
 import { HistorieScherm } from '../components/HistorieScherm';
 import { VerdelingScherm } from '../components/VerdelingScherm';
@@ -28,8 +29,9 @@ import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
 import { TradeActiesSheet } from '../components/TradeActiesSheet';
 import { VerkoopOrderSheet } from '../components/VerkoopOrderSheet';
 import { NiveausSheet } from '../components/NiveausSheet';
-import { EtoroOmgeving } from '../engine/etoro';
+import { EtoroOmgeving, WachtendeOrder } from '../engine/etoro';
 import { omschrijfOnbekendeOrder } from '../state/lopendeOrders';
+import { adviesBijUitkomst, meldingNaAnnuleren, omschrijfUitkomst } from '../state/orderUitkomsten';
 import { PortfolioTrade, Richting, bronVan, nieuweId, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { RichtingBadge } from '../components/RichtingBadge';
 import { usePortfolio } from '../state/PortfolioProvider';
@@ -890,10 +892,18 @@ export function PortfolioScreen() {
     syncing, laatsteSync, syncFout, etoroFout, synchroniseer, geladen,
     omgeving, magHandelen, verlopenOrders, controleerOnbekendeOrders,
     vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
+    wachtendeOrderLijst, orderUitkomsten, annuleerWachtendeOrder, wisOrderUitkomst,
   } = usePortfolio();
   const [verkoopTrade, setVerkoopTrade] = useState<PortfolioTrade | null>(null);
   const [niveausTrade, setNiveausTrade] = useState<PortfolioTrade | null>(null);
   const [controleBezig, setControleBezig] = useState(false);
+  // orderId van de wachtende order die op dit moment geannuleerd wordt, of null als er niets loopt.
+  const [annuleerBezigId, setAnnuleerBezigId] = useState<number | null>(null);
+  // orderIds waarvoor eToro het annuleerverzoek heeft aangenomen. Een 200 betekent alleen dat het
+  // verzoek binnen is (gemeten: een al gevulde order geeft ook 200), dus de order blijft in de lijst
+  // tot de sync hem niet meer meestuurt. Tot dan toont de kaart geen knop, zodat je niet dubbel
+  // annuleert. Opgeruimd zodra de order uit de lijst verdwijnt.
+  const [annuleringDoorgegeven, setAnnuleringDoorgegeven] = useState<ReadonlySet<number>>(new Set());
   const [formulierZichtbaar, setFormulierZichtbaar] = useState(false);
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
@@ -1034,6 +1044,77 @@ export function PortfolioScreen() {
       });
     } finally {
       setEtoroBezig(false);
+    }
+  }
+
+  // Een doorgegeven annulering vergeten zodra de order niet meer in de lijst staat: dan heeft eToro
+  // hem verwerkt (geannuleerd of gevuld), en een oud id hoort de Set niet eeuwig te laten groeien.
+  useEffect(() => {
+    setAnnuleringDoorgegeven(vorige => {
+      const nogAanwezig = new Set(wachtendeOrderLijst.map(o => o.orderId));
+      const over = [...vorige].filter(id => nogAanwezig.has(id));
+      return over.length === vorige.size ? vorige : new Set(over);
+    });
+  }, [wachtendeOrderLijst]);
+
+  // Annuleren van een wachtende order: eerst een expliciete bevestiging, pas daarna het verzoek
+  // naar eToro. Nooit automatisch herhaald, ook niet bij een onbekende uitkomst (zie INVARIANT in
+  // engine/etoro.ts).
+  function vraagOmAnnuleren(order: WachtendeOrder) {
+    if (order.orderId === null) return;
+    const bedragTekst = order.bedragUsd !== null ? fmtBedrag(order.bedragUsd, { valuta: 'USD' }) : 'onbekend bedrag';
+    toonDialoog({
+      variant: 'waarschuwing',
+      titel: 'Order annuleren?',
+      // De omgeving van de order zelf, niet de actieve: daar gaat het verzoek over.
+      tekst: `Je annuleert de ${order.richting === 'short' ? 'short' : 'koop'} van ${bedragTekst} in ${order.symbool}.${order.omgeving === 'real' ? ' Dit is je echte account.' : ''}`,
+      knoppen: [
+        { label: 'Terug' },
+        { label: 'Order annuleren', soort: 'destructief', onDruk: () => voerAnnuleringUit(order) },
+      ],
+    });
+  }
+
+  async function voerAnnuleringUit(order: WachtendeOrder) {
+    const orderId = order.orderId;
+    if (orderId === null) return;
+    setAnnuleerBezigId(orderId);
+    try {
+      const { uitkomst, statusNa } = await annuleerWachtendeOrder(order);
+      if (uitkomst.soort === 'ok') {
+        // Alleen als het nog onderweg kan zijn (6 of onbekend). Wacht de order gewoon door (1, 2, 5,
+        // 11, 12), dan moet de knop blijven, anders kun je niet opnieuw annuleren zolang dit scherm
+        // gemount is. Definitieve statussen verdwijnen bij de volgende sync vanzelf uit de lijst.
+        if (statusNa === null || statusNa === 6) {
+          setAnnuleringDoorgegeven(vorige => new Set(vorige).add(orderId));
+        }
+        // Niet op de 200 alleen: eToro geeft die ook op een order die al gevuld was. De melding (en
+        // of er succeshaptiek bij hoort) volgt uit de status die daarna is opgevraagd.
+        const melding = meldingNaAnnuleren(statusNa);
+        if (melding.succes) haptiek('succes');
+        toonDialoog({
+          variant: melding.variant,
+          titel: melding.titel,
+          tekst: melding.tekst,
+          knoppen: [{ label: 'Oké' }],
+        });
+      } else if (uitkomst.soort === 'fout') {
+        toonDialoog({
+          variant: 'fout',
+          titel: 'Annuleren is niet gelukt',
+          tekst: uitkomst.bericht,
+          knoppen: [{ label: 'Oké' }],
+        });
+      } else {
+        toonDialoog({
+          variant: 'waarschuwing',
+          titel: 'We weten niet of het gelukt is',
+          tekst: 'Kader kijkt zo opnieuw bij eToro. Controleer het bij eToro als de order blijft staan.',
+          knoppen: [{ label: 'Oké' }],
+        });
+      }
+    } finally {
+      setAnnuleerBezigId(null);
     }
   }
 
@@ -1194,6 +1275,41 @@ export function PortfolioScreen() {
               trades={trades}
               livePrijzen={livePrijzen}
               onOpenDetail={() => setVerdelingOpen(true)}
+            />
+
+            {/* Uitkomst van orders die Kader zelf plaatste: geweigerd, geannuleerd of verlopen.
+                Gevuld geeft hier geen melding, die positie verschijnt vanzelf in de lijst hieronder. */}
+            {orderUitkomsten.length > 0 && (
+              <View style={[portfolioStyles.onbevestigd, { backgroundColor: colors.letOp + '1A', borderColor: colors.letOp }]}>
+                {orderUitkomsten.map(uitkomst => (
+                  <View key={uitkomst.verzoekId} style={portfolioStyles.uitkomstRegel}>
+                    <Text style={[Type.caption, { color: colors.tekstPrimair, lineHeight: 18 }]}>
+                      {omschrijfUitkomst(uitkomst)}
+                    </Text>
+                    {/* Per melding: bij een gedeeltelijke vulling of een verkoop klopt "er is geen
+                        positie geopend" niet. */}
+                    <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
+                      {adviesBijUitkomst(uitkomst)}
+                    </Text>
+                    <Pressable
+                      onPress={() => wisOrderUitkomst(uitkomst.verzoekId)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Melding begrepen, verbergen"
+                      style={[portfolioStyles.onbevestigdKnop, { borderColor: colors.letOp }]}
+                    >
+                      <Text style={[Type.caption, { color: colors.letOp, fontWeight: '600' }]}>Begrepen</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <WachtendeOrdersKaart
+              orders={wachtendeOrderLijst}
+              magHandelen={magHandelen}
+              onAnnuleer={vraagOmAnnuleren}
+              bezigId={annuleerBezigId}
+              doorgegevenIds={annuleringDoorgegeven}
             />
 
             {/* Orders waarvan we na een kwartier nog steeds niet weten of ze zijn doorgegaan. Er
@@ -1378,6 +1494,9 @@ const portfolioStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 40,
     justifyContent: 'center',
+  },
+  uitkomstRegel: {
+    gap: spacing.sm,
   },
   toevoegenKnop: {
     flexDirection: 'row',

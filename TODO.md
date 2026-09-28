@@ -173,17 +173,14 @@ Doorlopen na elke grote wijziging, er is geen testsuite.
       wijzigen (`NiveausSheet`); de sync zelf zit in `PortfolioProvider`. Let op: eToro vult een
       order niet altijd meteen, dus een sync direct na het versturen kan de positie nog missen.
 
-- [ ] **Verifiëren: hoe heet de lijst met wachtende orders in eToro's portfolio-respons?**
-      `bepaalSaldoStand()` in `engine/etoro.ts` trekt het gereserveerde bedrag van wachtende orders af
-      van je vrije saldo, maar de veldnamen zijn niet tegen een echte respons bevestigd. De code
-      probeert `orders`, `entryOrders` en `pendingOrders`, en per order `amount`,
-      `initialAmountInDollars`, `investmentAmount` en `totalAmount`. Staat de lijst onder een andere
-      naam, dan trekt Kader niets af en zijn we terug bij de oude situatie: hij faalt dus veilig,
-      maar de bug is dan niet opgelost. Te toetsen met een echte sleutel en een wachtende order:
-      dumpen wat `/trading/info/portfolio` teruggeeft en de namen hier vastleggen.
-      Ook nog open: trekt eToro het gereserveerde bedrag misschien zelf al van `credit` af? Dan
-      wordt het nu dubbel afgetrokken. De regel onder het bedrag maakt zichtbaar wat er is
-      afgetrokken, dus dat valt op zodra iemand met een wachtende order kijkt.
+- [ ] **Verifiëren: veldnamen in een gevulde lijst met wachtende orders.**
+      Gemeten (28 sep, demo): eToro stuurt altijd `orders`, `stockOrders`, `entryOrders`,
+      `ordersForOpen` en de sluitlijsten mee, maar tijdens de meting waren ze allemaal leeg (AAPL
+      vulde ook buiten beursuren direct). Welke lijst een wachtende koop krijgt en welke veldnamen
+      erin staan is dus nog niet gezien; Kader leest ze allemaal en beide schrijfwijzen. Zodra er een
+      order blijft wachten (op de kaart "Wachtende orders" in Portfolio): kijk of bedrag, coin en
+      status kloppen, en of eToro het vastgezette bedrag misschien zelf al van `credit` aftrekt (dan
+      trekt `bepaalSaldoStand()` het dubbel af). Zie docs/etoro-direct-handelen-plan.md paragraaf 11.
 
 - [ ] **Controleren of PEPE nu wél te kopen is via de app.**
       De melding "Kader kan PEPE niet eenduidig aan een eToro-instrument koppelen" had zeker één

@@ -34,6 +34,9 @@ export const SLEUTELS = {
   // Verstuurde orders waarvan we niet weten of ze zijn doorgegaan (netwerk weggevallen, 5xx).
   // Staan op schijf voordat het verzoek uitgaat, zodat een app-kill ze niet kwijtraakt.
   onbekendeOrders: 'onbekende_orders',
+  // Orders die wel degelijk bij eToro zijn aangekomen (soort 'ok'), met hun laatst bekende status.
+  // Kader vraagt hiervan periodiek na of ze inmiddels gevuld, geannuleerd of geweigerd zijn.
+  geplaatsteOrders: 'geplaatste_orders',
   etoroSetupGevraagd: 'etoro_setup_gevraagd',
   laatsteSync: 'laatste_sync_tijd',
   // eToro-positie-ID's die de gebruiker uit zijn portfolio heeft verwijderd. Zonder deze lijst

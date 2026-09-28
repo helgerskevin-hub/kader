@@ -49,24 +49,61 @@ interface EtoroPositie {
 // een aandeel stond het gereserveerde bedrag in Kader gewoon als beschikbaar geld, en een koop die
 // je daarop baseerde werd door eToro geweigerd omdat het geld er niet meer was.
 //
-// De veldnamen staan hier ruim: eToro documenteert deze lijst niet en Kader mag niet stilzwijgend
-// het verkeerde getal tonen. Herkent hij het bedrag van een order niet, dan telt die order als
-// onbekend en zegt de app dat ook, in plaats van er nul van te maken.
+// De veldnamen staan hier ruim: niets hiervan is tegen een echte respons gemeten, en Kader mag niet
+// stilzwijgend het verkeerde getal tonen. Herkent hij het bedrag van een order niet, dan telt die
+// order als onbekend en zegt de app dat ook, in plaats van er nul van te maken.
+//
+// De hoofdletters verschillen per lijst: eToro's docs schrijven orderID/instrumentID voor de
+// limietorders, een derde partij orderId/instrumentId voor de wachtende marktorders. Daarom beide
+// schrijfwijzen, net als bij de historie (positieIdVan).
 interface EtoroWachtendeOrder {
+  orderID?: number;
+  orderId?: number;
+  instrumentID?: number;
+  instrumentId?: number;
+  isBuy?: boolean;
+  // Alleen bij een limietorder: de koers waarop hij moet vullen.
+  rate?: number;
   amount?: number;
+  // Het bedrag dat eToro voor een wachtende marktorder vasthoudt.
+  frozenAmount?: number;
   initialAmountInDollars?: number;
   investmentAmount?: number;
   totalAmount?: number;
+  units?: number;
+  amountInUnits?: number;
+  leverage?: number;
+  stopLossRate?: number;
+  takeProfitRate?: number;
+  isNoStopLoss?: boolean;
+  isNoTakeProfit?: boolean;
+  openDateTime?: string;
+  lastUpdate?: string;
+  executionType?: unknown;
+  statusId?: number;
+  orderType?: unknown;
 }
 
 // Posities zitten genest onder clientPortfolio (geverifieerd tegen de echte API-respons). De
-// orderlijst is niet tegen een echte respons geverifieerd, vandaar de drie mogelijke namen.
-interface EtoroPortfolioRespons {
+// orderlijsten niet. Een eerdere versie nam aan dat `orders` DE lijst met wachtende orders was,
+// maar volgens eToro's docs staan daar alleen de limietorders in; de marktorders die op een
+// gesloten beurs wachten staan in `ordersForOpen`. Juist die hielden het geld vast uit de melding
+// hierboven. `ordersForClose` zijn sluitorders op bestaande posities en reserveren geen geld.
+//
+// Gemeten op 28 sep 2026 (demo, lege lijsten): eToro stuurt altijd orders, stockOrders,
+// entryOrders, exitOrders, ordersForOpen, ordersForClose en ordersForCloseMultiple mee. Welke
+// wachtende koop in welke lijst belandt is met een gevulde lijst nog niet gezien, dus stockOrders en
+// entryOrders tellen ook mee (ontdubbeld op orderId). exitOrders zijn sluitorders, net als
+// ordersForClose. pendingOrders is een gok van vóór de meting en blijft alleen als terugval.
+export interface EtoroPortfolioRespons {
   clientPortfolio?: {
     credit?: number;
     unrealizedPnL?: number;
     positions?: EtoroPositie[];
     orders?: EtoroWachtendeOrder[];
+    stockOrders?: EtoroWachtendeOrder[];
+    ordersForOpen?: EtoroWachtendeOrder[];
+    ordersForClose?: EtoroWachtendeOrder[];
     entryOrders?: EtoroWachtendeOrder[];
     pendingOrders?: EtoroWachtendeOrder[];
   };
@@ -112,6 +149,8 @@ const DEMO_PADEN: ReadonlyArray<readonly [string, string]> = [
   ['/market-data/', '/market-data/'],
   ['/trading/info/eligibility', '/trading/info/demo/eligibility'],
   ['/trading/info/portfolio', '/trading/info/demo/portfolio'],
+  // Uit de docs, nog niet gemeten. De ':' hoort bij het pad, niet bij de querystring.
+  ['/trading/info/orders:lookup', '/trading/info/demo/orders:lookup'],
   // Gemeten: hier zit /demo/ tussen `trade` en `history`. /trading/info/demo/trade/history geeft
   // RouteNotFound. Let op waarom dit ertoe doet: het echte pad antwoordt gewoon met 200 en echte
   // historie, dus een verkeerde gok had hier stilzwijgend het echte account gelezen.
@@ -327,13 +366,73 @@ export interface SaldoStand {
   wachtendeOrders: number;
 }
 
-// Het eerste bedrag dat als getal te lezen is. Geen optelling van alle velden: het zijn drie
-// mogelijke namen voor hetzelfde bedrag, niet drie bedragen.
+const positiefGetal = (waarde: unknown): number | null =>
+  typeof waarde === 'number' && isFinite(waarde) && waarde > 0 ? waarde : null;
+
+// Het eerste bedrag dat als getal te lezen is. Geen optelling van alle velden: het zijn mogelijke
+// namen voor hetzelfde bedrag, niet losse bedragen.
 function orderBedrag(order: EtoroWachtendeOrder): number | null {
-  for (const waarde of [order.amount, order.initialAmountInDollars, order.investmentAmount, order.totalAmount]) {
-    if (typeof waarde === 'number' && isFinite(waarde) && waarde > 0) return waarde;
+  for (const waarde of [order.amount, order.frozenAmount, order.initialAmountInDollars, order.investmentAmount, order.totalAmount]) {
+    const bedrag = positiefGetal(waarde);
+    if (bedrag !== null) return bedrag;
   }
   return null;
+}
+
+type OrderSoort = 'markt' | 'limiet';
+
+// Welke lijsten tellen als orders die geld vasthouden. Gedeeld door het saldo en de orderlijst,
+// zodat het aantal op de saldokaart en het aantal regels in de lijst nooit uit elkaar lopen.
+//
+// Eerder pakte het saldo de eerste array uit orders/entryOrders/pendingOrders. Stuurt eToro dan
+// `orders: []` (geen limietorders) naast een gevulde ordersForOpen, dan werd die tweede lijst
+// genegeerd en stond het vastgezette geld weer als besteedbaar. Nu tellen orders en ordersForOpen
+// allebei mee. De oude gokken tellen alleen als geen van beide er is, anders zou dezelfde order
+// onder twee namen dubbel afgetrokken kunnen worden.
+//
+// null = eToro stuurde geen enkele lijst mee.
+function wachtendeLijsten(portfolio: EtoroPortfolioRespons): { soort: OrderSoort; order: EtoroWachtendeOrder }[] | null {
+  const cp = portfolio.clientPortfolio;
+  // Een null of kale waarde in de lijst wordt een lege order: die telt dan als onleesbaar mee in
+  // plaats van de hele sync op een TypeError te laten stranden.
+  type SoortRegel = OrderSoort | ((order: EtoroWachtendeOrder) => OrderSoort);
+  const regels = (lijst: EtoroWachtendeOrder[], soort: SoortRegel) =>
+    lijst.map(item => {
+      const order: EtoroWachtendeOrder = item && typeof item === 'object' ? item : {};
+      return { soort: typeof soort === 'function' ? soort(order) : soort, order };
+    });
+
+  // stockOrders kan allebei bevatten: een order met een leesbare koers is een limietorder, een
+  // zonder is een marktorder die op een dichte beurs wacht. Dus per order beslissen, niet per lijst.
+  const stockSoort = (order: EtoroWachtendeOrder): OrderSoort => positiefGetal(order.rate) !== null ? 'limiet' : 'markt';
+
+  const bronnen: [unknown, SoortRegel][] = [
+    [cp?.ordersForOpen, 'markt'],
+    [cp?.stockOrders, stockSoort],
+    [cp?.orders, 'limiet'],
+    [cp?.entryOrders, 'limiet'],
+  ];
+  const aanwezig = bronnen.filter(([lijst]) => Array.isArray(lijst)) as [EtoroWachtendeOrder[], SoortRegel][];
+  if (aanwezig.length === 0) {
+    return Array.isArray(cp?.pendingOrders) ? regels(cp.pendingOrders, 'limiet') : null;
+  }
+
+  // Dezelfde order kan onder twee namen staan; dan maar één keer tellen, anders wordt het
+  // vastgezette bedrag dubbel van je saldo afgetrokken. Een order zonder leesbaar id valt niet te
+  // ontdubbelen en telt gewoon mee.
+  const gezien = new Set<number>();
+  const uit: { soort: OrderSoort; order: EtoroWachtendeOrder }[] = [];
+  for (const [lijst, soort] of aanwezig) {
+    for (const regel of regels(lijst, soort)) {
+      const id = positiefGetal(regel.order.orderId ?? regel.order.orderID);
+      if (id !== null) {
+        if (gezien.has(id)) continue;
+        gezien.add(id);
+      }
+      uit.push(regel);
+    }
+  }
+  return uit;
 }
 
 // Pure functie zodat de randgevallen (geen orderlijst, een order zonder leesbaar bedrag, een
@@ -343,7 +442,7 @@ export function bepaalSaldoStand(portfolio: EtoroPortfolioRespons): SaldoStand {
   const credit = cp?.credit;
   const creditUsd = typeof credit === 'number' && isFinite(credit) ? credit : null;
 
-  const lijst = [cp?.orders, cp?.entryOrders, cp?.pendingOrders].find(Array.isArray);
+  const lijst = wachtendeLijsten(portfolio)?.map(r => r.order);
   // Geen lijst betekent niet "geen orders": eToro kan het veld gewoon weglaten. Dan is er ook niets
   // te reserveren en blijft het besteedbare bedrag het kale saldo, precies zoals voorheen.
   if (lijst === undefined) {
@@ -380,14 +479,60 @@ export async function haalSaldoStand(sleutels: EtoroSleutels): Promise<SaldoStan
   return bepaalSaldoStand(await haalEtoroPortfolio(sleutels));
 }
 
+// ---------- Wachtende orders ----------
+
+// Eén wachtende order, los van hoe eToro hem schrijft. Elk veld dat niet te lezen is wordt null,
+// nooit 0: een stop van 0 of een bedrag van $0 in beeld is een verzonnen getal.
+export interface WachtendeOrderRuw {
+  // null = niet annuleerbaar. De order staat wel in de lijst, want het geld zit echt vast.
+  orderId: number | null;
+  instrumentId: number | null;
+  soort: OrderSoort;
+  richting: Richting;
+  bedragUsd: number | null;
+  // Alleen bij een limietorder.
+  limietKoers: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  // Epoch ms.
+  openTijd: number | null;
+  statusId: number | null;
+}
+
+export type WachtendeOrder = WachtendeOrderRuw & { symbool: string; naam: string; omgeving: EtoroOmgeving };
+
+// Pure functie: de veldnamen zijn nog niet gemeten, dus de leesregels moeten in de self-check staan.
+export function leesWachtendeOrders(portfolio: EtoroPortfolioRespons): WachtendeOrderRuw[] {
+  return (wachtendeLijsten(portfolio) ?? []).map(({ soort, order }) => {
+    const tijd = typeof order.openDateTime === 'string' ? Date.parse(order.openDateTime) : NaN;
+    return {
+      orderId: positiefGetal(order.orderId ?? order.orderID),
+      instrumentId: positiefGetal(order.instrumentId ?? order.instrumentID),
+      soort,
+      // Zelfde regel als bij posities: alleen een expliciete false is short.
+      richting: order.isBuy === false ? 'short' : 'long',
+      bedragUsd: orderBedrag(order),
+      limietKoers: soort === 'limiet' ? positiefGetal(order.rate) : null,
+      // isNoStopLoss zegt expliciet dat er geen stop is; een koers die er dan toch naast staat is
+      // een restwaarde en geen niveau.
+      stopLoss: order.isNoStopLoss === true ? null : positiefGetal(order.stopLossRate),
+      takeProfit: order.isNoTakeProfit === true ? null : positiefGetal(order.takeProfitRate),
+      openTijd: isNaN(tijd) ? null : tijd,
+      statusId: typeof order.statusId === 'number' && isFinite(order.statusId) ? order.statusId : null,
+    };
+  });
+}
+
 // ============================================================================
 // ORDERS
 //
-// INVARIANT: de drie functies hieronder (plaatsKooporder, sluitPositie, wijzigNiveaus) mogen
-// UITSLUITEND aangeroepen worden vanuit een expliciete bevestiging door de gebruiker. Nooit vanuit
-// een setInterval, nooit vanuit de AppState-listener, nooit vanuit achtergrondtaak.ts, en nooit
-// vanuit een herhaallus. Er is met opzet geen retry en geen backoff: een afgebroken schrijfactie
-// annuleert niets aan eToro's kant, dus opnieuw sturen kan een tweede positie openen.
+// INVARIANT: de vier functies hieronder (plaatsKooporder, sluitPositie, wijzigNiveaus,
+// annuleerOrder) mogen UITSLUITEND aangeroepen worden vanuit een expliciete bevestiging door de
+// gebruiker. Nooit vanuit een setInterval, nooit vanuit de AppState-listener, nooit vanuit
+// achtergrondtaak.ts, en nooit vanuit een herhaallus. Er is met opzet geen retry en geen backoff:
+// een afgebroken schrijfactie annuleert niets aan eToro's kant, dus opnieuw sturen kan een tweede
+// positie openen. Ook annuleren hoort daarbij: Kader beslist nooit zelf dat een order weg moet.
+// zoekOrderStatus leest alleen en valt hier niet onder.
 //
 // Gemeten: eToro geeft één sleutel uit die zowel demo als echt mag handelen. Het PAD is dus het
 // enige dat speelgeld van echt geld scheidt, en demoPad() gooit bij een pad dat het niet kent.
@@ -567,6 +712,23 @@ export async function plaatsKooporder(
 
 // ---------- Positie sluiten ----------
 
+// Gemeten (28 sep 2026, demo): POST .../market-close-orders/positions/{id} antwoordt met 200
+// `{"orderForClose":{"positionID":...,"instrumentID":1001,"orderID":384452601,"orderType":19,"statusID":1,...},"token":"..."}`.
+// Het orderId staat dus niet bovenaan zoals bij een kooporder, maar genest, en met hoofdletters ID.
+// Zonder dit kreeg een verkoop nooit een orderId en werd zijn uitkomst dus nooit opgevraagd. Het
+// platte orderId blijft als eerste keus staan voor het geval eToro het antwoord gelijktrekt.
+interface SluitAntwoord {
+  orderId?: number;
+  token?: string;
+  orderForClose?: { orderID?: number; orderId?: number };
+}
+
+export function leesSluitOrderId(antwoord: SluitAntwoord | undefined): number | null {
+  return positiefGetal(antwoord?.orderId)
+    ?? positiefGetal(antwoord?.orderForClose?.orderID)
+    ?? positiefGetal(antwoord?.orderForClose?.orderId);
+}
+
 // unitsToDeduct null = de hele positie sluiten.
 export async function sluitPositie(
   positionId: number,
@@ -575,8 +737,8 @@ export async function sluitPositie(
   sleutels: EtoroSleutels,
   verzoekId: string,
 ): Promise<OrderUitkomst> {
-  return voerOrderUit(verzoekId, () =>
-    etoroFetch<{ orderId?: number; token?: string }>(
+  return voerOrderUit(verzoekId, async () => {
+    const antwoord = await etoroFetch<SluitAntwoord | undefined>(
       `/trading/execution/market-close-orders/positions/${positionId}`,
       sleutels,
       {
@@ -586,8 +748,12 @@ export async function sluitPositie(
         verzoekId,
         schrijft: true,
       },
-    ),
-  );
+    );
+    return {
+      orderId: leesSluitOrderId(antwoord) ?? undefined,
+      token: typeof antwoord?.token === 'string' ? antwoord.token : undefined,
+    };
+  });
 }
 
 // ---------- Niveaus wijzigen ----------
@@ -633,6 +799,136 @@ export async function wijzigNiveaus(
       schrijft: true,
     }),
   );
+}
+
+// ---------- Wachtende order annuleren ----------
+
+// DELETE zonder body. Gemeten (28 sep 2026, demo): op een order die al gevuld was gaf eToro toch
+// 200 `{orderId, referenceId:""}`, en de status bleef Filled. Een 'ok' betekent hier dus "verzoek
+// aangenomen", niet "geannuleerd"; de aanroeper mag niet beweren dat de order weg is. Wat er echt
+// gebeurd is, weet je pas na een zoekOrderStatus; zie meldingNaAnnuleren in state/orderUitkomsten.ts.
+//
+// Een 404 (order bestaat niet of niet meer) wordt hier al vertaald, zodat eToro's rauwe foutbody
+// niet in beeld komt. Het blijft een 'fout': er is niets geannuleerd, ook al kan de order intussen
+// gevuld zijn. De aanroeper synct daarna en ziet het vanzelf.
+export const ORDER_BESTAAT_NIET_MEER = 'Deze order bestaat niet meer bij eToro. Hij is al uitgevoerd of geannuleerd.';
+
+export async function annuleerOrder(
+  orderId: number,
+  sleutels: EtoroSleutels,
+  verzoekId: string,
+): Promise<OrderUitkomst> {
+  // Een id dat geen positief geheel getal is komt niet van eToro. Liever niets versturen dan een
+  // DELETE op /orders/NaN die eToro misschien anders uitlegt dan wij.
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    return { soort: 'fout', bericht: 'Kader kan deze order niet herkennen en annuleert hem daarom niet.' };
+  }
+  return voerOrderUit(verzoekId, async () => {
+    try {
+      return await etoroFetch<{ orderId?: number; token?: string }>(`/trading/execution/orders/${orderId}`, sleutels, {
+        versie: 'v2',
+        // Zonder body leidt etoroFetch GET af; de methode moet dus expliciet.
+        methode: 'DELETE',
+        verzoekId,
+        schrijft: true,
+      });
+    } catch (e) {
+      // Met status 404 erbij, zodat duidFout er net als voorheen een 'fout' van maakt.
+      if (e instanceof EtoroFout && e.status === 404) throw new EtoroFout(ORDER_BESTAAT_NIET_MEER, 404);
+      throw e;
+    }
+  });
+}
+
+// ---------- Orderstatus ----------
+
+export interface OrderStatus {
+  id: number;
+  // eToro's eigen statusnaam (Engels). Voor de gebruiker is er statusInGewoneTaal().
+  naam: string;
+  foutCode: number | null;
+  // eToro's reden bij een weigering, of null als eToro niets zegt.
+  reden: string | null;
+  definitief: boolean;
+  orderId: number | null;
+}
+
+interface OrderLookupRespons {
+  orderId?: number;
+  orderID?: number;
+  status?: { id?: number; name?: string; errorCode?: number; errorMessage?: string };
+}
+
+// Uit eToro's docs: 3 Filled, 4 Rejected, 7 Canceled, 8 Expired, 9 CanceledPartiallyFilled,
+// 10 RejectedPartiallyFilled. Daarna verandert er niets meer, dus opnieuw opvragen is zinloos.
+const DEFINITIEVE_STATUSSEN = new Set([3, 4, 7, 8, 9, 10]);
+
+export function isDefinitieveStatus(id: number): boolean {
+  return DEFINITIEVE_STATUSSEN.has(id);
+}
+
+const STATUS_TEKST: Record<number, string> = {
+  1: 'ontvangen door eToro',
+  2: 'ontvangen door eToro',
+  3: 'uitgevoerd',
+  4: 'geweigerd door eToro',
+  5: 'gedeeltelijk uitgevoerd',
+  6: 'wordt geannuleerd',
+  7: 'geannuleerd',
+  8: 'verlopen',
+  9: 'gedeeltelijk uitgevoerd, de rest is geannuleerd',
+  10: 'gedeeltelijk uitgevoerd, de rest is geweigerd',
+  11: 'wacht tot de markt opent',
+  12: 'wacht op de koers',
+};
+
+export function statusInGewoneTaal(id: number): string {
+  return STATUS_TEKST[id] ?? 'status onbekend';
+}
+
+// Opzoeken op orderId, of op de x-request-id waarmee de order verstuurd is (referenceId). Let op:
+// gemeten op 28 sep 2026 (demo) gaf de lookup op referenceId 404 "No external operation was found",
+// ook voor een order die eToro net met precies die referenceId had bevestigd. De lookup op orderId
+// werkte wel. Gebruik dus orderId; referenceId staat er alleen nog voor als eToro dat ooit oplost.
+//
+// null = eToro kent deze order niet (404). Elke andere fout gooit, want "kon het niet nagaan" is
+// iets anders dan "bestaat niet". Een antwoord zonder leesbaar status-id gooit ook: een status
+// verzinnen is erger dan er geen tonen.
+export async function zoekOrderStatus(
+  sleutel: { orderId: number } | { referenceId: string },
+  sleutels: EtoroSleutels,
+): Promise<OrderStatus | null> {
+  let query: string;
+  if ('orderId' in sleutel) {
+    if (!Number.isInteger(sleutel.orderId) || sleutel.orderId <= 0) throw new Error('Ongeldig order-id.');
+    query = `orderId=${encodeURIComponent(String(sleutel.orderId))}`;
+  } else {
+    if (!sleutel.referenceId.trim()) throw new Error('Lege verzoek-id.');
+    query = `referenceId=${encodeURIComponent(sleutel.referenceId.trim())}`;
+  }
+
+  let data: OrderLookupRespons | undefined;
+  try {
+    data = await etoroFetch<OrderLookupRespons | undefined>(`/trading/info/orders:lookup?${query}`, sleutels, { versie: 'v2' });
+  } catch (e) {
+    if (e instanceof EtoroFout && e.status === 404) return null;
+    throw e;
+  }
+
+  const status = data?.status;
+  const id = status?.id;
+  if (typeof id !== 'number' || !Number.isInteger(id)) {
+    throw new Error('eToro gaf een orderstatus die Kader niet kan lezen.');
+  }
+  const reden = typeof status?.errorMessage === 'string' ? status.errorMessage.trim() : '';
+  return {
+    id,
+    naam: typeof status?.name === 'string' ? status.name.trim() : '',
+    foutCode: typeof status?.errorCode === 'number' && isFinite(status.errorCode) ? status.errorCode : null,
+    reden: reden ? reden.slice(0, 200) : null,
+    definitief: isDefinitieveStatus(id),
+    orderId: positiefGetal(data?.orderId ?? data?.orderID),
+  };
 }
 
 // ---------- Stop-loss-limieten ----------
@@ -930,6 +1226,27 @@ export interface EtoroSyncResultaat {
   // Wat er vastzit in orders die nog niet gevuld zijn, en hoeveel dat er zijn. Zie bepaalSaldoStand.
   gereserveerdUsd: number | null;
   wachtendeOrders: number;
+  // Diezelfde orders een voor een, nieuwste eerst. Ook orders op aandelen en andere niet-crypto:
+  // het geld dat daarin vastzit is net zo goed weg uit het besteedbare saldo.
+  wachtendeOrderLijst: WachtendeOrder[];
+}
+
+// Een order zonder tijd achteraan: die is niet te plaatsen, en bovenaan zou hij doen alsof hij net
+// geplaatst is.
+function bouwWachtendeOrders(
+  ruw: WachtendeOrderRuw[],
+  instrumentKaart: Map<number, EtoroInstrument>,
+  cryptoTypeIds: Set<number> | null,
+  omgeving: EtoroOmgeving,
+): WachtendeOrder[] {
+  return ruw
+    .map(order => {
+      const { symbool, naam } = order.instrumentId === null
+        ? { symbool: '', naam: 'onbekend instrument' }
+        : duidInstrument(order.instrumentId, instrumentKaart, cryptoTypeIds);
+      return { ...order, symbool: symbool || naam, naam, omgeving };
+    })
+    .sort((a, b) => (b.openTijd ?? 0) - (a.openTijd ?? 0));
 }
 
 // Open posities en gesloten historie in één keer. Bewust één functie en niet twee losse imports:
@@ -941,10 +1258,13 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
     haalHistorieRegels(sleutels),
   ]);
   const posities = portfolio.clientPortfolio?.positions ?? [];
+  const orders = leesWachtendeOrders(portfolio);
 
+  // De orders gaan mee in dezelfde instrument-lookup: geen extra request op het gedeelde quotum.
   const ids = [...new Set([
     ...posities.map(p => p.instrumentID),
     ...regels.map(instrumentIdVan).filter((id): id is number => typeof id === 'number'),
+    ...orders.map(o => o.instrumentId).filter((id): id is number => id !== null),
   ])];
   const [instrumentKaart, cryptoTypeIds] = await Promise.all([
     haalInstrumenten(ids, sleutels),
@@ -967,6 +1287,7 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
     vrijSaldoUsd: saldo.besteedbaarUsd,
     gereserveerdUsd: saldo.gereserveerdUsd,
     wachtendeOrders: saldo.wachtendeOrders,
+    wachtendeOrderLijst: bouwWachtendeOrders(orders, instrumentKaart, cryptoTypeIds, omgeving),
   };
 }
 
@@ -1252,10 +1573,121 @@ if (require.main === module) {
   console.assert(demoTrade.etoroInstrumentID === 1, 'het instrumentID moet mee, anders kun je niet sluiten');
   console.assert(naarPortfolioTrade(mock, 'BTC').etoroOmgeving === 'real', 'zonder opgave is het een echte positie');
 
-  if (missers > 0) {
-    console.error(`etoro.ts self-check GEFAALD: ${missers} controle(s) klopten niet`);
-    process.exit(1);
+  // ---------- Wachtende orders: saldo ----------
+  // De bug: `orders: []` (geen limietorders) is ook een array, dus de oude find() stopte daar en
+  // de marktorder in ordersForOpen, precies het geld dat vastzat, telde niet mee.
+  {
+    const leegPlusMarkt = bepaalSaldoStand({ clientPortfolio: { credit: 100, orders: [], ordersForOpen: [{ amount: 40 }] } });
+    console.assert(leegPlusMarkt.besteedbaarUsd === 60, `een lege orders mag ordersForOpen niet verbergen, was ${leegPlusMarkt.besteedbaarUsd}`);
+    console.assert(leegPlusMarkt.wachtendeOrders === 1, 'de marktorder telt als wachtende order');
+
+    const beide = bepaalSaldoStand({ clientPortfolio: { credit: 100, orders: [{ amount: 10 }], ordersForOpen: [{ amount: 40 }] } });
+    console.assert(beide.gereserveerdUsd === 50 && beide.besteedbaarUsd === 50, `beide lijsten tellen op, was ${beide.gereserveerdUsd}`);
+    console.assert(beide.wachtendeOrders === 2, 'twee lijsten met elk een order zijn twee orders');
+
+    // frozenAmount is de naam die de derde partij voor het vastgezette bedrag van een marktorder geeft.
+    console.assert(bepaalSaldoStand({ clientPortfolio: { credit: 100, ordersForOpen: [{ frozenAmount: 30 }] } }).besteedbaarUsd === 70,
+      'frozenAmount telt als bedrag');
+
+    // Sluitorders reserveren geen geld.
+    console.assert(bepaalSaldoStand({ clientPortfolio: { credit: 100, ordersForClose: [{ amount: 40 }] } }).besteedbaarUsd === 100,
+      'ordersForClose mag niets van het saldo afhalen');
+
+    // Gemeten: eToro stuurt entryOrders en stockOrders altijd mee. Die tellen dus ook, maar dezelfde
+    // order onder twee namen maar één keer.
+    console.assert(bepaalSaldoStand({ clientPortfolio: { credit: 100, ordersForOpen: [], entryOrders: [{ amount: 40 }] } }).besteedbaarUsd === 60,
+      'entryOrders telt mee naast een lege ordersForOpen');
+    console.assert(bepaalSaldoStand({ clientPortfolio: { credit: 100, stockOrders: [{ orderId: 5, amount: 40 }] } }).besteedbaarUsd === 60,
+      'stockOrders telt mee');
+    const dubbel = bepaalSaldoStand({ clientPortfolio: { credit: 100, ordersForOpen: [{ orderId: 5, amount: 40 }], stockOrders: [{ orderID: 5, amount: 40 }] } });
+    console.assert(dubbel.besteedbaarUsd === 60 && dubbel.wachtendeOrders === 1, `dezelfde order in twee lijsten telt één keer, was ${dubbel.besteedbaarUsd}`);
+    // pendingOrders is een gok van vóór de meting en telt alleen als er geen echte lijst is.
+    console.assert(bepaalSaldoStand({ clientPortfolio: { credit: 100, orders: [], pendingOrders: [{ amount: 40 }] } }).besteedbaarUsd === 100,
+      'pendingOrders telt niet naast een echte lijst');
+    // De vorm zoals eToro hem op 28 sep 2026 stuurde: alle lijsten leeg.
+    const gemeten = bepaalSaldoStand({ clientPortfolio: { credit: 105998.02, orders: [], stockOrders: [], entryOrders: [], ordersForOpen: [], ordersForClose: [] } });
+    console.assert(gemeten.besteedbaarUsd === 105998.02 && gemeten.wachtendeOrders === 0, 'de gemeten lege respons reserveert niets');
+
+    // Rommel in de lijst mag de sync niet laten crashen en telt als onleesbaar.
+    const rommel = bepaalSaldoStand({ clientPortfolio: { credit: 100, ordersForOpen: [null as unknown as EtoroWachtendeOrder] } });
+    console.assert(rommel.gereserveerdUsd === null && rommel.wachtendeOrders === 1, 'een null-order is een onleesbare order');
   }
+
+  // ---------- Wachtende orders: lijst ----------
+  {
+    const lijst = leesWachtendeOrders({
+      clientPortfolio: {
+        orders: [{
+          orderID: 11, instrumentID: 1001, isBuy: true, rate: 180.5, amount: 25,
+          stopLossRate: 0, takeProfitRate: 200, openDateTime: '2026-09-01T10:00:00Z',
+        }],
+        ordersForOpen: [{
+          orderId: 22, instrumentId: 1002, isBuy: false, frozenAmount: 40, statusId: 11,
+          stopLossRate: 120, isNoTakeProfit: true, takeProfitRate: 90,
+        }],
+      },
+    });
+    const limiet = lijst.find(o => o.soort === 'limiet');
+    const markt = lijst.find(o => o.soort === 'markt');
+    console.assert(lijst.length === 2, `twee orders verwacht, waren het er ${lijst.length}`);
+    console.assert(limiet?.orderId === 11 && limiet?.instrumentId === 1001, 'orderID en instrumentID (hoofdletters) moeten gelezen worden');
+    console.assert(markt?.orderId === 22 && markt?.instrumentId === 1002, 'orderId en instrumentId (kleine d) moeten gelezen worden');
+    console.assert(limiet?.limietKoers === 180.5 && markt?.limietKoers === null, 'alleen een limietorder heeft een limietkoers');
+    console.assert(limiet?.stopLoss === null, 'een stop van 0 is geen stop en wordt null, geen 0');
+    console.assert(limiet?.takeProfit === 200, 'een echt doel blijft staan');
+    console.assert(markt?.takeProfit === null, 'isNoTakeProfit wint van een restwaarde');
+    console.assert(markt?.stopLoss === 120, 'een echte stop op een marktorder blijft staan');
+    console.assert(limiet?.richting === 'long' && markt?.richting === 'short', 'isBuy false is short');
+    console.assert(limiet?.bedragUsd === 25 && markt?.bedragUsd === 40, 'amount en frozenAmount zijn allebei een bedrag');
+    console.assert(limiet?.openTijd === Date.parse('2026-09-01T10:00:00Z') && markt?.openTijd === null, 'tijd in epoch ms, of null');
+    console.assert(markt?.statusId === 11 && limiet?.statusId === null, 'statusId alleen als eToro hem meestuurt');
+
+    const zonderId = leesWachtendeOrders({ clientPortfolio: { ordersForOpen: [{ amount: 5 }] } });
+    console.assert(zonderId.length === 1 && zonderId[0].orderId === null && zonderId[0].instrumentId === null,
+      'een order zonder id staat wel in de lijst, maar met orderId null');
+    console.assert(zonderId[0].richting === 'long', 'een ontbrekende isBuy is long');
+    console.assert(leesWachtendeOrders({}).length === 0, 'een lege respons geeft een lege lijst');
+    console.assert(leesWachtendeOrders({ clientPortfolio: { pendingOrders: [{ orderId: 3 }] } })[0]?.soort === 'limiet',
+      'de oude terugvallijst telt als limietorder');
+
+    // stockOrders per order: met een leesbare koers limiet, zonder markt.
+    const aandelen = leesWachtendeOrders({ clientPortfolio: { stockOrders: [{ orderId: 31, rate: 150 }, { orderId: 32 }, { orderId: 33, rate: 0 }] } });
+    console.assert(aandelen[0]?.soort === 'limiet' && aandelen[0]?.limietKoers === 150, 'een stockOrder met koers is een limietorder');
+    console.assert(aandelen[1]?.soort === 'markt' && aandelen[1]?.limietKoers === null, 'een stockOrder zonder koers is een marktorder');
+    console.assert(aandelen[2]?.soort === 'markt', 'een koers van 0 is geen koers, dus marktorder');
+  }
+
+  // Het sluitantwoord zoals gemeten (28 sep 2026, demo): orderId genest onder orderForClose.orderID.
+  {
+    const gemeten = {
+      orderForClose: { positionID: 3355213401, instrumentID: 1001, orderID: 384452601, orderType: 19, statusID: 1 },
+      token: 'abc',
+    } as unknown as Parameters<typeof leesSluitOrderId>[0];
+    console.assert(leesSluitOrderId(gemeten) === 384452601, 'het gemeten sluitantwoord levert orderForClose.orderID');
+    console.assert(leesSluitOrderId({ orderId: 7, orderForClose: { orderID: 8 } }) === 7, 'een plat orderId gaat voor');
+    console.assert(leesSluitOrderId({ orderForClose: { orderId: 9 } }) === 9, 'ook orderForClose.orderId (kleine d) telt');
+    console.assert(leesSluitOrderId(undefined) === null && leesSluitOrderId({ orderForClose: { orderID: 0 } }) === null,
+      'geen of een onzinnig id wordt null, geen 0');
+  }
+
+  // ---------- Annuleren en status ----------
+  console.assert(demoPad('/trading/execution/orders/123') === '/trading/execution/demo/orders/123',
+    'annuleren van een order moet in demo het demo-segment krijgen');
+  console.assert(demoPad('/trading/info/orders:lookup?orderId=5') === '/trading/info/demo/orders:lookup?orderId=5',
+    'de orderstatus heeft een eigen demo-pad, en de querystring blijft erachter staan');
+  console.assert(demoPad('/trading/info/orders:lookup?referenceId=abc') === '/trading/info/demo/orders:lookup?referenceId=abc',
+    'ook opzoeken op verzoek-id gaat naar demo');
+  console.assert(isDefinitieveStatus(7) === true && isDefinitieveStatus(3) === true, 'geannuleerd en uitgevoerd zijn definitief');
+  console.assert(isDefinitieveStatus(11) === false && isDefinitieveStatus(1) === false, 'wachten op de markt en ontvangen zijn niet definitief');
+  console.assert(statusInGewoneTaal(11) === 'wacht tot de markt opent', 'status 11 in gewone taal');
+  console.assert(statusInGewoneTaal(99) === 'status onbekend', 'een onbekend status-id wordt niet verzonnen');
+  {
+    // annuleerOrder gooit bij een 404 deze vertaalde fout; die moet een 'fout' blijven (er is niets
+    // geannuleerd) en de eigen tekst tonen in plaats van eToro's rauwe body.
+    const u = duidFout(new EtoroFout(ORDER_BESTAAT_NIET_MEER, 404), 'x');
+    console.assert(u.soort === 'fout' && u.bericht === ORDER_BESTAAT_NIET_MEER, 'een 404 bij annuleren wordt een leesbare fout');
+  }
+
   // Een open positie zonder isBuy in de respons moet long blijven, net als in de historie. Met een
   // waarheidstest zou hij stilzwijgend als short opgeslagen worden, en dan klopt alles eromheen niet.
   {
@@ -1282,5 +1714,10 @@ if (require.main === module) {
       'weglaten van richting hoort identiek te zijn aan long');
   }
 
+  // Helemaal onderaan: stond eerder halverwege, en de controles daarna telden dan niet mee.
+  if (missers > 0) {
+    console.error(`etoro.ts self-check GEFAALD: ${missers} controle(s) klopten niet`);
+    process.exit(1);
+  }
   console.log('etoro.ts self-check geslaagd');
 }
