@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.1.25
 
 - Grote Kansen is vernieuwd tot Momentum-radar. Het scherm scant dezelfde coins als Markt, maar zoekt coins die dicht bij hun hoogste koers van de afgelopen 90 dagen staan. Dat was in de backtest het enige momentum-kenmerk dat echt betere coins koos; de oude kansscore (kleine marktcap, ver onder de all-time high) was nooit getest en is weg
 - Elke kaart op de radar heeft een uitbraak-plan: stop op de EMA20 en doel 2x ATR boven de 90-dagen-top. Dat wijkt bewust af van de niveaus op Markt. KOOP verschijnt alleen als de verhouding tussen risico en opbrengst minstens 1:2 is, anders staat er WATCH. Coins zonder genoeg koersdata krijgen geen verzonnen stop en doel meer

@@ -12,7 +12,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.1.25',
     datum: '2026-09-28',
     punten: [
       'Grote Kansen is vernieuwd tot Momentum-radar. Het scherm scant dezelfde coins als Markt, maar zoekt coins die dicht bij hun hoogste koers van de afgelopen 90 dagen staan. Dat was in de backtest het enige momentum-kenmerk dat echt betere coins koos; de oude kansscore (kleine marktcap, ver onder de all-time high) was nooit getest en is weg',
