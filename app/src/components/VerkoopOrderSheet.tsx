@@ -121,10 +121,11 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
       const uitkomst = await sluitPositie(positionId, instrumentId, null, sleutels, verzoekId);
 
       if (uitkomst.soort === 'ok') {
-        verzoenNaOrder();
-        // Fire-and-forget: mag de bevestiging aan de gebruiker niet blokkeren. Mislukt het
-        // wegschrijven, dan mist alleen de latere "geannuleerd/geweigerd"-melding, de order zelf is
-        // al bij eToro binnen.
+        // Eerst wegschrijven, dan pas verzoenen. De sync die verzoenNaOrder meteen start kan de
+        // gesloten positie al in eToro's historie zien, en de sluitingsmelding moet dan weten dat
+        // Kader dit zelf verkocht, anders meldt hij een verkoop op het doel als "doel gehaald". Een
+        // fout bij het wegschrijven blijft stil: dan mist alleen de latere "geannuleerd/geweigerd"-
+        // melding, de order zelf is al bij eToro binnen.
         const geplaatst: GeplaatsteOrder = {
           verzoekId,
           orderId: uitkomst.orderId,
@@ -138,7 +139,8 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
           richting,
           tijd: Date.now(),
         };
-        noteerGeplaatsteOrder(geplaatst).catch(() => {});
+        await noteerGeplaatsteOrder(geplaatst).catch(() => {});
+        verzoenNaOrder();
         // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
         vier(() => {
           onSluiten();

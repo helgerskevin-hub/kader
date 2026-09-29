@@ -13,7 +13,7 @@
 //
 // Draait ook in de achtergrondtaak, buiten de React-tree, dus geen hooks en geen context.
 import { PortfolioTrade, bronVan, tekenVan } from '../state/portfolioTypes';
-import { bepaalSluitReden, niveauGeraakt } from '../state/sluitReden';
+import { bepaalEtoroSluitReden, niveauGeraakt } from '../state/sluitReden';
 import { GeplaatsteOrder, OPVRAAG_VENSTER_MS } from '../state/orderUitkomsten';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { actieveSleutels } from '../state/etoroSleutels';
@@ -35,7 +35,29 @@ const MAX_GEMELDE_SLUITINGEN = 200;
 // wel degelijk nieuws.
 const NIETS_VERKOCHT = new Set([4, 7, 8]);
 
+// Een sluiting ouder dan twee dagen is geen nieuws meer: wie de app een week niet opende, krijgt
+// anders bij de eerste sync een stapel "stop-loss geraakt" over wat allang voorbij is en toch al in
+// zijn historie staat. Zulke posities gaan wel stil in gemeldeSluitingen, zodat de achtergrondtaak
+// ze niet elke ronde opnieuw afweegt.
+const MAX_LEEFTIJD_MS = 48 * 60 * 60 * 1000;
+
 const omgevingVan = (t: PortfolioTrade) => t.etoroOmgeving ?? 'real';
+
+// Eén run tegelijk. De voorgrond-sync, de prijs-poll en de achtergrondtaak kunnen elkaar overlappen,
+// en elke run leest eerst wat al gemeld is en schrijft dat pas na het versturen bij. Twee runs naast
+// elkaar zien dan allebei "nog niet gemeld" en sturen dezelfde melding twee keer. De keten zet ze
+// achter elkaar; een mislukte run breekt de keten niet.
+let keten: Promise<unknown> = Promise.resolve();
+function naElkaar<T>(werk: () => Promise<T>): Promise<T> {
+  const resultaat = keten.then(werk, werk);
+  keten = resultaat.catch(() => {});
+  return resultaat;
+}
+
+// Meldingsleutels ('sluiting:<id>', 'niveau:...') die nu verstuurd worden maar nog niet als gemeld
+// op schijf staan. Tweede slot naast de keten: gevuld vóór de await op het versturen, zodat ook een
+// aanroep die er toch naast loopt ze overslaat.
+const inBehandeling = new Set<string>();
 
 /**
  * Heeft Kader deze positie zelf verkocht? Dan is de sluiting geen stop of doel van eToro, ook al
@@ -86,9 +108,9 @@ function bundel(meldingen: Melding[], meervoudTitel: string, meervoudStaart: str
  * die nu met hetzelfde positionID en dezelfde omgeving in eToro's historie staat. Een jaar historie
  * die bij het koppelen binnenkomt levert dus niets op, want die posities stonden lokaal nooit open.
  *
- * De reden komt uit de LOKALE stop en het lokale doel: dat zijn de niveaus die de gebruiker kent.
- * Staat er lokaal geen niveau (0), dan eToro's niveau uit de historie. Handmatig gesloten, of door
- * Kader zelf verkocht: geen melding.
+ * De reden komt eerst uit eToro's stop en doel in de historieregel (wat er bij het sluiten echt
+ * stond), met de lokale niveaus als terugval, zie bepaalEtoroSluitReden. Handmatig gesloten, door
+ * Kader zelf verkocht of langer dan 48 uur geleden gesloten: geen melding.
  *
  * Een positie wordt pas als gemeld weggeschreven nadat het versturen gelukt is, dezelfde volgorde
  * als bij checkPrijsalerts: andersom kan een app-kill ertussen de melding stilletjes opeten. Het
@@ -96,7 +118,11 @@ function bundel(meldingen: Melding[], meervoudTitel: string, meervoudStaart: str
  *
  * @returns Het aantal gemelde sluitingen.
  */
-export async function meldEtoroSluitingen(vorigOpen: PortfolioTrade[], gesloten: PortfolioTrade[]): Promise<number> {
+export function meldEtoroSluitingen(vorigOpen: PortfolioTrade[], gesloten: PortfolioTrade[]): Promise<number> {
+  return naElkaar(() => meldEtoroSluitingenNu(vorigOpen, gesloten));
+}
+
+async function meldEtoroSluitingenNu(vorigOpen: PortfolioTrade[], gesloten: PortfolioTrade[]): Promise<number> {
   if (!await meldingenAan()) return 0;
 
   const kandidaten = vorigOpen.filter(
@@ -123,19 +149,21 @@ export async function meldEtoroSluitingen(vorigOpen: PortfolioTrade[], gesloten:
 
   const meldingen: Melding[] = [];
   const positieIds: number[] = [];
+  // Te oude sluitingen: geen melding, wel onthouden (zie MAX_LEEFTIJD_MS).
+  const teOud: number[] = [];
   for (const { lokaal, uitEtoro } of overgangen) {
     const positieId = lokaal.etoroPositionID as number;
-    if (alGemeld.has(positieId)) continue;
+    if (alGemeld.has(positieId) || inBehandeling.has(`sluiting:${positieId}`)) continue;
     const exit = uitEtoro.exitPrijs;
     if (typeof exit !== 'number' || !(exit > 0)) continue;
+    if (typeof uitEtoro.slotTijd === 'number' && nu - uitEtoro.slotTijd > MAX_LEEFTIJD_MS) {
+      teOud.push(positieId);
+      continue;
+    }
     if (eigenVerkoop(lokaal, geplaatst, onbekend, nu)) continue;
 
-    const niveaus: PortfolioTrade = {
-      ...lokaal,
-      stopLoss: lokaal.stopLoss > 0 ? lokaal.stopLoss : uitEtoro.stopLoss,
-      takeProfit: lokaal.takeProfit > 0 ? lokaal.takeProfit : uitEtoro.takeProfit,
-    };
-    const reden = bepaalSluitReden(niveaus, exit);
+    // eToro's niveaus van het moment van sluiten eerst, de lokale als terugval: zie sluitReden.ts.
+    const reden = bepaalEtoroSluitReden(lokaal, uitEtoro, exit);
     if (reden === 'handmatig') continue;
 
     const pct = resultaatPct(lokaal, uitEtoro, exit);
@@ -152,12 +180,27 @@ export async function meldEtoroSluitingen(vorigOpen: PortfolioTrade[], gesloten:
     });
     positieIds.push(positieId);
   }
-  if (meldingen.length === 0) return 0;
+  const bewaarGemeld = async (erbij: number[]) => {
+    if (erbij.length > 0) {
+      await bewaarLijst(SLEUTELS.gemeldeSluitingen, [...gemeld, ...erbij].slice(-MAX_GEMELDE_SLUITINGEN));
+    }
+  };
+  if (meldingen.length === 0) {
+    await bewaarGemeld(teOud);
+    return 0;
+  }
 
   const { titel, tekst } = bundel(meldingen, `${meldingen.length} posities gesloten door eToro`, 'Open de app voor details.');
-  if (!await stuurTradeMelding(titel, tekst)) return 0;
-
-  await bewaarLijst(SLEUTELS.gemeldeSluitingen, [...gemeld, ...positieIds].slice(-MAX_GEMELDE_SLUITINGEN));
+  for (const m of meldingen) inBehandeling.add(m.sleutel);
+  try {
+    if (!await stuurTradeMelding(titel, tekst)) {
+      await bewaarGemeld(teOud);
+      return 0;
+    }
+    await bewaarGemeld([...teOud, ...positieIds]);
+  } finally {
+    for (const m of meldingen) inBehandeling.delete(m.sleutel);
+  }
   await loggeMeldingen(meldingen, nu);
   return meldingen.length;
 }
@@ -191,7 +234,10 @@ export async function checkEtoroSluitingen(): Promise<number> {
   return meldEtoroSluitingen(open, historie.trades);
 }
 
-const niveauSleutel = (tradeId: string, niveau: 'stop' | 'doel') => `niveau:${tradeId}:${niveau}`;
+// De prijs van het niveau hoort in de sleutel: verzet de gebruiker na een melding zijn stop, dan is
+// het nieuwe niveau een nieuwe afspraak en mag dat opnieuw melden. Het trade-id blijft het tweede
+// deel, daarop ruimt checkNiveausGeraakt op.
+const niveauSleutel = (tradeId: string, niveau: 'stop' | 'doel', prijs: number) => `niveau:${tradeId}:${niveau}:${prijs}`;
 
 /**
  * Meldt handmatige trades waarvan de live koers de stop of het doel geraakt heeft.
@@ -204,7 +250,11 @@ const niveauSleutel = (tradeId: string, niveau: 'stop' | 'doel') => `niveau:${tr
  *   achtergrondtaak laat 'm hier uit AsyncStorage laden.
  * @returns Het aantal gemelde niveaus.
  */
-export async function checkNiveausGeraakt(opties?: { trades?: PortfolioTrade[] }): Promise<number> {
+export function checkNiveausGeraakt(opties?: { trades?: PortfolioTrade[] }): Promise<number> {
+  return naElkaar(() => checkNiveausGeraaktNu(opties));
+}
+
+async function checkNiveausGeraaktNu(opties?: { trades?: PortfolioTrade[] }): Promise<number> {
   if (!await meldingenAan()) return 0;
   const alle = opties?.trades ?? await laadLijst<PortfolioTrade>(SLEUTELS.portfolio);
   const open = alle.filter(
@@ -213,7 +263,7 @@ export async function checkNiveausGeraakt(opties?: { trades?: PortfolioTrade[] }
 
   const opgeslagen = await laadLijst<string>(SLEUTELS.gemeldeNiveaus);
   const openIds = new Set(open.map(t => t.id));
-  // Het middelste deel is het trade-id; nieuweId() levert base36 zonder dubbele punten.
+  // Het tweede deel is het trade-id; nieuweId() levert base36 zonder dubbele punten.
   const levend = opgeslagen.filter(sleutel => openIds.has(sleutel.split(':')[1]));
   const bewaarOpgeschoond = async () => {
     if (levend.length !== opgeslagen.length) await bewaarLijst(SLEUTELS.gemeldeNiveaus, levend);
@@ -232,10 +282,10 @@ export async function checkNiveausGeraakt(opties?: { trades?: PortfolioTrade[] }
     if (koers === undefined) continue;
     const niveau = niveauGeraakt(trade, koers);
     if (niveau === null) continue;
-    const sleutel = niveauSleutel(trade.id, niveau);
-    if (alGemeld.has(sleutel)) continue;
-
     const stop = niveau === 'stop';
+    const sleutel = niveauSleutel(trade.id, niveau, stop ? trade.stopLoss : trade.takeProfit);
+    if (alGemeld.has(sleutel) || inBehandeling.has(sleutel)) continue;
+
     meldingen.push({
       sleutel,
       doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
@@ -254,12 +304,16 @@ export async function checkNiveausGeraakt(opties?: { trades?: PortfolioTrade[] }
     'Kader verkoopt handmatige trades niet zelf: sluit ze op je platform en daarna in Portfolio.',
   );
   // Eerst sturen, dan pas wegschrijven dat het gemeld is: zie meldEtoroSluitingen.
-  if (!await stuurTradeMelding(titel, tekst)) {
-    await bewaarOpgeschoond();
-    return 0;
+  for (const m of meldingen) inBehandeling.add(m.sleutel);
+  try {
+    if (!await stuurTradeMelding(titel, tekst)) {
+      await bewaarOpgeschoond();
+      return 0;
+    }
+    await bewaarLijst(SLEUTELS.gemeldeNiveaus, [...levend, ...meldingen.map(m => m.sleutel)]);
+  } finally {
+    for (const m of meldingen) inBehandeling.delete(m.sleutel);
   }
-
-  await bewaarLijst(SLEUTELS.gemeldeNiveaus, [...levend, ...meldingen.map(m => m.sleutel)]);
   await loggeMeldingen(meldingen, Date.now());
   return meldingen.length;
 }

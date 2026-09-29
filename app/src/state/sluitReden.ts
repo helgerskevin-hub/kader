@@ -41,6 +41,25 @@ export function bepaalSluitReden(trade: PortfolioTrade, exitPrijs: number): Slui
 }
 
 /**
+ * De reden voor een positie die eToro sloot, met twee bronnen voor de niveaus.
+ *
+ * Eerst eToro's eigen stop en doel uit de historieregel: dat zijn de niveaus die op het moment van
+ * sluiten echt bij eToro stonden, en dus wat eToro heeft uitgevoerd. De lokale niveaus kunnen
+ * achterlopen (stop op eToro verschoven, niet in Kader). Staat er bij eToro niets (0) of past de
+ * exit daar niet bij, dan de lokale niveaus: die zijn de niveaus die de gebruiker kent, en
+ * bijvoorbeeld bij een oude historieregel zonder stopLossRate de enige die er zijn.
+ *
+ * De richting komt altijd van de lokale trade; de niveaus alleen van eToro.
+ */
+export function bepaalEtoroSluitReden(lokaal: PortfolioTrade, uitEtoro: PortfolioTrade, exitPrijs: number): SluitReden {
+  const volgensEtoro = bepaalSluitReden(
+    { ...lokaal, stopLoss: uitEtoro.stopLoss, takeProfit: uitEtoro.takeProfit },
+    exitPrijs,
+  );
+  return volgensEtoro !== 'handmatig' ? volgensEtoro : bepaalSluitReden(lokaal, exitPrijs);
+}
+
+/**
  * Staat de koers op of voorbij de stop of het doel van deze trade? Zonder speling: dit is voor
  * handmatige trades, waar Kader alleen de live koers kent en niemand iets gesloten heeft. Een
  * procent speling zou hier "je stop is geraakt" melden terwijl hij er nog boven staat.
@@ -97,6 +116,20 @@ if (require.main === module) {
   const krap = trade({ stopLoss: 100, takeProfit: 101 });
   console.assert(bepaalSluitReden(krap, 100.2) === 'stop', 'beide raak: dichter bij de stop is stop');
   console.assert(bepaalSluitReden(krap, 100.9) === 'doel', 'beide raak: dichter bij het doel is doel');
+
+  // eToro's niveaus eerst, lokale als terugval
+  const lokaalOud = trade({ stopLoss: 90, takeProfit: 130 });
+  const etoroVerschoven = trade({ stopLoss: 105, takeProfit: 130 });
+  console.assert(bepaalEtoroSluitReden(lokaalOud, etoroVerschoven, 105) === 'stop',
+    'stop op eToro opgetrokken: exit op de eToro-stop is stop, ook al kent Kader die stop niet');
+  console.assert(bepaalEtoroSluitReden(lokaalOud, trade({ stopLoss: 0, takeProfit: 0 }), 90) === 'stop',
+    'eToro zonder niveaus: terugval op de lokale stop');
+  console.assert(bepaalEtoroSluitReden(trade({ stopLoss: 90, takeProfit: 115 }), etoroVerschoven, 115) === 'doel',
+    'eToro geeft handmatig: terugval op het lokale doel');
+  console.assert(bepaalEtoroSluitReden(lokaalOud, etoroVerschoven, 115) === 'handmatig',
+    'past bij geen van beide: handmatig');
+  console.assert(bepaalEtoroSluitReden(short, trade({ stopLoss: 105, takeProfit: 80 }), 106) === 'stop',
+    'de richting komt van de lokale trade: short met eToro-stop 105, exit 106 is stop');
 
   // niveauGeraakt: exact, geen speling
   console.assert(niveauGeraakt(long, 90) === 'stop', 'long: op de stop is geraakt');

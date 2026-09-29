@@ -421,7 +421,13 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   await bewaarTekst(SLEUTELS.laatsteMelding, String(nu));
 
   const alle = opties?.trades ?? await laadLijst<PortfolioTrade>(SLEUTELS.portfolio);
-  const open = alle.filter(t => t.status === 'open');
+  // Een eToro-positie waarvan de sluiting al gemeld (of stil afgedaan, zie sluitingen.ts) is, staat
+  // in het opgeslagen portfolio soms nog open: alleen de voorgrond-sync werkt het portfolio bij.
+  // Zonder deze filter kreeg de gebruiker vanuit de achtergrond nog "momentum vlakt af" over een
+  // positie die eToro al gesloten heeft.
+  const gesloten = new Set(await laadLijst<number>(SLEUTELS.gemeldeSluitingen));
+  const open = alle.filter(t => t.status === 'open'
+    && !(t.bron === 'etoro' && t.etoroPositionID !== undefined && gesloten.has(t.etoroPositionID)));
 
   const state = leesSuppressie(await laadObject<Record<string, unknown>>(SLEUTELS.meldingSuppressie));
 
