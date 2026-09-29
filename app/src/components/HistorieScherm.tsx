@@ -12,6 +12,7 @@ import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { PortfolioTrade, tekenVan } from '../state/portfolioTypes';
 import { berekenStatistieken } from '../state/statistieken';
 import { useValutaStand } from '../state/useValuta';
+import { CoinLogo } from './CoinLogo';
 import { PodiumScherm } from './PodiumScherm';
 import { useDrukVeer } from './Drukbaar';
 
@@ -167,8 +168,11 @@ function GeslotenKaart({ trade, onOpenDetail, onVerwijder }: {
       >
         <View style={styles.kaartKop}>
           <View style={styles.kaartKopLinks}>
-            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
-            {trade.naam ? <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{trade.naam}</Text> : null}
+            <CoinLogo symbool={trade.symbool} grootte={32} />
+            <View style={styles.kaartKopTekst}>
+              <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
+              {trade.naam ? <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{trade.naam}</Text> : null}
+            </View>
           </View>
           <View style={styles.kaartKopRechts}>
             <StatusIcon size={14} color={statusKleur} strokeWidth={1.75} />
@@ -252,7 +256,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   kaartKop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  kaartKopLinks: { gap: 2, flex: 1 },
+  kaartKopLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
+  kaartKopTekst: { gap: 2, flexShrink: 1 },
   kaartKopRechts: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   niveaus: {
     flexDirection: 'row',

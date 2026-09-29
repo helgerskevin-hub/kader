@@ -15,6 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-09-29',
     punten: [
+      'Coins hebben nu hun eigen logo: in het detailscherm, in je historie en in de lijst met relatieve sterkte op Markt. Heeft Kader van een coin geen logo, dan zie je de afkorting in een gekleurd rondje',
       'HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD. Het verschil met gewoon STERK KOOP zat nooit in drie scorepunten maar in de bevestigingen: trend, MACD, volume en R/R. Klap een kaart op Markt uit en je ziet welke er meestaan en welke ontbreekt. De drempels zijn niet veranderd',
       'De kaarten op Markt hebben geen gekleurde rand of gloed meer, en AFWACHTEN ligt niet meer plat als een uitgeschakelde kaart. Het oordeel staat in de badge',
       'Kader spreekt nu op een paar vaste plekken van je kader: "In het kader" boven de top 3 op Kansen, "Binnen je kader" in plaats van "Op koers" bij een positie die volgens plan loopt, en de melding als een positie de rand van je kader nadert. De ochtendmelding heet "Het kader van vandaag staat klaar"',
