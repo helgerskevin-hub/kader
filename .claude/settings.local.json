@@ -3,7 +3,17 @@
     "allow": [
       "Bash(gh auth *)",
       "Bash(gh repo *)",
-      "Bash(npx expo *)"
+      "Bash(npx expo *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Eclipse Adoptium\\\\jdk-17.0.11-hotspot\"; $env:ANDROID_HOME = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\"; Set-Location \"D:\\\\dev\\\\crypto-market\\\\app\"; npm run release:apk)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Eclipse Adoptium\\\\jdk-17.0.19.10-hotspot\"; $env:ANDROID_HOME = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\"; Set-Location \"D:\\\\dev\\\\crypto-market\\\\app\"; npm run release:apk)",
+      "PowerShell(gh release view \"v0.1.4\")",
+      "Bash(git stash *)",
+      "Bash(git log *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"TSC=$?\")",
+      "Bash(git fetch *)"
     ]
   }
 }

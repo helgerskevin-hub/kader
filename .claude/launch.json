@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "metro",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--dev-client", "--port", "8081"],
+      "cwd": "app",
+      "port": 8081
+    },
+    {
+      "name": "metro-afronding",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["D:/dev/kader-afronding/app/node_modules/expo/bin/cli", "start", "D:/dev/kader-afronding/app", "--dev-client", "--port", "8081", "--clear"],
+      "cwd": "app",
+      "port": 8081
+    },
+    {
+      "name": "metro-schoon",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--dev-client", "--port", "8081", "--clear"],
+      "cwd": "app",
+      "port": 8081
+    }
+  ]
+}
