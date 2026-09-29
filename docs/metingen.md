@@ -137,3 +137,42 @@ maken het de monotone helling over zeven emmers, dat het standhoudt zonder de ma
 in acht van de negen jaren dezelfde kant op wijst. Maar er zijn nu drie hypotheses en een handvol
 drempels getoetst op dezelfde negen jaar. Voor de +10%-grens in de engine gaat is het de moeite waard
 de meting één keer opnieuw te draaien op verse data.
+
+## Meting K: doel meebewegen (29 sep 2026)
+
+De vraag: levert het iets op als je de melding "nadert je doel, overweeg je doel te verhogen"
+(`verhoogTP` in `tradeChecks.ts`) opvolgt? Die vuurt als de koers boven `drempelBijnaOpDoel()` staat,
+MACD bullish is met een stijgend histogram, de koers nog onder het doel ligt en het verse doel van
+`scoorCandles()` hoger uitkomt. Gemeten op exact dezelfde 3170 instappen als meting B, dus het verschil
+komt alleen uit het beheer van de trade. De regel draait op het slot van elke dag met alleen de
+candles tot dan; een verhoogd doel geldt pas vanaf de volgende dag.
+
+- **B**: vaste stop, vast doel (wat de app nu aanneemt).
+- **K1**: doel verhogen naar het verse doel zodra de regel vuurt, stop blijft staan.
+- **K2**: als K1, en de stop gaat mee omhoog via `voorstelTrailingStop()`.
+
+| variant | n | treffer% | gem R | totaal R | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| B vast doel | 3170 | 32,1 | +0,083 | 264 | -0,34 | 0,07 | 0,59 | 0,41 | -0,33 | 0,30 | -0,01 | -0,24 | -0,14 |
+| K1 doel mee | 3170 | 31,8 | +0,089 | 283 | -0,34 | 0,10 | 0,62 | 0,42 | -0,35 | 0,31 | -0,00 | -0,25 | -0,14 |
+| K2 doel + stop mee | 3170 | 32,2 | +0,089 | 281 | -0,34 | 0,07 | 0,62 | 0,40 | -0,33 | 0,31 | -0,00 | -0,24 | -0,14 |
+
+**De melding vuurt bijna nooit.** In 51 van de 3170 trades (1,6%), gemiddeld 1,1 keer per trade
+waarin hij vuurt. Op die 51 trades levert opvolgen wel iets op: B +2,34, K1 +2,71, K2 +2,67 R per
+trade. K2 verliest daar geen enkele trade (treffer 100%), K1 geeft een kwart ervan terug aan de stop
+maar haalt een hogere mediaan. Over alle trades verdunt dat tot +0,006 R.
+
+**Per jaar is het ruis.** K1 wint in 5 van de 9 jaren, K2 in 4, met verschillen van 0,01 tot 0,03 R;
+één trade meer of minder in een jaar met een paar honderd trades verschuift het jaargemiddelde al zo
+veel. K1 verliest in 2022 en 2025, juist de bearjaren. Per marktklimaat hetzelfde beeld: poort open
++0,226 (B) tegen +0,239 (K1) en +0,232 (K2), poort dicht vrijwel gelijk (-0,040 / -0,041 / -0,036).
+
+**Conclusie: geen "verzet doel bij eToro"-knop bouwen.** De beslisregel was dat K1 of K2 in de meeste
+jaren boven B moest uitkomen, niet in één bulljaar. K1 haalt formeel 5 van 9, maar met marges die
+binnen de ruis vallen en verliezen in twee van de drie bearjaren; K2 haalt het niet. De melding zelf
+kan blijven staan: hij kost niets en de trades waar hij vuurt doen het met opvolgen iets beter.
+
+**Kanttekening:** de backtest toetst de regel één keer per dag op het slot, de app elke 5 tot 15
+minuten. Een koers die binnen een dag door de laatste 10% naar het doel schiet, raakt in de backtest
+meteen het doel zonder dat de regel kans krijgt. In het echt vuurt de melding dus vaker dan 1,6%. Om
+dat te meten is intraday-data nodig; zonder die data is dit de ondergrens van het effect.
