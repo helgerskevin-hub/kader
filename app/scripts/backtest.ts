@@ -22,8 +22,10 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scoorCandles, stopAfstandStructuur, MIN_CANDLES, MIN_RISK_REWARD, STANDAARD_UNIVERSUM } from '../src/engine/analyzer';
-import { ema } from '../src/engine/indicators';
+import { scoorCandles, stopAfstandStructuur, MIN_CANDLES, MIN_RISK_REWARD, REWARD_MULTIPLIER, STANDAARD_UNIVERSUM } from '../src/engine/analyzer';
+import { ema, macd } from '../src/engine/indicators';
+import { drempelBijnaOpDoel } from '../src/state/advies';
+import { voorstelTrailingStop } from '../src/state/afbouw';
 import { momentumIngredienten, momentumScore, radarNiveaus, RADAR_DREMPEL, MomentumIngredienten } from '../src/engine/momentum';
 import { Candle, Trade } from '../src/engine/types';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
@@ -1173,6 +1175,178 @@ console.assert(
   appHoog.length === roosterHoog.length && Math.abs(gem(appHoog.map(x => x.r)) - gem(roosterHoog.map(x => x.r))) < 1e-9,
   `radarNiveaus wijkt af van de roosterregel: ${appHoog.length} tegen ${roosterHoog.length} trades`,
 );
+
+// --- meting K: doel meebewegen ----------------------------------------------------------
+//
+// De app stuurt de melding "verhoogTP" (tradeChecks.ts): staat de koers boven
+// drempelBijnaOpDoel(entry, doel), is MACD bullish met een stijgend histogram, staat de koers nog
+// onder het doel en ligt het verse doel van scoorCandles(..., { minRR: 0 }) hoger, dan stelt hij
+// voor het doel naar dat verse doel te verhogen. De vraag: levert het opvolgen van dat advies iets
+// op, of verruil je een geraakt doel voor een terugval?
+//
+//   B   basis: vaste stop, vast doel (wat simuleer() doet).
+//   K1  per bar, alleen met candles t/m die bar, de verhoogTP-regel toepassen. Vuurt hij, dan gaat
+//       het doel naar het verse doel. Stop blijft staan.
+//   K2  als K1, maar bij elke verhoging gaat ook de stop omhoog via voorstelTrailingStop()
+//       (afbouw.ts), dezelfde functie die de app voor "trek je stop aan" gebruikt.
+//
+// Exact dezelfde instappen als meting B (dezelfde bars, dezelfde stop en hetzelfde startdoel), zodat
+// het verschil per trade alleen uit het beheer komt. Look-ahead is uitgesloten: de regel draait op
+// het slot van bar j en het nieuwe doel geldt pas vanaf bar j+1. R blijft gemeten tegen het
+// oorspronkelijke risico (entry - startstop). Raakt een candle stop en doel allebei, dan nemen we
+// de stop, net als simuleer().
+
+console.log('\n\n' + '='.repeat(72));
+console.log('METING K: doel meebewegen (de verhoogTP-melding opvolgen)');
+console.log('='.repeat(72));
+
+type KTrade = { r: number; datum: string; verhogingen: number; exitReden: Simulatie['exitReden'] };
+
+function simuleerMeebewegen(
+  symbool: string, candles: Candle[], i: number, entry: number, startStop: number, startDoel: number,
+  stopMee: boolean,
+): KTrade | null {
+  const risico = entry - startStop;
+  if (risico <= 0) return null;
+  const eind = Math.min(i + MAX_BARS, candles.length - 1);
+  if (eind <= i) return null;
+
+  let stop = startStop;
+  let doel = startDoel;
+  let verhogingen = 0;
+  const datum = datumVan(candles[i].tijd);
+  const klaar = (r: number, exitReden: Simulatie['exitReden']): KTrade => ({ r, datum, verhogingen, exitReden });
+
+  for (let j = i + 1; j <= eind; j++) {
+    const c = candles[j];
+    if (c.open <= stop) return klaar((c.open - entry) / risico, 'stop');
+    if (c.open >= doel) return klaar((c.open - entry) / risico, 'doel');
+    if (c.low <= stop) return klaar((stop - entry) / risico, 'stop');
+    if (c.high >= doel) return klaar((doel - entry) / risico, 'doel');
+
+    // Slot van bar j: wat zou de app nu zeggen? Alleen scoren als de koers boven de drempel staat,
+    // anders kan de regel toch niet vuren en is scoorCandles verspild rekenwerk.
+    if (j === eind) break;
+    const koers = c.close;
+    if (!(koers > drempelBijnaOpDoel(entry, doel) && koers < doel)) continue;
+    const venster = candles.slice(Math.max(0, j - VENSTER + 1), j + 1);
+    const vers = scoorCandles(symbool, venster, 'binance', { minRR: 0 });
+    if (!vers) continue;
+    const { histogram } = macd(venster.map(x => x.close));
+    const n = histogram.length;
+    if (n < 2) continue;
+    const histogramStijgt = histogram[n - 1] > histogram[n - 2];
+    if (!(vers.macdBullish && histogramStijgt && vers.takeProfit > doel)) continue;
+
+    doel = vers.takeProfit;
+    verhogingen++;
+    if (stopMee) {
+      const voorstel = voorstelTrailingStop(entry, koers, vers.atr, stop, 'long');
+      if (voorstel !== null && voorstel > stop) stop = voorstel;
+    }
+  }
+  return klaar((candles[eind].close - entry) / risico, 'tijd');
+}
+
+// De instappen van meting B, opnieuw opgebouwd uit de signalen: KOOP, R/R-filter, geen overlap per
+// coin op basis van de uitkomst van B. Het startdoel is entry + REWARD_MULTIPLIER x ATR, precies wat
+// scoorCandles als takeProfit gaf.
+const kB: KTrade[] = [];
+const kK1: KTrade[] = [];
+const kK2: KTrade[] = [];
+const kPoortOpen: boolean[] = [];
+for (const symbool of coins) {
+  const c = candlesVan(symbool);
+  let bezetTot = -1;
+  for (const s of signalenPerCoin[symbool] ?? []) {
+    if (s.i <= bezetTot || !(s.koop && s.rrOk)) continue;
+    const doel = s.entry + REWARD_MULTIPLIER * s.atr;
+    const b = simuleer(c, s.i, s.entry, s.stop, doel);
+    if (!b) continue;
+    bezetTot = s.i + b.bars;
+    const k1 = simuleerMeebewegen(symbool, c, s.i, s.entry, s.stop, doel, false);
+    const k2 = simuleerMeebewegen(symbool, c, s.i, s.entry, s.stop, doel, true);
+    if (!k1 || !k2) continue;
+    kB.push({ r: b.r, datum: s.datum, verhogingen: 0, exitReden: b.exitReden });
+    kK1.push(k1);
+    kK2.push(k2);
+    kPoortOpen.push(poortOpenNu(s));
+    // Zonder verhoging moet K exact B zijn; anders simuleert K iets anders dan de basis.
+    if (k1.verhogingen === 0) {
+      console.assert(Math.abs(k1.r - b.r) < 1e-9, `K1 wijkt af van B zonder verhoging: ${symbool} ${s.datum}`);
+    }
+  }
+}
+
+// Controle: dit moet meting B zijn (zelfde aantal trades en gemiddelde).
+console.assert(
+  kB.length === strategie.length && Math.abs(stat(kB).gemR - sb.gemR) < 1e-9,
+  `Meting K-basis wijkt af van meting B: ${kB.length} tegen ${strategie.length} trades`,
+);
+
+const verhoogInfo = (set: KTrade[]) => {
+  const met = set.filter(t => t.verhogingen > 0);
+  return {
+    pct: set.length ? (met.length / set.length) * 100 : 0,
+    gemAlle: gem(set.map(t => t.verhogingen)),
+    gemMet: met.length ? gem(met.map(t => t.verhogingen)) : 0,
+  };
+};
+
+tabel('K-a totaal, instappen van meting B:', [
+  ['B vast doel', kB], ['K1 doel mee', kK1], ['K2 doel + stop mee', kK2],
+]);
+
+console.log('\n  Hoe vaak werd het doel verhoogd:');
+for (const [naam, set] of [['K1', kK1], ['K2', kK2]] as [string, KTrade[]][]) {
+  const v = verhoogInfo(set);
+  console.log(`    ${naam}: in ${v.pct.toFixed(1)}% van de trades, gem ${v.gemAlle.toFixed(2)} keer per trade, ${v.gemMet.toFixed(2)} keer per verhoogde trade`);
+}
+
+console.log('\n  Hoe liepen ze af:');
+for (const [naam, set] of [['B', kB], ['K1', kK1], ['K2', kK2]] as [string, KTrade[]][]) {
+  const delen = redenen.map(reden => {
+    const sub = set.filter(t => t.exitReden === reden);
+    return `${reden} ${((sub.length / set.length) * 100).toFixed(1)}% (gem R ${sub.length ? stat(sub).gemR.toFixed(2) : '-'})`;
+  });
+  console.log(`    ${naam.padEnd(3)} ${delen.join('   ')}`);
+}
+
+// Alleen de trades waar de melding vuurde: daar zit het hele verschil, de rest is per constructie gelijk.
+const geraakt = kK1.map((t, idx) => (t.verhogingen > 0 ? idx : -1)).filter(idx => idx >= 0);
+tabel('K-b alleen de trades waar K1 minstens een keer verhoogde (gepaard):', [
+  ['B op die trades', geraakt.map(idx => kB[idx])],
+  ['K1 op die trades', geraakt.map(idx => kK1[idx])],
+  ['K2 op die trades', geraakt.map(idx => kK2[idx])],
+]);
+
+tabel('K-c per marktklimaat (poort van bepaalKlimaat() op de instapdag):', [
+  ['B, poort open', kB.filter((_t, idx) => kPoortOpen[idx])],
+  ['K1, poort open', kK1.filter((_t, idx) => kPoortOpen[idx])],
+  ['K2, poort open', kK2.filter((_t, idx) => kPoortOpen[idx])],
+  ['B, poort dicht', kB.filter((_t, idx) => !kPoortOpen[idx])],
+  ['K1, poort dicht', kK1.filter((_t, idx) => !kPoortOpen[idx])],
+  ['K2, poort dicht', kK2.filter((_t, idx) => !kPoortOpen[idx])],
+]);
+
+jaarKop('K-d per jaar, instappen van meting B:');
+jaarRegel('B vast doel', kB);
+jaarRegel('K1 doel mee', kK1);
+jaarRegel('K2 doel + stop mee', kK2);
+
+// De beslisregel: een "verzet doel bij eToro"-knop is pas de moeite als K1 of K2 in de meeste jaren
+// boven B uitkomt, niet in een enkel bulljaar.
+const jaarB = perJaar(kB);
+for (const [naam, set] of [['K1', kK1], ['K2', kK2]] as [string, KTrade[]][]) {
+  const jk = perJaar(set);
+  let wint = 0, geteld = 0;
+  for (const j of jaren) {
+    if (jk[j] === null || jaarB[j] === null) continue;
+    geteld++;
+    if (jk[j]! > jaarB[j]!) wint++;
+  }
+  console.log(`  ${naam} verslaat B in ${wint} van de ${geteld} jaren (jaren met >= 10 trades)`);
+}
 
 // --- wegschrijven -----------------------------------------------------------------------
 

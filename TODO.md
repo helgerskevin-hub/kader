@@ -85,7 +85,7 @@ Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft t
 - [ ] Stop automatisch meetrekken als de trade in de winst loopt. **Verlagen mag nooit**, ook niet als de
       analyse dat zou suggereren. De trailing-berekening zit al in `stopAfstandStructuur()`, en
       `useStopLossLimiet.ts` moet toetsen of eToro het niveau accepteert voordat het verstuurd wordt
-- [ ] Doel meebewegen: blijft het momentum sterk, dan het doel verhogen op basis van de verse analyse
+- [x] **Doel meebewegen:** gemeten, geen knop bouwen. Het advies vuurt in 1,6% van de trades en wint alleen binnen de ruis (+0,006 R per trade). Zie [meting K](docs/metingen.md#meting-k-doel-meebewegen-29-sep-2026)
 - [ ] Verkoopsignaal als de analyse zegt dat het op is, ook als het doel nog niet geraakt is
 - [ ] Deze bewaking moet in de achtergrondtaak passen. Android's ondergrens is 15 minuten en het systeem
       kiest zelf het moment, dus dit wordt "een paar keer per dag", niet "continu"
