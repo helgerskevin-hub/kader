@@ -4,6 +4,11 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Je krijgt nu een melding als eToro een positie voor je sluit omdat je stop-loss of doel geraakt is, met de verkoopkoers en je resultaat erbij. Dat werkt ook als de app dicht is: Kader kijkt dan hooguit eens per kwartier bij eToro, en Android bepaalt zelf het precieze moment. Verkopen die je zelf via Kader doet, of die je op eToro met de hand sluit, geven geen melding (tenzij je vlak bij je stop of doel sluit). Met de app dicht kijkt Kader alleen naar de omgeving, demo of echt, die aan staat
+- Voor handmatige trades (niet via eToro) meldt Kader wanneer de koers je stop-loss of doel raakt, zodat je hem zelf kunt sluiten. Kader verkoopt die trades niet voor je. Omdat Kader niet continu meekijkt, kan een korte piek door je stop tussen twee controles in gemist worden
+
 ## 0.1.25
 
 - Grote Kansen is vernieuwd tot Momentum-radar. Het scherm scant dezelfde coins als Markt, maar zoekt coins die dicht bij hun hoogste koers van de afgelopen 90 dagen staan. Dat was in de backtest het enige momentum-kenmerk dat echt betere coins koos; de oude kansscore (kleine marktcap, ver onder de all-time high) was nooit getest en is weg

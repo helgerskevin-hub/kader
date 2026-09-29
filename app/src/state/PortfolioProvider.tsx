@@ -9,6 +9,7 @@ import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { GeplaatsteOrder, isMeldenswaard, kiesOmOpTeVragen, ruimOp } from './orderUitkomsten';
 import { bronVan } from './portfolioTypes';
 import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
+import { checkNiveausGeraakt, meldEtoroSluitingen } from '../notifications/sluitingen';
 
 export interface SyncResultaat {
   gekoppeld: boolean;                          // false = geen eToro-sleutels ingesteld
@@ -244,6 +245,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       // prijsverzoeken (alleen de coins met een wachtende alert) en delen de uur-cooldown van
       // checkOpenTrades bewust niet, want de gebruiker koos dat niveau zelf.
       checkPrijsalerts().catch(() => {});
+      // Zelfde verhaal voor de stop en het doel van handmatige trades: die niveaus koos de gebruiker
+      // ook zelf, dus ook buiten de uur-cooldown. Eén melding per trade per niveau, zie sluitingen.ts.
+      checkNiveausGeraakt({ trades: tradesRef.current }).catch(() => {});
     }, VERVERS_INTERVAL_MS);
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);
@@ -364,6 +368,12 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
         echtToegevoegd += 1;
       }
     }
+
+    // Melden wat eToro zelf op de stop of het doel sloot. Met `huidig` van vóór setTrades hieronder:
+    // dat is de lijst waarin deze posities nog open staan, en alleen die overgang is nieuws. Fire-
+    // and-forget, want een melding mag de sync niet ophouden of laten mislukken. De omgeving hoeft
+    // hier niet gefilterd: meldEtoroSluitingen koppelt op positionID én omgeving.
+    if (afgesloten > 0) meldEtoroSluitingen(huidig, gesloten).catch(() => {});
 
     setTrades(prev => {
       // Stap 1: lokaal open, op eToro gesloten.

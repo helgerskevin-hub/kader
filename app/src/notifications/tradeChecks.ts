@@ -84,7 +84,7 @@ function snoei(state: SuppressieState, levendeSleutels: Set<string>, nu: number)
   return schoon;
 }
 
-interface Melding {
+export interface Melding {
   sleutel: string;
   titel: string;
   tekst: string;
@@ -122,8 +122,9 @@ export async function laadMeldingLog(): Promise<MeldingLogEntry[]> {
 // Bewaart verstuurde meldingen lokaal, zodat een melding die uit de notificatiebalk is verdwenen
 // (of nooit doorkwam terwijl de telefoon vergrendeld was) terug te lezen is in de app. De dagelijkse
 // 09:00-herinnering loopt hier niet doorheen: die levert het OS zelf af zonder dat er app-code
-// draait, en heeft toch geen trade-context om te loggen.
-async function loggeMeldingen(meldingen: Melding[], nu: number): Promise<void> {
+// draait, en heeft toch geen trade-context om te loggen. Geëxporteerd voor de sluitingsmeldingen
+// in sluitingen.ts, zodat er één log en één maximum blijft.
+export async function loggeMeldingen(meldingen: Melding[], nu: number): Promise<void> {
   const bestaand = await laadLijst<MeldingLogEntry>(SLEUTELS.meldingLog);
   const nieuw = meldingen.map(m => ({ tijd: nu, titel: m.titel, tekst: m.tekst, doel: m.doel }));
   await bewaarLijst(SLEUTELS.meldingLog, [...nieuw, ...bestaand].slice(0, MAX_LOG_ENTRIES));
@@ -420,7 +421,13 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   await bewaarTekst(SLEUTELS.laatsteMelding, String(nu));
 
   const alle = opties?.trades ?? await laadLijst<PortfolioTrade>(SLEUTELS.portfolio);
-  const open = alle.filter(t => t.status === 'open');
+  // Een eToro-positie waarvan de sluiting al gemeld (of stil afgedaan, zie sluitingen.ts) is, staat
+  // in het opgeslagen portfolio soms nog open: alleen de voorgrond-sync werkt het portfolio bij.
+  // Zonder deze filter kreeg de gebruiker vanuit de achtergrond nog "momentum vlakt af" over een
+  // positie die eToro al gesloten heeft.
+  const gesloten = new Set(await laadLijst<number>(SLEUTELS.gemeldeSluitingen));
+  const open = alle.filter(t => t.status === 'open'
+    && !(t.bron === 'etoro' && t.etoroPositionID !== undefined && gesloten.has(t.etoroPositionID)));
 
   const state = leesSuppressie(await laadObject<Record<string, unknown>>(SLEUTELS.meldingSuppressie));
 
