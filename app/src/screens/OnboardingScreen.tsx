@@ -51,7 +51,7 @@ const STAPPEN: Stap[] = [
   {
     Icon: Shield as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Disclaimer',
-    body: 'Deze app geeft technische signalen op basis van historische koersdata, geen financieel advies.\n\nControleer altijd de live koers op eToro vóór je een trade plaatst.',
+    body: 'Deze app geeft technische signalen op basis van historische koersdata, geen financieel advies.\n\nKader rekent met openbare marktdata. De koers op eToro kan afwijken, dus kijk daar vóór je een trade plaatst.',
   },
 ];
 

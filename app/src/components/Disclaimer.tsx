@@ -12,7 +12,7 @@ export function Disclaimer({ metRand = true }: { metRand?: boolean }) {
       metRand && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.rand },
     ]}>
       <Text style={[Type.caption, { color: colors.tekstGedimd, textAlign: 'center' }]}>
-        Geen financieel advies · check altijd de live koers op eToro
+        Geen financieel advies · de koers op eToro kan afwijken
       </Text>
     </View>
   );

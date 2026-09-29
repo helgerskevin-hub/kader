@@ -223,7 +223,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
               </Text>
               <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
                 Zoals bij elk signaal in Kader: dit is een technische uitkomst van de analyse, geen
-                financieel advies. Check altijd de actuele koers op eToro voor je een order plaatst.
+                financieel advies. De koers op eToro kan afwijken, dus kijk daar voor je een order plaatst.
               </Text>
             </Sectie>
 

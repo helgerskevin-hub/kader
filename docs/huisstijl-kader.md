@@ -46,7 +46,7 @@ Gekozen op basis van merkanalyse (juni 2026). Kader wint op alle criteria:
 **Voorbeeldtoon in de UI:**
 - ✓ "Koers nadert je doel met sterk momentum — overweeg take-profit te verhogen."
 - ✗ "🚀 Naar de maan! Nu kopen!"
-- Altijd: "Geen financieel advies — check altijd de live koers op eToro."
+- Altijd: "Geen financieel advies. De koers op eToro kan afwijken."
 
 ---
 
@@ -322,7 +322,7 @@ Twee triggers:
 2. **Stap eerder uit** — winst aanwezig maar momentum vlakt af (RSI overbought, MACD bearish)
    - *"BTC — stap eerder uit · Trek je stop-loss op naar $63.900 (was $61.000). RSI overbought (79), MACD draait bearish — winst vastzetten."*
 
-Altijd voettekst: "Geen financieel advies · check de live koers op eToro"
+Altijd voettekst: "Geen financieel advies · de koers op eToro kan afwijken"
 
 ---
 
