@@ -12,6 +12,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-09-29',
+    punten: [
+      'Je krijgt nu een melding als eToro een positie voor je sluit omdat je stop-loss of doel geraakt is, met de verkoopkoers en je resultaat erbij. Dat werkt ook als de app dicht is: Kader kijkt dan hooguit eens per kwartier bij eToro, en Android bepaalt zelf het precieze moment. Verkopen die je zelf via Kader doet, of die je op eToro met de hand sluit, geven geen melding (tenzij je vlak bij je stop of doel sluit). Met de app dicht kijkt Kader alleen naar de omgeving, demo of echt, die aan staat',
+      'Voor handmatige trades (niet via eToro) meldt Kader wanneer de koers je stop-loss of doel raakt, zodat je hem zelf kunt sluiten. Kader verkoopt die trades niet voor je. Omdat Kader niet continu meekijkt, kan een korte piek door je stop tussen twee controles in gemist worden',
+    ],
+  },
+  {
     versie: '0.1.25',
     datum: '2026-09-28',
     punten: [
