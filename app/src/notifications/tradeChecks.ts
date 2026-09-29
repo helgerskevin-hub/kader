@@ -178,7 +178,7 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
       meldingen.push({
         sleutel: sleutelVoor(trade.id, 'verhoogTP'),
         doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
-        titel: `${trade.symbool} nadert je doel`,
+        titel: `${trade.symbool} nadert de rand van je kader`,
         tekst: `De koers staat op ${fmtPrijs(koers)}, dicht bij je doel van ${fmtPrijs(trade.takeProfit)}, en het momentum is nog sterk. Overweeg je doel te verhogen naar ${fmtPrijs(vers.takeProfit)}.`,
       });
     }
@@ -300,7 +300,7 @@ async function beoordeelMarkt(
       sleutel: sleutelVoor(t.symbool, 'sterkeKoop'),
       doel: { soort: 'coin', symbool: t.symbool },
       titel: `Sterk koopsignaal: ${t.symbool}`,
-      tekst: `${t.symbool} scoort ${t.score} van de 100 (${t.redenen.join(', ')}). Entry ${fmtPrijs(t.entry)}, stop ${fmtPrijs(t.stopLoss)}, doel ${fmtPrijs(t.takeProfit)}.`,
+      tekst: `${t.symbool} scoort ${t.score} van de 100. Trend, MACD en volume staan mee. Entry ${fmtPrijs(t.entry)}, stop ${fmtPrijs(t.stopLoss)}, doel ${fmtPrijs(t.takeProfit)}.`,
     }));
 
   if (!klimaat) return meldingen;

@@ -6,7 +6,7 @@ import { radii } from '../theme/tokens';
 
 // KOOP en WATCH zijn de twee oordelen van de momentum-radar op Kansen: KOOP ziet er uit als
 // KOOPZONE, WATCH als AFWACHTEN.
-type Advies = 'KOOPZONE' | 'AFWACHTEN' | 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOP' | 'WATCH';
+type Advies = 'KOOPZONE' | 'AFWACHTEN' | 'STERK KOOP' | 'KOOP' | 'WATCH';
 
 interface Props {
   advies: Advies;
@@ -17,14 +17,13 @@ interface Props {
   score?: number;
 }
 
-// Het gewicht van de badge draagt het oordeel, niet alleen de kleur: gevuld bij high conviction,
-// omlijnd met een stip bij sterk koop, zacht bij koopzone en vlak grijs bij afwachten. Zo blijft
-// het onderscheid leesbaar zonder dat elke kaart in de lijst even hard roept, en voldoet het aan
-// de huisstijlregel dat kleur nooit het enige signaal is.
+// Het gewicht van de badge draagt het oordeel, niet alleen de kleur: omlijnd met een stip bij sterk
+// koop, zacht bij koopzone en vlak grijs bij afwachten. Zo blijft het onderscheid leesbaar zonder
+// dat elke kaart in de lijst even hard roept, en voldoet het aan de huisstijlregel dat kleur nooit
+// het enige signaal is. High conviction bestaat niet meer als eigen variant: dat is STERK KOOP met
+// het losse BEVESTIGD-keurmerk ernaast (zie BevestigdKeurmerk).
 export function AdviceBadge({ advies, score }: Props) {
-  const { colors, donkerActief } = useTheme();
-
-  const vulTekst = donkerActief ? colors.achtergrond : '#FFFFFF';
+  const { colors } = useTheme();
 
   const config: Record<Advies, {
     bg: string;
@@ -34,7 +33,6 @@ export function AdviceBadge({ advies, score }: Props) {
     stip: boolean;
     gewicht: '600' | '700';
   }> = {
-    'HIGH CONVICTION': { bg: colors.primair, tekst: vulTekst, border: colors.primair, randBreedte: 0, stip: false, gewicht: '700' },
     'STERK KOOP': { bg: 'transparent', tekst: colors.winst, border: colors.winst, randBreedte: 1.5, stip: true, gewicht: '700' },
     KOOPZONE: { bg: colors.winst + '1A', tekst: colors.winst, border: 'transparent', randBreedte: 0, stip: false, gewicht: '700' },
     AFWACHTEN: { bg: colors.verhoogd, tekst: colors.tekstGedimd, border: 'transparent', randBreedte: 0, stip: false, gewicht: '600' },
