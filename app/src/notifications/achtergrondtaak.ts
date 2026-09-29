@@ -1,6 +1,7 @@
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 import { checkOpenTrades, checkPrijsalerts } from './tradeChecks';
+import { checkEtoroSluitingen, checkNiveausGeraakt } from './sluitingen';
 
 export const TRADE_CHECK_TAAK = 'kader-trade-check';
 
@@ -20,6 +21,20 @@ TaskManager.defineTask(TRADE_CHECK_TAAK, async () => {
       await checkPrijsalerts();
     } catch {
       // Volgende ronde opnieuw. Een alert blijft wachten tot hij geraakt is, dus er gaat niets verloren.
+    }
+    // Sluitingen en geraakte niveaus ook elk apart: een eToro-storing mag de melding over een
+    // handmatige stop niet tegenhouden, en andersom. Allebei vóór checkOpenTrades, want die is het
+    // zwaarst en valt het eerst om. Er gaat niets verloren: een sluiting blijft in eToro's historie
+    // staan en een geraakt niveau wordt pas als gemeld onthouden als de melding verstuurd is.
+    try {
+      await checkEtoroSluitingen();
+    } catch {
+      // Volgende ronde opnieuw.
+    }
+    try {
+      await checkNiveausGeraakt();
+    } catch {
+      // Volgende ronde opnieuw.
     }
     await checkOpenTrades();
     return BackgroundTask.BackgroundTaskResult.Success;

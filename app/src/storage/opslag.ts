@@ -99,6 +99,14 @@ export const SLEUTELS = {
   // De laatste Kansen-scan (de momentum-radar) met tijdstip en de ranking van de scan ervoor, zodat
   // het scherm bij het openen meteen iets toont en per coin kan zeggen of hij gestegen of gezakt is.
   kansenScan: 'kansen_scan',
+  // eToro-positie-ID's waarvan de sluiting al gemeld is ("stop-loss geraakt", "doel gehaald"), de
+  // laatste 200. Gedeeld door de voorgrond-sync en de achtergrondtaak, zodat dezelfde sluiting niet
+  // twee keer binnenkomt als ze hem allebei zien.
+  gemeldeSluitingen: 'gemelde_sluitingen',
+  // Sleutels 'niveau:<tradeId>:<stop|doel>' van handmatige trades waarvan al gemeld is dat de koers
+  // de stop of het doel raakte. Eén melding per trade per niveau; wordt opgeschoond zodra de trade
+  // niet meer open staat.
+  gemeldeNiveaus: 'gemelde_niveaus',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
