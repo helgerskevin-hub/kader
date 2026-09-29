@@ -15,6 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-09-29',
     punten: [
+      'Coins hebben nu hun eigen logo: in het detailscherm, in je historie en in de lijst met relatieve sterkte op Markt. Heeft Kader van een coin geen logo, dan zie je de afkorting in een gekleurd rondje',
       'Het percentage achter je resultaat over een periode (Portfolio) had geen uitleg en las als rendement op je hele vermogen. Het is je resultaat gedeeld door het geld dat in die periode in posities zat; je vrije saldo telt niet mee. Dat staat er nu onder',
       'De disclaimer zegt nu waarom je moet kijken: "Geen financieel advies. De koers op eToro kan afwijken." Kader rekent met openbare marktdata, eToro met een eigen koers plus spread',
       'Je krijgt nu een melding als eToro een positie voor je sluit omdat je stop-loss of doel geraakt is, met de verkoopkoers en je resultaat erbij. Dat werkt ook als de app dicht is: Kader kijkt dan hooguit eens per kwartier bij eToro, en Android bepaalt zelf het precieze moment. Verkopen die je zelf via Kader doet, of die je op eToro met de hand sluit, geven geen melding (tenzij je vlak bij je stop of doel sluit). Met de app dicht kijkt Kader alleen naar de omgeving, demo of echt, die aan staat',
