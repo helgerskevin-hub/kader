@@ -541,6 +541,14 @@ export function PortfolioStatusKaart({
                 />
               )}
             </View>
+            {/* Zonder deze regel las het percentage als rendement op je hele vermogen, en dat is
+                het niet: periodeResultaat.ts deelt door het geld dat in de periode in posities zat.
+                Cash telt niet mee, want Kader kent je saldo van toen niet. */}
+            {resultaat.pct !== null && (
+              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+                Percentage over je posities, niet je vermogen.
+              </Text>
+            )}
             <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
               {resultaat.gesloten === 0
                 ? 'Alleen koersbeweging, niets gesloten.'

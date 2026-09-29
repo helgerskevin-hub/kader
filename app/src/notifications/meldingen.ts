@@ -22,7 +22,9 @@ const TRADE_MELDING_ID = 'trade-melding';
 const KANAAL_DAGELIJKS = 'dagelijks';
 const KANAAL_TRADES = 'trades';
 
-const DISCLAIMER = 'Geen financieel advies, check altijd de live koers op eToro.';
+// Kader rekent met openbare marktdata, eToro met een eigen koers plus spread. Daarom zegt de
+// disclaimer waarom je moet kijken en niet alleen dat je moet kijken.
+const DISCLAIMER = 'Geen financieel advies. De koers op eToro kan afwijken.';
 
 async function zorgVoorPermissie(): Promise<boolean> {
   const { status } = await Notifications.requestPermissionsAsync();
