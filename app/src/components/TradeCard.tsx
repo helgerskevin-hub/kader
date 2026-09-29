@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Info, CheckCircle, Star, ShoppingCart } from 'lucide-react-native';
@@ -12,6 +12,9 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { AdviceBadge } from './AdviceBadge';
+import { BevestigdKeurmerk } from './BevestigdKeurmerk';
+import { Bevestigingen } from './Bevestigingen';
+import { bevestigingen } from '../engine/bevestigingen';
 import { LevelRow } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
 import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
@@ -44,79 +47,16 @@ interface Props {
   versusBtc?: number;
 }
 
-type AdviesLabel = 'HIGH CONVICTION' | 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
+type AdviesLabel = 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
 
+// HIGH CONVICTION is geen label meer: een high-conviction trade is STERK KOOP met het losse
+// BEVESTIGD-keurmerk ernaast. highConviction (score 75+) valt al boven de drempel van 72, maar we
+// noemen hem toch expliciet zodat dat niet stilletjes afhangt van twee constanten die uit elkaar
+// kunnen lopen.
 function adviesLabel(trade: Trade): AdviesLabel {
-  if (trade.highConviction) return 'HIGH CONVICTION';
   if (trade.signaal !== 'KOOP') return 'AFWACHTEN';
-  return trade.score >= DREMPEL_STERK_KOOP ? 'STERK KOOP' : 'KOOPZONE';
-}
-
-// De gekleurde linkerstreep komt niet terug. Die zei vier keer hetzelfde en stond ook op
-// AFWACHTEN, waar niets aan de hand is, waardoor elke kaart in de lijst even hard riep. Maar met
-// alleen een randje van anderhalve pixel en een schaduw van 6 procent was het onderscheid in een
-// lijst van twintig kaarten te weinig: je moest de badge lézen om te weten wat er speelde.
-//
-// Het verschil loopt nu over vier assen tegelijk, oplopend in sterkte: achtergrond, rand, schaduw
-// en de kopgrootte van het symbool. AFWACHTEN krijgt de achtergrond van het scherm zelf en geen
-// schaduw, en ligt daarmee letterlijk plat op de pagina; HIGH CONVICTION krijgt als enige een volle
-// rand plus een gevulde badge. De positieve kant werkt dus via gewicht, de negatieve via wegvallen.
-// Zouden alle vier de niveaus iets extra's krijgen, dan roept de lijst weer even hard als eerst.
-function niveauOpmaak(label: AdviesLabel, colors: ReturnType<typeof useTheme>['colors']) {
-  if (label === 'HIGH CONVICTION') {
-    return {
-      borderWidth: 2, borderColor: colors.primair, schaduw: true,
-      achtergrond: colors.kaart, groteKop: true, prijsKleur: colors.tekstPrimair,
-      // Volle merkkleur in de rand plus de sterkste gloed: dit blijft het hoogste niveau.
-      gloedKleur: colors.primair, gloedDekking: 0.28, gloedStraal: 12, gloedHoogte: 5,
-    };
-  }
-  if (label === 'STERK KOOP') {
-    // Een haarlijn van 1 op 20 procent dekking was in een scrollende lijst niet te zien. Nu een
-    // rand van 2 op 60 procent: duidelijk zwaarder dan koopzone, en toch een stap onder high
-    // conviction, want die heeft de volle kleur, een gevulde badge en een sterkere gloed.
-    return {
-      borderWidth: 2, borderColor: colors.winst + '99', schaduw: true,
-      achtergrond: colors.kaart, groteKop: true, prijsKleur: colors.tekstPrimair,
-      gloedKleur: colors.winst, gloedDekking: 0.22, gloedStraal: 10, gloedHoogte: 3,
-    };
-  }
-  if (label === 'AFWACHTEN') {
-    return {
-      borderWidth: 1, borderColor: colors.rand, schaduw: false,
-      achtergrond: colors.achtergrond, groteKop: false, prijsKleur: colors.tekstGedimd,
-      gloedKleur: null, gloedDekking: 0, gloedStraal: 0, gloedHoogte: 0,
-    };
-  }
-  return {
-    borderWidth: 0, borderColor: 'transparent', schaduw: true,
-    achtergrond: colors.kaart, groteKop: false, prijsKleur: colors.tekstPrimair,
-    gloedKleur: null, gloedDekking: 0, gloedStraal: 0, gloedHoogte: 0,
-  };
-}
-
-// De gloed is een gekleurde schaduw, geen vlak achter de kaart: die kleurt de rand van buitenaf
-// mee zonder dat er iets van layout bij komt. Android tekent hem vanaf API 28 in kleur; op oudere
-// toestellen valt hij terug op een gewone donkere schaduw en blijft alleen de rand over. Dat is
-// een acceptabele terugval, want de rand draagt het onderscheid al.
-//
-// Hij beweegt met opzet niet. Een geanimeerde gloed is hier geprobeerd: een puls van de rand bij
-// het opbouwen van de kaart. Gemeten op de emulator gebeurt dat vrijwel nooit, want een TradeCard
-// blijft gemount zodra de lijst er eenmaal staat, ook bij het wisselen van tab of filter. De puls
-// was dus alleen te zien in het ene frame na een verse analyse, en dat is precies het moment dat
-// je nog naar de laadbalk kijkt. De variant die wél altijd zichtbaar is, een lus, is juist wat
-// deze kaarten in de vorige ronde kwijtraakten: met vijf ademende randen in een lijst roept alles
-// weer even hard. Wil je hier ooit toch beweging, hang hem dan aan onViewableItemsChanged van de
-// FlatList en niet aan het mounten, en bedenk eerst wat er gebeurt als er zes tegelijk in beeld
-// staan.
-function gloedSchaduw(kleur: string, dekking: number, straal: number, hoogte: number) {
-  return {
-    shadowColor: kleur,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: dekking,
-    shadowRadius: straal,
-    elevation: hoogte,
-  };
+  if (trade.highConviction || trade.score >= DREMPEL_STERK_KOOP) return 'STERK KOOP';
+  return 'KOOPZONE';
 }
 
 // Memo: tijdens de marktscan tekent MarktScreen bij elk voortgangstikje opnieuw, en zonder memo
@@ -132,10 +72,9 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   const [platformsOpen, setPlatformsOpen] = useState(false);
   const info = infoVoor(trade.symbool);
   const advies = adviesLabel(trade);
-  const opmaak = niveauOpmaak(advies, colors);
   // De hele kaart veert mee als je het bovenste deel indrukt, niet alleen dat deel: anders krimpt
   // de inhoud binnen een stilstaande rand en schaduw. Het detailscherm groeit uit deze kaart.
-  const druk = useDrukVeer(undefined, { kleur: opmaak.achtergrond, radius: radii.kaart });
+  const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
   const niveaus = etoroNiveaus(trade.entry, trade.stopLoss, trade.takeProfit, limiet);
   // Het merkje betekent: KADER kan deze order plaatsen. Niet "deze coin bestaat op eToro". Moet je
   // het bij de provider zelf doen, dan hoort er geen merkje te staan, want dan doet de koopknop het
@@ -147,6 +86,14 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   // die drempel het enige eerlijke oordeel: de score kan nog zo hoog zijn, met een stop van 10% en
   // een doel van 9% verdien je er niets aan.
   const haaltRr = niveaus.aangepast ? niveaus.rr >= MIN_RISK_REWARD : trade.voldoetAanRR;
+  const uitkomst = bevestigingen(trade, niveaus.rr, haaltRr);
+  // Het keurmerk popt alleen als een trade bevestigd raakt terwijl de kaart er al staat. Bij elke
+  // filterwissel mount de lijst opnieuw, en dan zouden alle keurmerken tegelijk opspringen.
+  const eerderBevestigd = useRef(uitkomst.bevestigd);
+  const animeerKeurmerk = uitkomst.bevestigd && !eerderBevestigd.current;
+  useEffect(() => {
+    eerderBevestigd.current = uitkomst.bevestigd;
+  }, [uitkomst.bevestigd]);
   const koopadvies = genereerKoopadvies({
     score: trade.score,
     rsi: trade.rsi,
@@ -165,20 +112,12 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   }
 
   return (
+    // Elke kaart ziet er hetzelfde uit: besluit van de UI-makeover. De overtuiging zit in de badge
+    // en het keurmerk (de scorering zelf komt later), en AFWACHTEN oogt niet meer uitgeschakeld.
     <Animated.View ref={druk.ref} layout={schuif} style={[
       styles.kaart,
-      // Bij de twee sterkste niveaus draagt de schaduw de kleur van het niveau; de rest houdt de
-      // gewone neutrale kaartschaduw.
-      opmaak.schaduw
-        ? opmaak.gloedKleur !== null
-          ? gloedSchaduw(opmaak.gloedKleur, opmaak.gloedDekking, opmaak.gloedStraal, opmaak.gloedHoogte)
-          : shadow.kaart
-        : null,
-      {
-        backgroundColor: opmaak.achtergrond,
-        borderWidth: opmaak.borderWidth,
-        borderColor: opmaak.borderColor,
-      },
+      shadow.kaart,
+      { backgroundColor: colors.kaart },
       druk.stijl,
     ]}>
       <Pressable
@@ -197,7 +136,10 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
           naast STOP, waar het iets heel anders betekende (zie LevelRow) en waar het als een
           merklogo op een rare plek las. */}
       <View style={styles.badgeRij}>
-        <AdviceBadge advies={advies} score={trade.score} />
+        <View style={styles.badgeGroep}>
+          <AdviceBadge advies={advies} score={trade.score} />
+          {uitkomst.bevestigd && <BevestigdKeurmerk animeer={animeerKeurmerk} />}
+        </View>
         {platforms.length > 0 && (
           <Pressable
             onPress={() => setPlatformsOpen(true)}
@@ -215,9 +157,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
       <View style={styles.kop}>
         <View style={styles.kopLinks}>
           <View style={styles.symboolRij}>
-            {/* Een kop van 21px tegenover 16px is op afstand zichtbaar zonder dat er kleur aan
-                te pas komt, en maakt de kaart die je moet lezen ook fysiek zwaarder. */}
-            <Text style={[opmaak.groteKop ? Type.titel : Type.sectiekop, { color: colors.tekstPrimair }]}>
+            <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
               {trade.symbool}
             </Text>
             {onToggleFavoriet && (
@@ -242,7 +182,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
           {/* Het scorecijfer stond hier als losse badge en verderop nog eens als SCORE-kolom.
               Allebei weg: het staat nu in de adviesbadge zelf, dus één element draagt het oordeel
               en de maat ervan, en de metarij houdt drie kolommen over die ruimer kunnen staan. */}
-          <Text style={[Type.prijsGroot, { color: opmaak.prijsKleur }]}>{fmtPrijs(trade.prijs)}</Text>
+          <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(trade.prijs)}</Text>
         </View>
       </View>
 
@@ -310,6 +250,13 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
           exiting={uitklapUit()}
           style={[styles.redenen, { backgroundColor: colors.verhoogd }]}
         >
+          {/* De vier eisen bestaan alleen voor een long op het momentum-profiel: trend, MACD en
+              volume betekenen bij een omkeer- of short-trade iets anders. */}
+          {trade.richting === 'long' && trade.profiel === 'momentum' && (
+            <View style={styles.bevestigingen}>
+              <Bevestigingen uitkomst={uitkomst} />
+            </View>
+          )}
           {trade.redenen.map((r, i) => (
             <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
           ))}
@@ -397,13 +344,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     overflow: 'hidden',
   },
+  // Wrap en krimpen: met een grotere systeemletter passen badge, keurmerk en platformchip op
+  // 360dp niet meer naast elkaar, en zonder wrap schuift de chip onder de kaartrand weg.
   badgeRij: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 6,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: spacing.md,
     paddingHorizontal: spacing.base,
   },
+  badgeGroep: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 1, alignItems: 'center', gap: 6 },
   kop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -439,6 +391,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: 4,
   },
+  bevestigingen: { marginBottom: spacing.sm },
   reden: { lineHeight: 18 },
   koopadviesUitleg: { lineHeight: 18, marginTop: 4 },
   actiesRij: {

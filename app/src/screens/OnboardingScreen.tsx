@@ -36,7 +36,7 @@ const STAPPEN: Stap[] = [
   {
     Icon: TrendingUp as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Hoe werkt\nde analyse?',
-    body: 'De app scant de markt met RSI, voortschrijdende gemiddelden (EMA) en ATR. Coins met score ≥ 75 zijn "high conviction", meerdere indicatoren wijzen tegelijk op een kans. Werkt het marktklimaat niet mee, dan toont Kader bewust geen koopsignalen, ook niet bij een hoge score.',
+    body: 'De app scant de markt met RSI, voortschrijdende gemiddelden (EMA) en ATR. Staan trend, MACD, volume en R/R allemaal mee bij een score van 75 of hoger, dan krijgt STERK KOOP het keurmerk BEVESTIGD. Werkt het marktklimaat niet mee, dan toont Kader bewust geen koopsignalen, ook niet bij een hoge score.',
   },
   {
     Icon: Target as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,

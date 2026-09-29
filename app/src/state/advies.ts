@@ -66,9 +66,10 @@ export function bepaalAdvies(
     };
   }
 
+  // "Binnen je kader" is een van de drie Kader-woorden (besluit UI-makeover), niet elders gebruiken.
   return {
-    tekst: `Op koers. Vasthouden volgens plan. Stop: ${fmtPrijs(stopLoss)}, doel: ${fmtPrijs(takeProfit)}.`,
-    kort: 'Op koers',
+    tekst: `Binnen je kader, tussen stop ${fmtPrijs(stopLoss)} en doel ${fmtPrijs(takeProfit)}. Vasthouden volgens plan.`,
+    kort: 'Binnen je kader',
     kleur: 'neutraal',
   };
 }

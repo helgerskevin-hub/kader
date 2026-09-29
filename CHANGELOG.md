@@ -6,6 +6,9 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD. Het verschil met gewoon STERK KOOP zat nooit in drie scorepunten maar in de bevestigingen: trend, MACD, volume en R/R. Klap een kaart op Markt uit en je ziet welke er meestaan en welke ontbreekt. De drempels zijn niet veranderd
+- De kaarten op Markt hebben geen gekleurde rand of gloed meer, en AFWACHTEN ligt niet meer plat als een uitgeschakelde kaart. Het oordeel staat in de badge
+- Kader spreekt nu op een paar vaste plekken van je kader: "In het kader" boven de top 3 op Kansen, "Binnen je kader" in plaats van "Op koers" bij een positie die volgens plan loopt, en de melding als een positie de rand van je kader nadert. De ochtendmelding heet "Het kader van vandaag staat klaar"
 - Het percentage achter je resultaat over een periode (Portfolio) had geen uitleg en las als rendement op je hele vermogen. Het is je resultaat gedeeld door het geld dat in die periode in posities zat; je vrije saldo telt niet mee. Dat staat er nu onder
 - De disclaimer zegt nu waarom je moet kijken: "Geen financieel advies. De koers op eToro kan afwijken." Kader rekent met openbare marktdata, eToro met een eigen koers plus spread
 - Je krijgt nu een melding als eToro een positie voor je sluit omdat je stop-loss of doel geraakt is, met de verkoopkoers en je resultaat erbij. Dat werkt ook als de app dicht is: Kader kijkt dan hooguit eens per kwartier bij eToro, en Android bepaalt zelf het precieze moment. Verkopen die je zelf via Kader doet, of die je op eToro met de hand sluit, geven geen melding (tenzij je vlak bij je stop of doel sluit). Met de app dicht kijkt Kader alleen naar de omgeving, demo of echt, die aan staat

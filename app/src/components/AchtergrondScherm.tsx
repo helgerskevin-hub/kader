@@ -11,6 +11,7 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { ScoreBadge } from './ScoreBadge';
 import { AdviceBadge } from './AdviceBadge';
+import { BevestigdKeurmerk } from './BevestigdKeurmerk';
 import { LevelRow } from './LevelRow';
 import { MarktBalk } from './MarktBalk';
 import { Marktklimaat } from '../engine/marktklimaat';
@@ -60,6 +61,10 @@ const SECTIES = [
 
 type SectieId = typeof SECTIES[number]['id'];
 
+// Android breekt een regel af na een slash, en dan stond er "de R/" aan het eind van de regel en
+// "R die" op de volgende. Het onzichtbare verbindingsteken (U+2060) houdt R/R bij elkaar.
+const RR = 'R/\u2060R';
+
 export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
   const { colors } = useTheme();
   const extraKopruimte = useModalKopruimte();
@@ -108,16 +113,21 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
 
             <Sectie id="advies" titel="Advieslabels" open={open === 'advies'} onToggle={wisselOpen}>
               <Text style={[Type.body, styles.tekst, { color: colors.tekstPrimair }]}>
-                AFWACHTEN betekent geen koopsignaal. KOOPZONE betekent score 55 of hoger. STERK KOOP betekent score 72
-                of hoger. HIGH CONVICTION is de sterkste combinatie: score 75 of hoger, samen met een stijgende trend,
-                een bullish MACD en een volume van minstens 1,3 keer het gemiddelde. Werkt het marktklimaat niet mee
-                (zie hieronder), dan valt elk koopsignaal terug op AFWACHTEN, ongeacht de score.
+                Elke coin krijgt een van drie labels. AFWACHTEN: geen koopsignaal, de {RR} die Kader berekent haalt
+                1 : 2.0 niet, of het marktklimaat werkt niet mee (zie hieronder); dan valt elk koopsignaal terug op
+                AFWACHTEN, ongeacht de score. KOOPZONE: score 55 of hoger. STERK KOOP: score 72 of hoger. Staat alles
+                mee, dan komt het keurmerk BEVESTIGD erbij: score 75 of hoger, een stijgende trend, een bullish MACD,
+                een volume van minstens 1,3 keer het gemiddelde en een {RR} van minstens 1 : 2.0. Klap een kaart op
+                Markt uit om te zien welke bevestiging ontbreekt.
               </Text>
               <View style={styles.badgeRij}>
                 <AdviceBadge advies="AFWACHTEN" />
                 <AdviceBadge advies="KOOPZONE" />
                 <AdviceBadge advies="STERK KOOP" />
-                <AdviceBadge advies="HIGH CONVICTION" />
+                <View style={styles.sterkBevestigd}>
+                  <AdviceBadge advies="STERK KOOP" />
+                  <BevestigdKeurmerk animeer />
+                </View>
               </View>
             </Sectie>
 
@@ -530,5 +540,6 @@ const styles = StyleSheet.create({
   tekst: { lineHeight: 21 },
   subkop: { marginTop: spacing.sm },
   badgeRij: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  sterkBevestigd: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   slotnoot: { paddingHorizontal: spacing.base, paddingTop: spacing.md, textAlign: 'center' },
 });
