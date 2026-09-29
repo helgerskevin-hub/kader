@@ -16,6 +16,10 @@ export interface GeplaatsteOrder {
   orderId?: number;
   soort: 'koop' | 'verkoop';
   symbool: string;
+  // Alleen bij verkoop: welke positie Kader sloot. Zo herkent de sluitingsmelding (zie
+  // notifications/sluitingen.ts) een verkoop van Kader zelf en meldt ze die niet als "stop-loss
+  // geraakt". Ontbreekt bij alles van vóór dit veld; daar valt die check terug op symbool.
+  positionId?: number;
   omgeving: EtoroOmgeving;
   bedragUsd?: number;
   // Alleen bij koop: bepaalt of de omschrijving "koop" of "short" zegt.
@@ -69,9 +73,14 @@ export function isMeldenswaard(order: GeplaatsteOrder): boolean {
   return status !== undefined && isDefinitieveStatus(status.id) && status.id !== 3;
 }
 
+// Een gevulde verkoop blijft een dag staan in plaats van meteen te verdwijnen. De sluitingsmelding
+// moet hem nog kunnen vinden, en eToro's historie loopt soms een sync achter op de orderstatus: de
+// order kan al Filled zijn (en hier opgeruimd) voordat de gesloten positie in de historie staat.
+// Dan zou een eigen verkoop op het doel als "doel gehaald door eToro" gemeld worden. Kost niets:
+// isMeldenswaard en moetOpvragen slaan een gevulde order toch al over.
 export function ruimOp(orders: GeplaatsteOrder[], nu: number): GeplaatsteOrder[] {
   return orders.filter(o => {
-    if (o.status?.id === 3) return false;
+    if (o.status?.id === 3 && !(o.soort === 'verkoop' && nu - o.tijd < OPVRAAG_VENSTER_MS)) return false;
     if (nu - o.tijd >= BEWAAR_MS) return false;
     return true;
   });
@@ -193,6 +202,10 @@ if (require.main === module) {
   const gevuld: GeplaatsteOrder = { ...basis, status: { id: 3, naam: 'Filled', reden: null } };
   console.assert(!isMeldenswaard(gevuld), 'een gevulde order is geen nieuws');
   console.assert(ruimOp([gevuld], nu).length === 0, 'een gevulde order wordt meteen opgeruimd');
+  const gevuldeVerkoop: GeplaatsteOrder = { ...gevuld, soort: 'verkoop' };
+  console.assert(ruimOp([gevuldeVerkoop], nu).length === 1, 'een gevulde verkoop blijft een dag staan voor de sluitingsmelding');
+  console.assert(ruimOp([{ ...gevuldeVerkoop, tijd: nu - OPVRAAG_VENSTER_MS }], nu).length === 0, 'na een dag verdwijnt ook een gevulde verkoop');
+  console.assert(!isMeldenswaard(gevuldeVerkoop), 'een gevulde verkoop is geen nieuws in de uitkomstmeldingen');
 
   const geannuleerd: GeplaatsteOrder = { ...basis, status: { id: 7, naam: 'Canceled', reden: 'Insufficient funds' } };
   console.assert(isMeldenswaard(geannuleerd), 'een geannuleerde order (7) is wel meldenswaard');

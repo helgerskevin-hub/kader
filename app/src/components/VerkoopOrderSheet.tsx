@@ -130,6 +130,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
           orderId: uitkomst.orderId,
           soort: 'verkoop',
           symbool: trade.symbool,
+          positionId,
           // De omgeving van de sleutels waarmee de order echt de deur uitging, niet de context-state:
           // die kan net gewisseld zijn, en dan zou de sync de status bij het verkeerde account opvragen.
           omgeving: sleutels.omgeving ?? 'real',
