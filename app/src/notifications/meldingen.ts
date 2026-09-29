@@ -52,8 +52,8 @@ export async function stelDagelijkseMeldingIn(uur = 9, minuut = 0): Promise<bool
   await Notifications.scheduleNotificationAsync({
     identifier: DAGELIJKSE_ID,
     content: {
-      title: 'Tijd voor je marktanalyse',
-      body: `Open de app voor de signalen van vandaag. ${DISCLAIMER}`,
+      title: 'Het kader van vandaag staat klaar',
+      body: `Open Kader voor de signalen van vandaag. ${DISCLAIMER}`,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,

@@ -14,6 +14,7 @@ import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { AdviceBadge } from './AdviceBadge';
 import { Drukbaar } from './Drukbaar';
+import { KaderLogo } from './KaderLogo';
 import { Sparkline } from './Sparkline';
 import { RangLabel } from './KansKaart';
 import { afstandLabel } from './MomentumBalken';
@@ -53,9 +54,19 @@ export function KansenTop3({ kansen, onOpenDetail, stopLimieten }: Props) {
 
   return (
     <View style={styles.wrapper}>
-      <Text style={[Type.overline, styles.kop, { color: colors.tekstGedimd }]}>
-        TOP {kansen.length} OP MOMENTUM
-      </Text>
+      <View style={styles.kop}>
+        <KaderLogo size={22} variant="outline" />
+        <View>
+          <Text style={[Type.sectiekop, styles.kopTitel, { color: colors.tekstPrimair }]}>In het kader</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+            {kansen.length >= 3
+              ? 'De drie sterkste op de radar'
+              : kansen.length === 2
+                ? 'De twee sterkste op de radar'
+                : 'De sterkste op de radar'}
+          </Text>
+        </View>
+      </View>
       <ScrollView
         horizontal
         snapToInterval={stap}
@@ -138,7 +149,15 @@ const MiniKaart = memo(function MiniKaart({ kans, signaal, volgorde, breedte, on
 
 const styles = StyleSheet.create({
   wrapper: { marginBottom: spacing.sm },
-  kop: { paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
+  kop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+  },
+  // Type.sectiekop is 16; de kop is bewust een tikje groter dan de sectiekoppen.
+  kopTitel: { fontSize: 17 },
   spoor: { paddingHorizontal: spacing.base, paddingBottom: spacing.xs, gap: spacing.sm },
   kaart: {
     borderRadius: radii.kaart,
