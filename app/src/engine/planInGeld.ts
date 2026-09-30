@@ -80,6 +80,21 @@ export function opStap(waarde: number, stap: number): number {
   return Number((Math.round(waarde / stap) * stap).toFixed(decimalen));
 }
 
+// Tekst voor een veld na slepen of een -/+ stap: afgerond op het raster van de halve stap, zonder
+// staartje als 0.31292999965. Ligt de afgeronde waarde net buiten het bereik (de rand van eToro's
+// grens is zelden een rond getal), dan een raster-tik terug naar binnen, zodat het veld nooit een
+// stop toont die bepaalStop zou bijstellen.
+export function alsVeldTekst(waarde: number, stap: number, bereik: Bereik | null): string {
+  if (!isFinite(waarde)) return '';
+  if (!geldig(stap)) return String(waarde);
+  const decimalen = Math.max(0, -Math.floor(Math.log10(stap / 2)) + 1);
+  const tik = Math.pow(10, -decimalen);
+  let r = Number(waarde.toFixed(decimalen));
+  if (bereik && r > bereik.max) r = Number((r - tik).toFixed(decimalen));
+  if (bereik && r < bereik.min) r = Number((r + tik).toFixed(decimalen));
+  return String(r);
+}
+
 export interface Bereik {
   min: number;
   max: number;
@@ -257,6 +272,14 @@ if (require.main === module) {
   // Koers diep onder water, onder eToro's maximale afstand: geen geldige stop meer te slepen.
   const diep = greepBereik({ entry: 100, live: 5, richting: 'long', limiet: { ...limietLong, maxPct: 50 }, stap: 1 });
   console.assert(diep.stop === null, 'geen overlap tussen koersgrens en eToro-grens geeft geen stopgreep');
+
+  // Veldtekst: geen staartjes, en een rand die niet rond is wordt naar binnen afgerond.
+  console.assert(alsVeldTekst(0.31292999965, 0.001, { min: 0.0001, max: 0.31292999965 }) === '0.31292',
+    `rand naar binnen afgerond verwacht, was ${alsVeldTekst(0.31292999965, 0.001, { min: 0.0001, max: 0.31292999965 })}`);
+  console.assert(alsVeldTekst(0.3125, 0.001, null) === '0.3125', `0.3125 blijft staan, was ${alsVeldTekst(0.3125, 0.001, null)}`);
+  console.assert(alsVeldTekst(66000.0000001, 200, { min: 66000.00006, max: 90000 }) === '66001',
+    `short-rand naar binnen verwacht, was ${alsVeldTekst(66000.0000001, 200, { min: 66000.00006, max: 90000 })}`);
+  console.assert(Number(alsVeldTekst(0.31292999965, 0.001, { min: 0.0001, max: 0.31292999965 })) <= 0.31292999965, 'veldtekst blijft binnen het bereik');
 
   // Snelknoppen.
   console.assert(maxBedrag(1000, 1.02) === 980.39, `max 980.39 verwacht, was ${maxBedrag(1000, 1.02)}`);

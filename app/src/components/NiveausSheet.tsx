@@ -10,7 +10,7 @@ import { fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { guid, wijzigNiveaus, NiveauWijziging } from '../engine/etoro';
 import { koersFactor } from '../engine/etoroSymbolen';
-import { greepBereik, klem, opStap, planInGeld, stapGrootte, type Bereik } from '../engine/planInGeld';
+import { alsVeldTekst, greepBereik, klem, opStap, planInGeld, stapGrootte, type Bereik } from '../engine/planInGeld';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
@@ -280,7 +280,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     const basis = isFinite(huidig) && huidig > 0 ? huidig : (huidigePrijs ?? entry);
     const nieuw = klem(opStap(basis + teken * stap, stap), b);
     if (!isFinite(nieuw) || nieuw <= 0) return;
-    (veld === 'stop' ? setStopVeld : setDoelVeld)(nieuw.toString());
+    (veld === 'stop' ? setStopVeld : setDoelVeld)(alsVeldTekst(nieuw, stap, b));
   }
 
   // Wat de wijziging in geld betekent voor deze positie. De stop is die welke echt zou uitgaan,
@@ -311,6 +311,16 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     // Zwevende-komma-staartjes weg, zonder het niveau zelf te verschuiven.
     setStopVeld(Number(trailing.toPrecision(10)).toString());
   }
+
+  // Staat de stop tegen eToro's minimale afstand aan, dan zeggen we waarom de greep daar stopt.
+  // Alleen met een bekende grens; zonder grens valt er niets uit te leggen.
+  const minAfstand = limiet && limiet.bewerkbaar ? limiet.minPct : null;
+  const stopAfstandPct = heeftStop ? (richting === 'short' ? ingevuldeStop - entry : entry - ingevuldeStop) / entry * 100 : NaN;
+  const aanGrens = minAfstand !== null && isFinite(stopAfstandPct)
+    && stopAfstandPct >= minAfstand && stopAfstandPct - minAfstand < (stap / entry) * 100;
+  const grensUitleg = aanGrens && minAfstand !== null
+    ? `Dichter bij je aankoopprijs staat eToro geen stop toe: minimaal ${minAfstand.toFixed(1).replace('.', ',')}% ${richting === 'short' ? 'erboven' : 'eronder'}.`
+    : '';
 
   const veldTekst = (uit: boolean, kleur: string) => [stijlen.input, {
     color: uit ? colors.tekstGedimd : kleur,
@@ -345,8 +355,8 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
             stopBereik={bereik.stop}
             doelBereik={bereik.doel}
             stap={stap}
-            onStop={w => setStopVeld(w.toString())}
-            onDoel={w => setDoelVeld(w.toString())}
+            onStop={w => setStopVeld(alsVeldTekst(w, stap, bereik.stop))}
+            onDoel={w => setDoelVeld(alsVeldTekst(w, stap, bereik.doel))}
             formatPrijs={fmtDollar}
             richting={richting}
           />
@@ -433,6 +443,8 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
             >
               {advies.uitleg}
             </Text>
+          ) : grensUitleg ? (
+            <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>{grensUitleg}</Text>
           ) : null}
         </View>
 
