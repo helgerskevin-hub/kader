@@ -153,6 +153,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
           onSluiten();
           toonDialoog({
             variant: 'gelukt',
+            rondje: 'gelukt',
             titel: 'Niveaus doorgegeven',
             tekst: `De stop-loss en het doel van ${trade.symbool} staan bij eToro. Kader werkt ze bij na de volgende sync.`,
             knoppen: [{ label: 'Oké' }],
@@ -180,6 +181,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
       onSluiten();
       toonDialoog({
         variant: 'waarschuwing',
+        rondje: 'onzeker',
         titel: 'We weten niet of je wijziging is doorgegaan',
         tekst: 'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.',
         resultaat: {

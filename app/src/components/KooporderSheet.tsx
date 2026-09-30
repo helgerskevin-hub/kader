@@ -238,6 +238,7 @@ export function KooporderSheet({
           onSluiten();
           toonDialoog({
             variant: 'gelukt',
+            rondje: 'gelukt',
             titel: isShort ? 'Short staat bij eToro' : 'Koop staat bij eToro',
             tekst: isShort
               ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`
@@ -288,6 +289,7 @@ export function KooporderSheet({
       onSluiten();
       toonDialoog({
         variant: 'waarschuwing',
+        rondje: 'onzeker',
         titel: 'We weten niet of je order is doorgegaan',
         tekst: 'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.',
         resultaat: {

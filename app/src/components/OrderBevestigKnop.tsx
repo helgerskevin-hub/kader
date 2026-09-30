@@ -2,8 +2,8 @@
 // zodat kopen, verkopen en niveaus wijzigen zich identiek gedragen en er geen variant ontstaat die
 // net iets makkelijker per ongeluk af te vuren is.
 //
-// In demo is het een gewone tik. In echt is de knop rood, staat er expliciet bij dat het om echt
-// geld gaat, en moet je 'm ingedrukt houden: een losse tik doet dan niets.
+// In demo is het een gewone tik. In echt is de knop inktkleurig, staat er een rode regel boven dat
+// het om echt geld gaat, en moet je 'm ingedrukt houden: een losse tik doet dan niets.
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, ActivityIndicator, type LayoutChangeEvent } from 'react-native';
 import { AlertTriangle } from 'lucide-react-native';
@@ -53,7 +53,7 @@ interface Props {
 }
 
 export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, gelukt = false, echtWaarschuwing }: Props) {
-  const { colors } = useTheme();
+  const { colors, donkerActief } = useTheme();
   const { reduceMotion, naar } = useBeweging();
   const isEcht = omgeving === 'real';
   const [houdtVast, setHoudtVast] = useState(false);
@@ -155,8 +155,11 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
     onBevestig();
   }
 
-  const knopKleur = toonVink ? colors.winst : geblokkeerd ? colors.rand : isEcht ? colors.verlies : colors.cta;
-  const voorgrondKleur = toonVink ? 'white' : geblokkeerd ? colors.tekstGedimd : 'white';
+  // Echt is inkt op kaart: in donker keert hij om naar een lichte knop met donkere tekst.
+  const knopKleur = toonVink ? colors.winst : geblokkeerd ? colors.rand : isEcht ? colors.tekstPrimair : colors.cta;
+  const voorgrondKleur = toonVink ? 'white' : geblokkeerd ? colors.tekstGedimd : isEcht ? colors.kaart : 'white';
+  // Op de donkere inktknop (licht thema) vult wit; op de lichte inktknop (donker thema) vult inkt.
+  const vulKleur = donkerActief ? 'rgba(14,17,23,0.22)' : 'rgba(255,255,255,0.26)';
 
   const vulStijl = useAnimatedStyle(() => {
     const s = voortgang.value;
@@ -177,10 +180,10 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
   return (
     <View>
       {isEcht && (
-        <View style={[styles.waarschuwing, { backgroundColor: colors.verlies + '1A' }]}>
-          <AlertTriangle size={16} color={colors.verlies} strokeWidth={1.75} />
-          <Text style={[Type.caption, { color: colors.verlies, flex: 1, lineHeight: 18 }]}>
-            {echtWaarschuwing ?? 'Dit is een echte order met echt geld. Houd de knop ingedrukt om te bevestigen.'}
+        <View style={styles.waarschuwing}>
+          <AlertTriangle size={14} color={colors.verlies} strokeWidth={1.75} />
+          <Text style={[styles.waarschuwingTekst, { color: colors.verlies }]}>
+            {echtWaarschuwing ?? 'Echt geld. Houd de knop vast om te bevestigen.'}
           </Text>
         </View>
       )}
@@ -204,7 +207,7 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
             style={[
               StyleSheet.absoluteFill,
               vulStijl,
-              { width: '100%', backgroundColor: 'rgba(255,255,255,0.28)' },
+              { width: '100%', backgroundColor: vulKleur },
             ]}
           />
         )}
@@ -224,10 +227,10 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
             </Svg>
           </Animated.View>
         ) : bezig
-          ? <ActivityIndicator size="small" color="white" />
+          ? <ActivityIndicator size="small" color={voorgrondKleur} />
           : (
-            <Text style={[Type.body, { color: voorgrondKleur, fontWeight: '600' }]}>
-              {isEcht && !houdtVast ? `${label} (ingedrukt houden)` : label}
+            <Text numberOfLines={2} style={[Type.body, styles.label, { color: voorgrondKleur }]}>
+              {label}
             </Text>
           )}
       </Pressable>
@@ -239,20 +242,28 @@ const styles = StyleSheet.create({
   waarschuwing: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radii.veld,
-    marginBottom: spacing.md,
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: spacing.xs,
+  },
+  waarschuwingTekst: {
+    flexShrink: 1,
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   knop: {
     marginTop: spacing.sm,
     paddingVertical: spacing.md,
-    borderRadius: radii.knop,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 56,
     overflow: 'hidden',
   },
+  label: { fontWeight: '600', textAlign: 'center' },
 });
 
 // Het gelukt-moment voor een sheet met deze knop. vier() krijgt wat er na het vinkje moet gebeuren

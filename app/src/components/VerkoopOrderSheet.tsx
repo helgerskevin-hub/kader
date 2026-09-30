@@ -146,6 +146,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
           onSluiten();
           toonDialoog({
             variant: 'gelukt',
+            rondje: 'gelukt',
             titel: isShort ? 'Sluitorder staat bij eToro' : 'Verkoop staat bij eToro',
             tekst: `Je ${opdrachtTekst} is doorgegeven. Kader werkt je portfolio bij zodra de positie gesloten is.`,
             resultaat: resultaat !== undefined && resultaatPct !== undefined
@@ -191,6 +192,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
       // weten wat er gebeurd is.
       toonDialoog({
         variant: 'waarschuwing',
+        rondje: 'onzeker',
         titel: isShort
           ? 'We weten niet of je sluitorder is doorgegaan'
           : 'We weten niet of je verkoop is doorgegaan',
