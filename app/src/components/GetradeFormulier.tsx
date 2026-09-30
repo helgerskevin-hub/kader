@@ -208,7 +208,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
               style={[stijlen.lijstInvoer, { color: colors.cta }]}
               value={form.aantalCoins}
               onChangeText={v => setForm(prev => ({ ...prev, aantalCoins: v }))}
-              placeholder="auto-berekend"
+              placeholder="0"
               placeholderTextColor={colors.tekstGedimd}
               keyboardType="decimal-pad"
               accessibilityLabel="Aantal coins"
@@ -225,7 +225,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
             doel={trade.takeProfit}
             bijStop={plan?.bijStop ?? null}
             bijDoel={plan?.bijDoel ?? null}
-            rr={plan?.rr ?? null}
+            rr={isFinite(rr) && rr > 0 ? rr : null}
             stopAangepast={advies.soort === 'aangepast'}
           />
         ) : null}

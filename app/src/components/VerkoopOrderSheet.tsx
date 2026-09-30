@@ -313,7 +313,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
         <View style={[stijlen.lijst, { backgroundColor: colors.verhoogd }]}>
           <LijstRij
             label="Aantal coins"
-            waarde={aantal !== undefined ? aantal.toFixed(6) : 'onbekend'}
+            waarde={aantalTekst || 'onbekend'}
             eerste
           />
           <LijstRij label="Aankoopprijs" waarde={fmtPrijs(trade.entryPrijs)} />
