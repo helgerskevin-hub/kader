@@ -9,10 +9,7 @@ import { Pressable, StyleSheet, Text, View, ActivityIndicator, type LayoutChange
 import { AlertTriangle } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
-  Easing,
-  ReduceMotion,
   useAnimatedProps,
-  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -22,7 +19,8 @@ import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { curve, duur, vervaag } from '../theme/beweging';
 import { useBeweging } from '../theme/useReduceMotion';
-import { haptiek, haptiekVanUI } from '../theme/haptiek';
+import { useVasthouden } from '../theme/useVasthouden';
+import { haptiek } from '../theme/haptiek';
 import { EtoroOmgeving } from '../engine/etoro';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -54,47 +52,28 @@ interface Props {
 
 export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, gelukt = false, echtWaarschuwing }: Props) {
   const { colors, donkerActief } = useTheme();
-  const { reduceMotion, naar } = useBeweging();
+  const { reduceMotion } = useBeweging();
   const isEcht = omgeving === 'real';
-  const [houdtVast, setHoudtVast] = useState(false);
   const [toonVink, setToonVink] = useState(false);
-  // Vulling van de balk terwijl je vasthoudt: een voortgang van 0 naar 1, getekend met scaleX in
-  // plaats van width, zodat de UI-thread 'm kan afhandelen zonder elke frame een layout te
-  // herberekenen. transformOrigin is in React Native nog niet overal even betrouwbaar, dus schuift
-  // dit 'm terug tot de linkerkant weer op zijn plek staat in plaats van vanuit het midden te laten
-  // groeien.
-  const voortgang = useSharedValue(0);
   const vinkVoortgang = useSharedValue(0);
+  // Vulling van de balk terwijl je vasthoudt: de voortgang van 0 naar 1 uit useVasthouden, getekend
+  // met scaleX in plaats van width, zodat de UI-thread 'm kan afhandelen zonder elke frame een
+  // layout te herberekenen. transformOrigin is in React Native nog niet overal even betrouwbaar, dus
+  // schuift dit 'm terug tot de linkerkant weer op zijn plek staat in plaats van vanuit het midden te
+  // laten groeien.
   const [knopBreedte, setKnopBreedte] = useState(0);
-  const wekker = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ook dicht zodra eToro ja heeft gezegd: het vinkje staat nog even, en een tik of vasthouden in
   // die tijd mag geen tweede order worden.
   const geblokkeerd = uitgeschakeld || bezig || gelukt;
-  // De houd-wekker vuurt 800 ms na het indrukken. Komt in die tijd het saldo binnen en past de
-  // order niet meer, dan moet hij dat zien: dus de actuele stand, niet die van bij het indrukken.
-  const actueel = useRef({ onBevestig, geblokkeerd });
-  actueel.current = { onBevestig, geblokkeerd };
-
-  // Een lopende houd-wekker moet weg als de component verdwijnt, anders vuurt de order af nadat de
-  // sheet al gesloten is.
-  useEffect(() => () => {
-    if (wekker.current !== null) clearTimeout(wekker.current);
-  }, []);
-
-  // Haptiek loopt mee met het vasthouden: een tik op een derde, iets dat vastklikt op tweederde,
-  // en het zwaarste gevoel bij het volledig vasthouden. Dit draait op de UI-thread (de voortgang
-  // zelf ook), dus via haptiekVanUI in plaats van de gewone haptiek().
-  useAnimatedReaction(
-    () => voortgang.value,
-    (huidig, vorig) => {
-      if (vorig === null) return;
-      if (huidig >= 0.33 && vorig < 0.33) haptiekVanUI('tik');
-      if (huidig >= 0.66 && vorig < 0.66) haptiekVanUI('vastklikken');
-      if (huidig >= 1 && vorig < 1) haptiekVanUI('stevig');
-    },
-    [],
-  );
+  // De wekker, de haptiek onderweg, het terugveren en de controle op de actuele stand zodra de tijd
+  // om is (komt in die 800 ms het saldo binnen en past de order niet meer, dan gaat hij niet) zitten
+  // in useVasthouden.
+  const { voortgang, start: startVasthouden, stop: stopVasthouden } = useVasthouden({
+    duurMs: HOUD_VAST_MS,
+    geblokkeerd,
+    onVoltooid: onBevestig,
+  });
 
   function opKnopLayout(e: LayoutChangeEvent) {
     setKnopBreedte(e.nativeEvent.layout.width);
@@ -114,40 +93,6 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
     // Alleen op gelukt: reduceMotion en de shared value veranderen niet midden in dit moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gelukt]);
-
-  function stopVasthouden() {
-    if (wekker.current !== null) {
-      clearTimeout(wekker.current);
-      wekker.current = null;
-      // Alleen terugveren als het loslaten zelf de order afbrak. Is de wekker al verstreken (order
-      // onderweg), dan staat voortgang al op 0 en doet een veer niets.
-      voortgang.value = naar(0, 'standaard');
-    }
-    setHoudtVast(false);
-  }
-
-  function startVasthouden() {
-    if (geblokkeerd) return;
-    setHoudtVast(true);
-    // De vulling is de functionele indicator van hoe ver je bent, dus die blijft ook onder Minder
-    // beweging gewoon lopen (vandaar reduceMotion: Never); alleen het terugveren bij loslaten
-    // verandert daar in een korte fade in plaats van een veer, via naar().
-    voortgang.value = withTiming(1, {
-      duration: HOUD_VAST_MS,
-      easing: Easing.linear,
-      reduceMotion: ReduceMotion.Never,
-    });
-    wekker.current = setTimeout(() => {
-      wekker.current = null;
-      setHoudtVast(false);
-      if (actueel.current.geblokkeerd) {
-        voortgang.value = naar(0, 'standaard');
-        return;
-      }
-      voortgang.value = 0;
-      actueel.current.onBevestig();
-    }, HOUD_VAST_MS);
-  }
 
   function tik() {
     // In echt doet een losse tik met opzet niets: daar geldt alleen ingedrukt houden.
