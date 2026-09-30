@@ -1,13 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
-import { X, ChevronRight, Bell, Trash2 } from 'lucide-react-native';
+import Animated from 'react-native-reanimated';
+import { X, ChevronRight, Bell, Gauge, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { Type } from '../theme/typography';
+import { useModalKopruimte } from '../theme/useModalKopruimte';
+import { useReduceMotion } from '../theme/useReduceMotion';
+import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
+import { Fonts, Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
-import { BottomSheet } from './BottomSheet';
+import { PodiumScherm } from './PodiumScherm';
+import { CoinLogo } from './CoinLogo';
+import { Drukbaar } from './Drukbaar';
+import { LijstGroep } from './lijst/LijstGroep';
 import { fmtPrijs, relatieveTijd } from '../engine/format';
 import { Prijsalert, bewaarAlerts, laadAlerts, wacht } from '../state/prijsalerts';
 import { useValutaStand } from '../state/useValuta';
+import { useMarkt } from '../state/MarktProvider';
 import { MeldingLogEntry } from '../notifications/tradeChecks';
 import { MeldingDoel } from '../notifications/meldingDoel';
 
@@ -31,11 +39,32 @@ function bestemming(doel: MeldingDoel): string {
   }
 }
 
+const LOGO = 36;
+// Waar de haarlijn begint: 16 padding + logo + 12 tussenruimte.
+const LIJN_INSPRINGING = 16 + LOGO + 12;
+
+function zelfdeDag(a: number, b: number): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
+
 export function MeldingenSheet({ zichtbaar, onSluiten, log, onKies }: Props) {
   const { colors } = useTheme();
+  const extraKopruimte = useModalKopruimte();
+  const reduceMotion = useReduceMotion();
   // De formatters lezen de valuta uit een gewone module; zonder dit abonnement blijven de
   // alertniveaus na het omzetten in de oude valuta staan.
   useValutaStand();
+  const { state } = useMarkt();
+
+  // Huidige koers per symbool uit de laatste marktanalyse. Alleen als die er is: een coin die niet
+  // in de scan zit krijgt geen "nu"-regel, want een verzonnen koers is erger dan geen koers.
+  const koersen = useMemo(() => {
+    const m = new Map<string, number>();
+    if (state.status === 'success') {
+      for (const t of state.alle) if (t.prijs > 0) m.set(t.symbool.toUpperCase(), t.prijs);
+    }
+    return m;
+  }, [state]);
 
   // Wachtende prijsalerts horen hier en niet alleen op het coinscherm: zet je er een op ICP en
   // kijk je drie weken later, dan is "open elke coin apart" de enige manier om ze terug te vinden.
@@ -63,82 +92,112 @@ export function MeldingenSheet({ zichtbaar, onSluiten, log, onKies }: Props) {
     }
   }
 
-  return (
-    <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={styles.vel}>
-      <View style={styles.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Meldingen</Text>
-        <Pressable
-          onPress={onSluiten}
-          accessibilityLabel="Sluiten"
-          accessibilityRole="button"
-          style={styles.sluitKnop}
-        >
-          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
-      </View>
+  const { vandaag, eerder } = useMemo(() => {
+    const nu = Date.now();
+    return {
+      vandaag: log.filter(e => zelfdeDag(e.tijd, nu)),
+      eerder: log.filter(e => !zelfdeDag(e.tijd, nu)),
+    };
+  }, [log]);
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-      {alerts.length > 0 && (
-        <View style={styles.alertBlok}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd, marginBottom: spacing.sm }]}>
-            PRIJSALERTS DIE WACHTEN ({alerts.length})
-          </Text>
-          {alerts.map(alert => (
-            <View
-              key={alert.id}
-              style={[styles.alertRegel, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}
+  return (
+    <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
+      {sluit => (
+        <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
+          <View style={[styles.header, { paddingTop: spacing.base + extraKopruimte }]}>
+            <Text accessibilityRole="header" style={[styles.grootTitel, { color: colors.tekstPrimair }]}>
+              Meldingen
+            </Text>
+            <Pressable
+              onPress={() => sluit()}
+              accessibilityLabel="Sluiten"
+              accessibilityRole="button"
+              style={[styles.sluitKnop, { backgroundColor: colors.verhoogd }]}
             >
-              <Pressable
-                style={styles.alertTekst}
-                onPress={() => onKies({ soort: 'coin', symbool: alert.symbool })}
-                accessibilityRole="button"
-                accessibilityLabel={`${alert.symbool} ${alert.richting} ${fmtPrijs(alert.prijs)}, naar de coin op de Markt`}
-              >
-                <View style={styles.alertKop}>
-                  <Bell size={13} color={colors.tekstGedimd} strokeWidth={1.75} />
-                  <Text style={[Type.body, { color: colors.tekstPrimair }]}>
-                    {alert.symbool} {alert.richting === 'boven' ? 'boven' : 'onder'} {fmtPrijs(alert.prijs)}
-                  </Text>
-                </View>
-                <View style={styles.bestemmingRij}>
-                  <Text style={[Type.caption, { color: colors.cta }]}>Naar {alert.symbool} op de Markt</Text>
-                  <ChevronRight size={13} color={colors.cta} strokeWidth={2} />
-                </View>
-              </Pressable>
-              <Pressable
-                onPress={() => verwijder(alert.id)}
-                style={styles.wisKnop}
-                accessibilityRole="button"
-                accessibilityLabel={`Alert op ${alert.symbool} verwijderen`}
-                hitSlop={8}
-              >
-                <Trash2 size={17} color={colors.verlies} strokeWidth={1.75} />
-              </Pressable>
-            </View>
-          ))}
-          <Text style={[Type.overline, { color: colors.tekstGedimd, marginTop: spacing.base }]}>
-            VERSTUURD
-          </Text>
+              <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            {alerts.length > 0 && (
+              <LijstGroep titel={`Wacht op prijs · ${alerts.length}`} lijnInspringing={LIJN_INSPRINGING} style={styles.groep}>
+                {alerts.map(alert => {
+                  const nu = koersen.get(alert.symbool.toUpperCase());
+                  const boven = alert.richting === 'boven';
+                  // Alleen een sub als de koers nog niet voorbij het niveau is; anders zou er
+                  // "nog -2% te gaan" staan bij een alert die zo afgaat.
+                  const nogTeGaan = nu && (boven ? alert.prijs > nu : alert.prijs < nu)
+                    ? (Math.abs(alert.prijs - nu) / nu) * 100
+                    : null;
+                  const titel = `${alert.symbool} ${boven ? 'boven' : 'onder'} ${fmtPrijs(alert.prijs)}`;
+                  const sub = nu && nogTeGaan !== null
+                    ? `Nu ${fmtPrijs(nu)}, nog ${nogTeGaan.toFixed(1)}% te gaan.`
+                    : undefined;
+                  return (
+                    <Animated.View
+                      key={alert.id}
+                      layout={schuifOvergang(reduceMotion)}
+                      entering={uitklapIn(reduceMotion)}
+                      exiting={uitklapUit()}
+                      style={styles.rijRand}
+                    >
+                      <Drukbaar
+                        onPress={() => onKies({ soort: 'coin', symbool: alert.symbool })}
+                        haptiek="tik"
+                        schaal={0.98}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${titel}${sub ? `. ${sub}` : ''} Naar ${alert.symbool} op de Markt.`}
+                        style={styles.rijKlik}
+                      >
+                        <CoinLogo symbool={alert.symbool} grootte={LOGO} />
+                        <View style={styles.tekst}>
+                          <Text style={[Type.body, styles.vet, { color: colors.tekstPrimair }]}>{titel}</Text>
+                          {sub ? <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{sub}</Text> : null}
+                        </View>
+                      </Drukbaar>
+                      <Pressable
+                        onPress={() => verwijder(alert.id)}
+                        style={styles.wisKnop}
+                        accessibilityRole="button"
+                        accessibilityLabel="Alert verwijderen"
+                        hitSlop={8}
+                      >
+                        <Trash2 size={18} color={colors.verlies} strokeWidth={1.75} />
+                      </Pressable>
+                    </Animated.View>
+                  );
+                })}
+              </LijstGroep>
+            )}
+
+            {log.length === 0 ? (
+              <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22, paddingHorizontal: spacing.base }]}>
+                {alerts.length > 0
+                  ? 'Nog geen verstuurde meldingen. Zodra een van je alerts geraakt wordt, staat hij hier.'
+                  : 'Nog geen meldingen. Zodra Kader iets over je trades te melden heeft, verschijnt het hier. Zelf een prijs in de gaten laten houden kan ook: tik op het belletje bovenin een coinscherm.'}
+              </Text>
+            ) : (
+              <>
+                {vandaag.length > 0 && (
+                  <LijstGroep titel="Vandaag" lijnInspringing={LIJN_INSPRINGING} style={styles.groep}>
+                    {vandaag.map((entry, i) => (
+                      <Regel key={`${entry.tijd}-${i}`} entry={entry} onKies={onKies} />
+                    ))}
+                  </LijstGroep>
+                )}
+                {eerder.length > 0 && (
+                  <LijstGroep titel="Eerder" lijnInspringing={LIJN_INSPRINGING} style={styles.groep}>
+                    {eerder.map((entry, i) => (
+                      <Regel key={`${entry.tijd}-${i}`} entry={entry} onKies={onKies} />
+                    ))}
+                  </LijstGroep>
+                )}
+              </>
+            )}
+          </ScrollView>
         </View>
       )}
-
-      {log.length === 0 ? (
-        <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
-          {alerts.length > 0
-            ? 'Nog geen verstuurde meldingen. Zodra een van je alerts geraakt wordt, staat hij hier.'
-            : 'Nog geen meldingen. Zodra Kader iets over je trades te melden heeft, verschijnt het hier. Zelf een prijs in de gaten laten houden kan ook: tik op het belletje bovenin een coinscherm.'}
-        </Text>
-      ) : (
-        log.map((entry, i) => (
-          <Regel
-            key={`${entry.tijd}-${i}`}
-            entry={entry}
-            onKies={onKies}
-          />
-        ))
-      )}
-      </ScrollView>
-    </BottomSheet>
+    </PodiumScherm>
   );
 }
 
@@ -147,87 +206,76 @@ export function MeldingenSheet({ zichtbaar, onSluiten, log, onKies }: Props) {
 function Regel({ entry, onKies }: { entry: MeldingLogEntry; onKies: (doel: MeldingDoel) => void }) {
   const { colors } = useTheme();
   const doel = entry.doel;
+  const symbool = doel && (doel.soort === 'trade' || doel.soort === 'coin') ? doel.symbool : null;
+  const Icoon = doel?.soort === 'markt' ? Gauge : Bell;
 
   const inhoud = (
     <>
-      <View style={styles.entryKop}>
-        <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]} numberOfLines={1}>{entry.titel}</Text>
-        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{relatieveTijd(entry.tijd)}</Text>
+      {symbool ? (
+        <CoinLogo symbool={symbool} grootte={LOGO} />
+      ) : (
+        <View style={[styles.tegel, { backgroundColor: colors.verhoogd }]}>
+          <Icoon size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+        </View>
+      )}
+      <View style={styles.tekst}>
+        <Text style={[Type.body, styles.vet, { color: colors.tekstPrimair }]}>{entry.titel}</Text>
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{entry.tekst}</Text>
+        {doel ? (
+          <View style={styles.bestemmingRij}>
+            <Text style={[Type.caption, { color: colors.cta }]}>{bestemming(doel)}</Text>
+            <ChevronRight size={13} color={colors.cta} strokeWidth={2} />
+          </View>
+        ) : null}
       </View>
-      <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{entry.tekst}</Text>
+      <Text style={[Type.caption, styles.tijd, { color: colors.tekstGedimd }]}>{relatieveTijd(entry.tijd)}</Text>
     </>
   );
 
-  if (!doel) {
-    return (
-      <View style={[styles.entry, { borderBottomColor: colors.rand }]}>{inhoud}</View>
-    );
-  }
+  if (!doel) return <View style={styles.rijKlik}>{inhoud}</View>;
 
   return (
-    <Pressable
+    <Drukbaar
       onPress={() => onKies(doel)}
+      haptiek="tik"
+      schaal={0.98}
       accessibilityRole="button"
       accessibilityLabel={`${entry.titel}. ${entry.tekst} ${bestemming(doel)}.`}
-      style={({ pressed }) => [
-        styles.entry,
-        { borderBottomColor: colors.rand, backgroundColor: pressed ? colors.verhoogd : 'transparent' },
-      ]}
+      style={styles.rijKlik}
     >
       {inhoud}
-      <View style={styles.bestemmingRij}>
-        <Text style={[Type.caption, { color: colors.cta }]}>{bestemming(doel)}</Text>
-        <ChevronRight size={13} color={colors.cta} strokeWidth={2} />
-      </View>
-    </Pressable>
+    </Drukbaar>
   );
 }
 
 const styles = StyleSheet.create({
-  vel: {
-    maxHeight: '80%',
-  },
-  titelRij: {
+  root: { flex: 1 },
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.base,
-  },
-  sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  entry: {
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,
-    marginBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 2,
-    // Ademruimte links/rechts zodat de ingedrukte achtergrond niet strak om de tekst valt.
-    paddingHorizontal: spacing.xs,
-    paddingTop: spacing.xs,
-    borderRadius: radii.veld,
+    gap: spacing.md,
   },
-  bestemmingRij: {
+  grootTitel: { flex: 1, fontFamily: Fonts.sansSemiBold, fontSize: 28, lineHeight: 34, fontWeight: '600' },
+  sluitKnop: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  scroll: { paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  groep: { marginHorizontal: spacing.base, marginBottom: spacing.lg },
+  rijRand: { flexDirection: 'row', alignItems: 'center' },
+  rijKlik: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginTop: spacing.xs,
+    alignItems: 'flex-start',
+    minHeight: 48,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    gap: spacing.md,
   },
-  alertBlok: { marginBottom: spacing.sm },
-  alertRegel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  alertTekst: { flex: 1, gap: 2, minHeight: 44, justifyContent: 'center' },
-  alertKop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  wisKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
-  entryKop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: spacing.sm,
-  },
+  tegel: { width: LOGO, height: LOGO, borderRadius: radii.veld, alignItems: 'center', justifyContent: 'center' },
+  tekst: { flex: 1, flexShrink: 1, gap: 2 },
+  vet: { fontWeight: '600' },
+  tijd: { flexShrink: 0 },
+  bestemmingRij: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: spacing.xs },
+  wisKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });
