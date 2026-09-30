@@ -1,25 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Pressable, ScrollView,
+  ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { X } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
-import { fmtPrijs, fmtRR } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
+import { planInGeld } from '../engine/planInGeld';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { nieuweId, PortfolioTrade, Richting } from '../state/portfolioTypes';
 import { useTheme } from '../theme/ThemeProvider';
-import { Type } from '../theme/typography';
+import { Fonts, Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
+import { PilKnop } from './PilKnop';
+import { BedragInvoer } from './order/BedragInvoer';
+import { OrderKop } from './order/OrderKop';
+import { PlanInGeldKaart } from './order/PlanInGeld';
+import { SnelKnoppen } from './order/SnelKnoppen';
 
 // De prijzen en bedragen die je hier intikt bewaart Kader als dollars (zo komt de marktdata binnen),
 // dus dit formulier blijft in dollars, ook als de app op euro's staat.
-const DOLLARS = { valuta: 'USD' } as const;
-
+const SNEL_BEDRAGEN = [100, 250, 500, 1000].map(v => ({
+  id: String(v),
+  label: `$${v.toLocaleString('en-US')}`,
+  waarde: v,
+}));
 
 // De analyse scant vooralsnog alleen longs, dus richting ontbreekt bij die aanroepen. Alleen het
 // detailscherm van een bestaande (mogelijk short) positie geeft hem mee; ontbreekt hij, dan is het
@@ -142,51 +149,85 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
     onSluiten();
   }
 
-  const inputStyle = [stijlen.input, {
-    backgroundColor: colors.verhoogd,
-    borderColor: colors.rand,
-    color: colors.tekstPrimair,
-  }];
-
   const coin = trade ? infoVoor(trade.symbool) : null;
+
+  // Wat je intikt voor het plan in geld. Zonder geldig bedrag of aankoopprijs geeft planInGeld null
+  // en tonen de tegels "geen" in plaats van een verzonnen getal.
+  const bedragGetal = parseFloat(form.bedragUsd.replace(',', '.'));
+  const plan = trade
+    ? planInGeld({ bedrag: bedragGetal, entry: ingevuldeEntry, stop, doel: trade.takeProfit, richting })
+    : null;
 
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={onSluiten} velStijl={stijlen.vel}>
-      <View style={stijlen.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Trade toevoegen</Text>
-        <Pressable
-          onPress={onSluiten}
-          accessibilityLabel="Sluiten"
-          accessibilityRole="button"
-          style={stijlen.sluitKnop}
-        >
-          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
+      <View style={stijlen.kop}>
+        <OrderKop
+          symbool={trade?.symbool ?? ''}
+          titel="Trade vastleggen"
+          sub={`${coin?.naam ?? trade?.symbool ?? ''} · zonder eToro-order`}
+          onSluiten={onSluiten}
+        />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {trade && coin ? (
-          <View style={[stijlen.infoBlok, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
-            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
-              {trade.symbool} <Text style={[Type.body, { color: colors.tekstGedimd }]}>{coin.naam}</Text>
-            </Text>
-            <View style={stijlen.infoRij}>
-              <View style={stijlen.infoVeld}>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                  {advies.soort === 'vast' ? 'STOP (KADER)' : 'STOP'}
-                </Text>
-                <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(stop, DOLLARS)}</Text>
-              </View>
-              <View style={stijlen.infoVeld}>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
-                <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(trade.takeProfit, DOLLARS)}</Text>
-              </View>
-              <View style={stijlen.infoVeld}>
-                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-                <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{rr > 0 ? fmtRR(rr) : '—'}</Text>
-              </View>
-            </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={stijlen.inhoud}
+      >
+        <BedragInvoer
+          label="INGELEGD"
+          waarde={form.bedragUsd}
+          onWijzig={v => setForm(prev => ({ ...prev, bedragUsd: v }))}
+          accessibilityLabel="Ingelegd bedrag in dollars"
+        />
+
+        <SnelKnoppen
+          opties={SNEL_BEDRAGEN}
+          actief={bedragGetal > 0 ? bedragGetal : undefined}
+          onKies={waarde => setForm(prev => ({ ...prev, bedragUsd: String(waarde) }))}
+          accessibilityLabel="Snelle bedragen"
+        />
+
+        <View style={[stijlen.lijst, { backgroundColor: colors.verhoogd }]}>
+          <View style={stijlen.lijstRij}>
+            <Text style={[stijlen.lijstLabel, { color: colors.tekstGedimd }]}>Aankoopprijs</Text>
+            <TextInput
+              style={[stijlen.lijstInvoer, { color: colors.cta }]}
+              value={form.entryPrijs}
+              onChangeText={v => setForm(prev => ({ ...prev, entryPrijs: v }))}
+              placeholder="bijv. 45000"
+              placeholderTextColor={colors.tekstGedimd}
+              keyboardType="decimal-pad"
+              accessibilityLabel="Aankoopprijs in dollars"
+              maxFontSizeMultiplier={1.3}
+            />
           </View>
+          <View style={[stijlen.lijstRij, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.rand }]}>
+            <Text style={[stijlen.lijstLabel, { color: colors.tekstGedimd }]}>Aantal coins</Text>
+            <TextInput
+              style={[stijlen.lijstInvoer, { color: colors.cta }]}
+              value={form.aantalCoins}
+              onChangeText={v => setForm(prev => ({ ...prev, aantalCoins: v }))}
+              placeholder="auto-berekend"
+              placeholderTextColor={colors.tekstGedimd}
+              keyboardType="decimal-pad"
+              accessibilityLabel="Aantal coins"
+              maxFontSizeMultiplier={1.3}
+            />
+            <Text style={[stijlen.autoTag, { color: colors.tekstGedimd }]}>auto</Text>
+          </View>
+        </View>
+
+        {trade && ingevuldeEntry > 0 ? (
+          <PlanInGeldKaart
+            entry={ingevuldeEntry}
+            stop={stop}
+            doel={trade.takeProfit}
+            bijStop={plan?.bijStop ?? null}
+            bijDoel={plan?.bijDoel ?? null}
+            rr={plan?.rr ?? null}
+            stopAangepast={advies.soort === 'aangepast'}
+          />
         ) : null}
 
         {advies.soort !== 'ok' ? (
@@ -195,47 +236,11 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
           </View>
         ) : null}
 
-        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>BEDRAG IN $</Text>
-        <TextInput
-          style={inputStyle}
-          value={form.bedragUsd}
-          onChangeText={v => setForm(prev => ({ ...prev, bedragUsd: v }))}
-          placeholder="bijv. 500"
-          placeholderTextColor={colors.tekstGedimd}
-          keyboardType="decimal-pad"
-        />
-
-        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>AANKOOPPRIJS</Text>
-        <TextInput
-          style={inputStyle}
-          value={form.entryPrijs}
-          onChangeText={v => setForm(prev => ({ ...prev, entryPrijs: v }))}
-          placeholder="bijv. 45000"
-          placeholderTextColor={colors.tekstGedimd}
-          keyboardType="decimal-pad"
-        />
-
-        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>AANTAL COINS</Text>
-        <TextInput
-          style={inputStyle}
-          value={form.aantalCoins}
-          onChangeText={v => setForm(prev => ({ ...prev, aantalCoins: v }))}
-          placeholder="auto-berekend"
-          placeholderTextColor={colors.tekstGedimd}
-          keyboardType="decimal-pad"
-        />
-
         {fout ? (
-          <Text style={[Type.caption, { color: colors.verlies, marginTop: spacing.sm }]}>{fout}</Text>
+          <Text style={[Type.caption, { color: colors.verlies }]}>{fout}</Text>
         ) : null}
 
-        <Pressable
-          style={[stijlen.opslaanKnop, { backgroundColor: colors.cta }]}
-          onPress={valideerEnOpslaan}
-          accessibilityRole="button"
-        >
-          <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Trade opslaan</Text>
-        </Pressable>
+        <PilKnop label="Trade opslaan" variant="cta" onPress={valideerEnOpslaan} />
       </ScrollView>
     </BottomSheet>
   );
@@ -245,45 +250,30 @@ const stijlen = StyleSheet.create({
   vel: {
     maxHeight: '90%',
   },
-  titelRij: {
+  kop: { marginBottom: spacing.base },
+  inhoud: { gap: 14 },
+  lijst: { borderRadius: 16, paddingHorizontal: 14 },
+  lijstRij: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.base,
+    minHeight: 44,
+    gap: 12,
   },
-  sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  infoBlok: {
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+  lijstLabel: { fontFamily: Fonts.sansMedium, fontWeight: '500', fontSize: 13.5, lineHeight: 18, flexShrink: 1 },
+  lijstInvoer: {
+    flex: 1,
+    minWidth: 90,
+    minHeight: 44,
+    padding: 0,
+    textAlign: 'right',
+    fontFamily: Fonts.monoRegular,
+    fontSize: 14.5,
+    fontVariant: ['tabular-nums'],
   },
-  infoRij: {
-    flexDirection: 'row',
-    marginTop: spacing.sm,
-    gap: spacing.base,
-  },
-  infoVeld: { flex: 1 },
+  autoTag: { flexShrink: 0, fontFamily: Fonts.sansMedium, fontWeight: '500', fontSize: 11, marginLeft: -6 },
   waarschuwing: {
     borderWidth: 1,
     borderRadius: radii.veld,
     padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  label: { marginTop: spacing.md, marginBottom: spacing.xs },
-  input: {
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: 15,
-    minHeight: 44,
-  },
-  opslaanKnop: {
-    marginTop: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radii.knop,
-    alignItems: 'center',
-    minHeight: 44,
   },
 });
