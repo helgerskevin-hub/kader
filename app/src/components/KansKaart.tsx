@@ -259,34 +259,39 @@ export const KansKaart = memo(function KansKaart({
             </Text>
           </Animated.View>
 
-          {/* Mag afbreken: Getrade, Koop met merkjes en Details passen op 360 dp niet altijd op één
-              regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt. */}
-          <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} style={styles.pilRij}>
+          {/* De knoppenrij mag afbreken: Getrade en Koop met merkjes passen op 360 dp niet altijd op
+              één regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt.
+              Details staat daaronder op een eigen regel. */}
+          <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} style={styles.knoppen}>
             {plan && (
-              <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(kans)} />
-            )}
-            {kanKopen && onKoop && (
-              <View style={styles.koopGroep}>
-                <PilKnop
-                  label="Koop"
-                  icoon={ShoppingCart}
-                  variant="cta"
-                  onPress={() => onKoop(kans)}
-                  accessibilityLabel={`${kans.symbool} kopen via eToro`}
-                />
-                {/* De merkjes staan alleen naast een Koop-knop die er ook echt staat: zonder knop
-                    kan Kader hier niets plaatsen, dus zou het merkje iets beloven dat niet klopt. */}
-                {platforms.length > 0 && (
-                  <Pressable
-                    onPress={() => setPlatformsOpen(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
-                    // Links maar 4: daar staat de Koop-pil, en de slop mag het raakvlak van die knop
-                    // niet overlappen.
-                    hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
-                  >
-                    <PlatformChips platforms={platforms} maat={20} />
-                  </Pressable>
+              <View style={styles.pilRij}>
+                {plan && (
+                  <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(kans)} />
+                )}
+                {kanKopen && onKoop && (
+                  <View style={styles.koopGroep}>
+                    <PilKnop
+                      label="Koop"
+                      icoon={ShoppingCart}
+                      variant="cta"
+                      onPress={() => onKoop(kans)}
+                      accessibilityLabel={`${kans.symbool} kopen via eToro`}
+                    />
+                    {/* De merkjes staan alleen naast een Koop-knop die er ook echt staat: zonder knop
+                        kan Kader hier niets plaatsen, dus zou het merkje iets beloven dat niet klopt. */}
+                    {platforms.length > 0 && (
+                      <Pressable
+                        onPress={() => setPlatformsOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
+                        // Links maar 4: daar staat de Koop-pil, en de slop mag het raakvlak van die knop
+                        // niet overlappen.
+                        hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
+                      >
+                        <PlatformChips platforms={platforms} maat={20} />
+                      </Pressable>
+                    )}
+                  </View>
                 )}
               </View>
             )}
@@ -396,6 +401,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   koopGroep: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  // Duwt Details naar rechts op zijn regel, ook als de rij afbreekt.
-  details: { marginLeft: 'auto' },
+  knoppen: { gap: spacing.sm },
+  // Details staat op een eigen regel, rechts. In de afbrekende knoppenrij met marginLeft auto
+  // rekende Yoga er een lege extra regel bij, met een gat onder de knop.
+  details: { alignSelf: 'flex-end' },
 });

@@ -231,24 +231,29 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
               exiting per blok speelde dubbel af bovenop die van de container. */}
           <Animated.View entering={uitklapInGestaffeld(0, reduceMotion)}>
             <StopDoelBaan stop={niveaus.stop} entry={trade.entry} doel={trade.takeProfit} live={trade.prijs} />
-            {/* Vier kolommen in twee paren: past het niet naast elkaar (een BTC-prijs is breed), dan
-                breekt het naar 2x2 in plaats van dat één kolom los op een eigen regel valt. */}
+            {/* Vier vaste kolommen op één regel. Een brede prijs (BTC) krimpt in zijn kolom in plaats
+                van af te breken: een rij met flexWrap en groeiende kolommen kreeg van Yoga de hoogte
+                van twee regels terwijl alles op één regel stond, met een gat eronder. */}
             <View style={styles.niveaus}>
               <View style={styles.niveauPaar}>
                 <View style={styles.niveau}>
                   {/* Staat de stop op eToro's grens in plaats van op die van Kader, dan zegt de pil
                       dat het getal is aangepast. Het waarom staat hieronder bij WAAROM. */}
-                  <View style={styles.niveauLabel}>
-                    <Text style={[Type.overline, { color: colors.verlies }]}>STOP</Text>
-                    {niveaus.aangepast && <AangepastPil />}
-                  </View>
-                  <Text style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
+                  <Text style={[Type.overline, { color: colors.verlies }]}>STOP</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                     {fmtPrijs(niveaus.stop)}
                   </Text>
+                  {/* Onder de prijs en niet naast STOP: in een kolom van een kwart kaartbreedte past
+                      het woord niet naast het label. */}
+                  {niveaus.aangepast && (
+                    <View style={styles.pilLinks}>
+                      <AangepastPil />
+                    </View>
+                  )}
                 </View>
                 <View style={styles.niveau}>
                   <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
-                  <Text style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                     {fmtPrijs(trade.entry)}
                   </Text>
                 </View>
@@ -256,13 +261,13 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
               <View style={styles.niveauPaar}>
                 <View style={styles.niveau}>
                   <Text style={[Type.overline, { color: colors.winst }]}>DOEL</Text>
-                  <Text style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                     {fmtPrijs(trade.takeProfit)}
                   </Text>
                 </View>
                 <View style={styles.niveau}>
                   <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-                  <Text style={[
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[
                     Type.prijs, styles.niveauWaarde,
                     { color: haaltRr ? colors.tekstPrimair : colors.letOp },
                   ]}>
@@ -339,35 +344,40 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
             ) : null}
           </Animated.View>
 
-          {/* Mag afbreken: Getrade, Koop met merkjes en Details passen op 360 dp niet altijd op één
-              regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt. */}
-          <Animated.View entering={uitklapInGestaffeld(4, reduceMotion)} style={styles.pilRij}>
-            {onGetrade && (
-              <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(trade)} />
-            )}
-            {onKoop && (
-              <View style={styles.koopGroep}>
-                <PilKnop
-                  label="Koop"
-                  icoon={ShoppingCart}
-                  variant="cta"
-                  onPress={() => onKoop(trade)}
-                  accessibilityLabel={`${trade.symbool} kopen via eToro`}
-                />
-                {/* Op welke platforms Kader deze order kan plaatsen, direct naast de knop die dat
-                    doet. In de kop was de voet op 360 dp te vol. */}
-                {platforms.length > 0 && (
-                  <Pressable
-                    onPress={() => setPlatformsOpen(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
-                    // De rij chips is 20 punten hoog; hitSlop maakt er een raakvlak van 44 van
-                    // zonder de rij hoger te maken. Links maar 4: daar staat de Koop-pil, en de slop
-                    // mag het raakvlak van die knop niet overlappen.
-                    hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
-                  >
-                    <PlatformChips platforms={platforms} maat={20} />
-                  </Pressable>
+          {/* De knoppenrij mag afbreken: Getrade en Koop met merkjes passen op 360 dp niet altijd op
+              één regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt.
+              Details staat daaronder op een eigen regel. */}
+          <Animated.View entering={uitklapInGestaffeld(4, reduceMotion)} style={styles.knoppen}>
+            {(onGetrade || onKoop) && (
+              <View style={styles.pilRij}>
+                {onGetrade && (
+                  <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(trade)} />
+                )}
+                {onKoop && (
+                  <View style={styles.koopGroep}>
+                    <PilKnop
+                      label="Koop"
+                      icoon={ShoppingCart}
+                      variant="cta"
+                      onPress={() => onKoop(trade)}
+                      accessibilityLabel={`${trade.symbool} kopen via eToro`}
+                    />
+                    {/* Op welke platforms Kader deze order kan plaatsen, direct naast de knop die dat
+                        doet. In de kop was de voet op 360 dp te vol. */}
+                    {platforms.length > 0 && (
+                      <Pressable
+                        onPress={() => setPlatformsOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
+                        // De rij chips is 20 punten hoog; hitSlop maakt er een raakvlak van 44 van
+                        // zonder de rij hoger te maken. Links maar 4: daar staat de Koop-pil, en de slop
+                        // mag het raakvlak van die knop niet overlappen.
+                        hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
+                      >
+                        <PlatformChips platforms={platforms} maat={20} />
+                      </Pressable>
+                    )}
+                  </View>
                 )}
               </View>
             )}
@@ -464,13 +474,12 @@ const styles = StyleSheet.create({
   },
   niveaus: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.md,
   },
-  niveauPaar: { flexDirection: 'row', flexGrow: 1, gap: spacing.sm },
-  niveau: { flexGrow: 1, flexBasis: 'auto', gap: 2 },
-  niveauLabel: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
+  niveauPaar: { flexDirection: 'row', flex: 1, gap: spacing.sm },
+  niveau: { flex: 1, minWidth: 0, gap: 2 },
+  pilLinks: { alignSelf: 'flex-start', marginTop: 2 },
   niveauWaarde: { fontSize: 13 },
   notitie: { lineHeight: 18, marginTop: spacing.sm },
   tegels: { flexDirection: 'row', gap: spacing.sm },
@@ -491,6 +500,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   koopGroep: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  // Duwt Details naar rechts op zijn regel, ook als de rij afbreekt.
-  details: { marginLeft: 'auto' },
+  knoppen: { gap: spacing.sm },
+  // Details staat op een eigen regel, rechts. In de afbrekende knoppenrij met marginLeft auto
+  // rekende Yoga er een lege extra regel bij, met een gat onder de knop.
+  details: { alignSelf: 'flex-end' },
 });

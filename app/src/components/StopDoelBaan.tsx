@@ -79,6 +79,15 @@ export function StopDoelBaan({
   // schuift alles alleen nog naar de nieuwe koers. Valt de koers weg, dan landt hij opnieuw.
   const geland = useRef(false);
   const gemeten = breedte > 0;
+  // Breedte en entry ook als shared value, en niet alleen als closure-waarde in de stijlen. Onder
+  // Minder beweging verandert `koers` na het meten niet meer (hij staat al op de koers), en dan
+  // paste Reanimated de stijl van de net gemounte stip nooit opnieuw toe: die bleef op x = 0, bij
+  // de stop. Een wijziging van een shared value laat de stijl wel altijd opnieuw rekenen.
+  const breedteW = useSharedValue(0);
+  const entryW = useSharedValue(entryPos);
+  useEffect(() => {
+    entryW.value = entryPos;
+  }, [entryPos, entryW]);
 
   useEffect(() => {
     if (!heeftLive) {
@@ -110,23 +119,25 @@ export function StopDoelBaan({
   }, [heeftLive, gemeten, livePos, entryPos, reduceMotion]);
 
   const vullingStijl = useAnimatedStyle(() => {
-    const van = Math.min(entryPos, koers.value);
-    const s = Math.abs(koers.value - entryPos);
+    const b = breedteW.value;
+    const van = Math.min(entryW.value, koers.value);
+    const s = Math.abs(koers.value - entryW.value);
     return {
       // Opschalen vanuit het midden en dan terugschuiven tot de linkerkant precies op `van` staat.
-      transform: [{ translateX: van * breedte - (breedte / 2) * (1 - s) }, { scaleX: s }],
+      transform: [{ translateX: van * b - (b / 2) * (1 - s) }, { scaleX: s }],
     };
-  }, [breedte, entryPos]);
+  });
 
   const stipStijl = useAnimatedStyle(() => ({
-    transform: [{ translateX: koers.value * breedte }, { scale: stipSchaal.value }],
-  }), [breedte]);
+    transform: [{ translateX: koers.value * breedteW.value }, { scale: stipSchaal.value }],
+  }));
 
   // Kan de baan niet getekend worden (een ontbrekende stop of doel), dan blijven met labels de
   // waarden zelf staan: een positie zonder stop moet dat ook zeggen, in plaats van niets te tonen.
   if (!geldig && !labels) return null;
 
   function opLayout(e: LayoutChangeEvent) {
+    breedteW.value = e.nativeEvent.layout.width;
     setBreedte(e.nativeEvent.layout.width);
   }
 

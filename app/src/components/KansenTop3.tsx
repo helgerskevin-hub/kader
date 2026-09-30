@@ -151,7 +151,7 @@ const MiniKaart = memo(function MiniKaart({ kans, signaal, volgorde, breedte, on
         {afstand !== null && (
           <View style={[styles.pil, { backgroundColor: colors.verhoogd }]}>
             <Text style={[Type.prijs, styles.pilTekst, { color: colors.tekstPrimair }]}>
-              {afstandLabel(afstand)}
+              {afstandLabel(afstand, true)}
             </Text>
           </View>
         )}

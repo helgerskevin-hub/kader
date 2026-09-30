@@ -253,8 +253,8 @@ export const PositieKaart = memo(function PositieKaart({
         <Animated.View exiting={uitklapUit()} style={[styles.uitklap, { borderTopColor: colors.rand }]}>
           {/* Alleen de container heeft een exiting: de blokken erin laten hun entering, en een tweede
               exiting per blok speelde dubbel af bovenop die van de container. */}
-          {/* Vier kolommen in twee paren: past het niet naast elkaar (een BTC-prijs is breed), dan
-              breekt het naar 2x2 in plaats van dat één kolom los op een eigen regel valt. */}
+          {/* Vaste kolommen op één regel; een brede prijs krimpt in zijn kolom. Een rij met flexWrap
+              en groeiende kolommen kreeg van Yoga de hoogte van twee regels, met een gat eronder. */}
           <Animated.View
             entering={uitklapInGestaffeld(0, reduceMotion)}
             style={styles.niveaus}
@@ -262,13 +262,13 @@ export const PositieKaart = memo(function PositieKaart({
             <View style={styles.niveauPaar}>
               <View style={styles.niveau}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>LIVE</Text>
-                <Text style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                   {livePrijs !== undefined ? fmtPrijs(livePrijs) : 'Laden'}
                 </Text>
               </View>
               <View style={styles.niveau}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
-                <Text style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                   {fmtPrijs(trade.entryPrijs)}
                 </Text>
               </View>
@@ -278,7 +278,7 @@ export const PositieKaart = memo(function PositieKaart({
                 {heeftInleg && (
                   <View style={styles.niveau}>
                     <Text style={[Type.overline, { color: colors.tekstGedimd }]}>INLEG</Text>
-                    <Text style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                       {fmtBedrag(trade.bedragUsd!)}
                     </Text>
                   </View>
@@ -286,7 +286,7 @@ export const PositieKaart = memo(function PositieKaart({
                 {heeftRr && (
                   <View style={styles.niveau}>
                     <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-                    <Text style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                       {fmtRR(trade.rr)}
                     </Text>
                   </View>
@@ -320,7 +320,7 @@ export const PositieKaart = memo(function PositieKaart({
             </Animated.View>
           ) : null}
 
-          {/* Mag afbreken: vijf knoppen passen op 360 dp niet op één regel, en een knop gaat liever
+          {/* Mag afbreken: vier knoppen passen op 360 dp niet op één regel, en een knop gaat liever
               naar de volgende regel dan dat zijn label afkapt. */}
           <Animated.View
             entering={uitklapInGestaffeld(4, reduceMotion)}
@@ -373,28 +373,27 @@ export const PositieKaart = memo(function PositieKaart({
               accessibilityLabel="Trade verwijderen"
               tekstKleur={colors.verlies}
             />
-            <View style={styles.details}>
-              <PilKnop
-                label="Details"
-                variant="link"
-                // Alleen meten, niet krimpen: het detailscherm groeit uit de hele kaart, en de knop
-                // zelf veert al als Drukbaar.
-                onPressIn={druk.meetBron}
-                onPress={() => {
-                  druk.legBronVast();
-                  onOpenDetail(trade);
-                }}
-                accessibilityLabel={`${trade.symbool} details bekijken`}
-              />
-            </View>
           </Animated.View>
 
           {/* De naam staat alleen hier: een lange naam hoort in het uitgeklapte deel, niet in de
-              compacte kop waar hij op 360 dp het resultaat zou verdringen. */}
-          <Animated.View entering={uitklapInGestaffeld(5, reduceMotion)}>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+              compacte kop waar hij op 360 dp het resultaat zou verdringen. Details staat ernaast,
+              buiten de afbrekende knoppenrij: daar rekende Yoga een lege extra regel bij. */}
+          <Animated.View entering={uitklapInGestaffeld(5, reduceMotion)} style={styles.voetRij}>
+            <Text style={[Type.caption, styles.geopend, { color: colors.tekstGedimd }]}>
               {trade.naam ? `${trade.naam} · ` : ''}geopend {trade.datum}
             </Text>
+            <PilKnop
+              label="Details"
+              variant="link"
+              // Alleen meten, niet krimpen: het detailscherm groeit uit de hele kaart, en de knop
+              // zelf veert al als Drukbaar.
+              onPressIn={druk.meetBron}
+              onPress={() => {
+                druk.legBronVast();
+                onOpenDetail(trade);
+              }}
+              accessibilityLabel={`${trade.symbool} details bekijken`}
+            />
           </Animated.View>
         </Animated.View>
       )}
@@ -472,11 +471,10 @@ const styles = StyleSheet.create({
   },
   niveaus: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  niveauPaar: { flexDirection: 'row', flexGrow: 1, gap: spacing.sm },
-  niveau: { flexGrow: 1, flexBasis: 'auto', gap: 2 },
+  niveauPaar: { flexDirection: 'row', flex: 1, gap: spacing.sm },
+  niveau: { flex: 1, minWidth: 0, gap: 2 },
   niveauWaarde: { fontSize: 13 },
   plan: {
     flexDirection: 'row',
@@ -494,6 +492,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  // Duwt Details naar rechts op zijn regel, ook als de rij afbreekt.
-  details: { marginLeft: 'auto' },
+  voetRij: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  geopend: { flexShrink: 1 },
 });

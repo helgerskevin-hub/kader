@@ -13,11 +13,14 @@ import { staggerVertraging, veer } from '../theme/beweging';
 const AFSTAND_SCHAAL = 30;
 
 // Alleen voor de tekst: "2,8% onder 90d-top", of "Op de 90d-top" als hij er (afgerond) op staat.
-export function afstandLabel(afstand: number): string {
+// `kort` is voor de smalle kaarten van de top 3: daar past de volle tekst niet naast de prijs en
+// brak de pil af, waardoor de drie kaarten ongelijk hoog werden. De kop erboven zegt al dat het om
+// de 90-dagen-top gaat.
+export function afstandLabel(afstand: number, kort = false): string {
   const abs = Math.abs(afstand);
-  if (abs < 0.05) return 'Op de 90d-top';
+  if (abs < 0.05) return kort ? 'Op de top' : 'Op de 90d-top';
   const getal = abs < 10 ? abs.toFixed(1).replace('.', ',') : Math.round(abs).toString();
-  return `${getal}% onder 90d-top`;
+  return kort ? `${getal}% onder top` : `${getal}% onder 90d-top`;
 }
 
 // Memo: de kaart tekent opnieuw bij elke favoriet- of valutawissel, en dan hoeven de balkjes met
