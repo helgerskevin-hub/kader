@@ -20,7 +20,7 @@ npm run release:apk  # release-APK, altijd via de release-apk skill, zie onder
 
 Building the APK needs JDK 17+ (Android Studio's JBR volstaat) and the Android SDK (platform 35+). Set `JAVA_HOME` and `ANDROID_HOME` before building. Project must be on a local drive without spaces (e.g. `C:\dev`).
 
-Stack: Expo SDK 56, React Native 0.85, React 19, TypeScript 6. Expo's API is recent, dus [app/AGENTS.md](app/AGENTS.md) verwijst naar de versie-specifieke docs op `docs.expo.dev/versions/v56.0.0/`, lees die voor je Expo-code schrijft. Reanimated, worklets, Skia, gesture-handler en expo-haptics zijn native deps: na het pullen van code die ze toevoegt of bijwerkt is één keer `npm run android` nodig (volledige rebuild), daarna volstaat hot reload weer.
+Stack: Expo SDK 56, React Native 0.85, React 19, TypeScript 6. Expo's API is recent, dus [app/AGENTS.md](app/AGENTS.md) verwijst naar de versie-specifieke docs op `docs.expo.dev/versions/v56.0.0/`, lees die voor je Expo-code schrijft. Reanimated, worklets, Skia, gesture-handler, expo-haptics en expo-clipboard zijn native deps: na het pullen van code die ze toevoegt of bijwerkt is één keer `npm run android` nodig (volledige rebuild), daarna volstaat hot reload weer.
 
 There is **no test suite** and no linter configured. Gebruik de **`run-android`** skill om een wijziging op de emulator te verifiëren, dat is de enige verificatie die er is.
 

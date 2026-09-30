@@ -25,7 +25,12 @@ export function VoortgangsBalk({ stap, aantal = 5, klaar = false }: Props) {
       style={styles.rij}
       accessibilityRole="progressbar"
       accessibilityLabel="Voortgang"
-      accessibilityValue={{ min: 1, max: aantal, now: Math.min(stap, aantal) }}
+      accessibilityValue={{
+        min: 1,
+        max: aantal,
+        now: Math.min(stap, aantal),
+        text: `Stap ${Math.min(stap, aantal)} van ${aantal}`,
+      }}
     >
       {Array.from({ length: aantal }).map((_, i) => {
         const nummer = i + 1;

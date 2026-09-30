@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  AccessibilityInfo, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, findNodeHandle,
+} from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -31,6 +33,9 @@ interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
   onOpgeslagen?: () => void;
+  // Alleen vanuit de uitnodiging. Vanuit Instellingen zou een tabwissel de Instellingen-sheet
+  // meteen weer bovenop openen, dus daar is Klaar de enige knop.
+  toonNaarPortfolio?: boolean;
 }
 
 // Stappen tellen vanaf 0 in de code, op het scherm vanaf 1.
@@ -62,7 +67,24 @@ const WACHT_TITELS = [
   'Handelen in echt',
 ];
 
-export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Props) {
+// Wat een schermlezer hoort als de test klaar is. Nooit iets van de sleutel zelf.
+function testSamenvatting(uitslag: KoppelUitslag): string {
+  const beeld = bouwKoppelBeeld(uitslag);
+  if (beeld.foutstaat || uitslag.soort !== 'getest') return 'Test klaar. De sleutel werkt niet.';
+  const omgeving = (naam: string, toets: OmgevingToets) => (toets.ok
+    ? `${naam}: ${toets.posities === 1 ? '1 positie' : `${toets.posities} posities`}.`
+    : `${naam}: werkt niet.`);
+  const mag = (id: TestRij['id']) => (beeld.rijen.some(r => r.id === id && r.staat === 'ok') ? 'mag' : 'mag niet');
+  return `Test klaar. ${omgeving('Demo', uitslag.omgeving.demo)} ${omgeving('Echt', uitslag.omgeving.real)} `
+    + `Handelen in demo ${mag('schrijfDemo')}, in echt ${mag('schrijfReal')}.`;
+}
+
+// De regel onder een sleutelveld na een plak, ook voor de schermlezer. Alleen het aantal tekens.
+function plakRegel(info: PlakInfo): string {
+  return info.hint ?? `Geplakt, ${info.tekens} tekens`;
+}
+
+export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonNaarPortfolio = false }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
   const { gaNaar } = useNavigatie();
@@ -91,6 +113,16 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
   const [uitslag, setUitslag] = useState<KoppelUitslag | null>(null);
   // De omgeving waar Kader na het opslaan op staat, voor de tekst op het laatste scherm.
   const [omgevingNu, setOmgevingNu] = useState<EtoroOmgeving>('demo');
+  // De uitslag zoals hij was op het moment van opslaan. Het laatste scherm leest alleen deze, zodat
+  // een wijziging tijdens het opslaan dat scherm niet kan veranderen.
+  const [klaarUitslag, setKlaarUitslag] = useState<KoppelUitslag | null>(null);
+  // Tegen dubbel tikken: state is pas na de volgende render bij, een ref meteen.
+  const opslaanBezig = useRef(false);
+  const testBezig = useRef(false);
+  // Telt het openen, zodat een haalSleutels() van een eerdere opening niets meer invult.
+  const openTeller = useRef(0);
+  // De titel van de huidige stap, voor de focus van de schermlezer na een stapwissel.
+  const titelRef = useRef<Text>(null);
   // Elke test krijgt een nummer. Wijzigt er intussen een sleutel, dan hoort een uitslag die daarna
   // nog binnenkomt bij een paar dat niet meer in de velden staat, en die gooien we weg.
   const testNummer = useRef(0);
@@ -98,7 +130,10 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
   // Laad bestaande sleutels en reset naar stap 1 telkens als de wizard opent.
   useEffect(() => {
     if (!zichtbaar) return;
+    const opening = ++openTeller.current;
     testNummer.current += 1;
+    opslaanBezig.current = false;
+    testBezig.current = false;
     setStap(STAP_KEUZE);
     setKeuze('schrijven');
     setTestStatus('idle');
@@ -110,9 +145,17 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     setPlakUser(null);
     setUserKeyGewist(false);
     setOmgevingNu('demo');
+    setKlaarUitslag(null);
+    setApiKey('');
+    setUserKey('');
+    setGeladen(null);
     haalSleutels().then(s => {
-      setApiKey(s?.apiKey ?? '');
-      setUserKey(s?.userKey ?? '');
+      // Intussen gesloten of opnieuw geopend: dit antwoord hoort bij een oudere opening.
+      if (opening !== openTeller.current) return;
+      // Alleen lege velden invullen: wie al begon te typen of plakken, verliest dat niet. geladen
+      // wel altijd zetten, anders ziet userKeyBijApiKeyWijziging een nieuwe publieke sleutel niet.
+      setApiKey(v => (v === '' ? s?.apiKey ?? '' : v));
+      setUserKey(v => (v === '' ? s?.userKey ?? '' : v));
       setBestondKoppeling(s !== null);
       setGeladen(s);
     });
@@ -123,10 +166,25 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     if (stap === STAP_KLAAR) haptiek('succes');
   }, [stap]);
 
+  const beeld = useMemo(() => (uitslag ? bouwKoppelBeeld(uitslag) : null), [uitslag]);
+  const foutScherm = stap === STAP_TESTEN && testStatus === 'klaar' && beeld?.foutstaat != null;
+
+  // Na een stapwissel de schermlezer naar de titel van de nieuwe stap, pas als de overgang klaar
+  // is: anders landt de focus op inhoud die nog binnenkomt.
+  useEffect(() => {
+    if (!zichtbaar) return;
+    const t = setTimeout(() => {
+      const node = titelRef.current ? findNodeHandle(titelRef.current) : null;
+      if (node) AccessibilityInfo.setAccessibilityFocus(node);
+    }, duur.lang);
+    return () => clearTimeout(t);
+  }, [stap, foutScherm, zichtbaar]);
+
   // Een getest paar geldt alleen voor precies die twee sleutels. Verandert er één teken, dan weten
   // we niets meer, en mag er niets bewaard worden tot er opnieuw getest is.
   function vergeetTest() {
     testNummer.current += 1;
+    testBezig.current = false;
     setUitslag(null);
     setTestStatus('idle');
   }
@@ -180,10 +238,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
       if (b.tekens > 0) wijzigUserKey(b.schoon);
       setPlakUser(info);
     }
+    AccessibilityInfo.announceForAccessibility(plakRegel(info));
   }
-
-  const beeld = useMemo(() => (uitslag ? bouwKoppelBeeld(uitslag) : null), [uitslag]);
-  const foutScherm = stap === STAP_TESTEN && testStatus === 'klaar' && beeld?.foutstaat != null;
 
   // Beide omgevingen langs, met opzet. /api/v1/me geeft de scopes van demo én echt in één antwoord,
   // maar dat pad is identiek in beide omgevingen (zie DEMO_PADEN), dus het zegt niets over de vraag
@@ -204,7 +260,19 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
   }
 
   async function testVerbinding() {
+    if (testBezig.current) return;
+    testBezig.current = true;
     const nummer = ++testNummer.current;
+    try {
+      await voerTestUit(nummer);
+    } finally {
+      // Een test die intussen vergeten is, is zijn vlag al kwijt, en mag die van een nieuwere test
+      // niet vrijgeven.
+      if (nummer === testNummer.current) testBezig.current = false;
+    }
+  }
+
+  async function voerTestUit(nummer: number) {
     setTestStatus('testing');
     setUitslag(null);
     const paar: Sleutelpaar = { apiKey: apiKey.trim(), userKey: userKey.trim() };
@@ -219,8 +287,10 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     } catch (e) {
       // /me weigeren betekent dat de sleutel zelf niet klopt; dan hoeft de rest niet meer.
       if (nummer !== testNummer.current) return;
-      setUitslag({ soort: 'meFout', fout: e instanceof Error ? e.message : 'Onbekende fout bij verbinden.' });
+      const fout: KoppelUitslag = { soort: 'meFout', fout: e instanceof Error ? e.message : 'Onbekende fout bij verbinden.' };
+      setUitslag(fout);
       setTestStatus('klaar');
+      AccessibilityInfo.announceForAccessibility(testSamenvatting(fout));
       return;
     }
 
@@ -228,22 +298,30 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     if (nummer !== testNummer.current) return;
     // Werkt er geen enkele omgeving, dan maakt bouwKoppelBeeld er het foutscherm van, met de fout
     // van allebei: één regel las als een probleem met één omgeving terwijl ze allebei weigerden.
-    setUitslag({ soort: 'getest', magSchrijven, omgeving: { real, demo } });
+    const nieuw: KoppelUitslag = { soort: 'getest', magSchrijven, omgeving: { real, demo } };
+    setUitslag(nieuw);
     setTestStatus('klaar');
+    AccessibilityInfo.announceForAccessibility(testSamenvatting(nieuw));
   }
 
   async function opslaan() {
     // Alleen een paar dat net getest is en ergens werkt. De velden kunnen hier niet anders zijn dan
     // bij de test: elke wijziging zet de uitslag terug op null.
-    if (!uitslag || uitslag.soort !== 'getest' || !beeld?.kanOpslaan) return;
+    if (opslaanBezig.current) return;
+    // Vastleggen vóór de await: alles hieronder werkt met deze uitslag, niet met wat de state
+    // intussen is.
+    const getest = uitslag;
+    if (!getest || getest.soort !== 'getest' || !beeld?.kanOpslaan) return;
+    opslaanBezig.current = true;
     setBezigOpslaan(true);
     try {
       // Een leessleutel wordt gewoon bewaard, hij ontgrendelt alleen het handelen niet.
-      await bewaarSleutels({ apiKey: apiKey.trim(), userKey: userKey.trim(), magSchrijven: uitslag.magSchrijven });
+      await bewaarSleutels({ apiKey: apiKey.trim(), userKey: userKey.trim(), magSchrijven: getest.magSchrijven });
     } catch (e) {
       // De sleutelkluis kan weigeren (toestel zonder schermvergrendeling, kapotte keystore). Dan is
       // er niets opgeslagen, en dat moet je weten: anders blijft de knop draaien en denk je dat het
       // gelukt is terwijl de koppeling er niet is.
+      opslaanBezig.current = false;
       setBezigOpslaan(false);
       toonDialoog({
         variant: 'fout',
@@ -262,7 +340,9 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     } catch {
       // Dan blijft de tekst op demo staan, de standaard na een eerste koppeling.
     }
+    opslaanBezig.current = false;
     setBezigOpslaan(false);
+    setKlaarUitslag(getest);
     onOpgeslagen?.();
     setStap(STAP_KLAAR);
   }
@@ -292,6 +372,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
   }
 
   function vorige() {
+    // Tijdens het opslaan blijft alles staan: de kluis schrijft nog.
+    if (bezigOpslaan) return;
     if (stap === STAP_TESTEN) {
       // Terug naar de sleutels is terug naar ongetest, ook vanaf het foutscherm.
       vergeetTest();
@@ -307,7 +389,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
     return (
       <View style={styles.kop}>
         <Text style={[Type.overline, { color: colors.cta }]}>{`STAP ${stap + 1} VAN ${AANTAL_STAPPEN}`}</Text>
-        <Text style={[styles.kopTitel, { color: colors.tekstPrimair }]} accessibilityRole="header">{titel}</Text>
+        <Text ref={titelRef} style={[styles.kopTitel, { color: colors.tekstPrimair }]} accessibilityRole="header">{titel}</Text>
         <Text style={[styles.kopTekst, { color: colors.tekstGedimd }]}>{tekst}</Text>
       </View>
     );
@@ -318,6 +400,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
       return (
         <>
           {kop('Wat wil je met eToro doen?', 'Dit bepaalt welk soort sleutel je zo bij eToro aanmaakt. Je kunt het later wijzigen door een nieuwe sleutel te koppelen.')}
+          <View accessibilityRole="radiogroup" style={styles.keuzes}>
           <KeuzeKaart
             gekozen={keuze === 'lezen'}
             onKies={() => setKeuze('lezen')}
@@ -334,6 +417,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
             tekst="Kader kan ook orders plaatsen, maar alleen nadat jij elke order bevestigt. Je begint in demo. Sleutel: "
             sleutelSoort="Write"
           />
+          </View>
           <View style={styles.kluis}>
             <Lock size={16} color={colors.winst} strokeWidth={1.75} style={styles.kluisIcoon} />
             <Text style={[Type.caption, styles.flexTekst, { color: colors.tekstGedimd }]}>
@@ -493,8 +577,9 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
 
     // Laatste scherm: gekoppeld. Handelen volgt dezelfde regel als de testlijst: alleen in een
     // omgeving die werkt en waar de scope het toestaat.
-    const toetsen = uitslag?.soort === 'getest' ? uitslag.omgeving : null;
-    const mag = (id: TestRij['id']) => beeld?.rijen.some(r => r.id === id && r.staat === 'ok') ?? false;
+    const toetsen = klaarUitslag?.soort === 'getest' ? klaarUitslag.omgeving : null;
+    const klaarBeeld = klaarUitslag ? bouwKoppelBeeld(klaarUitslag) : null;
+    const mag = (id: TestRij['id']) => klaarBeeld?.rijen.some(r => r.id === id && r.staat === 'ok') ?? false;
     const magDemo = mag('schrijfDemo');
     const magEcht = mag('schrijfReal');
     const handelTitel = magDemo && magEcht
@@ -504,7 +589,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
       <>
         <View style={styles.gekoppeld}>
           <GekoppeldVinkje />
-          <Text style={[styles.kopTitel, styles.midden, { color: colors.tekstPrimair }]} accessibilityRole="header">
+          <Text ref={titelRef} style={[styles.kopTitel, styles.midden, { color: colors.tekstPrimair }]} accessibilityRole="header">
             eToro is gekoppeld
           </Text>
           <Text style={[styles.kopTekst, styles.midden, { color: colors.tekstGedimd }]}>
@@ -514,8 +599,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
           </Text>
         </View>
         <View style={styles.vondst}>
-          <Vondst label="DEMO" toets={toetsen?.demo ?? null} />
-          <Vondst label="ECHT" toets={toetsen?.real ?? null} />
+          <Vondst label="DEMO" naam="Demo" toets={toetsen?.demo ?? null} />
+          <Vondst label="ECHT" naam="Echt" toets={toetsen?.real ?? null} />
         </View>
         <View style={[styles.groep, shadow.kaart, { backgroundColor: colors.kaart }]}>
           <View style={[styles.groepTegel, { backgroundColor: colors.verhoogd }]}>
@@ -560,6 +645,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
       }
       return <GrootKnop label="Test verbinding" onPress={testVerbinding} />;
     }
+    if (!toonNaarPortfolio) return <GrootKnop label="Klaar" onPress={() => sluit()} />;
     return (
       <>
         <GrootKnop
@@ -588,9 +674,15 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
         <View style={styles.root}>
           <View style={styles.top}>
             <Drukbaar
-              onPress={metSluitKnop ? () => sluit() : vorige}
+              onPress={() => {
+                if (bezigOpslaan) return;
+                if (metSluitKnop) sluit();
+                else vorige();
+              }}
+              disabled={bezigOpslaan}
               accessibilityRole="button"
               accessibilityLabel={metSluitKnop ? 'Sluiten' : 'Vorige stap'}
+              accessibilityState={{ disabled: bezigOpslaan }}
               style={styles.topKnop}
               schaal={0.9}
             >
@@ -599,7 +691,12 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen }: Pro
                 : <ChevronLeft size={20} color={colors.tekstGedimd} strokeWidth={2} />}
             </Drukbaar>
             <VoortgangsBalk stap={stap + 1} aantal={AANTAL_STAPPEN} klaar={stap === STAP_KLAAR} />
-            <Text style={[styles.topTeller, { color: colors.tekstGedimd }]}>
+            {/* De voortgangsbalk zegt de stap al hardop; dit label zou hem dubbel voorlezen. */}
+            <Text
+              style={[styles.topTeller, { color: colors.tekstGedimd }]}
+              importantForAccessibility="no"
+              accessibilityElementsHidden
+            >
               {stap === STAP_KLAAR ? 'klaar' : `${stap + 1}/${AANTAL_STAPPEN}`}
             </Text>
           </View>
@@ -760,6 +857,8 @@ function SleutelKaart({ titel, sub, waarde, onChange, onPlak, zichtbaar, onToggl
           autoCorrect={false}
           importantForAutofill="no"
           secureTextEntry={!zichtbaar}
+          // Zichtbaar zou Gboard de sleutel leren als woord; visible-password schakelt dat uit.
+          keyboardType={zichtbaar && Platform.OS === 'android' ? 'visible-password' : 'default'}
           accessibilityLabel={titel}
         />
         <Drukbaar
@@ -783,14 +882,16 @@ function SleutelKaart({ titel, sub, waarde, onChange, onPlak, zichtbaar, onToggl
       </View>
       {plakInfo && (
         plakInfo.hint === null ? (
-          <View style={styles.plakRegel}>
+          <View style={styles.plakRegel} accessibilityLiveRegion="polite">
             <Check size={14} color={colors.winst} strokeWidth={2.5} />
             <Text style={[Type.caption, styles.flexTekst, { color: colors.tekstGedimd }]}>
-              {`Geplakt, ${plakInfo.tekens} tekens`}
+              {plakRegel(plakInfo)}
             </Text>
           </View>
         ) : (
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{plakInfo.hint}</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]} accessibilityLiveRegion="polite">
+            {plakRegel(plakInfo)}
+          </Text>
         )
       )}
     </View>
@@ -894,10 +995,14 @@ function GekoppeldVinkje() {
 }
 
 // Eén vak met het aantal posities dat de test in een omgeving vond.
-function Vondst({ label, toets }: { label: string; toets: OmgevingToets | null }) {
+function Vondst({ label, naam, toets }: { label: string; naam: string; toets: OmgevingToets | null }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.vondstVak, shadow.kaart, { backgroundColor: colors.kaart }]}>
+    <View
+      style={[styles.vondstVak, shadow.kaart, { backgroundColor: colors.kaart }]}
+      accessible
+      accessibilityLabel={toets?.ok ? `${naam}: ${toets.posities} open posities` : `${naam}: werkt niet`}
+    >
       <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{label}</Text>
       <Text style={[styles.vondstGetal, { color: colors.tekstPrimair }]}>
         {toets?.ok ? String(toets.posities) : '-'}
@@ -941,6 +1046,7 @@ const styles = StyleSheet.create({
   kopTekst: { fontFamily: Fonts.sansRegular, fontSize: 15, lineHeight: 22 },
   midden: { textAlign: 'center' },
   flexTekst: { flex: 1, flexShrink: 1 },
+  keuzes: { gap: spacing.base },
   keus: {
     flexDirection: 'row',
     alignItems: 'flex-start',

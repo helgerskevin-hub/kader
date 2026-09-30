@@ -504,6 +504,7 @@ function AppInhoud() {
         zichtbaar={etoroSetupOpen}
         onSluiten={() => setEtoroSetupOpen(false)}
         onOpgeslagen={naKoppelen}
+        toonNaarPortfolio
       />
     </View>
     </NavigatieProvider>
