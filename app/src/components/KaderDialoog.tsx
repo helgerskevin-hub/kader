@@ -14,7 +14,7 @@ import Animated, {
   ReduceMotion, cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native';
+import { AlertTriangle, Check, CheckCircle2, Info, XCircle } from 'lucide-react-native';
 import { fmtPct, fmtResultaatUsd } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
@@ -157,6 +157,10 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
           : colors.cta;
   // 10 procent dekking in licht, 14 in donker: op een donkere kaart verdwijnt 10 procent te veel.
   const schijfVulling = variantKleur + (donkerActief ? '24' : '1A');
+  // Het grote rondje bij een orderuitkomst: groen bij gelukt, oranje als we het niet weten. Altijd
+  // 14 procent dekking, zoals in het ontwerp.
+  const rondje = inhoud?.rondje;
+  const rondjeKleur = rondje === 'gelukt' ? colors.winst : colors.letOp;
 
   const detailRegels = inhoud?.details ? inhoud.details.split('\n').length : 0;
   const detailScrollt = detailRegels > MAX_DETAILREGELS;
@@ -192,30 +196,46 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
             onPress={() => {}}
             accessibilityViewIsModal
           >
-            <Animated.View
-              style={[
-                stijlen.schijf,
-                { backgroundColor: schijfVulling },
-                schijfStijl,
-              ]}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              <Icoon size={20} color={variantKleur} strokeWidth={1.75} />
-            </Animated.View>
+            {rondje !== undefined ? (
+              <Animated.View
+                style={[
+                  stijlen.rondje,
+                  { backgroundColor: rondjeKleur + '24' },
+                  schijfStijl,
+                ]}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {rondje === 'gelukt'
+                  ? <Check size={30} color={rondjeKleur} strokeWidth={2.5} />
+                  : <AlertTriangle size={28} color={rondjeKleur} strokeWidth={2.25} />}
+              </Animated.View>
+            ) : (
+              <Animated.View
+                style={[
+                  stijlen.schijf,
+                  { backgroundColor: schijfVulling },
+                  schijfStijl,
+                ]}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <Icoon size={20} color={variantKleur} strokeWidth={1.75} />
+              </Animated.View>
+            )}
 
             <Text
-              style={[Type.titel, stijlen.titel, { color: colors.tekstPrimair }]}
+              style={[Type.titel, stijlen.titel, rondje !== undefined && stijlen.midden, { color: colors.tekstPrimair }]}
               accessibilityRole="header"
             >
               {inhoud.titel}
             </Text>
-            <Text style={[Type.body, stijlen.tekst, { color: colors.tekstGedimd }]}>
+            <Text style={[Type.body, stijlen.tekst, rondje !== undefined && stijlen.midden, { color: colors.tekstGedimd }]}>
               {inhoud.tekst}
             </Text>
 
             {resultaat !== undefined ? (
-              <ResultaatBlok resultaat={resultaat} />
+              <ResultaatBlok resultaat={resultaat} alsBand={rondje !== undefined} />
             ) : null}
 
             {inhoud.details ? (
@@ -276,8 +296,18 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
 }
 
 // Het blok tussen de tekst en de knoppen. Zit apart zodat de drie vormen naast elkaar leesbaar zijn.
-function ResultaatBlok({ resultaat }: { resultaat: NonNullable<DialoogInhoud['resultaat']> }) {
+// alsBand: bij een orderuitkomst met rondje staat de waarschuwing als gevulde band met icoon.
+function ResultaatBlok({ resultaat, alsBand }: { resultaat: NonNullable<DialoogInhoud['resultaat']>; alsBand: boolean }) {
   const { colors } = useTheme();
+
+  if (resultaat.soort === 'waarschuwing' && alsBand) {
+    return (
+      <View style={[stijlen.band, { backgroundColor: colors.letOp + '1A' }]}>
+        <AlertTriangle size={16} color={colors.letOp} strokeWidth={1.75} />
+        <Text style={[stijlen.bandTekst, { color: colors.letOp }]}>{resultaat.tekst}</Text>
+      </View>
+    );
+  }
 
   if (resultaat.soort === 'waarschuwing') {
     return (
@@ -350,6 +380,30 @@ const stijlen = StyleSheet.create({
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  rondje: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  midden: { textAlign: 'center' },
+  band: {
+    marginTop: spacing.base,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+  },
+  bandTekst: {
+    flexShrink: 1,
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   titel: { marginTop: spacing.md },
   tekst: { marginTop: spacing.sm },

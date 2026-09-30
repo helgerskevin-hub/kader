@@ -1060,6 +1060,8 @@ export function PortfolioScreen() {
         <NiveausSheet
           zichtbaar
           trade={niveausTrade}
+          huidigePrijs={livePrijzen[niveausTrade.symbool]}
+          afbouwAdvies={afbouwPerTrade[niveausTrade.id] ?? null}
           onSluiten={() => setNiveausTrade(null)}
         />
       )}

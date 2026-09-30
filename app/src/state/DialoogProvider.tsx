@@ -48,6 +48,10 @@ export interface DialoogInhoud {
   // Optioneel blok, bijvoorbeeld de lijst overgeslagen posities of een technische foutmelding.
   details?: string;
   resultaat?: DialoogResultaat;
+  // Alleen voor de uitkomst van een order: een groot rondje boven de titel in plaats van het kleine
+  // icoon, en een resultaat van soort 'waarschuwing' als band met icoon in plaats van omlijnd blok.
+  // Zonder dit veld ziet de dialoog er precies uit als voorheen.
+  rondje?: 'gelukt' | 'onzeker';
   // Eén of twee knoppen. De knop die de actie uitvoert staat vooraan.
   knoppen: DialoogKnop[];
 }

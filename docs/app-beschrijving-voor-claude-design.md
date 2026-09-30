@@ -310,6 +310,23 @@ aanbevolen Copy Stop Loss % in een apart vak, onderbouwing als drie korte regels
 **Samenvattingskaart (Portfolio):** grote cijfers (24–48px), een pil voor het
 open resultaat, een segmentknop voor de periode en een sync-chip rechtsboven.
 
+**Ordervensters (Kopen, Verkopen, Stop en doel, Trade vastleggen):** alle vier
+blijven sheets. Kop met coinlogo, titel en een DEMO- of ECHT-merkje.
+- Kopen: groot bedrag dat rolt, snelknoppen $50/$100/$250, plus 25% en Max
+  alleen als eToro het vrije saldo gaf. Daaronder "Plan van Kader": de baan en
+  twee tegels "bij stop" en "bij doel" in dollars, uitgerekend met de stop die
+  echt naar eToro gaat.
+- Verkopen: geschat resultaat groot, de baan, een lijst (aantal, aankoopprijs,
+  huidige prijs, je krijgt ongeveer) en een zin dat het een schatting is.
+- Stop en doel: grepen op een baan, velden met - en +, "bij stop" en "bij doel"
+  voor de positie, weghalen als tekstknop. De grepen komen nooit voorbij
+  eToro's stop-loss-grens; zonder bekende grens geen verzonnen grens.
+- Trade vastleggen: bedrag met snelknoppen, aankoopprijs en aantal (automatisch),
+  het plan in dollars, een gewone blauwe opslaanknop.
+- Bevestigen: Demo is een blauwe knop die je tikt. Echt is een inktkleurige
+  knop die je 800 ms vasthoudt, met een rode regel erboven; het vinkje komt
+  pas na eToro's ja.
+
 **Data-tabellen (Gesloten posities, Traders kopiëren):** waarde-labels zichtbaar,
 horizontale scroll op mobiel; overweeg multi-select/bulk-acties (ux-rule) als de
 lijst groeit.

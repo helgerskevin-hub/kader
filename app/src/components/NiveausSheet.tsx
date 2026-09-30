@@ -3,34 +3,64 @@
 // Het belangrijkste hier is dat bepaalStop blokkeert vóór er een verzoek uitgaat. eToro weigert een
 // stop buiten zijn eigen grenzen toch, en een afgewezen order op een geldpad is een slechtere
 // gebruikerservaring dan een knop die uit staat met de reden erbij.
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { AlertTriangle, X } from 'lucide-react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle } from 'react-native';
+import { Minus, Plus, Shield } from 'lucide-react-native';
 import { fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { guid, wijzigNiveaus, NiveauWijziging } from '../engine/etoro';
 import { koersFactor } from '../engine/etoroSymbolen';
+import { alsVeldTekst, zonderExponent, greepBereik, klem, opStap, planInGeld, stapGrootte, type Bereik } from '../engine/planInGeld';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
 import { actieveSleutels } from '../state/etoroSleutels';
 import { PortfolioTrade, richtingVan } from '../state/portfolioTypes';
 import { OnbekendeOrder } from '../state/lopendeOrders';
+import type { AfbouwAdvies } from '../state/afbouw';
 import { useTheme } from '../theme/ThemeProvider';
-import { Type } from '../theme/typography';
+import { Fonts, Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
+import { haptiek } from '../theme/haptiek';
+import { GeldGetal } from './order/PlanInGeld';
 import { BottomSheet } from './BottomSheet';
+import { Drukbaar } from './Drukbaar';
 import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
+import { OrderKop } from './order/OrderKop';
+import { NiveauBaan } from './order/NiveauBaan';
 
 // De niveaus die je hier intikt gaan als dollarprijzen naar eToro, dus dit scherm blijft in dollars,
 // ook als de app op euro's staat.
 const DOLLARS = { valuta: 'USD' } as const;
+const fmtDollar = (n: number) => fmtPrijs(n, DOLLARS);
 
+// Grenzen van het greepbereik die verder dan dit van de entry liggen tellen niet mee voor de schaal
+// van de baan. eToro's maximale long-afstand is vaak 100%, en een baan die tot nul loopt maakt alle
+// grepen onbruikbaar klein. Slepen blijft gewoon tot de rand van de baan mogelijk.
+const BAAN_MAX_AFSTAND = 0.35;
+// Minimale breedte van de baan, als fractie van de entry: zonder stop en doel liggen entry en koers
+// soms zo dicht bij elkaar dat er niets meer te slepen valt.
+const BAAN_MIN_SPAN = 0.1;
+const BAAN_MARGE = 0.15;
+
+// Op honderdsten afronden voor teken en kleur: -0,004 toont "$0.00" en hoort dan niet rood te zijn.
+const rond = (n: number) => Math.round(n * 100) / 100;
+
+function fmtMetTeken(n: number): string {
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n === 0) return `$${abs}`;
+  return `${n < 0 ? '-' : '+'}$${abs}`;
+}
+
+const fmtRR = (rr: number) => `R/R 1 : ${rr.toFixed(1).replace('.', ',')}`;
 
 interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
   trade: PortfolioTrade;
+  huidigePrijs?: number;
+  // Het afbouwadvies dat het portfolio al voor deze trade uitrekent; alleen de trailing stop telt hier.
+  afbouwAdvies?: AfbouwAdvies | null;
 }
 
 const getal = (tekst: string): number => parseFloat(tekst.replace(',', '.'));
@@ -39,7 +69,7 @@ const getal = (tekst: string): number => parseFloat(tekst.replace(',', '.'));
 // niet is. Een cent verschil op de goedkoopste coin is nog altijd meer dan dit.
 const anders = (a: number, b: number) => Math.abs(a - b) > 1e-9;
 
-export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
+export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouwAdvies }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
   const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
@@ -51,6 +81,10 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
   const [wisDoel, setWisDoel] = useState(false);
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
+  // Eén bevestiging tegelijk. Een state-vlag komt pas na de volgende render aan, dus twee tikken
+  // binnen één frame zouden er allebei doorheen glippen. Na een geslaagde order blijft dit dicht
+  // tot het venster opnieuw opengaat: tijdens het vinkje mag er geen tweede order uit.
+  const loopt = useRef(false);
   const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
@@ -64,6 +98,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
     setWisDoel(false);
     setVerzoekId(guid());
     setBezig(false);
+    loopt.current = false;
     wis();
     setFout('');
   }, [zichtbaar, trade.id, trade.stopLoss, trade.takeProfit]);
@@ -133,7 +168,9 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
   }
 
   async function bevestig() {
-    if (!magBevestigen || bezig || positionId === undefined) return;
+    if (!magBevestigen || bezig || loopt.current || positionId === undefined) return;
+    loopt.current = true;
+    let geslaagd = false;
     setBezig(true);
     setFout('');
 
@@ -143,16 +180,24 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
         setFout('Geen eToro-sleutels gevonden voor deze omgeving. Koppel je account opnieuw in Instellingen.');
         return;
       }
+      // De knop is getekend voor één omgeving. Is die intussen gewisseld, dan gaat er niets de deur
+      // uit: anders zou een wijziging die je als demo bevestigde een echte positie raken, of andersom.
+      if ((sleutels.omgeving ?? 'real') !== omgeving) {
+        setFout('Je omgeving is net gewisseld. Sluit dit venster en open het opnieuw.');
+        return;
+      }
 
       const uitkomst = await wijzigNiveaus(positionId, bouwWijziging(), sleutels, verzoekId);
 
       if (uitkomst.soort === 'ok') {
+        geslaagd = true;
         verzoenNaOrder();
         // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
         vier(() => {
           onSluiten();
           toonDialoog({
             variant: 'gelukt',
+            rondje: 'gelukt',
             titel: 'Niveaus doorgegeven',
             tekst: `De stop-loss en het doel van ${trade.symbool} staan bij eToro. Kader werkt ze bij na de volgende sync.`,
             knoppen: [{ label: 'Oké' }],
@@ -171,15 +216,21 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
         verzoekId: uitkomst.verzoekId,
         soort: 'niveaus',
         symbool: trade.symbool,
-        omgeving,
+        omgeving: sleutels.omgeving ?? 'real',
         positionId,
         bekendePosities,
         tijd: Date.now(),
       };
-      await noteerOnbekendeOrder(order);
+      try {
+        await noteerOnbekendeOrder(order);
+      } catch {
+        // Wegschrijven mislukte. De melding hieronder klopt hoe dan ook, en opnieuw versturen is
+        // ook nu geen optie.
+      }
       onSluiten();
       toonDialoog({
         variant: 'waarschuwing',
+        rondje: 'onzeker',
         titel: 'We weten niet of je wijziging is doorgegaan',
         tekst: 'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.',
         resultaat: {
@@ -189,72 +240,210 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
         knoppen: [{ label: 'Oké' }],
       });
     } finally {
-      setBezig(false);
+      // Na een geslaagde order blijft de knop dicht tot het venster sluit: het vinkje staat nog
+      // even, en een tik in die tijd mag geen tweede order worden.
+      if (!geslaagd) {
+        setBezig(false);
+        loopt.current = false;
+      }
     }
   }
 
-  const veldStijl = (uit: boolean) => [stijlen.input, {
-    backgroundColor: colors.verhoogd,
-    borderColor: colors.rand,
-    color: uit ? colors.tekstGedimd : colors.tekstPrimair,
-    opacity: uit ? 0.5 : 1,
+
+  // Alles hieronder is weergave: slepen, de -/+ knoppen en het voorstel zetten alleen de velden.
+  // Wat er naar eToro gaat blijft lopen via stopTeSturen, doelTeSturen en bevestig hierboven.
+  const richting = richtingVan(trade);
+  const entry = trade.entryPrijs;
+  const stap = stapGrootte(entry);
+  const bereik = useMemo(
+    () => greepBereik({ entry, live: huidigePrijs, richting, limiet, stap }),
+    [entry, huidigePrijs, richting, limiet, stap],
+  );
+
+  // De schaal van de baan komt uit de oorspronkelijke niveaus, de koers en de grenzen, nooit uit
+  // wat je aan het slepen bent: anders schaalt de baan onder je vinger mee.
+  const baan = useMemo(() => {
+    const punten: number[] = [];
+    const voeg = (n: number | undefined) => {
+      if (typeof n === 'number' && isFinite(n) && n > 0) punten.push(n);
+    };
+    voeg(entry);
+    voeg(huidigePrijs);
+    if (trade.stopLoss > 0) voeg(trade.stopLoss);
+    if (trade.takeProfit > 0) voeg(trade.takeProfit);
+    for (const grens of [bereik.stop?.min, bereik.stop?.max, bereik.doel?.min, bereik.doel?.max]) {
+      if (grens !== undefined && isFinite(grens) && Math.abs(grens - entry) <= entry * BAAN_MAX_AFSTAND) voeg(grens);
+    }
+    if (punten.length === 0) return null;
+    let lo = Math.min(...punten);
+    let hi = Math.max(...punten);
+    const minSpan = entry * BAAN_MIN_SPAN;
+    if (hi - lo < minSpan) {
+      const midden = (lo + hi) / 2;
+      lo = midden - minSpan / 2;
+      hi = midden + minSpan / 2;
+    }
+    const marge = (hi - lo) * BAAN_MARGE;
+    return { min: Math.max(lo - marge, lo * 0.01), max: hi + marge };
+  }, [entry, huidigePrijs, trade.stopLoss, trade.takeProfit, bereik]);
+
+  const heeftStop = !wisStop && isFinite(ingevuldeStop) && ingevuldeStop > 0;
+  const heeftDoel = !wisDoel && isFinite(ingevuldDoel) && ingevuldDoel > 0;
+
+  // Een stap vanaf het huidige veld, of vanaf de koers (of de entry) als het veld leeg is.
+  function verstap(veld: 'stop' | 'doel', teken: 1 | -1) {
+    const b: Bereik | null = veld === 'stop' ? bereik.stop : bereik.doel;
+    if (!b || (veld === 'stop' ? wisStop : wisDoel)) return;
+    const huidig = veld === 'stop' ? ingevuldeStop : ingevuldDoel;
+    const basis = isFinite(huidig) && huidig > 0 ? huidig : (huidigePrijs ?? entry);
+    const nieuw = klem(opStap(basis + teken * stap, stap), b);
+    if (!isFinite(nieuw) || nieuw <= 0) return;
+    (veld === 'stop' ? setStopVeld : setDoelVeld)(alsVeldTekst(nieuw, stap, b));
+  }
+
+  // Wat de wijziging in geld betekent voor deze positie. De stop is die welke echt zou uitgaan,
+  // dus ook de door bepaalStop bijgestelde.
+  const bedrag = trade.bedragUsd ?? (trade.aantalCoins !== undefined ? trade.aantalCoins * entry : 0);
+  const plan = planInGeld({
+    bedrag,
+    entry,
+    stop: wisStop ? undefined : stopTeSturen,
+    doel: heeftDoel ? ingevuldDoel : undefined,
+    richting,
+  });
+  const stopInWinst = plan !== null && plan.bijStop !== null && plan.bijStop >= 0;
+
+  // Het voorstel van Kader: de trailing stop uit het afbouwadvies, maar alleen als eToro hem zou
+  // nemen en hij iets verandert. Een tik vult het veld; er gaat pas iets uit na de knop.
+  const trailing = afbouwAdvies?.trailingStop;
+  const toonVoorstel =
+    typeof trailing === 'number' && isFinite(trailing) && trailing > 0
+    // Alleen als eToro dit niveau zo neemt. Bij 'aangepast' zou de tekst een ander niveau noemen
+    // dan wat er de deur uitgaat.
+    && bepaalStop(entry, trailing, limiet).soort === 'ok'
+    && !wisStop
+    && (!heeftStop || anders(trailing, ingevuldeStop));
+  const voorstelInVerlies = typeof trailing === 'number' && (richting === 'short' ? trailing > entry : trailing < entry);
+
+  function neemVoorstel() {
+    if (typeof trailing !== 'number') return;
+    haptiek('tik');
+    // Zwevende-komma-staartjes weg, zonder het niveau zelf te verschuiven.
+    setStopVeld(zonderExponent(trailing));
+  }
+
+  // Staat de stop tegen eToro's minimale afstand aan, dan zeggen we waarom de greep daar stopt.
+  // Alleen met een bekende grens; zonder grens valt er niets uit te leggen.
+  const minAfstand = limiet && limiet.bewerkbaar ? limiet.minPct : null;
+  const stopAfstandPct = heeftStop ? (richting === 'short' ? ingevuldeStop - entry : entry - ingevuldeStop) / entry * 100 : NaN;
+  const aanGrens = minAfstand !== null && isFinite(stopAfstandPct)
+    && stopAfstandPct >= minAfstand && stopAfstandPct - minAfstand < (stap / entry) * 100;
+  const grensUitleg = aanGrens && minAfstand !== null
+    ? `Dichter bij je aankoopprijs staat eToro geen stop toe: minimaal ${minAfstand.toFixed(1).replace('.', ',')}% ${richting === 'short' ? 'erboven' : 'eronder'}.`
+    : '';
+
+  const veldTekst = (uit: boolean, kleur: string) => [stijlen.input, {
+    color: uit ? colors.tekstGedimd : kleur,
   }];
 
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={sluit} velStijl={stijlen.vel}>
-      <View style={stijlen.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
-          Stop-loss en doel van {trade.symbool}
-        </Text>
-        <Pressable
-          onPress={sluit}
-          accessibilityLabel="Sluiten"
-          accessibilityRole="button"
-          style={stijlen.sluitKnop}
-        >
-          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
+      <View style={stijlen.kop}>
+        <OrderKop
+          symbool={trade.symbool}
+          titel="Stop en doel"
+          sub={`${trade.naam || trade.symbool} · aankoop ${fmtDollar(entry)}`}
+          omgeving={omgeving}
+          onSluiten={sluit}
+        />
       </View>
 
       <ScrollView
         style={stijlen.lijst}
+        contentContainerStyle={stijlen.inhoud}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
-          Aankoopprijs {fmtPrijs(trade.entryPrijs, DOLLARS)}. Een veld dat je niet wijzigt blijft bij eToro
-          staan zoals het stond.
-        </Text>
+        {baan ? (
+          <NiveauBaan
+            min={baan.min}
+            max={baan.max}
+            entry={entry}
+            live={huidigePrijs}
+            stop={heeftStop ? (stopTeSturen ?? ingevuldeStop) : null}
+            doel={heeftDoel ? ingevuldDoel : null}
+            stopBereik={bereik.stop}
+            doelBereik={bereik.doel}
+            stap={stap}
+            onStop={w => setStopVeld(alsVeldTekst(w, stap, bereik.stop))}
+            onDoel={w => setDoelVeld(alsVeldTekst(w, stap, bereik.doel))}
+            formatPrijs={fmtDollar}
+            richting={richting}
+          />
+        ) : null}
 
-        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>STOP-LOSS</Text>
-        <TextInput
-          style={veldStijl(wisStop)}
-          value={stopVeld}
-          onChangeText={setStopVeld}
-          editable={!wisStop}
-          placeholder="bijv. 92400"
-          placeholderTextColor={colors.tekstGedimd}
-          keyboardType="decimal-pad"
-        />
-        {/* De aan-stand van deze schakelaar haalt je stop-loss wég, dus die hoort herkenbaar te
-            zijn zonder dat de schakelaar zelf een kleur claimt. */}
-        <View style={stijlen.schakelRij}>
-          {wisStop ? <AlertTriangle size={15} color={colors.letOp} strokeWidth={1.75} /> : null}
-          <Text style={[Type.caption, { color: wisStop ? colors.letOp : colors.tekstGedimd, flex: 1 }]}>
-            Stop-loss weghalen in plaats van verzetten
-          </Text>
-          <Switch
-            value={wisStop}
-            onValueChange={setWisStop}
-            trackColor={{ false: colors.rand, true: colors.schakelaarAan }}
-            thumbColor={colors.schakelaarDuim}
-            ios_backgroundColor={colors.rand}
-            accessibilityLabel="Stop-loss weghalen"
-            accessibilityHint="Zet dit aan om je stop-loss bij eToro te verwijderen in plaats van te verzetten."
+        <View style={stijlen.velden}>
+          <NiveauVeld
+            label="STOP-LOSS"
+            waarde={stopVeld}
+            onWijzig={setStopVeld}
+            uit={wisStop}
+            kanStappen={bereik.stop !== null && !wisStop}
+            onLager={() => verstap('stop', -1)}
+            onHoger={() => verstap('stop', 1)}
+            lagerLabel="Stop-loss lager"
+            hogerLabel="Stop-loss hoger"
+            tekstStijl={veldTekst(wisStop, colors.verlies)}
+          />
+          <NiveauVeld
+            label="DOEL"
+            waarde={doelVeld}
+            onWijzig={setDoelVeld}
+            uit={wisDoel}
+            kanStappen={bereik.doel !== null && !wisDoel}
+            onLager={() => verstap('doel', -1)}
+            onHoger={() => verstap('doel', 1)}
+            lagerLabel="Doel lager"
+            hogerLabel="Doel hoger"
+            tekstStijl={veldTekst(wisDoel, colors.winst)}
           />
         </View>
 
-        {/* Altijd aanwezig, ook leeg: anders krimpt de sheet zodra het stop-advies verdwijnt. */}
+        <View style={stijlen.geld}>
+          <GeldTegel
+            label="BIJ STOP"
+            waarde={plan?.bijStop ?? null}
+            leeg={plan === null ? 'onbekend' : 'geen stop'}
+          />
+          <GeldTegel
+            label="BIJ DOEL · R/R"
+            waarde={plan?.bijDoel ?? null}
+            leeg={plan === null ? 'onbekend' : 'geen doel'}
+            onder={plan?.bijDoel == null ? undefined
+              : plan.rr !== null ? fmtRR(plan.rr)
+                : stopInWinst ? 'geen risico'
+                  : undefined}
+          />
+        </View>
+
+        {toonVoorstel ? (
+          <Drukbaar
+            onPress={neemVoorstel}
+            accessibilityRole="button"
+            accessibilityHint="Zet het stop-loss-veld op dit niveau. Er gaat nog niets naar eToro."
+            style={[stijlen.voorstel, { backgroundColor: colors.verhoogd }]}
+          >
+            <Shield size={16} color={colors.winst} strokeWidth={2} />
+            <Text style={[Type.caption, stijlen.voorstelTekst, { color: colors.tekstGedimd }]}>
+              <Text style={{ fontFamily: Fonts.sansSemiBold, fontWeight: '600', color: colors.tekstPrimair }}>
+                Voorstel van Kader:
+              </Text>
+              {` stop naar ${fmtDollar(trailing as number)}. ${voorstelInVerlies ? 'Daarmee beperk je je verlies.' : 'Daarmee staat je winst tot daar vast.'}`}
+            </Text>
+          </Drukbaar>
+        ) : null}
+
+        {/* Leeg neemt dit vak geen ruimte in; de lijst scrolt, dus een advies dat verschijnt duwt alleen de rest omlaag. */}
         <View
           style={[
             stijlen.adviesSlot,
@@ -274,33 +463,45 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
             >
               {advies.uitleg}
             </Text>
+          ) : grensUitleg ? (
+            <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>{grensUitleg}</Text>
           ) : null}
         </View>
 
-        <Text style={[Type.overline, stijlen.label, { color: colors.tekstGedimd }]}>DOEL (TAKE-PROFIT)</Text>
-        <TextInput
-          style={veldStijl(wisDoel)}
-          value={doelVeld}
-          onChangeText={setDoelVeld}
-          editable={!wisDoel}
-          placeholder="bijv. 118000"
-          placeholderTextColor={colors.tekstGedimd}
-          keyboardType="decimal-pad"
-        />
-        <View style={stijlen.schakelRij}>
-          <Text style={[Type.caption, { color: colors.tekstGedimd, flex: 1 }]}>
-            Doel weghalen in plaats van verzetten
-          </Text>
-          <Switch
-            value={wisDoel}
-            onValueChange={setWisDoel}
-            trackColor={{ false: colors.rand, true: colors.schakelaarAan }}
-            thumbColor={colors.schakelaarDuim}
-            ios_backgroundColor={colors.rand}
-            accessibilityLabel="Doel weghalen"
-            accessibilityHint="Zet dit aan om je doel bij eToro te verwijderen in plaats van te verzetten."
-          />
-        </View>
+        {/* Weghalen telt alleen als wijziging als er bij eToro een niveau staat, dus de knop
+            verschijnt ook alleen dan. */}
+        {trade.stopLoss > 0 || trade.takeProfit > 0 ? (
+          <View style={stijlen.tekstknoppen}>
+            {trade.stopLoss > 0 ? (
+              <Drukbaar
+                onPress={() => setWisStop(w => !w)}
+                haptiek="tik"
+                accessibilityRole="button"
+                style={stijlen.tekstknop}
+              >
+                <Text style={[stijlen.tekstknopTekst, { color: colors.cta }]}>
+                  {wisStop ? 'Stop terugzetten' : 'Stop weghalen'}
+                </Text>
+              </Drukbaar>
+            ) : null}
+            {trade.takeProfit > 0 ? (
+              <Drukbaar
+                onPress={() => setWisDoel(w => !w)}
+                haptiek="tik"
+                accessibilityRole="button"
+                style={stijlen.tekstknop}
+              >
+                <Text style={[stijlen.tekstknopTekst, { color: colors.cta }]}>
+                  {wisDoel ? 'Doel terugzetten' : 'Doel weghalen'}
+                </Text>
+              </Drukbaar>
+            ) : null}
+          </View>
+        ) : null}
+
+        <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
+          Een niveau dat je niet wijzigt blijft bij eToro staan zoals het stond.
+        </Text>
 
         {!poortOpen ? (
           <View style={[stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
@@ -322,21 +523,116 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
       <View style={stijlen.hulpSlot}>
         {poortOpen && !ietsGewijzigd ? (
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
-            Wijzig een niveau of zet een schakelaar aan om te kunnen bevestigen.
+            Wijzig een niveau of haal er een weg om te kunnen bevestigen.
           </Text>
         ) : null}
       </View>
 
       <OrderBevestigKnop
-        label="Niveaus doorgeven"
+        label={omgeving === 'real' ? 'Houd vast om door te geven' : 'Doorgeven in demo'}
         omgeving={omgeving}
         bezig={bezig}
         uitgeschakeld={!magBevestigen}
         onBevestig={bevestig}
         gelukt={gelukt}
-        echtWaarschuwing="Dit wijzigt een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen."
+        echtWaarschuwing="Echt geld. Houd de knop vast om door te geven."
       />
     </BottomSheet>
+  );
+}
+
+interface NiveauVeldProps {
+  label: string;
+  waarde: string;
+  onWijzig: (tekst: string) => void;
+  uit: boolean;
+  kanStappen: boolean;
+  onLager: () => void;
+  onHoger: () => void;
+  lagerLabel: string;
+  hogerLabel: string;
+  tekstStijl: StyleProp<TextStyle>;
+}
+
+// Eén niveau: het label, en op één rij -, het getal en +. Het tekstveld krimpt als het krap wordt,
+// de knoppen houden hun 36 dp.
+function NiveauVeld({
+  label, waarde, onWijzig, uit, kanStappen, onLager, onHoger, lagerLabel, hogerLabel, tekstStijl,
+}: NiveauVeldProps) {
+  const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  // Een prijs als 0.00000506 past met vaste letter niet tussen de knoppen op 360 dp. De grootte volgt
+  // daarom de gemeten breedte en het aantal tekens (mono, ongeveer 0,62 em per teken), en rekent de
+  // systeemletter zelf mee (tot 1,2x), zodat het getal nooit afkapt.
+  const [breedte, setBreedte] = useState(0);
+  const tekens = Math.max(waarde.length, 4);
+  const passend = breedte > 0 ? breedte / (tekens * 0.62) : 15;
+  const letter = Math.max(10, Math.min(15 * Math.min(fontScale, 1.2), passend));
+  const knop = (Icoon: typeof Minus, onPress: () => void, a11y: string) => (
+    <Drukbaar
+      onPress={onPress}
+      haptiek="tik"
+      disabled={!kanStappen}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      accessibilityState={{ disabled: !kanStappen }}
+      schaal={0.9}
+      style={[stijlen.stapKnop, { backgroundColor: colors.kaart, opacity: kanStappen ? 1 : 0.4 }]}
+    >
+      <Icoon size={16} color={colors.tekstPrimair} strokeWidth={2} />
+    </Drukbaar>
+  );
+
+  return (
+    <View style={[stijlen.veld, { backgroundColor: colors.verhoogd, opacity: uit ? 0.5 : 1 }]}>
+      <Text style={[Type.overline, { color: colors.tekstGedimd }]} numberOfLines={1}>{label}</Text>
+      <View style={stijlen.veldRij}>
+        {knop(Minus, onLager, lagerLabel)}
+        <TextInput
+          style={[tekstStijl, { fontSize: letter }]}
+          onLayout={e => setBreedte(e.nativeEvent.layout.width)}
+          value={waarde}
+          onChangeText={onWijzig}
+          editable={!uit}
+          placeholder="-"
+          placeholderTextColor={colors.tekstGedimd}
+          keyboardType="decimal-pad"
+          textAlign="center"
+          allowFontScaling={false}
+          accessibilityLabel={label.toLowerCase()}
+        />
+        {knop(Plus, onHoger, hogerLabel)}
+      </View>
+    </View>
+  );
+}
+
+// Een bedrag met teken in winst- of verlieskleur, of een korte tekst als er niets te rekenen valt.
+function GeldTegel({ label, waarde, leeg, onder }: { label: string; waarde: number | null; leeg: string; onder?: string }) {
+  const { colors } = useTheme();
+  const afgerond = waarde === null ? null : rond(waarde);
+  const leesbaar = afgerond === null ? leeg : fmtMetTeken(afgerond);
+
+  return (
+    <View
+      style={[stijlen.tegel, { backgroundColor: colors.verhoogd }]}
+      accessible
+      accessibilityLabel={`${label.toLowerCase()}: ${leesbaar}${onder ? `, ${onder}` : ''}`}
+    >
+      <Text style={[Type.overline, { color: colors.tekstGedimd }]} importantForAccessibility="no" numberOfLines={1}>
+        {label}
+      </Text>
+      {afgerond === null ? (
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]} importantForAccessibility="no">{leeg}</Text>
+      ) : (
+        <GeldGetal waarde={afgerond} format={fmtMetTeken} neutraal={colors.winst} />
+      )}
+      {onder ? (
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]} importantForAccessibility="no" numberOfLines={1}>
+          {onder}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -344,43 +640,54 @@ const stijlen = StyleSheet.create({
   vel: {
     maxHeight: '90%',
   },
-  titelRij: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.base,
-    gap: spacing.sm,
-  },
-  sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  kop: { marginBottom: spacing.base },
   // Levert hoogte in aan de voet eronder in plaats van hem van het scherm te duwen.
   lijst: { flexShrink: 1 },
-  label: { marginTop: spacing.md, marginBottom: spacing.xs },
-  input: {
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: 15,
+  inhoud: { gap: 14 },
+  velden: { flexDirection: 'row', gap: 8 },
+  veld: { flex: 1, minWidth: 0, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 8, gap: 6 },
+  veldRij: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  stapKnop: {
+    minWidth: 36,
+    width: 36,
     minHeight: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  schakelRij: {
+  input: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 44,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    fontFamily: Fonts.monoMedium,
+    fontVariant: ['tabular-nums'],
+    fontSize: 15,
+  },
+  geld: { flexDirection: 'row', gap: 8 },
+  tegel: { flex: 1, minWidth: 0, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 2 },
+  voorstel: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginTop: spacing.sm,
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     minHeight: 44,
   },
+  voorstelTekst: { flex: 1, lineHeight: 18 },
+  tekstknoppen: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
+  tekstknop: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
+  tekstknopTekst: { fontFamily: Fonts.sansSemiBold, fontWeight: '600', fontSize: 13 },
   melding: {
     borderWidth: 1,
     borderRadius: radii.veld,
     padding: spacing.md,
-    marginTop: spacing.md,
   },
   // 60px is padding 12 boven en onder plus twee regels Type.caption op lineHeight 18: de hoogte die
   // het stop-advies inneemt als het er wél staat.
   adviesSlot: {
-    minHeight: 60,
-    marginTop: spacing.md,
     justifyContent: 'center',
   },
   adviesVak: {
