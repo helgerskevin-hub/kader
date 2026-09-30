@@ -13,8 +13,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     versie: 'Nog niet uitgebracht',
-    datum: '2026-09-29',
+    datum: '2026-09-30',
     punten: [
+      'Kopen, verkopen, stop en doel en een trade vastleggen hebben een nieuw venster. Het bedrag staat groot in beeld met snelknoppen ($50, $100, $250). 25% en Max staan er alleen als eToro je vrije saldo doorgeeft; zonder saldo verzint Kader geen maximum',
+      'Het plan van Kader staat nu in dollars: wat je verliest als de stop geraakt wordt en wat je wint bij het doel, voor het bedrag dat je intikt. Zet eToro de stop zelf, dan staat er geen bedrag bij stop',
+      'Stop en doel verzet je met grepen op een baan, met - en + of door een bedrag te typen. De grepen gaan nooit voorbij de grens die eToro voor die coin hanteert, en het venster zegt het als je daar tegenaan zit. Weghalen is een tekstknop. Heeft Kader een voorstel om winst te beschermen, dan zet één tik het in het veld; doorgeven doe je nog steeds zelf',
+      'Bij verkopen staat het geschatte resultaat groot, met wat je ongeveer terugkrijgt. Er staat eerlijk bij dat het een schatting is: eToro sluit op zijn eigen koers en rekent kosten',
+      'De knop voor echt geld is nu donker in plaats van rood, want rood betekent in Kader verlies. Echt geld herken je aan het ECHT-merkje, de rode regel erboven en het vasthouden, dat nog steeds 800 ms duurt. In demo blijft het een blauwe knop die je tikt',
+      'Wisselt je omgeving tussen demo en echt terwijl een ordervenster openstaat, dan gaat er geen order meer de deur uit. Je krijgt de vraag het venster opnieuw te openen',
       'Nieuwe kaarten op Markt, Kansen en Portfolio: compacter, zodat er meer op het scherm past. Tik op een kaart om hem uit te klappen; het detailscherm open je met de knop Details',
       'Op Markt en Kansen staat de score nu rond het coinlogo, met een koersgrafiek van 30 dagen en de verandering erbij. In het uitgeklapte deel vind je de knoppen Getrade en Koop',
       'Stop en doel staan nu samen op één baan, met een stip voor de huidige koers',
