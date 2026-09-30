@@ -27,6 +27,13 @@ export const CHANGELOG: ChangelogEntry[] = [
       { icoon: 'koop', titel: 'Nieuw koopvenster', tekst: 'Kies een bedrag met één tik en zie wat je riskeert in dollars.' },
     ],
     punten: [
+      'Instellingen, Meldingen en Informatie zijn volledige schermen met gegroepeerde lijsten, zoals je dat van je telefoon kent',
+      'Naar Echt overstappen doe je in Instellingen door Echt 800 ms vast te houden, net als de orderknop. Terug naar Demo is één tik. Het rode bevestigvenster is weg; met een schermlezer krijg je nog wel een bevestiging',
+      'Het menu rechtsboven laat zien of eToro gekoppeld is en of je in demo of echt staat',
+      'Meldingen staan per dag gegroepeerd, met het coinlogo en een link naar de positie of de markt. Bij een prijsalert staat de huidige koers erbij als Kader die kent',
+      'Informatie is herschreven: 21 hoofdstukken, elk met wat je ziet, hoe Kader rekent en wat je ermee doet, plus een korte animatie. Je kunt zoeken, en onder Bronnen staat waar de koersen en de coinlogo\'s vandaan komen, met hun licenties',
+      'De titel bovenaan een scherm wordt niet meer afgekapt naast het DEMO-merkje; het merkje staat nu onder de titel',
+      'Nieuw in deze versie toont de drie belangrijkste veranderingen, met een knop naar alle wijzigingen',
       'eToro koppelen gaat nu in vijf stappen op een eigen scherm, met een voortgangsbalk. Je kiest eerst of je alleen wilt meekijken of ook wilt handelen, en de uitleg past zich daarop aan',
       'Sleutels plak je met een Plak-knop. Kader kijkt alleen of het eruitziet als een sleutel en zegt het als er bijvoorbeeld een spatie in staat',
       'De verbindingstest toont per regel wat werkt: de sleutel, je posities in demo en echt (met het aantal), en of handelen mag. Werkt de sleutel nergens, dan zie je per omgeving waarom en wat je kunt doen',
