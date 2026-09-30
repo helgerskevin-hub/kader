@@ -13,19 +13,21 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
-import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
+import { schuifOvergang, uitklapInGestaffeld, uitklapUit } from '../theme/lijstBeweging';
 import { AdviceBadge } from './AdviceBadge';
-import { LevelRow } from './LevelRow';
 import { PlatformChips } from './PlatformChip';
 import { PlatformSheet } from './PlatformSheet';
 import { useDrukVeer } from './Drukbaar';
 import { UitklapPijl } from './UitklapPijl';
-import { MomentumBalken } from './MomentumBalken';
+import { MomentumCompact, afstandLabel } from './MomentumBalken';
 import { Sparkline } from './Sparkline';
+import { ScoreRing } from './ScoreRing';
+import { StopDoelBaan } from './StopDoelBaan';
+import { PilKnop } from './PilKnop';
 
 interface Props {
   kans: KansMetRang;
-  // Plek in de lijst, voor de staffeling van balkjes en sparkline bij binnenkomst.
+  // Plek in de lijst, voor de staffeling van ring, balkjes en sparkline bij binnenkomst.
   volgorde?: number;
   onOpenDetail: (kans: KansMetRang) => void;
   onGetrade: (kans: KansMetRang) => void;
@@ -83,18 +85,25 @@ export const KansKaart = memo(function KansKaart({
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
   const [platformsOpen, setPlatformsOpen] = useState(false);
-  // De hele kaart veert mee, en het detailscherm groeit uit de hele kaart.
+  // De hele kaart veert mee, en het detailscherm groeit uit de hele kaart, ook via Details.
   const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
 
   // Het uitbraak-plan van de radar, niet de Markt-niveaus uit kans.trade (zie momentum.ts).
   const plan = kans.niveaus;
   // Na de eToro-stopcorrectie: schuift eToro de stop op en zakt de R/R onder de drempel, dan is het
-  // hier WATCH, ook als de scan KOOP zei. Badge, R/R-regel en Koop-knop lezen alle drie hieruit.
+  // hier WATCH, ook als de scan KOOP zei. Badge, R/R-chip en Koop-knop lezen alle drie hieruit.
   const { signaal, haaltRr, niveaus } = effectiefSignaal(kans, limiet);
   // Zelfde regel als TradeCard: het merkje betekent dat Kader deze order kan plaatsen, dus het
   // hangt aan precies dezelfde voorwaarde als de koopknop.
   const platforms = onKoop ? handelbaarOp(kans.symbool) : [];
+  // Alleen bij een KOOP met een plan: zonder entry, stop en doel valt er geen order te bouwen, en
+  // bij WATCH zegt Kader zelf dat het nog niet klopt. Bij een verouderde scan ook niet: dan kan het
+  // plan al achterhaald zijn.
+  const kanKopen = !!(plan && signaal === 'KOOP' && !verouderd && onKoop);
+  const afstand = kans.ingredienten.afstandHigh90d;
   const schuif = schuifOvergang(reduceMotion);
+
+  const kaartLabel = `${kans.symbool}, ${kans.naam}, ${signaal}, momentumscore ${Math.round(kans.momentumScore)}`;
 
   return (
     <Animated.View
@@ -102,37 +111,24 @@ export const KansKaart = memo(function KansKaart({
       layout={schuif}
       style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }, druk.stijl]}
     >
+      {/* Het bovenste deel (kop, grafiek, momentum, voet) klapt de kaart uit en weer in. Het
+          detailscherm opent alleen nog via Details in het uitgeklapte deel. */}
       <Pressable
-        onPress={() => {
-          druk.legBronVast();
-          onOpenDetail(kans);
-        }}
+        onPress={() => setUitgeklapt(v => !v)}
         onPressIn={druk.drukIn}
         onPressOut={druk.drukUit}
         accessibilityRole="button"
-        accessibilityLabel={`${kans.symbool} detail bekijken`}
+        accessibilityState={{ expanded: uitgeklapt }}
+        accessibilityLabel={kaartLabel}
+        accessibilityHint={uitgeklapt ? 'Tik om in te klappen' : 'Tik om uit te klappen'}
+        // De padding zit op het tikvlak en niet op de kaart, zodat ook de rand rond de kop tikbaar is.
+        style={styles.boven}
       >
-        <View style={styles.badgeRij}>
-          <View style={styles.badgeLinks}>
-            <AdviceBadge advies={signaal} score={kans.momentumScore} />
-            <RangLabel verschil={kans.rangVerschil} />
-          </View>
-          {platforms.length > 0 && (
-            <Pressable
-              onPress={() => setPlatformsOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
-              hitSlop={12}
-            >
-              <PlatformChips platforms={platforms} maat={20} />
-            </Pressable>
-          )}
-        </View>
-
         <View style={styles.kop}>
-          <View style={styles.kopLinks}>
+          <ScoreRing symbool={kans.symbool} score={kans.momentumScore} maat={48} volgorde={volgorde} />
+          <View style={styles.kopMidden}>
             <View style={styles.symboolRij}>
-              <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{kans.symbool}</Text>
+              <Text style={[Type.sectiekop, styles.symbool, { color: colors.tekstPrimair }]}>{kans.symbool}</Text>
               {onToggleFavoriet && (
                 <Pressable
                   onPress={() => onToggleFavoriet(kans.symbool)}
@@ -149,118 +145,154 @@ export const KansKaart = memo(function KansKaart({
                 </Pressable>
               )}
             </View>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{kans.naam}</Text>
+            {/* Twee regels is genoeg voor elke naam op de radar; zo kapt er nooit iets af. */}
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]} numberOfLines={2}>
+              {kans.naam}
+            </Text>
           </View>
-          <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtPrijs(kans.prijs)}</Text>
+          <View style={styles.kopRechts}>
+            <Text style={[Type.prijsGroot, styles.prijs, { color: colors.tekstPrimair }]}>
+              {fmtPrijs(kans.prijs)}
+            </Text>
+            {/* Neutraal: dichter bij de top is hier het hele criterium, geen winst of verlies. */}
+            {afstand !== null && (
+              <View style={[styles.pil, { backgroundColor: colors.verhoogd }]}>
+                <Text style={[Type.prijs, styles.pilTekst, { color: colors.tekstPrimair }]}>
+                  {afstandLabel(afstand)}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {kans.sparkline.length >= 2 && (
-          <View style={styles.sectie}>
-            <Sparkline reeks={kans.sparkline} hoogte={40} volgorde={volgorde} />
+          <View style={styles.grafiek}>
+            <Sparkline reeks={kans.sparkline} hoogte={52} vlak stip volgorde={volgorde} />
           </View>
         )}
 
-        <View style={styles.sectie}>
-          <MomentumBalken ingredienten={kans.ingredienten} volgorde={volgorde} />
+        <View style={styles.momentum}>
+          <MomentumCompact ingredienten={kans.ingredienten} volgorde={volgorde} />
         </View>
 
-        <View style={styles.sectie}>
-          {plan && niveaus ? (
-            <>
-              <LevelRow
-                stop={niveaus.stop}
-                entry={plan.entry}
-                doel={plan.takeProfit}
-                stopAangepast={niveaus.aangepast}
-              />
-              {/* De stop staat hier op de EMA20 en niet op de swing low zoals op Markt. Zonder deze
-                  regel lijkt een andere stop voor dezelfde coin een fout. */}
-              <Text style={[Type.caption, styles.plannotitie, { color: colors.tekstGedimd }]}>
-                Uitbraak-plan: stop op de EMA20, doel boven de 90d-top.
+        {/* Wrap: met een grotere systeemletter passen badge, rang en R/R op 360 dp niet altijd
+            naast elkaar. De pijl blijft dan rechts op de laatste regel. */}
+        <View style={styles.voet}>
+          <AdviceBadge advies={signaal} score={kans.momentumScore} />
+          <RangLabel verschil={kans.rangVerschil} />
+          {/* Zonder plan is er geen R/R om te tonen. Onder de drempel in de letOp-kleur: precies de
+              reden dat het hier geen KOOP is. */}
+          {plan && niveaus && (
+            <View style={[styles.rrChip, { backgroundColor: colors.verhoogd }]}>
+              <Text style={[Type.prijs, styles.pilTekst, { color: haaltRr ? colors.tekstGedimd : colors.letOp }]}>
+                R/R {fmtRR(niveaus.rr)}
               </Text>
-              {/* Zelfde waarschuwing als TradeCard: onder de drempel in de letOp-kleur, met de
-                  drempel in dezelfde opmaak als de waarde zodat "onder 1 : 2.0" niet als "1,2" leest. */}
-              {!haaltRr && (
-                <Text style={[Type.caption, styles.plannotitie, { color: colors.letOp }]}>
-                  R/R {fmtRR(niveaus.rr)}, onder {fmtRR(MIN_RISK_REWARD)}: geen koopsignaal.
-                </Text>
-              )}
-              {niveaus.uitleg ? (
-                <Text style={[Type.caption, styles.plannotitie, { color: colors.letOp }]}>
-                  {niveaus.uitleg}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={[Type.caption, styles.plannotitie, { color: colors.tekstGedimd, marginTop: 0 }]}>
-              De koers staat onder de EMA20, dus er is nu geen instap-plan.
-            </Text>
+            </View>
           )}
+          <View style={[styles.pijlRondje, { backgroundColor: colors.verhoogd }]}>
+            <UitklapPijl open={uitgeklapt} size={14} color={colors.tekstGedimd} strokeWidth={2} veerNaam="stevig" />
+          </View>
         </View>
       </Pressable>
 
+      {/* Het uitgeklapte deel klapt niet dicht bij een tik erop: hier staan knoppen en tekst die je
+          wil kunnen aanraken en lezen zonder dat de kaart onder je vinger wegvouwt. */}
       {uitgeklapt && (
-        <Animated.View
-          entering={uitklapIn(reduceMotion)}
-          exiting={uitklapUit()}
-          style={[styles.redenen, { backgroundColor: colors.verhoogd }]}
-        >
-          {kans.redenen.map((r, i) => (
-            <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
-          ))}
-          <Text style={[Type.caption, styles.reden, { color: colors.tekstGedimd, marginTop: 4 }]}>
-            Dit is een uitbraak-plan: de stop staat op de EMA20 en het doel 2x ATR boven de
-            90d-top. Daarom wijken de niveaus af van die op Markt.
-          </Text>
+        <Animated.View exiting={uitklapUit()} style={[styles.uitklap, { borderTopColor: colors.rand }]}>
+          <Animated.View entering={uitklapInGestaffeld(0, reduceMotion)} exiting={uitklapUit()}>
+            {plan && niveaus ? (
+              <>
+                <StopDoelBaan
+                  stop={niveaus.stop}
+                  entry={plan.entry}
+                  doel={plan.takeProfit}
+                  live={kans.prijs}
+                  labels
+                />
+                {/* De stop staat hier op de EMA20 en niet op de swing low zoals op Markt. Zonder deze
+                    regel lijkt een andere stop voor dezelfde coin een fout. */}
+                <Text style={[Type.caption, styles.notitie, { color: colors.tekstGedimd }]}>
+                  Uitbraak-plan: stop op de EMA20, doel boven de 90d-top.
+                </Text>
+                {/* Zelfde waarschuwing als TradeCard: onder de drempel in de letOp-kleur, met de
+                    drempel in dezelfde opmaak als de waarde zodat "onder 1 : 2.0" niet als "1,2" leest. */}
+                {!haaltRr && (
+                  <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
+                    R/R {fmtRR(niveaus.rr)}, onder {fmtRR(MIN_RISK_REWARD)}: geen koopsignaal.
+                  </Text>
+                )}
+                {/* Staat de stop op eToro's grens in plaats van op die van Kader, dan hoort hier te
+                    staan waarom. Anders lijkt het getal een rekenfout. */}
+                {niveaus.uitleg ? (
+                  <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
+                    {niveaus.uitleg}
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>
+                De koers staat onder de EMA20, dus er is nu geen instap-plan.
+              </Text>
+            )}
+          </Animated.View>
+
+          <Animated.View entering={uitklapInGestaffeld(1, reduceMotion)} exiting={uitklapUit()} style={styles.waarom}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>WAAROM</Text>
+            {kans.redenen.map((r, i) => (
+              <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
+            ))}
+            <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
+              Dit is een uitbraak-plan: de stop staat op de EMA20 en het doel 2x ATR boven de
+              90d-top. Daarom wijken de niveaus af van die op Markt.
+            </Text>
+          </Animated.View>
+
+          {/* Mag afbreken: Getrade, Koop met merkjes en Details passen op 360 dp niet altijd op één
+              regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt. */}
+          <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} exiting={uitklapUit()} style={styles.pilRij}>
+            {plan && (
+              <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(kans)} />
+            )}
+            {kanKopen && onKoop && (
+              <View style={styles.koopGroep}>
+                <PilKnop
+                  label="Koop"
+                  icoon={ShoppingCart}
+                  variant="cta"
+                  onPress={() => onKoop(kans)}
+                  accessibilityLabel={`${kans.symbool} kopen via eToro`}
+                />
+                {/* De merkjes staan alleen naast een Koop-knop die er ook echt staat: zonder knop
+                    kan Kader hier niets plaatsen, dus zou het merkje iets beloven dat niet klopt. */}
+                {platforms.length > 0 && (
+                  <Pressable
+                    onPress={() => setPlatformsOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
+                    hitSlop={12}
+                  >
+                    <PlatformChips platforms={platforms} maat={20} />
+                  </Pressable>
+                )}
+              </View>
+            )}
+            <View style={styles.details}>
+              <PilKnop
+                label="Details"
+                variant="link"
+                // Alleen meten, niet krimpen: het detailscherm groeit uit de hele kaart, en de knop
+                // zelf veert al als Drukbaar.
+                onPressIn={druk.meetBron}
+                onPress={() => {
+                  druk.legBronVast();
+                  onOpenDetail(kans);
+                }}
+                accessibilityLabel={`${kans.symbool} details bekijken`}
+              />
+            </View>
+          </Animated.View>
         </Animated.View>
       )}
-
-      <Animated.View layout={schuif} style={[styles.actiesRij, { borderTopColor: colors.rand }]}>
-        <Pressable
-          style={styles.actieKnop}
-          onPress={() => setUitgeklapt(v => !v)}
-          accessibilityRole="button"
-          accessibilityLabel={uitgeklapt ? 'Minder info' : 'Waarom deze kans'}
-        >
-          <Text style={[Type.caption, styles.actieLabel, { color: colors.cta }]}>
-            {uitgeklapt ? 'Minder' : 'Waarom'}
-          </Text>
-          <UitklapPijl open={uitgeklapt} size={12} color={colors.cta} />
-        </Pressable>
-
-        {plan && (
-          <>
-            <View style={[styles.scheiding, { backgroundColor: colors.rand }]} />
-            <Pressable
-              style={styles.actieKnop}
-              onPress={() => onGetrade(kans)}
-              accessibilityRole="button"
-              accessibilityLabel="Getrade"
-            >
-              <CheckCircle size={15} color={colors.winst} strokeWidth={1.75} />
-              <Text style={[Type.caption, styles.actieLabel, { color: colors.winst }]}>Getrade</Text>
-            </Pressable>
-          </>
-        )}
-
-        {/* Alleen bij een KOOP met een plan: zonder entry, stop en doel valt er geen order te
-            bouwen, en bij WATCH zegt Kader zelf dat het nog niet klopt. Bij een verouderde scan ook
-            niet: dan kan het plan al achterhaald zijn. */}
-        {plan && signaal === 'KOOP' && !verouderd && onKoop && (
-          <>
-            <View style={[styles.scheiding, { backgroundColor: colors.rand }]} />
-            <Pressable
-              style={styles.actieKnop}
-              onPress={() => onKoop(kans)}
-              accessibilityRole="button"
-              accessibilityLabel={`${kans.symbool} kopen via eToro`}
-            >
-              <ShoppingCart size={15} color={colors.cta} strokeWidth={1.75} />
-              <Text style={[Type.caption, styles.actieLabel, { color: colors.cta }]}>Koop</Text>
-            </Pressable>
-          </>
-        )}
-      </Animated.View>
 
       {/* Alleen mounten als hij open is: anders staat er per kaart een Modal in de boom. */}
       {platformsOpen && (
@@ -280,62 +312,73 @@ const styles = StyleSheet.create({
     borderRadius: radii.kaart,
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,
+    // Knipt de blokken die bij het dichtklappen nog uitfaden af op de rand van de krimpende kaart.
     overflow: 'hidden',
   },
-  badgeRij: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: spacing.md,
-    paddingHorizontal: spacing.base,
-  },
-  badgeLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  boven: { padding: spacing.base },
   nieuw: {
     paddingVertical: 2,
     paddingHorizontal: 6,
     borderRadius: radii.pill,
   },
   rang: { fontSize: 12 },
-  kop: {
+  kop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  kopMidden: { flex: 1, minWidth: 0, gap: 2 },
+  // Wrap: bij een lang symbool met een grote systeemletter valt de ster liever onder het symbool
+  // dan over de prijs heen.
+  symboolRij: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  // Type.sectiekop is 16; het ontwerp zet het symbool op 17.
+  symbool: { fontSize: 17 },
+  kopRechts: { alignItems: 'flex-end', gap: spacing.xs },
+  // Type.prijsGroot is 21; op de kaart staat de prijs op 17, naast het symbool.
+  prijs: { fontSize: 17, lineHeight: 22 },
+  pil: {
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
+  },
+  pilTekst: { fontSize: 11.5, lineHeight: 14 },
+  grafiek: { marginTop: spacing.md },
+  momentum: { marginTop: spacing.md },
+  voet: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: spacing.base,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
-  kopLinks: { gap: 2, flex: 1 },
-  symboolRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectie: {
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.md,
+  rrChip: {
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
   },
-  plannotitie: { lineHeight: 18, marginTop: spacing.sm },
-  redenen: {
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.md,
-    borderRadius: radii.veld,
-    padding: spacing.md,
-    gap: 4,
-  },
-  reden: { lineHeight: 18 },
-  actiesRij: {
-    flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  actieKnop: {
-    flex: 1,
-    flexDirection: 'row',
+  pijlRondje: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: spacing.sm,
-    minHeight: 44,
+    marginLeft: 'auto',
   },
-  scheiding: {
-    width: StyleSheet.hairlineWidth,
-    alignSelf: 'stretch',
-    marginVertical: spacing.sm,
+  // Het tikvlak erboven levert de 16 punten boven de haarlijn al.
+  uitklap: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.base,
+    paddingTop: spacing.base,
+    gap: spacing.base,
   },
-  actieLabel: { fontSize: 12 },
+  notitie: { lineHeight: 18, marginTop: spacing.sm },
+  waarom: { gap: 4 },
+  reden: { lineHeight: 18 },
+  uitleg: { lineHeight: 18, marginTop: 4 },
+  pilRij: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  koopGroep: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // Duwt Details naar rechts op zijn regel, ook als de rij afbreekt.
+  details: { marginLeft: 'auto' },
 });

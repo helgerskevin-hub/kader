@@ -84,6 +84,10 @@ export function stopAfstandStructuur(
 // Minimaal aantal candles voordat EMA50 en consorten iets betekenen.
 export const MIN_CANDLES = EMA_LANG + 5;
 
+// Dagen koersverloop op de Markt-kaart. Eén close extra, zodat eerste tegen laatste punt precies
+// deze periode beslaat: de candles zijn dagcandles, dus 31 closes zijn 30 dagen.
+export const SPARKLINE_DAGEN_MARKT = 30;
+
 // De scoring zelf, zonder netwerk. `candles` is de historie tot en met de candle die
 // beoordeeld wordt; alles wat later komt bestaat voor deze functie niet. De backtest
 // schuift daardoor gewoon een venster op (candles.slice(0, i + 1)) en kan per constructie
@@ -282,6 +286,7 @@ export function scoorCandles(
     macdBullish: macdNu > signaalNu,
     volumeRatio, score, redenen,
     signaal: signaalTekst, highConviction, voldoetAanRR, profiel, richting,
+    sparkline: close.slice(-(SPARKLINE_DAGEN_MARKT + 1)),
   };
 }
 
@@ -493,6 +498,9 @@ if (require.main === module) {
 
   const lang = scoorCandles('TEST', c, 'binance');
   console.assert(lang !== null && lang.richting === 'long', 'zonder richting hoort er een long uit te komen');
+  console.assert(lang !== null && lang.sparkline?.length === SPARKLINE_DAGEN_MARKT + 1
+    && lang.sparkline[SPARKLINE_DAGEN_MARKT] === c[c.length - 1].close,
+    'sparkline hoort de laatste 31 closes te zijn, de nieuwste achteraan');
   console.assert(lang !== null && lang.stopLoss < lang.entry && lang.takeProfit > lang.entry,
     'de long-niveaus mogen niet veranderd zijn');
 

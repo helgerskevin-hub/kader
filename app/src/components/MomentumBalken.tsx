@@ -114,6 +114,43 @@ export function MomentumBalken({ ingredienten, volgorde = 0 }: Props) {
   );
 }
 
+// De compacte variant voor de nieuwe Kansen-kaart: één baan voor de afstand tot de 90d-top (dezelfde
+// vulling en dezelfde inteken-beweging als de hoofdbalk hierboven), met 7d en 30d alleen als getal
+// ernaast. De afstand zelf staat als pil in de kop van de kaart, dus hier hoeft hij niet nog eens als
+// tekst. Wat null is (te weinig historie) laten we weg, net als in de volle variant.
+export function MomentumCompact({ ingredienten, volgorde = 0 }: Props) {
+  const { colors } = useTheme();
+  const { afstandHigh90d, rendement7d, rendement30d } = ingredienten;
+
+  return (
+    <View style={styles.compact}>
+      {afstandHigh90d !== null && (
+        <Balk
+          fractie={1 - Math.min(Math.abs(afstandHigh90d), AFSTAND_SCHAAL) / AFSTAND_SCHAAL}
+          kleur={colors.primair}
+          hoogte={6}
+          volgorde={volgorde}
+        />
+      )}
+      <View style={styles.compactRij}>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MOMENTUM</Text>
+        <View style={styles.spacer} />
+        {([
+          { label: '7D', waarde: rendement7d },
+          { label: '30D', waarde: rendement30d },
+        ] as const).map(({ label, waarde }) => waarde !== null && (
+          <View key={label} style={styles.compactPaar}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{label}</Text>
+            <Text style={[Type.prijs, styles.contextWaarde, { color: waarde >= 0 ? colors.winst : colors.verlies }]}>
+              {fmtPct(waarde)}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   blok: { gap: spacing.md },
   hoofd: { gap: 6 },
@@ -122,6 +159,12 @@ const styles = StyleSheet.create({
   context: { flexDirection: 'row', gap: spacing.lg },
   contextItem: { flex: 1, gap: 4 },
   contextWaarde: { fontSize: 12 },
+  compact: { gap: spacing.sm },
+  // Mag afbreken: met een grote systeemletter passen MOMENTUM, 7D en 30D op 360 dp niet altijd op
+  // één regel.
+  compactRij: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 14, rowGap: 4 },
+  compactPaar: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  spacer: { flexGrow: 1 },
   spoor: { borderRadius: radii.pill, overflow: 'hidden' },
   vulling: {
     position: 'absolute',

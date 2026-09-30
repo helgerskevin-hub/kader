@@ -33,6 +33,11 @@ const DIM_OPACITY = 0.85;
 // Zet dan ook ref op de buitenste Animated.View en roep legBronVast() aan in onPress, vóór het
 // scherm geopend wordt. Gemeten wordt al bij het indrukken: measureInWindow is een rondje naar de
 // native kant, en bij de tik zelf moet het antwoord er al liggen.
+//
+// meetBron() doet alleen dat meten, zonder de veer te bewegen. Voor een knop binnen een kaart
+// (Details) waarvan het detailscherm uit de hele kaart moet groeien en niet uit de knop: de kaart
+// zet ref en bron, de knop roept meetBron() aan in zijn onPressIn en legBronVast() in zijn
+// onPress. De kaart krimpt dan niet mee: je drukt op de knop, en die krimpt als Drukbaar zelf al.
 export function useDrukVeer(schaal: number = drukSchaal, bron?: BronStijl) {
   const { reduceMotion, naar } = useBeweging();
   // 0 = los, 1 = helemaal ingedrukt. Eén voortgangswaarde in plaats van schaal en opacity apart,
@@ -48,13 +53,16 @@ export function useDrukVeer(schaal: number = drukSchaal, bron?: BronStijl) {
   const ref = useRef<View>(null);
   const gemeten = useRef<{ x: number; y: number; breedte: number; hoogte: number } | null>(null);
 
+  function meetBron() {
+    if (!bron) return;
+    ref.current?.measureInWindow((x, y, breedte, hoogte) => {
+      gemeten.current = { x, y, breedte, hoogte };
+    });
+  }
+
   function drukIn() {
     voortgang.value = naar(1, 'snel');
-    if (bron) {
-      ref.current?.measureInWindow((x, y, breedte, hoogte) => {
-        gemeten.current = { x, y, breedte, hoogte };
-      });
-    }
+    meetBron();
   }
 
   function drukUit() {
@@ -69,7 +77,7 @@ export function useDrukVeer(schaal: number = drukSchaal, bron?: BronStijl) {
     gemeten.current = null;
   }
 
-  return { stijl, drukIn, drukUit, ref, legBronVast };
+  return { stijl, drukIn, drukUit, ref, meetBron, legBronVast };
 }
 
 export interface DrukbaarProps extends Omit<PressableProps, 'style'> {

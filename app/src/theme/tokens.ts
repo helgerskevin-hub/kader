@@ -79,7 +79,9 @@ export const spacing = {
 export const radii = {
   veld: 8,
   knop: 12,
-  kaart: 16,
+  // UI-makeover: een grote radius zoals Apple Wallet. Geldt voor alle kaarten, ook Traders, zodat
+  // er geen twee radii naast elkaar staan.
+  kaart: 20,
   pill: 999,
 } as const;
 
