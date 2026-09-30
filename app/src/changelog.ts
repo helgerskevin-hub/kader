@@ -15,6 +15,11 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-09-30',
     punten: [
+      'eToro koppelen gaat nu in vijf stappen op een eigen scherm, met een voortgangsbalk. Je kiest eerst of je alleen wilt meekijken of ook wilt handelen, en de uitleg past zich daarop aan',
+      'Sleutels plak je met een Plak-knop. Kader kijkt alleen of het eruitziet als een sleutel en zegt het als er bijvoorbeeld een spatie in staat',
+      'De verbindingstest toont per regel wat werkt: de sleutel, je posities in demo en echt (met het aantal), en of handelen mag. Werkt de sleutel nergens, dan zie je per omgeving waarom en wat je kunt doen',
+      'Wijzig je een sleutel na een geslaagde test, dan moet je opnieuw testen voor je kunt opslaan',
+      'Koppelen via de vraag bij het opstarten ververst nu meteen of je mag handelen; eerder gebeurde dat pas na een herstart',
       'Kopen, verkopen, stop en doel en een trade vastleggen hebben een nieuw venster. Het bedrag staat groot in beeld met snelknoppen ($50, $100, $250). 25% en Max staan er alleen als eToro je vrije saldo doorgeeft; zonder saldo verzint Kader geen maximum',
       'Het plan van Kader staat nu in dollars: wat je verliest als de stop geraakt wordt en wat je wint bij het doel, voor het bedrag dat je intikt. Zet eToro de stop zelf, dan staat er geen bedrag bij stop',
       'Stop en doel verzet je met grepen op een baan, met - en + of door een bedrag te typen. De grepen gaan nooit voorbij de grens die eToro voor die coin hanteert, en het venster zegt het als je daar tegenaan zit. Weghalen is een tekstknop. Heeft Kader een voorstel om winst te beschermen, dan zet één tik het in het veld; doorgeven doe je nog steeds zelf',
