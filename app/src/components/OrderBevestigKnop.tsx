@@ -68,7 +68,9 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
   const [knopBreedte, setKnopBreedte] = useState(0);
   const wekker = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const geblokkeerd = uitgeschakeld || bezig;
+  // Ook dicht zodra eToro ja heeft gezegd: het vinkje staat nog even, en een tik of vasthouden in
+  // die tijd mag geen tweede order worden.
+  const geblokkeerd = uitgeschakeld || bezig || gelukt;
   // De houd-wekker vuurt 800 ms na het indrukken. Komt in die tijd het saldo binnen en past de
   // order niet meer, dan moet hij dat zien: dus de actuele stand, niet die van bij het indrukken.
   const actueel = useRef({ onBevestig, geblokkeerd });
@@ -156,8 +158,8 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
   }
 
   // Echt is inkt op kaart: in donker keert hij om naar een lichte knop met donkere tekst.
-  const knopKleur = toonVink ? colors.winst : geblokkeerd ? colors.rand : isEcht ? colors.tekstPrimair : colors.cta;
-  const voorgrondKleur = toonVink ? 'white' : geblokkeerd ? colors.tekstGedimd : isEcht ? colors.kaart : 'white';
+  const knopKleur = toonVink || gelukt ? colors.winst : geblokkeerd ? colors.rand : isEcht ? colors.tekstPrimair : colors.cta;
+  const voorgrondKleur = toonVink || gelukt ? 'white' : geblokkeerd ? colors.tekstGedimd : isEcht ? colors.kaart : 'white';
   // Op de donkere inktknop (licht thema) vult wit; op de lichte inktknop (donker thema) vult inkt.
   const vulKleur = donkerActief ? 'rgba(14,17,23,0.22)' : 'rgba(255,255,255,0.26)';
 

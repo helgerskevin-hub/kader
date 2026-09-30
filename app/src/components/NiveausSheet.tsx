@@ -3,14 +3,14 @@
 // Het belangrijkste hier is dat bepaalStop blokkeert vóór er een verzoek uitgaat. eToro weigert een
 // stop buiten zijn eigen grenzen toch, en een afgewezen order op een geldpad is een slechtere
 // gebruikerservaring dan een knop die uit staat met de reden erbij.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle } from 'react-native';
 import { Minus, Plus, Shield } from 'lucide-react-native';
 import { fmtPrijs } from '../engine/format';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { guid, wijzigNiveaus, NiveauWijziging } from '../engine/etoro';
 import { koersFactor } from '../engine/etoroSymbolen';
-import { alsVeldTekst, greepBereik, klem, opStap, planInGeld, stapGrootte, type Bereik } from '../engine/planInGeld';
+import { alsVeldTekst, zonderExponent, greepBereik, klem, opStap, planInGeld, stapGrootte, type Bereik } from '../engine/planInGeld';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
@@ -81,6 +81,10 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const [wisDoel, setWisDoel] = useState(false);
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
+  // Eén bevestiging tegelijk. Een state-vlag komt pas na de volgende render aan, dus twee tikken
+  // binnen één frame zouden er allebei doorheen glippen. Na een geslaagde order blijft dit dicht
+  // tot het venster opnieuw opengaat: tijdens het vinkje mag er geen tweede order uit.
+  const loopt = useRef(false);
   const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
@@ -94,6 +98,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     setWisDoel(false);
     setVerzoekId(guid());
     setBezig(false);
+    loopt.current = false;
     wis();
     setFout('');
   }, [zichtbaar, trade.id, trade.stopLoss, trade.takeProfit]);
@@ -163,7 +168,9 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   }
 
   async function bevestig() {
-    if (!magBevestigen || bezig || positionId === undefined) return;
+    if (!magBevestigen || bezig || loopt.current || positionId === undefined) return;
+    loopt.current = true;
+    let geslaagd = false;
     setBezig(true);
     setFout('');
 
@@ -183,6 +190,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
       const uitkomst = await wijzigNiveaus(positionId, bouwWijziging(), sleutels, verzoekId);
 
       if (uitkomst.soort === 'ok') {
+        geslaagd = true;
         verzoenNaOrder();
         // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
         vier(() => {
@@ -213,7 +221,12 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
         bekendePosities,
         tijd: Date.now(),
       };
-      await noteerOnbekendeOrder(order);
+      try {
+        await noteerOnbekendeOrder(order);
+      } catch {
+        // Wegschrijven mislukte. De melding hieronder klopt hoe dan ook, en opnieuw versturen is
+        // ook nu geen optie.
+      }
       onSluiten();
       toonDialoog({
         variant: 'waarschuwing',
@@ -227,7 +240,12 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
         knoppen: [{ label: 'Oké' }],
       });
     } finally {
-      setBezig(false);
+      // Na een geslaagde order blijft de knop dicht tot het venster sluit: het vinkje staat nog
+      // even, en een tik in die tijd mag geen tweede order worden.
+      if (!geslaagd) {
+        setBezig(false);
+        loopt.current = false;
+      }
     }
   }
 
@@ -300,7 +318,9 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const trailing = afbouwAdvies?.trailingStop;
   const toonVoorstel =
     typeof trailing === 'number' && isFinite(trailing) && trailing > 0
-    && bepaalStop(entry, trailing, limiet).soort !== 'waarschuwing'
+    // Alleen als eToro dit niveau zo neemt. Bij 'aangepast' zou de tekst een ander niveau noemen
+    // dan wat er de deur uitgaat.
+    && bepaalStop(entry, trailing, limiet).soort === 'ok'
     && !wisStop
     && (!heeftStop || anders(trailing, ingevuldeStop));
   const voorstelInVerlies = typeof trailing === 'number' && (richting === 'short' ? trailing > entry : trailing < entry);
@@ -309,7 +329,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     if (typeof trailing !== 'number') return;
     haptiek('tik');
     // Zwevende-komma-staartjes weg, zonder het niveau zelf te verschuiven.
-    setStopVeld(Number(trailing.toPrecision(10)).toString());
+    setStopVeld(zonderExponent(trailing));
   }
 
   // Staat de stop tegen eToro's minimale afstand aan, dan zeggen we waarom de greep daar stopt.
@@ -350,7 +370,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
             max={baan.max}
             entry={entry}
             live={huidigePrijs}
-            stop={heeftStop ? ingevuldeStop : null}
+            stop={heeftStop ? (stopTeSturen ?? ingevuldeStop) : null}
             doel={heeftDoel ? ingevuldDoel : null}
             stopBereik={bereik.stop}
             doelBereik={bereik.doel}

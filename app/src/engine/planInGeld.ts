@@ -92,7 +92,7 @@ export function alsVeldTekst(waarde: number, stap: number, bereik: Bereik | null
   let r = Number(waarde.toFixed(decimalen));
   if (bereik && r > bereik.max) r = Number((r - tik).toFixed(decimalen));
   if (bereik && r < bereik.min) r = Number((r + tik).toFixed(decimalen));
-  return String(r);
+  return zonderExponent(r);
 }
 
 export interface Bereik {
@@ -180,7 +180,21 @@ export function klem(waarde: number, bereik: Bereik): number {
 // KooporderSheet hanteert, en rondt naar beneden af op centen: Max mag die check nooit laten falen.
 export function maxBedrag(vrijSaldo: number, kostenmarge: number): number {
   if (!geldig(vrijSaldo) || !geldig(kostenmarge)) return 0;
-  return Math.floor((vrijSaldo / kostenmarge) * 100) / 100;
+  let max = Math.floor((vrijSaldo / kostenmarge) * 100) / 100;
+  // Zwevende komma: 14 * 1.02 is 14.280000000000001, net boven een saldo van 14.28. Dan een cent
+  // terug, tot de saldocheck in KooporderSheet (bedrag * marge > saldo) zeker niet afgaat.
+  while (max > 0 && max * kostenmarge > vrijSaldo) max = Math.round((max - 0.01) * 100) / 100;
+  return Math.max(0, max);
+}
+
+// Een niveau als tekst zonder exponent: String(0.0000005) is "5e-7", en wie daarin gaat typen
+// krijgt van parseFloat iets heel anders terug. Tien significante cijfers, staartnullen weg.
+export function zonderExponent(waarde: number): string {
+  if (!isFinite(waarde)) return '';
+  if (waarde === 0) return '0';
+  const decimalen = Math.min(20, Math.max(0, 9 - Math.floor(Math.log10(Math.abs(waarde)))));
+  const tekst = waarde.toFixed(decimalen);
+  return tekst.includes('.') ? tekst.replace(/\.?0+$/, '') : tekst;
 }
 
 export function deelVanSaldo(vrijSaldo: number, deel: number, kostenmarge: number): number {
@@ -286,6 +300,21 @@ if (require.main === module) {
   console.assert(maxBedrag(1000, 1.02) * 1.02 <= 1000, 'max blijft binnen de saldocheck');
   console.assert(deelVanSaldo(1000, 0.25, 1.02) === 250, `25% van 1000 is 250, was ${deelVanSaldo(1000, 0.25, 1.02)}`);
   console.assert(maxBedrag(0, 1.02) === 0, 'geen saldo geen max');
+  // Elke centstand van $10 tot $20.000: Max mag de saldocheck nooit laten afgaan.
+  let maxFout = 0;
+  for (let c = 1000; c <= 2000000; c += 1) {
+    const v = c / 100;
+    if (maxBedrag(v, 1.02) * 1.02 > v) maxFout += 1;
+  }
+  console.assert(maxFout === 0, `Max liet de saldocheck ${maxFout} keer afgaan`);
+  console.assert(maxBedrag(14.28, 1.02) === 13.99, `Max bij 14.28 is 13.99, was ${maxBedrag(14.28, 1.02)}`);
+
+  // Geen exponent in veldtekst.
+  console.assert(zonderExponent(0.0000005) === '0.0000005', `zonder exponent, was ${zonderExponent(0.0000005)}`);
+  console.assert(zonderExponent(0.00000506) === '0.00000506', `SHIB-prijs, was ${zonderExponent(0.00000506)}`);
+  console.assert(zonderExponent(60000) === '60000', `BTC-prijs, was ${zonderExponent(60000)}`);
+  console.assert(zonderExponent(0.311) === '0.311', `CRV-stop, was ${zonderExponent(0.311)}`);
+  console.assert(alsVeldTekst(0.000000512, 0.000000002, null).indexOf('e') === -1, `veldtekst zonder exponent, was ${alsVeldTekst(0.000000512, 0.000000002, null)}`);
 
   console.log('planInGeld: self-check klaar');
 }

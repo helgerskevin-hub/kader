@@ -93,6 +93,10 @@ export function KooporderSheet({
   // Kader dat geld als beschikbaar en werd de order die je erop baseerde door eToro geweigerd.
   const vrijSaldo = saldo?.besteedbaarUsd ?? null;
   const [bezig, setBezig] = useState(false);
+  // Eén bevestiging tegelijk. Een state-vlag komt pas na de volgende render aan, dus twee tikken
+  // binnen één frame zouden er allebei doorheen glippen. Na een geslaagde order blijft dit dicht
+  // tot het venster opnieuw opengaat: tijdens het vinkje mag er geen tweede order uit.
+  const loopt = useRef(false);
   const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
@@ -107,6 +111,7 @@ export function KooporderSheet({
     setBedrag('');
     setFout('');
     setBezig(false);
+    loopt.current = false;
     wis();
     setSaldo(null);
     setSaldoBezig(true);
@@ -142,7 +147,9 @@ export function KooporderSheet({
     : advies.soort === 'aangepast' ? advies.stop
     : undefined;
 
-  const bedragGetal = parseFloat(bedrag.replace(',', '.'));
+  // Op centen afgerond: het bedrag staat met twee decimalen in beeld, dus dat is ook wat er naar
+  // eToro gaat. Wie 12.345 tikt ziet $12.35 en koopt voor $12.35.
+  const bedragGetal = Math.round(parseFloat(bedrag.replace(',', '.')) * 100) / 100;
   const heeftBedrag = !isNaN(bedragGetal) && bedragGetal > 0;
 
   const invoer: KooporderInvoer = {
@@ -200,7 +207,8 @@ export function KooporderSheet({
   const magBevestigen = heeftBedrag && blokkade === null && instrumentId !== null;
 
   async function bevestig() {
-    if (!magBevestigen || instrumentId === null) return;
+    if (!magBevestigen || instrumentId === null || loopt.current) return;
+    loopt.current = true;
 
     // Vastleggen vóór het versturen: welke posities stonden er al open? Zonder die lijst zou een
     // positie die je al had een onbevestigde order ten onrechte oplossen.
@@ -215,6 +223,7 @@ export function KooporderSheet({
       if (!sleutels) {
         setFout('Er staat geen eToro-sleutel klaar voor deze omgeving.');
         setBezig(false);
+        loopt.current = false;
         return;
       }
       // De knop is getekend voor één omgeving. Is die intussen gewisseld, dan gaat er niets de deur
@@ -222,6 +231,7 @@ export function KooporderSheet({
       if ((sleutels.omgeving ?? 'real') !== omgeving) {
         setFout('Je omgeving is net gewisseld. Sluit dit venster en open het opnieuw.');
         setBezig(false);
+        loopt.current = false;
         return;
       }
 
@@ -277,6 +287,7 @@ export function KooporderSheet({
       if (uitkomst.soort === 'fout') {
         setFout(uitkomst.bericht);
         setBezig(false);
+        loopt.current = false;
         return;
       }
 
@@ -298,6 +309,7 @@ export function KooporderSheet({
         // ook nu geen optie.
       }
       setBezig(false);
+      loopt.current = false;
       onSluiten();
       toonDialoog({
         variant: 'waarschuwing',
@@ -313,6 +325,7 @@ export function KooporderSheet({
     } catch (e) {
       setFout(e instanceof Error ? e.message : 'Er ging iets mis bij het plaatsen van de order.');
       setBezig(false);
+      loopt.current = false;
     }
   }
 

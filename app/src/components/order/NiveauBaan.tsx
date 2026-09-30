@@ -52,6 +52,9 @@ const MARK_LABEL_BREEDTE = 56;
 const MARK_LABEL_AFSTAND = 44;
 const GEDIMD = 0.45;
 // Dekking van het verlies- en winstvlak: de lijn zelf mag kleur hebben, maar gedempt.
+// Basisbreedte van een zonevlak. Niet 1: een vlak van 1 dp wordt op hele pixels afgerond (bij
+// 420 dpi 2 px in plaats van 2,625), en dan schaalt elk vlak een kwart te kort.
+const ZONE_BASIS = 100;
 const ZONE_DEKKING = 0.55;
 
 // Worklet-kopie van opStap uit planInGeld: die functie draait op de JS-thread en mag niet in een
@@ -124,7 +127,7 @@ export function NiveauBaan({
     if (!(b > 0) || !isFinite(s) || (e - s) * tekenW.value <= 0) return { opacity: 0, transform: [{ translateX: 0 }, { scaleX: 0 }] };
     const xs = xVan(s, minW.value, maxW.value, b);
     const xe = xVan(e, minW.value, maxW.value, b);
-    return { opacity: ZONE_DEKKING, transform: [{ translateX: Math.min(xs, xe) }, { scaleX: Math.abs(xe - xs) }] };
+    return { opacity: ZONE_DEKKING, transform: [{ translateX: Math.min(xs, xe) }, { scaleX: Math.abs(xe - xs) / ZONE_BASIS }] };
   });
 
   const winstStijl = useAnimatedStyle(() => {
@@ -134,7 +137,7 @@ export function NiveauBaan({
     if (!(b > 0) || !isFinite(d) || (d - e) * tekenW.value <= 0) return { opacity: 0, transform: [{ translateX: 0 }, { scaleX: 0 }] };
     const xd = xVan(d, minW.value, maxW.value, b);
     const xe = xVan(e, minW.value, maxW.value, b);
-    return { opacity: ZONE_DEKKING, transform: [{ translateX: Math.min(xd, xe) }, { scaleX: Math.abs(xd - xe) }] };
+    return { opacity: ZONE_DEKKING, transform: [{ translateX: Math.min(xd, xe) }, { scaleX: Math.abs(xd - xe) / ZONE_BASIS }] };
   });
 
   // De streepjes bewegen niet tijdens het slepen, dus die mogen gewoon uit de props komen.
@@ -384,13 +387,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     overflow: 'hidden',
   },
-  // Eén punt breed, links op 0 en vanuit links geschaald: translateX zet het vlak op zijn plek en
+  // ZONE_BASIS breed, links op 0 en vanuit links geschaald: translateX zet het vlak op zijn plek en
   // scaleX geeft het de breedte tussen de grepen. Zo animeert alleen transform.
   zone: {
     position: 'absolute',
     left: 0,
     top: 0,
-    width: 1,
+    width: ZONE_BASIS,
     height: BAAN_HOOGTE,
     transformOrigin: 'left',
   },

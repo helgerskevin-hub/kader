@@ -4,7 +4,7 @@
 //
 // Twee regels die niet mogen wijken: er wordt nooit automatisch opnieuw verstuurd, en er is geen
 // knop die dat handmatig doet. Weten we het niet, dan verzoenen we.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { fmtBedrag, fmtPct, fmtPrijs, fmtResultaatUsd } from '../engine/format';
 import { guid, sluitPositie } from '../engine/etoro';
@@ -52,6 +52,10 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
 
   const [verzoekId, setVerzoekId] = useState('');
   const [bezig, setBezig] = useState(false);
+  // Eén bevestiging tegelijk. Een state-vlag komt pas na de volgende render aan, dus twee tikken
+  // binnen één frame zouden er allebei doorheen glippen. Na een geslaagde order blijft dit dicht
+  // tot het venster opnieuw opengaat: tijdens het vinkje mag er geen tweede order uit.
+  const loopt = useRef(false);
   const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
@@ -61,6 +65,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
     if (!zichtbaar) return;
     setVerzoekId(guid());
     setBezig(false);
+    loopt.current = false;
     wis();
     setFout('');
   }, [zichtbaar, trade.id]);
@@ -112,7 +117,8 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
   // verandert.
   const koersBekend = huidigePrijs !== undefined && huidigePrijs > 0;
   const sluiting = schatSluiting({
-    inleg: trade.bedragUsd ?? (aantal !== undefined ? aantal * trade.entryPrijs : 0),
+    // Dezelfde inleg als de dialoog na de verkoop, zodat het percentage op beide plekken gelijk is.
+    inleg: aantal !== undefined ? aantal * trade.entryPrijs : 0,
     aantal: aantal ?? 0,
     entry: trade.entryPrijs,
     prijs: huidigePrijs,
@@ -143,7 +149,9 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
   };
 
   async function bevestig() {
-    if (!mag || bezig || positionId === undefined || instrumentId === undefined) return;
+    if (!mag || bezig || loopt.current || positionId === undefined || instrumentId === undefined) return;
+    loopt.current = true;
+    let geslaagd = false;
     setBezig(true);
     setFout('');
 
@@ -164,6 +172,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
       const uitkomst = await sluitPositie(positionId, instrumentId, null, sleutels, verzoekId);
 
       if (uitkomst.soort === 'ok') {
+        geslaagd = true;
         // Eerst wegschrijven, dan pas verzoenen. De sync die verzoenNaOrder meteen start kan de
         // gesloten positie al in eToro's historie zien, en de sluitingsmelding moet dan weten dat
         // Kader dit zelf verkocht, anders meldt hij een verkoop op het doel als "doel gehaald". Een
@@ -228,7 +237,12 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
         bekendePosities,
         tijd: Date.now(),
       };
-      await noteerOnbekendeOrder(order);
+      try {
+        await noteerOnbekendeOrder(order);
+      } catch {
+        // Wegschrijven mislukte. De melding hieronder klopt hoe dan ook, en opnieuw versturen is
+        // ook nu geen optie.
+      }
       onSluiten();
       // Hier staat met opzet geen bedrag en geen percentage, ook al kunnen we ze uitrekenen. Een
       // resultaat tonen bij een order waarvan we niet weten of hij is uitgevoerd doet alsof we
@@ -249,7 +263,12 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
         knoppen: [{ label: 'Oké' }],
       });
     } finally {
-      setBezig(false);
+      // Na een geslaagde order blijft de knop dicht tot het venster sluit: het vinkje staat nog
+      // even, en een tik in die tijd mag geen tweede order worden.
+      if (!geslaagd) {
+        setBezig(false);
+        loopt.current = false;
+      }
     }
   }
 

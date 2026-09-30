@@ -154,8 +154,12 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
   // Wat je intikt voor het plan in geld. Zonder geldig bedrag of aankoopprijs geeft planInGeld null
   // en tonen de tegels "geen" in plaats van een verzonnen getal.
   const bedragGetal = parseFloat(form.bedragUsd.replace(',', '.'));
+  // Het aantal coins is wat er wordt opgeslagen en waar Kader later mee rekent. Heb je het zelf
+  // aangepast, dan rekent het plan daarmee, anders met het bedrag.
+  const aantalGetal = parseFloat(form.aantalCoins.replace(',', '.'));
+  const planBedrag = isFinite(aantalGetal) && aantalGetal > 0 && ingevuldeEntry > 0 ? aantalGetal * ingevuldeEntry : bedragGetal;
   const plan = trade
-    ? planInGeld({ bedrag: bedragGetal, entry: ingevuldeEntry, stop, doel: trade.takeProfit, richting })
+    ? planInGeld({ bedrag: planBedrag, entry: ingevuldeEntry, stop, doel: trade.takeProfit, richting })
     : null;
 
   return (
