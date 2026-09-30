@@ -590,11 +590,12 @@ interface ZoekTreffer {
   internalAssetClassName?: string;
   isDelisted?: boolean;
   isBuyEnabled?: boolean;
+  isInternalInstrument?: boolean;
 }
 
 // Zonder de fields-projectie geeft dit endpoint per treffer een paar kilobyte aan beschrijvingen in
 // twintig talen terug. Met projectie is het een handvol velden.
-const ZOEK_VELDEN = 'internalSymbolFull,instrumentId,internalAssetClassName,isDelisted,isBuyEnabled';
+const ZOEK_VELDEN = 'internalSymbolFull,instrumentId,internalAssetClassName,isDelisted,isBuyEnabled,isInternalInstrument';
 
 // Welke van de zoektreffers is de coin die de gebruiker bedoelt? Pure functie, zodat de regels
 // hieronder in de self-check staan in plaats van alleen in een API-respons die niemand kan naspelen.
@@ -618,6 +619,9 @@ export function kiesInstrumentTreffer(treffers: ZoekTreffer[], symbool: string):
     if ((t.internalSymbolFull ?? '').toUpperCase() !== gezocht) return false;
     if (t.isDelisted === true) return false;
     if (t.isBuyEnabled === false) return false;
+    // Gemeten: FLOW staat bij eToro op alleen bekijken en is de enige van 57 coins met dit veld op
+    // true, terwijl isBuyEnabled bij hem true blijft. Een order erop wordt later geannuleerd.
+    if (t.isInternalInstrument === true) return false;
     // Ontbreekt de assetclass, dan niet afkeuren: eToro stuurt het veld niet altijd mee en een
     // ontbrekend veld is geen bewijs dat het geen crypto is.
     if (t.internalAssetClassName && t.internalAssetClassName.toLowerCase() !== 'crypto') return false;
@@ -1649,6 +1653,9 @@ if (require.main === module) {
   console.assert(
     kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', instrumentId: 5, isBuyEnabled: false }, pepe], 'PEPE') === 123,
     'een niet-koopbare dubbele regel mag de koopbare niet blokkeren');
+  console.assert(
+    kiesInstrumentTreffer([{ internalSymbolFull: 'FLOW', instrumentId: 100500, isBuyEnabled: true, isInternalInstrument: true }], 'FLOW') === null,
+    'een alleen-bekijken coin (isInternalInstrument) krijgt geen instrumentId, ook met isBuyEnabled true');
   console.assert(
     kiesInstrumentTreffer([{ internalSymbolFull: 'PEPE', instrumentId: 5, internalAssetClassName: 'stocks' }, pepe], 'PEPE') === 123,
     'een aandeel met hetzelfde symbool mag de crypto niet blokkeren');
