@@ -77,7 +77,14 @@ export function useDrukVeer(schaal: number = drukSchaal, bron?: BronStijl) {
     gemeten.current = null;
   }
 
-  return { stijl, drukIn, drukUit, ref, meetBron, legBronVast };
+  // Voor een kaart die bij een tik uitklapt in plaats van een scherm te openen: de rect die bij het
+  // indrukken gemeten werd hoort bij de kaart van vóór het uitklappen. Zonder dit zou een latere
+  // activering van Details zonder indrukken (TalkBack) uit die verouderde rect groeien.
+  function vergeetBron() {
+    gemeten.current = null;
+  }
+
+  return { stijl, drukIn, drukUit, ref, meetBron, legBronVast, vergeetBron };
 }
 
 export interface DrukbaarProps extends Omit<PressableProps, 'style'> {

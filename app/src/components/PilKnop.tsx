@@ -20,6 +20,9 @@ interface Props {
   onPressIn?: (e: GestureResponderEvent) => void;
   accessibilityLabel?: string;
   haptiek?: HaptiekMoment;
+  // Eigen tekstkleur, voor een knop die iets onomkeerbaars doet (Verwijder in colors.verlies). De
+  // achtergrond blijft die van de variant.
+  tekstKleur?: string;
 }
 
 const ICOON = 16;
@@ -35,10 +38,11 @@ export function PilKnop({
   onPressIn,
   accessibilityLabel,
   haptiek,
+  tekstKleur: eigenKleur,
 }: Props) {
   const { colors } = useTheme();
-  const tekstKleur =
-    variant === 'cta' ? '#FFFFFF' : variant === 'link' ? colors.cta : colors.tekstPrimair;
+  const tekstKleur = eigenKleur
+    ?? (variant === 'cta' ? '#FFFFFF' : variant === 'link' ? colors.cta : colors.tekstPrimair);
   const achtergrond =
     variant === 'cta' ? colors.cta : variant === 'tweede' ? colors.verhoogd : 'transparent';
 

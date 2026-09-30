@@ -21,10 +21,12 @@ interface Props<T extends string> {
   onKies: (id: T) => void;
 }
 
-const HOOGTE = 36;
+// Minimumhoogte, geen vaste hoogte: met een grote systeemletter groeit het label mee en moet de rij
+// dat ook kunnen, anders knipt de tekst af. 44 is ook meteen de raakmaat: een hitSlop zou buiten de
+// rij vallen, en Android geeft een aanraking buiten de ouder niet door aan het kind. De pil hangt
+// met een boven- en onderrand aan de rij en volgt zo vanzelf de hoogte van de segmenten.
+const MIN_HOOGTE = 44;
 const BINNENRAND = 2;
-// Het vlak zelf is 36 hoog; met deze marge onder en boven is elk segment 44 punten te raken.
-const RAAK_MARGE = (44 - (HOOGTE - BINNENRAND * 2)) / 2;
 
 // Een rij keuzes met één pil die van segment naar segment veert, zoals de pil in de tabbalk: je
 // ziet de keuze verhuizen in plaats van dat twee knoppen van kleur wisselen. Alle segmenten zijn
@@ -83,12 +85,16 @@ export function SegmentKnop<T extends string>({ opties, actief, onKies }: Props<
             key={o.id}
             style={styles.segment}
             onPress={() => kies(o.id)}
-            hitSlop={{ top: RAAK_MARGE, bottom: RAAK_MARGE }}
             accessibilityRole="tab"
             accessibilityState={{ selected: geselecteerd }}
             accessibilityLabel={o.uitleg ?? o.label}
           >
+            {/* Eén regel die desnoods krimpt: bij een grote systeemletter brak "Alles" anders midden
+                in het woord af. */}
             <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
               style={[
                 styles.label,
                 geselecteerd
@@ -108,15 +114,15 @@ export function SegmentKnop<T extends string>({ opties, actief, onKies }: Props<
 const styles = StyleSheet.create({
   rij: {
     flexDirection: 'row',
-    height: HOOGTE,
+    minHeight: MIN_HOOGTE,
     borderRadius: radii.pill,
     padding: BINNENRAND,
   },
   pil: {
     position: 'absolute',
     top: BINNENRAND,
+    bottom: BINNENRAND,
     left: BINNENRAND,
-    height: HOOGTE - BINNENRAND * 2,
     borderRadius: radii.pill,
   },
   segment: {

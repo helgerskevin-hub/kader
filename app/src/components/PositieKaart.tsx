@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated, {
   ReduceMotion,
@@ -13,10 +13,11 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { duur, vervaag } from '../theme/beweging';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { schuifOvergang, uitklapInGestaffeld, uitklapUit } from '../theme/lijstBeweging';
-import { PortfolioTrade, richtingVan, tekenVan } from '../state/portfolioTypes';
+import { PortfolioTrade, bronVan, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { bepaalAdvies } from '../state/advies';
 import { AfbouwAdvies } from '../state/afbouw';
 import { useValutaStand } from '../state/useValuta';
+import { useDialoog } from '../state/DialoogProvider';
 import { AfbouwRegel } from './AfbouwRegel';
 import { AnimatedGetal } from './AnimatedGetal';
 import { CoinLogo } from './CoinLogo';
@@ -47,7 +48,10 @@ const PULS_OPACITY = 0.16;
 // Eén open positie in de kaartfamilie van Markt en Kansen: compact is het logo, de status en het
 // resultaat met de stop-doel-baan eronder, een tik klapt de niveaus, het plan en de knoppen uit.
 // Alleen voor open trades: afgesloten trades staan in de historie, die een eigen scherm heeft.
-export function PositieKaart({
+//
+// Memo: de prijs-poll tekent PortfolioScreen elke paar minuten opnieuw, en zonder memo tekenden ook de
+// kaarten mee waarvan de koers niet veranderde. Het scherm houdt de callbacks daarvoor stabiel.
+export const PositieKaart = memo(function PositieKaart({
   trade, livePrijs, afbouw, onOpenDetail, onVraagSluiten, onVerwijder, onBewerk, onVerkoop, onNiveaus,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
@@ -55,6 +59,7 @@ export function PositieKaart({
   useValutaStand();
 
   const { colors } = useTheme();
+  const { toonDialoog } = useDialoog();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
   // De hele kaart veert mee als je het bovenste deel indrukt, niet alleen dat deel. Het
@@ -122,6 +127,23 @@ export function PositieKaart({
   const heeftRr = trade.rr > 0;
   const eToroBestuurbaar = onVerkoop !== undefined && onNiveaus !== undefined;
 
+  // Verwijderen is onomkeerbaar en zat vlak naast Details: eerst vragen. Bij een eToro-positie zegt
+  // de tekst wat er echt gebeurt: Kader onthoudt het id in de negeerlijst (verwijderTrade in
+  // PortfolioProvider) en importeert hem daarna niet meer, terwijl de positie bij eToro open blijft.
+  function vraagVerwijderen() {
+    toonDialoog({
+      variant: 'waarschuwing',
+      titel: 'Trade verwijderen?',
+      tekst: bronVan(trade) === 'etoro'
+        ? `${trade.symbool} verdwijnt uit Kader. Bij eToro blijft de positie gewoon open, en Kader haalt hem daarna niet meer op.`
+        : `${trade.symbool} verdwijnt uit je portfolio in Kader.`,
+      knoppen: [
+        { label: 'Terug' },
+        { label: 'Verwijderen', soort: 'destructief', onDruk: () => onVerwijder(trade.id) },
+      ],
+    });
+  }
+
   return (
     // Neutrale kaart, zoals op Markt en Kansen: groen en rood staan alleen op cijfers, pillen en
     // lijnen. De gekleurde linkerstreep van de oude compacte regel is daarom weg.
@@ -135,7 +157,12 @@ export function PositieKaart({
           Details in het uitgeklapte deel, zodat een tik om te lezen je niet meteen naar een ander
           scherm stuurt. */}
       <Pressable
-        onPress={() => setUitgeklapt(v => !v)}
+        onPress={() => {
+          // Deze tik is geen opening van het detailscherm: een oude meting van dit indrukken mag
+          // niet blijven liggen voor een latere activering van Details.
+          druk.vergeetBron();
+          setUitgeklapt(v => !v);
+        }}
         onPressIn={druk.drukIn}
         onPressOut={druk.drukUit}
         accessibilityRole="button"
@@ -201,7 +228,8 @@ export function PositieKaart({
             resultaat, en een extra rondje ernaast drukt op 360 dp het symbool en de status in
             elkaar. Naast de baan kost het alleen wat baanbreedte, en het staat op dezelfde plek als
             op de Markt- en Kansen-kaarten: rechts, onderaan het tikvlak. Zonder stop of doel
-            tekent de baan niets en blijft het rondje alleen rechts staan. */}
+            tekent de baan zich niet, maar de labels blijven staan met "Geen" bij wat ontbreekt, en
+            het rondje blijft rechts ernaast. */}
         <View style={styles.voet}>
           <View style={styles.baan}>
             <StopDoelBaan
@@ -210,6 +238,7 @@ export function PositieKaart({
               doel={trade.takeProfit}
               live={livePrijs}
               labels
+              accessible={false}
             />
           </View>
           <View style={[styles.pijlRondje, { backgroundColor: colors.verhoogd }]}>
@@ -222,11 +251,12 @@ export function PositieKaart({
           wil kunnen aanraken en lezen zonder dat de kaart onder je vinger wegvouwt. */}
       {uitgeklapt && (
         <Animated.View exiting={uitklapUit()} style={[styles.uitklap, { borderTopColor: colors.rand }]}>
+          {/* Alleen de container heeft een exiting: de blokken erin laten hun entering, en een tweede
+              exiting per blok speelde dubbel af bovenop die van de container. */}
           {/* Vier kolommen in twee paren: past het niet naast elkaar (een BTC-prijs is breed), dan
               breekt het naar 2x2 in plaats van dat één kolom los op een eigen regel valt. */}
           <Animated.View
             entering={uitklapInGestaffeld(0, reduceMotion)}
-            exiting={uitklapUit()}
             style={styles.niveaus}
           >
             <View style={styles.niveauPaar}>
@@ -268,7 +298,6 @@ export function PositieKaart({
           {/* Het plan: de volledige adviestekst. De stip draagt dezelfde kleur als in de status. */}
           <Animated.View
             entering={uitklapInGestaffeld(1, reduceMotion)}
-            exiting={uitklapUit()}
             style={[styles.plan, { backgroundColor: colors.verhoogd }]}
           >
             <View style={[styles.planStip, { backgroundColor: adviesKleur }]} />
@@ -278,13 +307,13 @@ export function PositieKaart({
           </Animated.View>
 
           {afbouw && (
-            <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} exiting={uitklapUit()}>
+            <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)}>
               <AfbouwRegel advies={afbouw} huidigeStop={trade.stopLoss} />
             </Animated.View>
           )}
 
           {trade.notitie ? (
-            <Animated.View entering={uitklapInGestaffeld(3, reduceMotion)} exiting={uitklapUit()}>
+            <Animated.View entering={uitklapInGestaffeld(3, reduceMotion)}>
               <Text style={[Type.caption, styles.notitie, { color: colors.tekstGedimd }]}>
                 {trade.notitie}
               </Text>
@@ -295,7 +324,6 @@ export function PositieKaart({
               naar de volgende regel dan dat zijn label afkapt. */}
           <Animated.View
             entering={uitklapInGestaffeld(4, reduceMotion)}
-            exiting={uitklapUit()}
             style={styles.pilRij}
           >
             {/* Bij een eToro-positie die Kader echt kan besturen vervangen Verkopen en SL/TP de
@@ -341,8 +369,9 @@ export function PositieKaart({
             <PilKnop
               label="Verwijder"
               variant="tweede"
-              onPress={() => onVerwijder(trade.id)}
+              onPress={vraagVerwijderen}
               accessibilityLabel="Trade verwijderen"
+              tekstKleur={colors.verlies}
             />
             <View style={styles.details}>
               <PilKnop
@@ -362,7 +391,7 @@ export function PositieKaart({
 
           {/* De naam staat alleen hier: een lange naam hoort in het uitgeklapte deel, niet in de
               compacte kop waar hij op 360 dp het resultaat zou verdringen. */}
-          <Animated.View entering={uitklapInGestaffeld(5, reduceMotion)} exiting={uitklapUit()}>
+          <Animated.View entering={uitklapInGestaffeld(5, reduceMotion)}>
             <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
               {trade.naam ? `${trade.naam} · ` : ''}geopend {trade.datum}
             </Text>
@@ -371,7 +400,7 @@ export function PositieKaart({
       )}
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   kaart: {
@@ -392,7 +421,9 @@ const styles = StyleSheet.create({
   statusRegel: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusStip: { width: 6, height: 6, borderRadius: 3 },
   statusTekst: { flexShrink: 1, fontFamily: Fonts.sansSemiBold, fontWeight: '600' },
-  kopRechts: { alignItems: 'flex-end' },
+  // Mag krimpen als een grote systeemletter het midden anders dichtknijpt. Geen maxWidth zoals op
+  // Markt en Kansen: het resultaat is een groot getal dat niet op twee regels hoort te breken.
+  kopRechts: { alignItems: 'flex-end', flexShrink: 1 },
   // Het vak rond het getal is het oppervlak van de koerspuls: 4 punten ruimte opzij, en die ruimte
   // rechts weer teruggegeven zodat het getal op de rand van de kaartinhoud blijft staan.
   heroVak: {

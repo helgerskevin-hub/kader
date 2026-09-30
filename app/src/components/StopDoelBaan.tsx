@@ -13,6 +13,7 @@ import { staggerVertraging, veer } from '../theme/beweging';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { fmtPrijs } from '../engine/format';
 import { useValutaStand } from '../state/useValuta';
+import { AangepastPil } from './LevelRow';
 
 interface Props {
   stop: number;
@@ -22,6 +23,12 @@ interface Props {
   live?: number;
   // STOP en DOEL met hun prijs onder de baan.
   labels?: boolean;
+  // De stop staat op eToro's grens en niet op die van Kader: dan komt de AANGEPAST-pil naast het
+  // STOP-label, zoals in de niveaurij van de uitklap. Alleen zichtbaar met labels.
+  stopAangepast?: boolean;
+  // Uit als een omliggend tikvlak al een eigen label draagt: TalkBack leest dan niet twee keer
+  // dezelfde koers voor, en het tikvlak blijft één element.
+  accessible?: boolean;
   // Plek in de lijst, voor de staffeling van het landen (zie staggerVertraging).
   volgorde?: number;
 }
@@ -43,7 +50,9 @@ function clamp01(v: number): number {
 // niet. Alleen transform: de vulling is een View van volle breedte die met scaleX + een
 // terugschuivende translateX op zijn plek komt (zoals de vermogensbalk op Portfolio), de stip
 // schuift met translateX. Zo hoeft React Native per frame geen layout uit te rekenen.
-export function StopDoelBaan({ stop, entry, doel, live, labels = false, volgorde = 0 }: Props) {
+export function StopDoelBaan({
+  stop, entry, doel, live, labels = false, stopAangepast = false, accessible = true, volgorde = 0,
+}: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement blijven
   // de prijzen na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -56,7 +65,11 @@ export function StopDoelBaan({ stop, entry, doel, live, labels = false, volgorde
   const entryPos = positie(entry);
   const heeftLive = typeof live === 'number' && Number.isFinite(live);
   const livePos = heeftLive ? positie(live) : entryPos;
-  const vullingKleur = livePos >= entryPos ? colors.winst : colors.verlies;
+  // Gunstig is het oordeel over de ECHTE koers, niet over de afgekapte posities: buiten de baan zijn
+  // livePos en entryPos allebei 0 of 1 en zouden dan gelijk zijn, terwijl de koers wel degelijk
+  // onder de entry (of onder de stop) kan staan. sign(doel - stop) draait het voor een short mee.
+  const gunstig = heeftLive && (live - entry) * Math.sign(doel - stop) >= 0;
+  const vullingKleur = gunstig ? colors.winst : colors.verlies;
 
   // Waar de koers op de baan staat, als fractie. Vulling en stip lezen allebei deze ene waarde,
   // zodat ze nooit uit de pas lopen.
@@ -109,60 +122,71 @@ export function StopDoelBaan({ stop, entry, doel, live, labels = false, volgorde
     transform: [{ translateX: koers.value * breedte }, { scale: stipSchaal.value }],
   }), [breedte]);
 
-  if (!geldig) return null;
+  // Kan de baan niet getekend worden (een ontbrekende stop of doel), dan blijven met labels de
+  // waarden zelf staan: een positie zonder stop moet dat ook zeggen, in plaats van niets te tonen.
+  if (!geldig && !labels) return null;
 
   function opLayout(e: LayoutChangeEvent) {
     setBreedte(e.nativeEvent.layout.width);
   }
 
-  const label = heeftLive
-    ? `Koers ${fmtPrijs(live)} tussen stop ${fmtPrijs(stop)} en doel ${fmtPrijs(doel)}`
-    : `Stop ${fmtPrijs(stop)}, doel ${fmtPrijs(doel)}`;
+  const stopTekst = stop > 0 ? fmtPrijs(stop) : 'Geen';
+  const doelTekst = doel > 0 ? fmtPrijs(doel) : 'Geen';
+  const label = geldig && heeftLive
+    ? `Koers ${fmtPrijs(live)} tussen stop ${stopTekst} en doel ${doelTekst}`
+    : `Stop ${stopTekst}, doel ${doelTekst}`;
 
   return (
-    <View accessible accessibilityLabel={label} style={styles.container}>
+    <View accessible={accessible} accessibilityLabel={label} style={styles.container}>
       {/* Ruimte boven en onder de baan, zodat het streepje en de stip (allebei 14 hoog) er niet
           buiten vallen en de rij eronder niet raken. */}
-      <View style={styles.baanVak}>
-        <View
-          style={[styles.baan, { backgroundColor: colors.verhoogd }]}
-          onLayout={opLayout}
-        >
-          {heeftLive && gemeten && (
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.vulling, { backgroundColor: vullingKleur }, vullingStijl]}
-            />
-          )}
+      {geldig && (
+        <View style={styles.baanVak}>
           <View
-            pointerEvents="none"
-            style={[
-              styles.entry,
-              { left: `${entryPos * 100}%`, backgroundColor: colors.tekstPrimair },
-            ]}
-          />
-          {heeftLive && gemeten && (
-            <Animated.View
+            style={[styles.baan, { backgroundColor: colors.verhoogd }]}
+            onLayout={opLayout}
+          >
+            {heeftLive && gemeten && (
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.vulling, { backgroundColor: vullingKleur }, vullingStijl]}
+              />
+            )}
+            <View
               pointerEvents="none"
               style={[
-                styles.stip,
-                { backgroundColor: colors.kaart, borderColor: vullingKleur },
-                stipStijl,
+                styles.entry,
+                { left: `${entryPos * 100}%`, backgroundColor: colors.tekstPrimair },
               ]}
             />
-          )}
+            {heeftLive && gemeten && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.stip,
+                  { backgroundColor: colors.kaart, borderColor: vullingKleur },
+                  stipStijl,
+                ]}
+              />
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {labels && (
         <View style={styles.labelsRij}>
           <View style={styles.labelPaar}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>STOP</Text>
-            <Text style={[Type.prijs, styles.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(stop)}</Text>
+            {stopAangepast && <AangepastPil />}
+            <Text style={[Type.prijs, styles.prijs, { color: stop > 0 ? colors.tekstPrimair : colors.tekstGedimd }]}>
+              {stopTekst}
+            </Text>
           </View>
           <View style={styles.labelPaar}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
-            <Text style={[Type.prijs, styles.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(doel)}</Text>
+            <Text style={[Type.prijs, styles.prijs, { color: doel > 0 ? colors.tekstPrimair : colors.tekstGedimd }]}>
+              {doelTekst}
+            </Text>
           </View>
         </View>
       )}

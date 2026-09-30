@@ -15,6 +15,9 @@ interface Props {
   maat?: number;
   // Plek in de lijst, voor de staffeling van het intekenen (zie staggerVertraging).
   volgorde?: number;
+  // Uit als een omliggend tikvlak de score al in zijn eigen label voorleest: TalkBack toont dan niet
+  // twee elementen voor hetzelfde getal, en het tikvlak blijft één geheel.
+  accessible?: boolean;
 }
 
 const DIKTE = 3;
@@ -24,7 +27,7 @@ const DIKTE = 3;
 //
 // De boog tekent in via `end` van het pad, net als de verdelingsring op Portfolio: dat is Skia-
 // tekenwerk op de UI-thread, geen layout. Bij Minder beweging staat hij direct op zijn plek.
-export function ScoreRing({ symbool, score, maat = 48, volgorde = 0 }: Props) {
+export function ScoreRing({ symbool, score, maat = 48, volgorde = 0, accessible = true }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const fractie = Math.min(Math.max(score, 0), 100) / 100;
@@ -67,7 +70,7 @@ export function ScoreRing({ symbool, score, maat = 48, volgorde = 0 }: Props) {
   return (
     <View
       style={{ width: maat, height: maat }}
-      accessible
+      accessible={accessible}
       accessibilityRole="image"
       accessibilityLabel={`Score ${afgerond} van 100`}
     >

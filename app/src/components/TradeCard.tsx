@@ -49,6 +49,9 @@ interface Props {
   // uitrekenen (te weinig historie, of BTC zelf niet opgehaald); dan blijft de tegel gewoon weg.
   // Gemeten in meting H van de backtest: achterblijvers doen het als instap beter dan voorlopers.
   versusBtc?: number;
+  // Plek in de lijst, voor de staffeling van ring en grafiek bij binnenkomst. Het scherm geeft de
+  // waarde die ook de landing van de kaart gebruikt, zodat ze samen binnenkomen.
+  volgorde?: number;
 }
 
 type AdviesLabel = 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
@@ -65,7 +68,7 @@ function adviesLabel(trade: Trade): AdviesLabel {
 
 // Memo: tijdens de marktscan tekent MarktScreen bij elk voortgangstikje opnieuw, en zonder memo
 // tekenden alle al gelande kaarten dan mee, net terwijl de nieuwe kaarten binnen komen vliegen.
-export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc }: Props) {
+export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetail, favoriet, onToggleFavoriet, onKoop, limiet = null, versusBtc, volgorde = 0 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -109,7 +112,8 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   });
 
   // Eerste tegen laatste dagclose: de candles zijn dagcandles, dus dat is precies 30 dagen. Zonder
-  // reeks (niet elke plek die een Trade bouwt heeft candles) vallen grafiek en pil allebei weg.
+  // reeks (niet elke plek die een Trade bouwt heeft candles, en de CoinGecko-fallback levert geen
+  // dagcandles) vallen grafiek en pil allebei weg.
   const reeks = trade.sparkline && trade.sparkline.length >= 2 ? trade.sparkline : null;
   const verandering30d = reeks && reeks[0] > 0 ? (reeks[reeks.length - 1] / reeks[0] - 1) * 100 : null;
   const veranderingKleur = verandering30d !== null && verandering30d < 0 ? colors.verlies : colors.winst;
@@ -118,8 +122,11 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   // (itemLayoutAnimation op MarktScreen).
   const schuif = schuifOvergang(reduceMotion);
 
+  // Prijs en R/R staan op de kaart maar zaten niet in het label: de ring en de chip zijn hier
+  // niet apart voorleesbaar (ze zitten binnen het tikvlak), dus zonder deze twee mist TalkBack ze.
   const kaartLabel =
-    `${trade.symbool}, ${info.naam}, ${advies}${uitkomst.bevestigd ? ', BEVESTIGD' : ''}, score ${Math.round(trade.score)}`;
+    `${trade.symbool}, ${info.naam}, ${advies}${uitkomst.bevestigd ? ', BEVESTIGD' : ''}, score ${Math.round(trade.score)}`
+    + `, prijs ${fmtPrijs(trade.prijs)}, R/R ${fmtRR(niveaus.rr)}`;
 
   return (
     // Elke kaart ziet er hetzelfde uit: besluit van de UI-makeover. De overtuiging zit in de ring,
@@ -135,7 +142,12 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
           opent alleen nog via Details in het uitgeklapte deel, zodat een tik om te lezen je niet
           meteen naar een ander scherm stuurt. */}
       <Pressable
-        onPress={() => setUitgeklapt(v => !v)}
+        onPress={() => {
+          // Deze tik is geen opening van het detailscherm: een oude meting van dit indrukken mag
+          // niet blijven liggen voor een latere activering van Details.
+          druk.vergeetBron();
+          setUitgeklapt(v => !v);
+        }}
         onPressIn={druk.drukIn}
         onPressOut={druk.drukUit}
         accessibilityRole="button"
@@ -146,7 +158,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
         style={styles.boven}
       >
         <View style={styles.kop}>
-          <ScoreRing symbool={trade.symbool} score={trade.score} maat={48} />
+          <ScoreRing symbool={trade.symbool} score={trade.score} maat={48} volgorde={volgorde} accessible={false} />
           <View style={styles.kopMidden}>
             <View style={styles.symboolRij}>
               <Text style={[Type.sectiekop, styles.symbool, { color: colors.tekstPrimair }]}>
@@ -189,7 +201,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
 
         {reeks && (
           <View style={styles.grafiek}>
-            <Sparkline reeks={reeks} hoogte={52} vlak stip volgorde={0} />
+            <Sparkline reeks={reeks} hoogte={52} vlak stip volgorde={volgorde} />
           </View>
         )}
 
@@ -215,7 +227,9 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
           wil kunnen aanraken en lezen zonder dat de kaart onder je vinger wegvouwt. */}
       {uitgeklapt && (
         <Animated.View exiting={uitklapUit()} style={[styles.uitklap, { borderTopColor: colors.rand }]}>
-          <Animated.View entering={uitklapInGestaffeld(0, reduceMotion)} exiting={uitklapUit()}>
+          {/* Alleen de container heeft een exiting: de blokken erin laten hun entering, en een tweede
+              exiting per blok speelde dubbel af bovenop die van de container. */}
+          <Animated.View entering={uitklapInGestaffeld(0, reduceMotion)}>
             <StopDoelBaan stop={niveaus.stop} entry={trade.entry} doel={trade.takeProfit} live={trade.prijs} />
             {/* Vier kolommen in twee paren: past het niet naast elkaar (een BTC-prijs is breed), dan
                 breekt het naar 2x2 in plaats van dat één kolom los op een eigen regel valt. */}
@@ -270,14 +284,13 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
           {/* De vier eisen bestaan alleen voor een long op het momentum-profiel: trend, MACD en
               volume betekenen bij een omkeer- of short-trade iets anders. */}
           {trade.richting === 'long' && trade.profiel === 'momentum' && (
-            <Animated.View entering={uitklapInGestaffeld(1, reduceMotion)} exiting={uitklapUit()}>
+            <Animated.View entering={uitklapInGestaffeld(1, reduceMotion)}>
               <Bevestigingen uitkomst={uitkomst} />
             </Animated.View>
           )}
 
           <Animated.View
             entering={uitklapInGestaffeld(2, reduceMotion)}
-            exiting={uitklapUit()}
             style={styles.tegels}
           >
             <View style={[styles.tegel, { backgroundColor: colors.verhoogd }]}>
@@ -302,7 +315,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
             )}
           </Animated.View>
 
-          <Animated.View entering={uitklapInGestaffeld(3, reduceMotion)} exiting={uitklapUit()} style={styles.waarom}>
+          <Animated.View entering={uitklapInGestaffeld(3, reduceMotion)} style={styles.waarom}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>WAAROM</Text>
             {trade.redenen.map((r, i) => (
               <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
@@ -328,7 +341,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
 
           {/* Mag afbreken: Getrade, Koop met merkjes en Details passen op 360 dp niet altijd op één
               regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt. */}
-          <Animated.View entering={uitklapInGestaffeld(4, reduceMotion)} exiting={uitklapUit()} style={styles.pilRij}>
+          <Animated.View entering={uitklapInGestaffeld(4, reduceMotion)} style={styles.pilRij}>
             {onGetrade && (
               <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(trade)} />
             )}
@@ -349,8 +362,9 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
                     accessibilityRole="button"
                     accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
                     // De rij chips is 20 punten hoog; hitSlop maakt er een raakvlak van 44 van
-                    // zonder de rij hoger te maken.
-                    hitSlop={12}
+                    // zonder de rij hoger te maken. Links maar 4: daar staat de Koop-pil, en de slop
+                    // mag het raakvlak van die knop niet overlappen.
+                    hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
                   >
                     <PlatformChips platforms={platforms} maat={20} />
                   </Pressable>
@@ -407,7 +421,10 @@ const styles = StyleSheet.create({
   symboolRij: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   // Type.sectiekop is 16; het ontwerp zet het symbool op 17.
   symbool: { fontSize: 17 },
-  kopRechts: { alignItems: 'flex-end', gap: spacing.xs },
+  // Mag krimpen maar nooit meer dan de helft: bij een grote systeemletter wordt het midden anders
+  // dichtgeknepen tot een smalle kolom. De prijs heeft bewust geen numberOfLines, want een prijs die
+  // afkapt is erger dan een prijs die op twee regels staat.
+  kopRechts: { alignItems: 'flex-end', gap: spacing.xs, flexShrink: 1, maxWidth: '50%' },
   // Type.prijsGroot is 21; op de kaart staat de prijs op 17, naast het symbool.
   prijs: { fontSize: 17, lineHeight: 22 },
   pil: {

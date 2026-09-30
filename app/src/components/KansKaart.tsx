@@ -103,7 +103,11 @@ export const KansKaart = memo(function KansKaart({
   const afstand = kans.ingredienten.afstandHigh90d;
   const schuif = schuifOvergang(reduceMotion);
 
-  const kaartLabel = `${kans.symbool}, ${kans.naam}, ${signaal}, momentumscore ${Math.round(kans.momentumScore)}`;
+  // Prijs en R/R staan op de kaart maar zaten niet in het label: de ring en de chip zijn niet apart
+  // voorleesbaar (ze zitten binnen het tikvlak), dus zonder deze twee mist TalkBack ze. Zonder plan
+  // is er geen R/R.
+  const kaartLabel = `${kans.symbool}, ${kans.naam}, ${signaal}, momentumscore ${Math.round(kans.momentumScore)}`
+    + `, prijs ${fmtPrijs(kans.prijs)}${plan && niveaus ? `, R/R ${fmtRR(niveaus.rr)}` : ''}`;
 
   return (
     <Animated.View
@@ -114,7 +118,12 @@ export const KansKaart = memo(function KansKaart({
       {/* Het bovenste deel (kop, grafiek, momentum, voet) klapt de kaart uit en weer in. Het
           detailscherm opent alleen nog via Details in het uitgeklapte deel. */}
       <Pressable
-        onPress={() => setUitgeklapt(v => !v)}
+        onPress={() => {
+          // Deze tik is geen opening van het detailscherm: een oude meting van dit indrukken mag
+          // niet blijven liggen voor een latere activering van Details.
+          druk.vergeetBron();
+          setUitgeklapt(v => !v);
+        }}
         onPressIn={druk.drukIn}
         onPressOut={druk.drukUit}
         accessibilityRole="button"
@@ -125,7 +134,7 @@ export const KansKaart = memo(function KansKaart({
         style={styles.boven}
       >
         <View style={styles.kop}>
-          <ScoreRing symbool={kans.symbool} score={kans.momentumScore} maat={48} volgorde={volgorde} />
+          <ScoreRing symbool={kans.symbool} score={kans.momentumScore} maat={48} volgorde={volgorde} accessible={false} />
           <View style={styles.kopMidden}>
             <View style={styles.symboolRij}>
               <Text style={[Type.sectiekop, styles.symbool, { color: colors.tekstPrimair }]}>{kans.symbool}</Text>
@@ -199,7 +208,9 @@ export const KansKaart = memo(function KansKaart({
           wil kunnen aanraken en lezen zonder dat de kaart onder je vinger wegvouwt. */}
       {uitgeklapt && (
         <Animated.View exiting={uitklapUit()} style={[styles.uitklap, { borderTopColor: colors.rand }]}>
-          <Animated.View entering={uitklapInGestaffeld(0, reduceMotion)} exiting={uitklapUit()}>
+          {/* Alleen de container heeft een exiting: de blokken erin laten hun entering, en een tweede
+              exiting per blok speelde dubbel af bovenop die van de container. */}
+          <Animated.View entering={uitklapInGestaffeld(0, reduceMotion)}>
             {plan && niveaus ? (
               <>
                 <StopDoelBaan
@@ -208,6 +219,7 @@ export const KansKaart = memo(function KansKaart({
                   doel={plan.takeProfit}
                   live={kans.prijs}
                   labels
+                  stopAangepast={niveaus.aangepast}
                 />
                 {/* De stop staat hier op de EMA20 en niet op de swing low zoals op Markt. Zonder deze
                     regel lijkt een andere stop voor dezelfde coin een fout. */}
@@ -236,7 +248,7 @@ export const KansKaart = memo(function KansKaart({
             )}
           </Animated.View>
 
-          <Animated.View entering={uitklapInGestaffeld(1, reduceMotion)} exiting={uitklapUit()} style={styles.waarom}>
+          <Animated.View entering={uitklapInGestaffeld(1, reduceMotion)} style={styles.waarom}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>WAAROM</Text>
             {kans.redenen.map((r, i) => (
               <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
@@ -249,7 +261,7 @@ export const KansKaart = memo(function KansKaart({
 
           {/* Mag afbreken: Getrade, Koop met merkjes en Details passen op 360 dp niet altijd op één
               regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt. */}
-          <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} exiting={uitklapUit()} style={styles.pilRij}>
+          <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} style={styles.pilRij}>
             {plan && (
               <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(kans)} />
             )}
@@ -269,7 +281,9 @@ export const KansKaart = memo(function KansKaart({
                     onPress={() => setPlatformsOpen(true)}
                     accessibilityRole="button"
                     accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
-                    hitSlop={12}
+                    // Links maar 4: daar staat de Koop-pil, en de slop mag het raakvlak van die knop
+                    // niet overlappen.
+                    hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
                   >
                     <PlatformChips platforms={platforms} maat={20} />
                   </Pressable>
@@ -329,7 +343,10 @@ const styles = StyleSheet.create({
   symboolRij: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   // Type.sectiekop is 16; het ontwerp zet het symbool op 17.
   symbool: { fontSize: 17 },
-  kopRechts: { alignItems: 'flex-end', gap: spacing.xs },
+  // Mag krimpen maar nooit meer dan de helft: bij een grote systeemletter wordt het midden anders
+  // dichtgeknepen tot een smalle kolom. De prijs heeft bewust geen numberOfLines, want een prijs die
+  // afkapt is erger dan een prijs die op twee regels staat.
+  kopRechts: { alignItems: 'flex-end', gap: spacing.xs, flexShrink: 1, maxWidth: '50%' },
   // Type.prijsGroot is 21; op de kaart staat de prijs op 17, naast het symbool.
   prijs: { fontSize: 17, lineHeight: 22 },
   pil: {

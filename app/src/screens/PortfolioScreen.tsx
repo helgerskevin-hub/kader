@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, Pressable, TextInput, ScrollView,
   StyleSheet, RefreshControl,
@@ -535,6 +535,19 @@ export function PortfolioScreen() {
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const { openDetail, detailScherm } = useCoinDetail();
+  // De koersen zitten in een ref zodat de callbacks hieronder stabiel blijven: een callback die op
+  // livePrijzen leunt krijgt bij elke poll een nieuwe identiteit, en dan helpt de memo op
+  // PositieKaart niet meer.
+  const livePrijzenRef = useRef(livePrijzen);
+  livePrijzenRef.current = livePrijzen;
+  const opVraagSluiten = useCallback(
+    (t: PortfolioTrade, status: 'gewonnen' | 'verloren') => setSluitVerzoek({ trade: t, status }),
+    [],
+  );
+  const opOpenPositieDetail = useCallback(
+    (t: PortfolioTrade) => openDetail(vanPortfolioTrade(t, livePrijzenRef.current[t.symbool])),
+    [openDetail],
+  );
   const [etoroBezig, setEtoroBezig] = useState(false);
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
@@ -843,12 +856,12 @@ export function PortfolioScreen() {
                 trade={trade}
                 livePrijs={livePrijzen[trade.symbool]}
                 afbouw={afbouwPerTrade[trade.id]}
-                onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
+                onVraagSluiten={opVraagSluiten}
                 onVerwijder={verwijderTrade}
                 onBewerk={setBewerkTrade}
                 onVerkoop={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setVerkoopTrade : undefined}
                 onNiveaus={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setNiveausTrade : undefined}
-                onOpenDetail={t => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
+                onOpenDetail={opOpenPositieDetail}
               />
             </Animated.View>
           );

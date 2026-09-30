@@ -250,6 +250,7 @@ export function MarktScreen() {
                 onKoop={magHandelen ? setKoopTrade : undefined}
                 limiet={limietVoor(stopLimieten, item.symbool)}
                 versusBtc={rsPerSymbool[item.symbool]}
+                volgorde={landVolgorde(item.symbool, index)}
               />
             </Animated.View>
           )}
