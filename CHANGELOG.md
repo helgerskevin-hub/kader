@@ -6,6 +6,11 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- Nieuwe kaarten op Markt, Kansen en Portfolio: compacter, zodat er meer op het scherm past. Tik op een kaart om hem uit te klappen; het detailscherm open je met de knop Details
+- Op Markt en Kansen staat de score nu rond het coinlogo, met een koersgrafiek van 30 dagen en de verandering erbij. In het uitgeklapte deel vind je de knoppen Getrade en Koop
+- Stop en doel staan nu samen op één baan, met een stip voor de huidige koers
+- Portfolio: je resultaat staat in procenten groot bovenaan de kaart, het bedrag eronder. Bij een nieuwe koers licht het getal kort op. De wissel tussen compact en uitgebreid is weg, want elke kaart klapt nu zelf uit
+- Portfolio-overzicht: je kiest de periode met een schuifknop en de laatste sync staat rechtsboven
 - Coins hebben nu hun eigen logo: in het detailscherm, in je historie en in de lijst met relatieve sterkte op Markt. Heeft Kader van een coin geen logo, dan zie je de afkorting in een gekleurd rondje
 - HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD. Het verschil met gewoon STERK KOOP zat nooit in drie scorepunten maar in de bevestigingen: trend, MACD, volume en R/R. Klap een kaart op Markt uit en je ziet welke er meestaan en welke ontbreekt. De drempels zijn niet veranderd
 - De kaarten op Markt hebben geen gekleurde rand of gloed meer, en AFWACHTEN ligt niet meer plat als een uitgeschakelde kaart. Het oordeel staat in de badge
