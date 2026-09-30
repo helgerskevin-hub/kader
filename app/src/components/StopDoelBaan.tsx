@@ -205,8 +205,10 @@ const styles = StyleSheet.create({
     borderRadius: STIP / 2,
     borderWidth: 3,
   },
+  // Mag afbreken: met een grote systeemletter passen twee lange prijzen niet naast elkaar.
   labelsRij: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 8,

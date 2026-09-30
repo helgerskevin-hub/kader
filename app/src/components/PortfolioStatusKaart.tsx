@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
-import { Type } from '../theme/typography';
+import { Fonts, Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { duur } from '../theme/beweging';
 import { useBeweging } from '../theme/useReduceMotion';
@@ -26,6 +26,7 @@ import { useResultaatHistorie } from '../state/useResultaatHistorie';
 import { bepaalSyncStand } from '../state/syncStatus';
 import { AnimatedGetal } from './AnimatedGetal';
 import { Drukbaar } from './Drukbaar';
+import { SegmentKnop, type SegmentOptie } from './SegmentKnop';
 import { useValutaStand } from '../state/useValuta';
 
 // Buiten de component, zie AnimatedGetal: anders elke render een nieuwe builder.
@@ -49,6 +50,13 @@ const PERIODE_UITLEG: Record<PeriodeId, string> = {
   '1J': 'Toon resultaat over het laatste jaar',
   alles: 'Toon resultaat sinds je eerste trade',
 };
+
+// Eén keer gebouwd, buiten de component: de opties veranderen nooit.
+const PERIODE_OPTIES: SegmentOptie<PeriodeId>[] = PERIODES.map(p => ({
+  id: p.id,
+  label: p.label,
+  uitleg: PERIODE_UITLEG[p.id],
+}));
 
 interface Props {
   waarde: PortfolioWaarde;
@@ -235,37 +243,47 @@ export function PortfolioStatusKaart({
     : stand.niveau === 'etoro-fout' ? 'eToro mislukt'
     : laatsteSync ? relatieveTijd(laatsteSync) : 'Nog niet';
 
+
   return (
     <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
-      {/* Kop: label + acties */}
+      {/* Kop: label links, rechts de sync-chip en de importknop. Mag afbreken: met "WAARDE OPEN
+          POSITIES" en "Bijwerken..." naast elkaar is 360 dp met een grote systeemletter te krap,
+          en dan schuiven de knoppen liever naar een eigen regel dan dat het label afkapt. */}
       <View style={styles.kop}>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
           {heeftSaldo ? 'TOTAAL VERMOGEN' : 'WAARDE OPEN POSITIES'}
         </Text>
         <View style={styles.acties}>
+          {/* De laatste sync staat nu in de chip zelf, met dezelfde kleur als het icoon: groen is
+              actueel, oranje verouderd of eToro mislukt, rood te oud. Een losse LAATSTE SYNC-regel
+              onderaan de kaart is daarmee overbodig. */}
           <Drukbaar
             onPress={onVerversen}
             disabled={syncing}
             accessibilityRole="button"
             accessibilityLabel={`Synchroniseren. ${stand.wanneer}. ${stand.advies}`}
-            style={styles.actieKnop}
-            schaal={0.9}
+            style={[styles.syncChip, { backgroundColor: colors.verhoogd }]}
+            // De chip is 32 hoog; hitSlop maakt er een raakvlak van 44 van zonder de kop hoger te
+            // maken.
+            hitSlop={{ top: 6, bottom: 6 }}
+            schaal={0.94}
           >
             {syncing
               ? (reduceMotion
                   ? <ActivityIndicator size="small" color={syncKleur} />
                   : (
                     <Animated.View style={rotatieStijl}>
-                      <RefreshCw size={18} color={syncKleur} strokeWidth={1.75} />
+                      <RefreshCw size={14} color={syncKleur} strokeWidth={2} />
                     </Animated.View>
                   ))
               : toonSyncVink
                 ? (
                   <Animated.View entering={VINK_IN} exiting={VINK_UIT}>
-                    <Check size={18} color={syncKleur} strokeWidth={2} />
+                    <Check size={14} color={syncKleur} strokeWidth={2} />
                   </Animated.View>
                 )
-                : <RefreshCw size={18} color={syncKleur} strokeWidth={1.75} />}
+                : <RefreshCw size={14} color={syncKleur} strokeWidth={2} />}
+            <Text style={[Type.caption, styles.syncTekst, { color: syncKleur }]}>{syncKort}</Text>
           </Drukbaar>
           <Drukbaar
             onPress={onImporteren}
@@ -273,6 +291,7 @@ export function PortfolioStatusKaart({
             accessibilityRole="button"
             accessibilityLabel="Importeer uit eToro"
             style={styles.actieKnop}
+            hitSlop={4}
             schaal={0.9}
           >
             {etoroBezig
@@ -282,7 +301,8 @@ export function PortfolioStatusKaart({
         </View>
       </View>
 
-      {/* Grote waarde */}
+      {/* Grote waarde. Zonder saldo en zonder gewaardeerde posities is er geen bedrag, en dan staat
+          er dat ook: een verzonnen $0,00 leest als een lege rekening. */}
       {toonBedrag ? (
         <AnimatedGetal
           waarde={totaalUsd}
@@ -290,34 +310,129 @@ export function PortfolioStatusKaart({
           style={[Type.display, { color: colors.tekstPrimair }]}
         />
       ) : (
-        <Text style={[Type.display, { color: colors.tekstPrimair }]}>—</Text>
+        <Text style={[Type.display, { color: colors.tekstGedimd }]}>Onbekend</Text>
       )}
 
-      {/* Ongerealiseerd resultaat */}
+      {/* Ongerealiseerd resultaat van de open posities, als pil. Mag afbreken: bij een groot bedrag
+          met een grote systeemletter past "open posities, nu" niet meer naast de pil. */}
       {heeftWaardering ? (
-        <View style={[styles.resultaat, styles.resultaatRij]}>
-          <AnimatedGetal
-            waarde={waarde.ongerealiseerdUsd}
-            format={fmtResultaatUsd}
-            style={[Type.prijs, { color: resultaatKleur }]}
-            kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
-          />
-          {waarde.ongerealiseerdPct !== null && (
+        <View style={styles.resultaatRij}>
+          <View style={[styles.resultaatPil, { backgroundColor: resultaatKleur + '1F' }]}>
             <AnimatedGetal
-              waarde={waarde.ongerealiseerdPct}
-              format={fmtResultaatPct}
-              style={[Type.prijs, { color: resultaatKleur, marginLeft: spacing.sm }]}
+              waarde={waarde.ongerealiseerdUsd}
+              format={fmtResultaatUsd}
+              style={[Type.prijs, styles.pilTekst, { color: resultaatKleur }]}
               kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
             />
-          )}
+            {waarde.ongerealiseerdPct !== null && (
+              <>
+                <Text style={[Type.prijs, styles.pilTekst, { color: resultaatKleur }]}> · </Text>
+                <AnimatedGetal
+                  waarde={waarde.ongerealiseerdPct}
+                  format={fmtPct}
+                  style={[Type.prijs, styles.pilTekst, { color: resultaatKleur }]}
+                  kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
+                />
+              </>
+            )}
+          </View>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>open posities, nu</Text>
         </View>
       ) : (
-        <Text style={[Type.caption, styles.resultaat, { color: colors.tekstGedimd }]}>
+        <Text style={[Type.caption, styles.resultaatLeeg, { color: colors.tekstGedimd }]}>
           {waarde.openPosities === 0
             ? 'Nog geen open posities.'
             : 'Nog geen live koersen om je posities te waarderen.'}
         </Text>
       )}
+
+      {/* Resultaat over een gekozen periode, direct onder het resultaat van nu: allebei antwoorden
+          ze op "hoe doe ik het", het ene over nu en het andere terugkijkend. De meldingen staan
+          onder de balk, bij het geld waar ze over gaan. Geen grafiek: Kader bewaart geen dagelijkse
+          reeks van je vermogen, en een verzonnen lijn is erger dan geen lijn.
+
+          Eén segmentknop met een pil die meeschuift, zoals de tabbalk. De zes keuzes passen op
+          360 dp op één regel (ongeveer 49 punten per segment), en de haptiek bij een wissel zit in
+          SegmentKnop zelf. */}
+      <View style={styles.segment}>
+        <SegmentKnop opties={PERIODE_OPTIES} actief={periode} onKies={setPeriode} />
+      </View>
+
+      <View style={styles.periodeBlok}>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+          {resultaat.status === 'alleen-gerealiseerd' ? 'GEREALISEERD RESULTAAT' : 'RESULTAAT OVER PERIODE'}
+        </Text>
+        {/* Kort houden. Deze regel hoeft alleen te zeggen wat er in het getal zit; welke periode
+            dat is staat al op het actieve segment erboven, en dat het iets anders is dan de regel
+            bovenaan blijkt uit de kop. */}
+        <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+          Gesloten trades plus koersbeweging van open posities.
+        </Text>
+
+        {laadt ? (
+          <>
+            <Text style={[Type.prijs, styles.periodeGetal, { color: colors.tekstGedimd }]}>Laden...</Text>
+            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+              Koersen van toen worden opgehaald.
+            </Text>
+          </>
+        ) : resultaat.totaalUsd === null ? (
+          // Geen bedrag van 0: dat leest als quitte gespeeld, en er is hier gewoon niets gebeurd.
+          // Geen AnimatedGetal en ook geen los streepje, er is niets om te tonen: de zin zegt het.
+          <Text style={[Type.caption, styles.periodeGetal, { color: colors.tekstGedimd }]}>
+            {periode === 'alles' ? 'Nog geen trades.' : 'Niets gesloten of open in deze periode.'}
+          </Text>
+        ) : (
+          <>
+            <View style={styles.periodeRegel}>
+              <AnimatedGetal
+                waarde={resultaat.totaalUsd}
+                format={fmtResultaatUsd}
+                style={[Type.prijs, { color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies }]}
+                kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
+              />
+              {resultaat.pct !== null && (
+                <AnimatedGetal
+                  waarde={resultaat.pct}
+                  format={fmtResultaatPct}
+                  style={[Type.prijs, {
+                    color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies,
+                    marginLeft: spacing.sm,
+                  }]}
+                  kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
+                />
+              )}
+            </View>
+            {/* Zonder deze regel las het percentage als rendement op je hele vermogen, en dat is
+                het niet: periodeResultaat.ts deelt door het geld dat in de periode in posities zat.
+                Cash telt niet mee, want Kader kent je saldo van toen niet. */}
+            {resultaat.pct !== null && (
+              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+                Percentage over je posities, niet je vermogen.
+              </Text>
+            )}
+            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+              {resultaat.gesloten === 0
+                ? 'Alleen koersbeweging, niets gesloten.'
+                : `${resultaat.gesloten} gesloten ${resultaat.gesloten === 1 ? 'trade' : 'trades'}.`}
+            </Text>
+            {/* Bij een volledige mislukking staat er al een andere kop boven het getal, dus hier
+                alleen nog waarom. Bij een gedeeltelijke mislukking is de kop nog gewoon waar en
+                doet deze regel het hele werk. */}
+            {resultaat.status === 'alleen-gerealiseerd' && (
+              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+                Koers van toen niet opgehaald, dus alleen het gerealiseerde deel.
+              </Text>
+            )}
+            {resultaat.status === 'deels' && (
+              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
+                {resultaat.zonderReferentie} {resultaat.zonderReferentie === 1 ? 'positie telt' : 'posities tellen'} niet
+                mee, geen koers van toen.
+              </Text>
+            )}
+          </>
+        )}
+      </View>
 
       {/* Belegd en beschikbaar */}
       {heeftSaldo ? (
@@ -407,24 +522,6 @@ export function PortfolioStatusKaart({
         </>
       )}
 
-      {/* Detailregels */}
-      <View style={[styles.detailRij, { borderTopColor: colors.rand }]}>
-        <View style={styles.detail}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>INGELEGD</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>
-            {heeftWaardering ? fmtBedrag(waarde.ingelegdUsd) : '—'}
-          </Text>
-        </View>
-        <View style={styles.detail}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN POSITIES</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{waarde.openPosities}</Text>
-        </View>
-        <View style={styles.detail}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>LAATSTE SYNC</Text>
-          <Text style={[Type.caption, { color: syncKleur, fontWeight: '600' }]}>{syncKort}</Text>
-        </View>
-      </View>
-
       {/* Geld dat vastzit in een order die nog niet gevuld is */}
       {gereserveerdRegel !== null && (
         <Text style={[Type.caption, styles.melding, { color: colors.letOp }]}>
@@ -446,144 +543,41 @@ export function PortfolioStatusKaart({
         </Text>
       )}
 
-      {/* Resultaat over een gekozen periode. Bewust onder de meldingen: die gaan over nu en over
-          iets dat misschien actie vraagt, dit is een terugblik. En bewust boven de historie-knop,
-          want het gerealiseerde deel van dit cijfer komt uit precies die historie. */}
-      <View style={[styles.periodeBlok, { borderTopColor: colors.rand }]}>
-        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-          {resultaat.status === 'alleen-gerealiseerd' ? 'GEREALISEERD RESULTAAT' : 'RESULTAAT OVER PERIODE'}
-        </Text>
-        {/* Kort houden. Deze regel hoeft alleen te zeggen wat er in het getal zit; welke periode
-            dat is staat al op de actieve chip eronder, en dat het iets anders is dan de regel
-            bovenaan blijkt uit de kop. Drie zinnen uitleg boven een cijfer van één regel maakte
-            het blok hoger dan de rest van de kaart. */}
-        <Text style={[Type.caption, styles.periodeUitleg, { color: colors.tekstGedimd }]}>
-          Gesloten trades plus koersbeweging van open posities.
-        </Text>
-
-        {/* Vijf even grote rondjes plus een breder, rechthoekiger blokje voor Alles.
-
-            De vijf tijdvakken zijn onderling inwisselbaar en horen er dus identiek uit te zien; dat
-            ze eerst meegroeiden met hun label (Dag breder dan 1M) maakte van een rij gelijkwaardige
-            keuzes een rommelige reeks. Alles is geen tijdvak maar de uitzondering erop, en krijgt
-            daarom bewust een andere vorm in plaats van een uitgerekt rondje.
-
-            Een gewone rij die mag afbreken, zelfde patroon als pillRij in MarktFilters.tsx. Hier
-            stond eerst een horizontale ScrollView; die trok de breedte van de kaart scheef, waardoor
-            de kolom BESCHIKBAAR ernaast samenkneep tot één letter per regel. */}
-        <View style={styles.periodeRij}>
-          {PERIODES.map(p => {
-            const isActief = p.id === periode;
-            const isAlles = p.id === 'alles';
-            return (
-              // Een ander tijdvak kiezen is een keuze die wisselt, dus een lichte tik. Nogmaals op
-              // het actieve tijdvak tikken verandert niets en blijft dus stil.
-              <Drukbaar
-                key={p.id}
-                onPress={() => setPeriode(p.id)}
-                haptiek={isActief ? undefined : 'tik'}
-                schaal={0.92}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActief }}
-                accessibilityLabel={PERIODE_UITLEG[p.id]}
-                // Het rondje is 40 en niet 44, anders past de rij niet op één regel op een scherm
-                // van 360dp. De hitSlop maakt het aanraakvlak alsnog ruim 44 hoog, zodat de kleinere
-                // vorm geen kleiner doel wordt.
-                hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
-                style={[
-                  styles.periodeChip,
-                  isAlles ? styles.periodeChipAlles : styles.periodeChipRond,
-                  { backgroundColor: isActief ? colors.cta : colors.verhoogd },
-                ]}
-              >
-                <Text style={[Type.caption, { color: isActief ? 'white' : colors.tekstGedimd, fontWeight: '600' }]}>
-                  {p.label}
-                </Text>
-              </Drukbaar>
-            );
-          })}
+      {/* Onderrij: ingelegd en aantal posities links, de historie rechts. Mag afbreken: met een
+          groot ingelegd bedrag en een lange historie-tekst past het op 360 dp niet naast elkaar. */}
+      <View style={[styles.onder, { borderTopColor: colors.rand }]}>
+        <View style={styles.onderDetails}>
+          <View style={styles.detail}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>INGELEGD</Text>
+            {/* Zonder gewaardeerde posities kent Kader het ingelegde bedrag niet (het telt alleen
+                posities met een aantal en een live koers). Zonder open posities is het gewoon 0. */}
+            {heeftWaardering || waarde.openPosities === 0 ? (
+              <Text style={[Type.prijs, styles.detailWaarde, { color: colors.tekstPrimair }]}>
+                {fmtBedrag(waarde.ingelegdUsd)}
+              </Text>
+            ) : (
+              <Text style={[Type.prijs, styles.detailWaarde, { color: colors.tekstGedimd }]}>Onbekend</Text>
+            )}
+          </View>
+          <View style={styles.detail}>
+            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>POSITIES</Text>
+            <Text style={[Type.prijs, styles.detailWaarde, { color: colors.tekstPrimair }]}>
+              {waarde.openPosities}
+            </Text>
+          </View>
         </View>
-
-        {laadt ? (
-          <>
-            <Text style={[Type.prijs, styles.periodeGetal, { color: colors.tekstGedimd }]}>Laden...</Text>
-            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-              Koersen van toen worden opgehaald.
-            </Text>
-          </>
-        ) : resultaat.totaalUsd === null ? (
-          <>
-            {/* Geen bedrag van 0: dat leest als quitte gespeeld, en er is hier gewoon niets
-                gebeurd. Geen AnimatedGetal, er is niets om naartoe te bewegen. */}
-            <Text style={[Type.prijs, styles.periodeGetal, { color: colors.tekstGedimd }]}>—</Text>
-            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-              {periode === 'alles' ? 'Nog geen trades.' : 'Niets gesloten of open in deze periode.'}
-            </Text>
-          </>
-        ) : (
-          <>
-            <View style={styles.periodeRegel}>
-              <AnimatedGetal
-                waarde={resultaat.totaalUsd}
-                format={fmtResultaatUsd}
-                style={[Type.prijs, { color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies }]}
-                kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
-              />
-              {resultaat.pct !== null && (
-                <AnimatedGetal
-                  waarde={resultaat.pct}
-                  format={fmtResultaatPct}
-                  style={[Type.prijs, {
-                    color: resultaat.totaalUsd >= 0 ? colors.winst : colors.verlies,
-                    marginLeft: spacing.sm,
-                  }]}
-                  kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies }}
-                />
-              )}
-            </View>
-            {/* Zonder deze regel las het percentage als rendement op je hele vermogen, en dat is
-                het niet: periodeResultaat.ts deelt door het geld dat in de periode in posities zat.
-                Cash telt niet mee, want Kader kent je saldo van toen niet. */}
-            {resultaat.pct !== null && (
-              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-                Percentage over je posities, niet je vermogen.
-              </Text>
-            )}
-            <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-              {resultaat.gesloten === 0
-                ? 'Alleen koersbeweging, niets gesloten.'
-                : `${resultaat.gesloten} gesloten ${resultaat.gesloten === 1 ? 'trade' : 'trades'}.`}
-            </Text>
-            {/* Bij een volledige mislukking staat er al een andere kop boven het getal, dus hier
-                alleen nog waarom. Bij een gedeeltelijke mislukking is de kop nog gewoon waar en
-                doet deze regel het hele werk. */}
-            {resultaat.status === 'alleen-gerealiseerd' && (
-              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-                Koers van toen niet opgehaald, dus alleen het gerealiseerde deel.
-              </Text>
-            )}
-            {resultaat.status === 'deels' && (
-              <Text style={[Type.caption, styles.periodeBijschrift, { color: colors.tekstGedimd }]}>
-                {resultaat.zonderReferentie} {resultaat.zonderReferentie === 1 ? 'positie telt' : 'posities tellen'} niet
-                mee, geen koers van toen.
-              </Text>
-            )}
-          </>
-        )}
+        <Pressable
+          onPress={onOpenHistorie}
+          accessibilityRole="button"
+          accessibilityLabel="Bekijk historie van afgesloten trades"
+          style={styles.historieKnop}
+        >
+          <History size={16} color={colors.cta} strokeWidth={1.75} />
+          <Text style={[Type.caption, styles.historieTekst, { color: colors.cta }]}>
+            Historie{afgesloten > 0 ? ` (${afgesloten} afgesloten)` : ''}
+          </Text>
+        </Pressable>
       </View>
-
-      {/* Historie-knop */}
-      <Pressable
-        onPress={onOpenHistorie}
-        accessibilityRole="button"
-        accessibilityLabel="Bekijk historie van afgesloten trades"
-        style={[styles.historieKnop, { borderTopColor: colors.rand }]}
-      >
-        <History size={16} color={colors.cta} strokeWidth={1.75} />
-        <Text style={[Type.caption, { color: colors.cta, fontWeight: '600' }]}>
-          Historie{afgesloten > 0 ? ` (${afgesloten} afgesloten)` : ''}
-        </Text>
-      </Pressable>
     </View>
   );
 }
@@ -597,43 +591,80 @@ const styles = StyleSheet.create({
   },
   kop: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
     marginBottom: spacing.xs,
   },
+  // marginLeft auto: breekt de kop af, dan blijven de knoppen rechts op hun eigen regel.
   acties: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    marginLeft: 'auto',
   },
+  syncChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
+  },
+  syncTekst: { fontFamily: Fonts.sansSemiBold, fontWeight: '600' },
   actieKnop: {
     minHeight: 36,
     minWidth: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  resultaat: {
-    marginTop: 2,
-  },
   resultaatRij: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: 6,
+  },
+  resultaatPil: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
+  },
+  pilTekst: { fontSize: 13, lineHeight: 18 },
+  resultaatLeeg: { marginTop: 2 },
+  segment: { marginTop: spacing.base },
+  periodeBlok: { marginTop: spacing.md },
+  periodeRegel: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'baseline',
+    marginTop: spacing.sm,
+  },
+  periodeGetal: {
+    marginTop: spacing.sm,
+  },
+  periodeBijschrift: {
+    marginTop: 2,
+    lineHeight: 18,
   },
   balk: {
     flexDirection: 'row',
-    height: 10,
+    height: 8,
     borderRadius: radii.pill,
     overflow: 'hidden',
-    marginTop: spacing.base,
+    marginTop: 14,
   },
   // Eigen hoogte in plaats van uitrekken: één ding minder dat de layout kan laten vallen.
-  balkStuk: { height: 10 },
+  balkStuk: { height: 8 },
   saldoRij: {
     flexDirection: 'row',
     gap: spacing.md,
     marginTop: spacing.md,
   },
-  // Zonder balk erboven is er niets dat de twee kolommen van het grote bedrag scheidt, dus komt
+  // Zonder balk erboven is er niets dat de twee kolommen van het periodeblok scheidt, dus komt
   // er een lijntje voor in de plaats.
   saldoRijGescheiden: {
     marginTop: spacing.base,
@@ -670,70 +701,30 @@ const styles = StyleSheet.create({
   uitlegTekst: {
     flex: 1,
   },
-  detailRij: {
-    flexDirection: 'row',
-    gap: spacing.lg,
-    marginTop: spacing.base,
-    paddingTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  detail: { gap: 2 },
   melding: {
     marginTop: spacing.sm,
     lineHeight: 18,
   },
-  periodeBlok: {
-    marginTop: spacing.md,
+  onder: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: 14,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  periodeUitleg: {
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  periodeRij: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: spacing.sm,
-  },
-  periodeChip: {
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // De vijf tijdvakken: exact even breed als hoog, dus een echt rondje, ongeacht of het label
-  // twee of drie tekens is.
-  periodeChipRond: {
-    width: 40,
-    borderRadius: radii.pill,
-  },
-  // Alles is de uitzondering op de reeks en ziet er ook zo uit: breder, met de knop-radius in
-  // plaats van de pil-radius, zodat het een blokje is en geen uitgerekt rondje.
-  periodeChipAlles: {
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.knop,
-  },
-  periodeRegel: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginTop: spacing.sm,
-  },
-  periodeGetal: {
-    marginTop: spacing.sm,
-  },
-  periodeBijschrift: {
-    marginTop: 2,
-    lineHeight: 18,
-  },
+  onderDetails: { flexDirection: 'row', gap: 20 },
+  detail: { gap: 2 },
+  detailWaarde: { fontSize: 13 },
+  // marginLeft auto: breekt de rij af, dan blijft de link rechts op zijn eigen regel.
   historieKnop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 6,
     minHeight: 44,
+    marginLeft: 'auto',
   },
+  historieTekst: { fontFamily: Fonts.sansSemiBold, fontWeight: '600' },
 });
