@@ -5,6 +5,13 @@ export interface ChangelogEntry {
   versie: string;
   datum: string;
   punten: string[];
+  // Uitgelichte wijzigingen voor de "nieuw in deze versie"-melding. Icoonnamen zijn sleutels en
+  // geen componenten, zodat dit bestand vrij blijft van UI-imports; ChangelogSheet vertaalt ze.
+  hoogtepunten?: {
+    icoon: 'kaarten' | 'keurmerk' | 'koop' | 'koppeling' | 'menu' | 'informatie';
+    titel: string;
+    tekst: string;
+  }[];
   // Mijlpaal-release: toont de feestelijke opening (vallende bitcoins) bij de
   // "nieuw in deze versie"-melding.
   feest?: boolean;
@@ -14,6 +21,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     versie: 'Nog niet uitgebracht',
     datum: '2026-09-30',
+    hoogtepunten: [
+      { icoon: 'kaarten', titel: 'Nieuwe kaarten', tekst: 'Compacter, met je resultaat groot in beeld. Tik om uit te klappen.' },
+      { icoon: 'keurmerk', titel: 'Keurmerk BEVESTIGD', tekst: 'HIGH CONVICTION heet nu STERK KOOP met een keurmerk. Uitgeklapt zie je waarom.' },
+      { icoon: 'koop', titel: 'Nieuw koopvenster', tekst: 'Kies een bedrag met één tik en zie wat je riskeert in dollars.' },
+    ],
     punten: [
       'eToro koppelen gaat nu in vijf stappen op een eigen scherm, met een voortgangsbalk. Je kiest eerst of je alleen wilt meekijken of ook wilt handelen, en de uitleg past zich daarop aan',
       'Sleutels plak je met een Plak-knop. Kader kijkt alleen of het eruitziet als een sleutel en zegt het als er bijvoorbeeld een spatie in staat',
