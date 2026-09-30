@@ -143,6 +143,12 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
         setFout('Geen eToro-sleutels gevonden voor deze omgeving. Koppel je account opnieuw in Instellingen.');
         return;
       }
+      // De knop is getekend voor één omgeving. Is die intussen gewisseld, dan gaat er niets de deur
+      // uit: anders zou een wijziging die je als demo bevestigde een echte positie raken, of andersom.
+      if ((sleutels.omgeving ?? 'real') !== omgeving) {
+        setFout('Je omgeving is net gewisseld. Sluit dit venster en open het opnieuw.');
+        return;
+      }
 
       const uitkomst = await wijzigNiveaus(positionId, bouwWijziging(), sleutels, verzoekId);
 
@@ -172,7 +178,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade }: Props) {
         verzoekId: uitkomst.verzoekId,
         soort: 'niveaus',
         symbool: trade.symbool,
-        omgeving,
+        omgeving: sleutels.omgeving ?? 'real',
         positionId,
         bekendePosities,
         tijd: Date.now(),

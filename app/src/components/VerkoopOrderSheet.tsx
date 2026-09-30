@@ -116,6 +116,12 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
         setFout('Geen eToro-sleutels gevonden voor deze omgeving. Koppel je account opnieuw in Instellingen.');
         return;
       }
+      // De knop is getekend voor één omgeving. Is die intussen gewisseld, dan gaat er niets de deur
+      // uit: anders zou een order die je als demo bevestigde met echt geld kunnen lopen, of andersom.
+      if ((sleutels.omgeving ?? 'real') !== omgeving) {
+        setFout('Je omgeving is net gewisseld. Sluit dit venster en open het opnieuw.');
+        return;
+      }
 
       // unitsToDeduct null: altijd de hele positie. Gedeeltelijk verkopen zit niet in deze versie.
       const uitkomst = await sluitPositie(positionId, instrumentId, null, sleutels, verzoekId);
@@ -180,7 +186,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
         verzoekId: uitkomst.verzoekId,
         soort: 'verkoop',
         symbool: trade.symbool,
-        omgeving,
+        omgeving: sleutels.omgeving ?? 'real',
         positionId,
         bekendePosities,
         tijd: Date.now(),

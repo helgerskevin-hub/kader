@@ -212,6 +212,13 @@ export function KooporderSheet({
         setBezig(false);
         return;
       }
+      // De knop is getekend voor één omgeving. Is die intussen gewisseld, dan gaat er niets de deur
+      // uit: anders zou een order die je als demo bevestigde met echt geld kunnen lopen, of andersom.
+      if ((sleutels.omgeving ?? 'real') !== omgeving) {
+        setFout('Je omgeving is net gewisseld. Sluit dit venster en open het opnieuw.');
+        setBezig(false);
+        return;
+      }
 
       const uitkomst = await plaatsKooporder(invoer, sleutels, verzoekId.current);
 
@@ -274,7 +281,7 @@ export function KooporderSheet({
         verzoekId: verzoekId.current,
         soort: 'koop',
         symbool,
-        omgeving,
+        omgeving: sleutels.omgeving ?? 'real',
         bedragUsd: bedragGetal,
         bekendePosities,
         tijd: Date.now(),
