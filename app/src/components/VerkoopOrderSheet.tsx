@@ -5,10 +5,10 @@
 // Twee regels die niet mogen wijken: er wordt nooit automatisch opnieuw verstuurd, en er is geen
 // knop die dat handmatig doet. Weten we het niet, dan verzoenen we.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { X } from 'lucide-react-native';
-import { fmtPrijs, fmtResultaatUsd } from '../engine/format';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { fmtBedrag, fmtPct, fmtPrijs, fmtResultaatUsd } from '../engine/format';
 import { guid, sluitPositie } from '../engine/etoro';
+import { schatSluiting } from '../engine/planInGeld';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
 import { actieveSleutels } from '../state/etoroSleutels';
@@ -16,9 +16,12 @@ import { PortfolioTrade, richtingVan, tekenVan } from '../state/portfolioTypes';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { GeplaatsteOrder } from '../state/orderUitkomsten';
 import { useTheme } from '../theme/ThemeProvider';
-import { Type } from '../theme/typography';
+import { Fonts, Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
+import { AnimatedGetal } from './AnimatedGetal';
 import { BottomSheet } from './BottomSheet';
+import { OrderKop } from './order/OrderKop';
+import { StopDoelBaan } from './StopDoelBaan';
 import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
 import { useValutaStand } from '../state/useValuta';
 
@@ -43,7 +46,6 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
   const richting = richtingVan(trade);
   const isShort = richting === 'short';
   const werkwoord = isShort ? 'sluiten' : 'verkopen';
-  const werkwoordVervoegd = isShort ? 'sluit' : 'verkoopt';
   // Hele zinsdeel in plaats van los zelfstandig naamwoord: "je verkoop van BTC" loopt, maar de
   // short-variant daarvan ("je sluitorder van BTC") niet, dus die krijgt een eigen formulering.
   const opdrachtTekst = isShort ? `opdracht om ${trade.symbool} te sluiten` : `verkoop van ${trade.symbool}`;
@@ -104,6 +106,41 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
   const aantalTekst = aantal !== undefined
     ? aantal.toFixed(6).replace(/\.?0+$/, '').replace('.', ',')
     : '';
+
+  // Alleen om te tonen: de schatting voor het grote getal en de lijst. De berekening hierboven
+  // (resultaat, resultaatPct) blijft ongemoeid, zodat wat de dialoog na het verkopen meldt niet
+  // verandert.
+  const koersBekend = huidigePrijs !== undefined && huidigePrijs > 0;
+  const sluiting = schatSluiting({
+    inleg: trade.bedragUsd ?? (aantal !== undefined ? aantal * trade.entryPrijs : 0),
+    aantal: aantal ?? 0,
+    entry: trade.entryPrijs,
+    prijs: huidigePrijs,
+    richting,
+  });
+  const heeftBaan = trade.stopLoss > 0 && trade.takeProfit > 0;
+
+  const { fontScale } = useWindowDimensions();
+  const [resBreedte, setResBreedte] = useState(0);
+  // Op honderdsten afronden voor teken en kleur: -0,004 toont $0.00 en hoort dan niet rood te zijn.
+  const resAfgerond = sluiting ? Math.round(sluiting.resultaat * 100) / 100 : 0;
+  const resTekst = fmtResultaatUsd(resAfgerond);
+  const resKleur = resAfgerond > 0 ? colors.winst : resAfgerond < 0 ? colors.verlies : colors.tekstPrimair;
+  // Het grote getal krimpt mee met zijn lengte, zodat een groot resultaat op 360 dp en bij een
+  // grote systeemletter nooit uit beeld loopt. AnimatedGetal geeft geen maxFontSizeMultiplier door,
+  // dus de systeemletter is hier teruggerekend: de getekende grootte is de grootte hieronder.
+  const resGrootte = resBreedte > 0
+    ? Math.max(24, Math.min(44, resBreedte / (resTekst.length * 0.62)))
+    : 44;
+  const resStijl = {
+    fontFamily: Fonts.monoMedium,
+    fontWeight: '500' as const,
+    fontVariant: ['tabular-nums' as const],
+    fontSize: resGrootte / fontScale,
+    lineHeight: (resGrootte * 1.18) / fontScale,
+    letterSpacing: (-resGrootte * 0.034) / fontScale,
+    color: colors.tekstPrimair,
+  };
 
   async function bevestig() {
     if (!mag || bezig || positionId === undefined || instrumentId === undefined) return;
@@ -218,57 +255,74 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
 
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={sluit} velStijl={stijlen.vel}>
-      <View style={stijlen.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{trade.symbool} {werkwoord}</Text>
-        <Pressable
-          onPress={sluit}
-          accessibilityLabel="Sluiten"
-          accessibilityRole="button"
-          style={stijlen.sluitKnop}
-        >
-          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
+      <View style={stijlen.kop}>
+        <OrderKop
+          symbool={trade.symbool}
+          titel={`${trade.symbool} ${werkwoord}`}
+          sub={`${trade.naam || trade.symbool} · hele positie`}
+          omgeving={omgeving}
+          onSluiten={sluit}
+        />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={[stijlen.blok, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
-          <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
-            {trade.symbool} <Text style={[Type.body, { color: colors.tekstGedimd }]}>{trade.naam}</Text>
-          </Text>
-
-          <View style={stijlen.rij}>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Aantal coins</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>
-              {aantal !== undefined ? aantal.toFixed(6) : 'onbekend'}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={stijlen.inhoud}
+      >
+        <View style={stijlen.resultaatBlok} onLayout={e => setResBreedte(e.nativeEvent.layout.width)}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GESCHAT RESULTAAT</Text>
+          {sluiting ? (
+            <>
+              <AnimatedGetal
+                waarde={resAfgerond}
+                format={fmtResultaatUsd}
+                style={resStijl}
+                kleurBijTeken={{
+                  positief: colors.winst,
+                  negatief: colors.verlies,
+                  neutraal: colors.tekstPrimair,
+                }}
+              />
+              <View
+                style={[
+                  stijlen.pil,
+                  { backgroundColor: resAfgerond === 0 ? colors.verhoogd : `${resKleur}24` },
+                ]}
+              >
+                <Text style={[stijlen.pilTekst, { color: resKleur }]}>{fmtPct(sluiting.pct, 2)}</Text>
+              </View>
+            </>
+          ) : (
+            <Text style={[Type.caption, stijlen.midden, { color: colors.tekstGedimd }]}>
+              {koersBekend ? 'Kader kent het aantal coins van deze positie niet, dus een bedrag zou gokwerk zijn.' : 'Nog geen actuele koers. eToro sluit op zijn eigen koers.'}
             </Text>
-          </View>
-
-          <View style={stijlen.rij}>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Aankoopprijs</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(trade.entryPrijs)}</Text>
-          </View>
-
-          {huidigePrijs !== undefined && huidigePrijs > 0 ? (
-            <View style={stijlen.rij}>
-              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Huidige prijs</Text>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(huidigePrijs)}</Text>
-            </View>
-          ) : null}
-
-          {resultaat !== undefined ? (
-            <View style={stijlen.rij}>
-              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Geschat resultaat</Text>
-              <Text style={[Type.prijs, { color: resultaat >= 0 ? colors.winst : colors.verlies }]}>
-                {fmtResultaatUsd(resultaat)}
-              </Text>
-            </View>
-          ) : null}
+          )}
         </View>
 
-        <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
-          {isShort
-            ? 'Je sluit de hele shortpositie tegen de marktprijs. Het resultaat hierboven is een schatting op basis van de prijs die Kader kent; eToro rekent het werkelijke bedrag af, inclusief kosten.'
-            : 'Je verkoopt de hele positie tegen de marktprijs. Het resultaat hierboven is een schatting op basis van de prijs die Kader kent; eToro rekent het werkelijke bedrag af, inclusief kosten.'}
+        {heeftBaan ? (
+          <StopDoelBaan
+            stop={trade.stopLoss}
+            entry={trade.entryPrijs}
+            doel={trade.takeProfit}
+            live={koersBekend ? huidigePrijs : undefined}
+            labels
+          />
+        ) : null}
+
+        <View style={[stijlen.lijst, { backgroundColor: colors.verhoogd }]}>
+          <LijstRij
+            label="Aantal coins"
+            waarde={aantal !== undefined ? aantal.toFixed(6) : 'onbekend'}
+            eerste
+          />
+          <LijstRij label="Aankoopprijs" waarde={fmtPrijs(trade.entryPrijs)} />
+          {koersBekend ? <LijstRij label="Huidige prijs" waarde={fmtPrijs(huidigePrijs as number)} /> : null}
+          {sluiting ? <LijstRij label="Je krijgt ongeveer" waarde={fmtBedrag(sluiting.terug)} /> : null}
+        </View>
+
+        <Text style={[stijlen.eerlijk, { color: colors.tekstGedimd }]}>
+          Schatting op de koers van nu. eToro sluit op zijn eigen koers en rekent kosten, het echte resultaat staat na de sync in je historie.
         </Text>
 
         {!mag ? (
@@ -284,16 +338,36 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
         ) : null}
 
         <OrderBevestigKnop
-          label={`${trade.symbool} ${werkwoord}`}
+          label={omgeving === 'real'
+            ? (isShort ? 'Houd vast om te sluiten' : 'Houd vast om te verkopen')
+            : (isShort ? 'Sluiten in demo' : 'Verkopen in demo')}
           omgeving={omgeving}
           bezig={bezig}
           uitgeschakeld={!mag}
           onBevestig={bevestig}
           gelukt={gelukt}
-          echtWaarschuwing={`Dit ${werkwoordVervoegd} een echte positie met echt geld. Houd de knop ingedrukt om te bevestigen.`}
+          echtWaarschuwing={isShort
+            ? 'Echt geld. Houd de knop vast om te sluiten.'
+            : 'Echt geld. Houd de knop vast om te verkopen.'}
         />
       </ScrollView>
     </BottomSheet>
+  );
+}
+
+// Een rij van de lijst: label links (mag afbreken), getal rechts (kapt nooit af).
+function LijstRij({ label, waarde, eerste }: { label: string; waarde: string; eerste?: boolean }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        stijlen.lijstRij,
+        !eerste && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.rand },
+      ]}
+    >
+      <Text style={[stijlen.lijstLabel, { color: colors.tekstGedimd }]}>{label}</Text>
+      <Text style={[stijlen.lijstWaarde, { color: colors.tekstPrimair }]}>{waarde}</Text>
+    </View>
   );
 }
 
@@ -301,29 +375,33 @@ const stijlen = StyleSheet.create({
   vel: {
     maxHeight: '90%',
   },
-  titelRij: {
+  kop: { marginBottom: spacing.base },
+  inhoud: { gap: 14 },
+  resultaatBlok: { alignItems: 'center', gap: 6 },
+  midden: { textAlign: 'center' },
+  pil: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: radii.pill },
+  pilTekst: { fontFamily: Fonts.monoMedium, fontWeight: '500', fontSize: 11.5, lineHeight: 14 },
+  lijst: { borderRadius: 16, paddingHorizontal: 14 },
+  lijstRij: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.base,
+    minHeight: 44,
+    paddingVertical: 8,
+    gap: 12,
   },
-  sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  blok: {
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+  lijstLabel: { flex: 1, fontFamily: Fonts.sansMedium, fontWeight: '500', fontSize: 13.5, lineHeight: 18 },
+  lijstWaarde: {
+    flexShrink: 0,
+    fontFamily: Fonts.monoRegular,
+    fontSize: 14.5,
+    lineHeight: 20,
+    fontVariant: ['tabular-nums'],
+    textAlign: 'right',
   },
-  rij: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
+  eerlijk: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
   melding: {
     borderWidth: 1,
     borderRadius: radii.veld,
     padding: spacing.md,
-    marginTop: spacing.md,
   },
 });
