@@ -21,10 +21,11 @@ export function Bevestigingen({ uitkomst }: Props) {
     <View style={styles.blok}>
       <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{uitkomst.kop}</Text>
       <View style={styles.raster}>
-        {/* colors.kaart en niet verhoogd: het raster staat in het uitklapblok van TradeCard, dat
-            zelf al verhoogd is, en dan vallen de chips weg tegen hun eigen achtergrond. */}
+        {/* colors.verhoogd: het raster staat sinds de UI-makeover direct op de kaart en niet meer
+            in een verhoogd uitklapblok. Op colors.kaart zouden de tegels wegvallen tegen hun eigen
+            achtergrond. */}
         {uitkomst.lijst.map(b => (
-          <View key={b.naam} style={[styles.item, { backgroundColor: colors.kaart }]}>
+          <View key={b.naam} style={[styles.item, { backgroundColor: colors.verhoogd }]}>
             <View style={[styles.rondje, { backgroundColor: b.ok ? colors.primair + '29' : colors.rand }]}>
               {b.ok
                 ? <Check size={11} color={colors.primair} strokeWidth={2.75} />

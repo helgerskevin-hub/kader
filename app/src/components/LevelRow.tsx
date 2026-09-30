@@ -87,7 +87,7 @@ export function LevelRow({ stop, entry, doel, richting = 'long', stopAangepast =
 // getal is gebeurd. Het waaróm staat voluit in de uitklap van de kaart, in niveaus.uitleg; daar is
 // ruimte voor een hele zin, hier niet. De kleur blijft letOp: dit is een let-op en geen fout, en
 // kleur is niet het enige signaal want er staat een woord in.
-function AangepastPil() {
+export function AangepastPil() {
   const { colors } = useTheme();
   return (
     <View

@@ -51,6 +51,9 @@ export interface Trade {
   // iets anders, dus zonder dit veld valt een omkeer-trade niet van een momentum-trade te
   // onderscheiden zodra ze in dezelfde lijst staan.
   profiel: Scoreprofiel;
+  // De laatste 31 dagcloses, oudste eerst: de grafiek op de Markt-kaart en de 30D-verandering
+  // (eerste tegen laatste punt). Optioneel, want niet elke plek die een Trade bouwt heeft candles.
+  sparkline?: number[];
 }
 
 // Eén coin op de momentum-radar van het Kansen-scherm, zie engine/opportunities.ts.

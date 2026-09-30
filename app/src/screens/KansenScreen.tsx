@@ -18,7 +18,7 @@ import { limietVoor, useStopLossLimieten } from '../state/useStopLossLimiet';
 import { useFavorieten } from '../state/useFavorieten';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { SkeletonCard } from '../components/SkeletonCard';
+import { SkeletonKaart } from '../components/SkeletonKaart';
 import { Drukbaar } from '../components/Drukbaar';
 import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
@@ -312,7 +312,7 @@ export function KansenScreen() {
               <>
                 {Array.from({ length: Math.max(1, 3 - lijst.length) }).map((_, i) => (
                   <Animated.View key={i} exiting={uitklapUit()}>
-                    <SkeletonCard />
+                    <SkeletonKaart />
                   </Animated.View>
                 ))}
               </>

@@ -52,7 +52,9 @@ export const SLEUTELS = {
   // Stop-loss-grenzen per coin, opgehaald bij eToro. Gecachet omdat het endpoint een krap eigen
   // quotum heeft (20 per minuut) en de grenzen zelden wijzigen.
   etoroLimieten: 'etoro_limieten',
-  // Gekozen weergave op het Portfolio-scherm: 'uitgebreid' of 'compact'.
+  // Gekozen weergave op het Portfolio-scherm: 'uitgebreid' of 'compact'. Sinds de UI-makeover wordt
+  // hij niet meer gebruikt (de weergavekeuze bestaat niet meer); de sleutel blijft staan zodat oude
+  // opslag niets breekt.
   portfolioWeergave: 'portfolio_weergave',
   // Wanneer welke trade-melding voor het laatst verstuurd is. Zonder dit zou elke check dezelfde
   // melding opnieuw sturen. Gedeeld door de voorgrond-check en de achtergrondtaak, zodat die twee
