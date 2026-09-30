@@ -40,7 +40,7 @@ const MAX_GROOTTE = 52;
 const MIN_GROOTTE = 28;
 // Gemiddelde tekenbreedte van IBM Plex Mono relatief aan de lettergrootte, inclusief ruimte voor
 // de negatieve letterspatiëring. Iets ruim gekozen zodat het bedrag liever te klein dan te breed is.
-const TEKENBREEDTE = 0.62;
+const TEKENBREEDTE = 0.72;
 const CURSOR_BREEDTE = 2;
 const CURSOR_MARGE = 3;
 

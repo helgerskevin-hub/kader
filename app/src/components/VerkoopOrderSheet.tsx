@@ -130,7 +130,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
   // grote systeemletter nooit uit beeld loopt. AnimatedGetal geeft geen maxFontSizeMultiplier door,
   // dus de systeemletter is hier teruggerekend: de getekende grootte is de grootte hieronder.
   const resGrootte = resBreedte > 0
-    ? Math.max(24, Math.min(44, resBreedte / (resTekst.length * 0.62)))
+    ? Math.max(24, Math.min(44, resBreedte / (resTekst.length * 0.72)))
     : 44;
   const resStijl = {
     fontFamily: Fonts.monoMedium,

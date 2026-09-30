@@ -22,7 +22,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Fonts, Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { haptiek } from '../theme/haptiek';
-import { AnimatedGetal } from './AnimatedGetal';
+import { GeldGetal } from './order/PlanInGeld';
 import { BottomSheet } from './BottomSheet';
 import { Drukbaar } from './Drukbaar';
 import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
@@ -423,7 +423,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
           </Drukbaar>
         ) : null}
 
-        {/* Altijd aanwezig, ook leeg: anders krimpt de sheet zodra het stop-advies verdwijnt. */}
+        {/* Leeg neemt dit vak geen ruimte in; de lijst scrolt, dus een advies dat verschijnt duwt alleen de rest omlaag. */}
         <View
           style={[
             stijlen.adviesSlot,
@@ -540,6 +540,14 @@ function NiveauVeld({
   label, waarde, onWijzig, uit, kanStappen, onLager, onHoger, lagerLabel, hogerLabel, tekstStijl,
 }: NiveauVeldProps) {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  // Een prijs als 0.00000506 past met vaste letter niet tussen de knoppen op 360 dp. De grootte volgt
+  // daarom de gemeten breedte en het aantal tekens (mono, ongeveer 0,62 em per teken), en rekent de
+  // systeemletter zelf mee (tot 1,2x), zodat het getal nooit afkapt.
+  const [breedte, setBreedte] = useState(0);
+  const tekens = Math.max(waarde.length, 4);
+  const passend = breedte > 0 ? breedte / (tekens * 0.62) : 15;
+  const letter = Math.max(10, Math.min(15 * Math.min(fontScale, 1.2), passend));
   const knop = (Icoon: typeof Minus, onPress: () => void, a11y: string) => (
     <Drukbaar
       onPress={onPress}
@@ -561,7 +569,8 @@ function NiveauVeld({
       <View style={stijlen.veldRij}>
         {knop(Minus, onLager, lagerLabel)}
         <TextInput
-          style={tekstStijl}
+          style={[tekstStijl, { fontSize: letter }]}
+          onLayout={e => setBreedte(e.nativeEvent.layout.width)}
           value={waarde}
           onChangeText={onWijzig}
           editable={!uit}
@@ -569,7 +578,7 @@ function NiveauVeld({
           placeholderTextColor={colors.tekstGedimd}
           keyboardType="decimal-pad"
           textAlign="center"
-          maxFontSizeMultiplier={1.2}
+          allowFontScaling={false}
           accessibilityLabel={label.toLowerCase()}
         />
         {knop(Plus, onHoger, hogerLabel)}
@@ -581,11 +590,7 @@ function NiveauVeld({
 // Een bedrag met teken in winst- of verlieskleur, of een korte tekst als er niets te rekenen valt.
 function GeldTegel({ label, waarde, leeg, onder }: { label: string; waarde: number | null; leeg: string; onder?: string }) {
   const { colors } = useTheme();
-  const { fontScale } = useWindowDimensions();
   const afgerond = waarde === null ? null : rond(waarde);
-  // De tegel is zo'n 150 dp breed op 360 dp; op 130% systeemletter past "-$1,234.56" er niet meer
-  // in. AnimatedGetal geeft geen maxFontSizeMultiplier door, dus hier de schaal terugrekenen.
-  const schaal = Math.min(fontScale, 1.2) / fontScale;
   const leesbaar = afgerond === null ? leeg : fmtMetTeken(afgerond);
 
   return (
@@ -600,12 +605,7 @@ function GeldTegel({ label, waarde, leeg, onder }: { label: string; waarde: numb
       {afgerond === null ? (
         <Text style={[Type.caption, { color: colors.tekstGedimd }]} importantForAccessibility="no">{leeg}</Text>
       ) : (
-        <AnimatedGetal
-          waarde={afgerond}
-          format={fmtMetTeken}
-          style={[stijlen.tegelWaarde, { fontSize: 17 * schaal, lineHeight: 22 * schaal, color: colors.tekstPrimair }]}
-          kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies, neutraal: colors.winst }}
-        />
+        <GeldGetal waarde={afgerond} format={fmtMetTeken} neutraal={colors.winst} />
       )}
       {onder ? (
         <Text style={[Type.caption, { color: colors.tekstGedimd }]} importantForAccessibility="no" numberOfLines={1}>
@@ -647,7 +647,6 @@ const stijlen = StyleSheet.create({
   },
   geld: { flexDirection: 'row', gap: 8 },
   tegel: { flex: 1, minWidth: 0, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 2 },
-  tegelWaarde: { fontFamily: Fonts.monoMedium, fontWeight: '500', fontVariant: ['tabular-nums'] },
   voorstel: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -669,7 +668,6 @@ const stijlen = StyleSheet.create({
   // 60px is padding 12 boven en onder plus twee regels Type.caption op lineHeight 18: de hoogte die
   // het stop-advies inneemt als het er wél staat.
   adviesSlot: {
-    minHeight: 60,
     justifyContent: 'center',
   },
   adviesVak: {

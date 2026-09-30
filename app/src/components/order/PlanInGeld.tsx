@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type, Fonts } from '../../theme/typography';
@@ -87,18 +87,6 @@ function Tegel({ label, waarde, vervang }: { label: string; waarde: number | nul
   const { fontScale } = useWindowDimensions();
   const afgerond = waarde === null ? null : rond(waarde);
 
-  // De tegel is ongeveer 150 dp breed op 360 dp; met de systeemletter op 130% past "-$1,234.56"
-  // daar niet meer in. AnimatedGetal geeft geen maxFontSizeMultiplier door, dus de schaal hier
-  // begrensd op 1,2 door de grootte terug te rekenen.
-  const schaal = Math.min(fontScale, 1.2) / fontScale;
-  const waardeStijl = {
-    fontFamily: Fonts.monoMedium,
-    fontWeight: '500' as const,
-    fontVariant: ['tabular-nums' as const],
-    fontSize: WAARDE_GROOTTE * schaal,
-    lineHeight: 22 * schaal,
-  };
-
   const leesbaar = vervang ?? (afgerond === null ? 'geen' : fmtMetTeken(afgerond));
 
   return (
@@ -119,17 +107,45 @@ function Tegel({ label, waarde, vervang }: { label: string; waarde: number | nul
           geen
         </Text>
       ) : (
-        <AnimatedGetal
-          waarde={afgerond}
-          format={fmtMetTeken}
-          style={[waardeStijl, { color: colors.tekstPrimair }]}
-          kleurBijTeken={{
-            positief: colors.winst,
-            negatief: colors.verlies,
-            neutraal: colors.tekstPrimair,
-          }}
-        />
+        <GeldGetal waarde={afgerond} format={fmtMetTeken} neutraal={colors.tekstPrimair} />
       )}
+    </View>
+  );
+}
+
+// Een bedrag in dollars dat altijd op één regel past. AnimatedGetal zet de cijfers naast elkaar en
+// kent geen krimpen, dus meten we de beschikbare breedte en kiezen de letter zo dat het hele getal
+// past (mono, ruim 0,7 em per teken inclusief de marge van de rolkolommen). De systeemletter telt mee tot 1,2x. Zo breekt
+// "-$12,071.43" op 360 dp met grote letter niet meer midden in het getal af.
+export function GeldGetal({ waarde, format, neutraal, grootte = WAARDE_GROOTTE }: {
+  waarde: number;
+  format: (n: number) => string;
+  neutraal: string;
+  grootte?: number;
+}) {
+  const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const [breedte, setBreedte] = useState(0);
+  const tekens = format(waarde).length;
+  const gewenst = grootte * Math.min(fontScale, 1.2);
+  const passend = breedte > 0 ? breedte / (tekens * 0.72) : gewenst;
+  // AnimatedGetal schaalt zelf nog met de systeemletter, dus hier terugrekenen.
+  const letter = Math.min(gewenst, passend) / fontScale;
+  return (
+    <View onLayout={e => setBreedte(e.nativeEvent.layout.width)}>
+      <AnimatedGetal
+        waarde={waarde}
+        format={format}
+        style={{
+          fontFamily: Fonts.monoMedium,
+          fontWeight: '500',
+          fontVariant: ['tabular-nums'],
+          fontSize: letter,
+          lineHeight: letter * 1.3,
+          color: neutraal,
+        }}
+        kleurBijTeken={{ positief: colors.winst, negatief: colors.verlies, neutraal }}
+      />
     </View>
   );
 }
