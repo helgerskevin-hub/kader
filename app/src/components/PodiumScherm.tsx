@@ -8,7 +8,6 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { StatusBar } from 'expo-status-bar';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -93,7 +92,7 @@ interface Props {
 }
 
 export function PodiumScherm({ zichtbaar, onSluiten, onTerug, children }: Props) {
-  const { colors, donkerActief } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
@@ -357,9 +356,6 @@ export function PodiumScherm({ zichtbaar, onSluiten, onTerug, children }: Props)
       {/* Binnen een Modal ziet de GestureHandlerRootView om de app niets: een Modal is een eigen
           venster, dus hier een eigen root voor de swipe-terug. */}
       <GestureHandlerRootView style={styles.vul} onLayout={bijLayout}>
-        {/* Een Modal is een eigen venster met een eigen statusbalkstijl: zonder dit houdt hij de
-            kleur van het moment van openen als je het thema wisselt terwijl hij openstaat. */}
-        <StatusBar style={donkerActief ? 'light' : 'dark'} />
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dim, dimStijl]} />
         <GestureDetector gesture={swipe}>
           <Animated.View style={[StyleSheet.absoluteFill, schermStijl]}>
