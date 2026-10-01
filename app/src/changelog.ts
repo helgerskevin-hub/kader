@@ -27,8 +27,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
-    datum: '2026-09-30',
+    versie: '0.2.0',
+    datum: '2026-10-01',
     hoogtepunten: [
       {
         icoon: 'kaarten',

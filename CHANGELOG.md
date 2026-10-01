@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.2.0
 
 - In demo kun je met de stopgreep en "winst beschermen" nu ook met een eToro-koppeling winst vastzetten, met een stop boven je aankoopprijs. Een meting wijst erop dat eToro de minimale afstand dan vanaf de huidige koers meet, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat. In je echte account blijft de stop voorlopig onder je aankoopprijs, tot dat daar ook gemeten is
 - Het Marktklimaat-bericht klopt nu met wat Kader doet: bij een gemengd klimaat geeft Kader geen koopsignalen
