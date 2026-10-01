@@ -54,17 +54,40 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
     if (zichtbaar) {
       setOpen(null);
       setZoek('');
+      indexY.current = 0;
+      herstelIndex.current = false;
     }
   }, [zichtbaar]);
 
-  // Bij elk ander hoofdstuk weer bovenaan beginnen.
+  // Een hoofdstuk begint bovenaan. Terug naar de index gaat naar waar je was: die wordt bij het
+  // openen van een hoofdstuk ontmount, en de ScrollView krimpt dan mee naar de hoogte van het
+  // hoofdstuk, dus de stand moet apart onthouden en na de nieuwe layout teruggezet worden.
+  const indexY = useRef(0);
+  const herstelIndex = useRef(false);
   useEffect(() => {
+    if (open === null) {
+      if (!herstelIndex.current) return;
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ y: indexY.current, animated: false });
+        herstelIndex.current = false;
+      });
+      return;
+    }
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [open]);
 
+  const openHoofdstuk = (id: string) => {
+    herstelIndex.current = false;
+    setOpen(id);
+  };
+  const terugNaarIndex = () => {
+    herstelIndex.current = true;
+    setOpen(null);
+  };
+
   const onTerug = () => {
     if (open !== null) {
-      setOpen(null);
+      terugNaarIndex();
       return true;
     }
     return false;
@@ -82,12 +105,19 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             contentContainerStyle={[styles.scroll, { paddingTop: spacing.sm + extraKopruimte }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            scrollEventThrottle={32}
+            onScroll={e => { if (open === null && !herstelIndex.current) indexY.current = e.nativeEvent.contentOffset.y; }}
+            onContentSizeChange={() => {
+              if (open === null && herstelIndex.current) {
+                scrollRef.current?.scrollTo({ y: indexY.current, animated: false });
+              }
+            }}
           >
             <StapOvergang stapIndex={stapIndex}>
               {open === null ? (
-                <Index zoek={zoek} setZoek={setZoek} onOpen={setOpen} onSluit={() => sluit()} />
+                <Index zoek={zoek} setZoek={setZoek} onOpen={openHoofdstuk} onSluit={() => sluit()} />
               ) : (
-                <Pagina onTerug={() => setOpen(null)}>
+                <Pagina onTerug={terugNaarIndex}>
                   {open === BRONNEN_ID ? <Bronnen /> : hoofdstuk ? <HoofdstukPagina h={hoofdstuk} /> : null}
                 </Pagina>
               )}
