@@ -60,8 +60,11 @@ type AdviesLabel = 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
 // BEVESTIGD-keurmerk ernaast. highConviction (score 75+) valt al boven de drempel van 72, maar we
 // noemen hem toch expliciet zodat dat niet stilletjes afhangt van twee constanten die uit elkaar
 // kunnen lopen.
-function adviesLabel(trade: Trade): AdviesLabel {
+function adviesLabel(trade: Trade, haaltRr: boolean): AdviesLabel {
   if (trade.signaal !== 'KOOP') return 'AFWACHTEN';
+  // Zelfde regel als effectiefSignaal() voor Kansen: schuift eToro de stop zo op dat de R/R onder
+  // de drempel zakt, dan is het geen koopsignaal meer.
+  if (!haaltRr) return 'AFWACHTEN';
   if (trade.highConviction || trade.score >= DREMPEL_STERK_KOOP) return 'STERK KOOP';
   return 'KOOPZONE';
 }
@@ -78,7 +81,6 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   const [uitgeklapt, setUitgeklapt] = useState(false);
   const [platformsOpen, setPlatformsOpen] = useState(false);
   const info = infoVoor(trade.symbool);
-  const advies = adviesLabel(trade);
   // De hele kaart veert mee als je het bovenste deel indrukt, niet alleen dat deel: anders krimpt
   // de inhoud binnen een stilstaande rand en schaduw. Het detailscherm groeit uit deze kaart, ook
   // als je het via de Details-knop opent.
@@ -94,6 +96,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   // die drempel het enige eerlijke oordeel: de score kan nog zo hoog zijn, met een stop van 10% en
   // een doel van 9% verdien je er niets aan.
   const haaltRr = niveaus.aangepast ? niveaus.rr >= MIN_RISK_REWARD : trade.voldoetAanRR;
+  const advies = adviesLabel(trade, haaltRr);
   const uitkomst = bevestigingen(trade, niveaus.rr, haaltRr);
   // Het keurmerk popt alleen als een trade bevestigd raakt terwijl de kaart er al staat. Bij elke
   // filterwissel mount de lijst opnieuw, en dan zouden alle keurmerken tegelijk opspringen.
