@@ -1,13 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
-import {
-  X, Smartphone, Sun, Moon, FileText, Link2, ChevronRight, FlaskConical, Wallet,
-  DollarSign, Euro, Bell, BellOff,
-} from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Constants from 'expo-constants';
+import { X, Link2, Bell, FileText, ChevronRight } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
-import { Type } from '../theme/typography';
+import { useModalKopruimte } from '../theme/useModalKopruimte';
+import { Type, Fonts } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
-import { BottomSheet } from './BottomSheet';
+import { duur, vervaag } from '../theme/beweging';
+import { haptiek } from '../theme/haptiek';
+import { useSchermlezer } from '../theme/useSchermlezer';
+import { PodiumScherm } from './PodiumScherm';
+import { LijstGroep } from './lijst/LijstGroep';
+import { LijstRij } from './lijst/LijstRij';
+import { SegmentKnop, SegmentOptie } from './SegmentKnop';
+import { Disclaimer } from './Disclaimer';
 import { ChangelogSheet } from './ChangelogSheet';
 import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
 import { heeftSleutels } from '../state/etoroSleutels';
@@ -25,26 +32,28 @@ interface Props {
   onSluiten: () => void;
 }
 
-const OPTIES: { modus: ThemaModus; label: string; Icon: typeof Sun }[] = [
-  { modus: 'systeem', label: 'Systeem', Icon: Smartphone },
-  { modus: 'licht', label: 'Licht', Icon: Sun },
-  { modus: 'donker', label: 'Donker', Icon: Moon },
+const THEMAS: SegmentOptie<ThemaModus>[] = [
+  { id: 'systeem', label: 'Systeem', uitleg: 'Thema volgt het systeem' },
+  { id: 'licht', label: 'Licht', uitleg: 'Licht thema' },
+  { id: 'donker', label: 'Donker', uitleg: 'Donker thema' },
 ];
 
-const VALUTAS: { valuta: Valuta; label: string; Icon: typeof Sun }[] = [
-  { valuta: 'USD', label: 'Dollar', Icon: DollarSign },
-  { valuta: 'EUR', label: 'Euro', Icon: Euro },
+const VALUTAS: SegmentOptie<Valuta>[] = [
+  { id: 'USD', label: 'Dollar', uitleg: 'Bedragen in dollar' },
+  { id: 'EUR', label: 'Euro', uitleg: 'Bedragen in euro' },
 ];
 
-const MELDINGKEUZES: { aan: boolean; label: string; Icon: typeof Sun }[] = [
-  { aan: true, label: 'Aan', Icon: Bell },
-  { aan: false, label: 'Uit', Icon: BellOff },
+const OMGEVINGEN: SegmentOptie<EtoroOmgeving>[] = [
+  { id: 'demo', label: 'Demo', uitleg: 'Demo, oefengeld' },
+  { id: 'real', label: 'Echt', uitleg: 'Echt, je eigen geld' },
 ];
 
-const OMGEVINGEN: { omgeving: EtoroOmgeving; label: string; Icon: typeof Sun }[] = [
-  { omgeving: 'demo', label: 'Demo', Icon: FlaskConical },
-  { omgeving: 'real', label: 'Echt', Icon: Wallet },
-];
+// Naar echt vraagt vasthouden; naar demo niet, dat kan geen geld kosten.
+const VASTHOUDEN: EtoroOmgeving[] = ['real'];
+
+// Zo lang blijft de hint "houd Echt vast" staan voor hij wegvervaagt: lang genoeg om de zin te
+// lezen, kort genoeg dat hij niet blijft hangen als je het al begrepen hebt.
+const HINT_ZICHTBAAR_MS = 2500;
 
 type SleutelStatus =
   | 'Niet ingesteld'
@@ -58,14 +67,6 @@ const SCHRIJFVLAG: Record<EtoroOmgeving, string> = {
   demo: SLEUTELS.etoroDemoSchrijven,
 };
 
-// Zelfde reden en aanpak als in ChangelogSheet.tsx: een expliciete hoogte in punten omdat
-// flexShrink op het toestel niet werkte. RUIMTE_OM_DE_INHOUD is kleiner dan bij het changelog-vel
-// omdat hier geen Begrepen-knop onder de lijst staat; 140 laat ruim marge over de titelrij en de
-// padding van het vel (samen ongeveer 90).
-const VEL_DEEL_VAN_SCHERM = 0.9;
-const RUIMTE_OM_DE_INHOUD = 140;
-const INHOUD_MINIMUM = 200;
-
 // Eén sleutel, dus één status. Het handelsrecht blijft wél per omgeving, want eToro kan je sleutel
 // in demo wel en in echt geen schrijfrecht geven, en dat verschil hoort zichtbaar te blijven.
 async function bepaalStatus(): Promise<SleutelStatus> {
@@ -77,20 +78,48 @@ async function bepaalStatus(): Promise<SleutelStatus> {
   return 'Alleen lezen';
 }
 
+const VERSIE = Constants.expoConfig?.version ?? '';
+
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
+  const extraKopruimte = useModalKopruimte();
   const { toonDialoog } = useDialoog();
   const { valuta, eurPerUsd, koersOntbreekt, kiesValuta } = useValuta();
   // Meteen ophalen zodra de koppeling is opgeslagen, niet pas bij de volgende app-start.
   const { omgeving, setOmgeving } = usePortfolio();
-  const { height: schermHoogte } = useWindowDimensions();
-  const inhoudHoogte = Math.max(INHOUD_MINIMUM, schermHoogte * VEL_DEEL_VAN_SCHERM - RUIMTE_OM_DE_INHOUD);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [sleutelStatus, setSleutelStatus] = useState<SleutelStatus>('Niet ingesteld');
   const [bezigWisselen, setBezigWisselen] = useState(false);
+  // De ref is de waarheid tijdens een wissel (state loopt een render achter), en onthoudt een tik op
+  // Demo die binnenkwam terwijl de vorige wissel nog liep: terug naar demo mag nooit verloren gaan.
+  const bezigRef = useRef(false);
+  const naDemoRef = useRef(false);
+  const schermlezer = useSchermlezer();
   const [meldingen, setMeldingen] = useState(true);
   const [bezigMeldingen, setBezigMeldingen] = useState(false);
+
+  // Hint onder de handelsomgeving na een losse tik op Echt. Alleen de dekking beweegt.
+  const [hintGetoond, setHintGetoond] = useState(false);
+  const hintDekking = useSharedValue(0);
+  const hintWekkers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const hintStijl = useAnimatedStyle(() => ({ opacity: hintDekking.value }));
+
+  useEffect(() => () => {
+    hintWekkers.current.forEach(clearTimeout);
+  }, []);
+
+  function toonHoudHint() {
+    hintWekkers.current.forEach(clearTimeout);
+    setHintGetoond(true);
+    hintDekking.value = vervaag(1, duur.kort);
+    hintWekkers.current = [
+      setTimeout(() => {
+        hintDekking.value = vervaag(0, duur.midden);
+      }, HINT_ZICHTBAAR_MS),
+      setTimeout(() => setHintGetoond(false), HINT_ZICHTBAAR_MS + duur.midden),
+    ];
+  }
 
   async function ververStatussen() {
     const [status, aan] = await Promise.all([bepaalStatus(), meldingenAan()]);
@@ -118,29 +147,53 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
     if (zichtbaar) ververStatussen();
   }, [zichtbaar]);
 
-  async function wissel(nieuw: EtoroOmgeving) {
+  // viaDialoog: de schermlezer-route heeft geen vasthouden gehad, dus ook nog niet de stevige
+  // haptiek die useVasthouden bij 100% geeft. Die komt dan hier, pas als de wissel gelukt is.
+  async function wissel(nieuw: EtoroOmgeving, viaDialoog = false) {
+    bezigRef.current = true;
     setBezigWisselen(true);
     try {
       await setOmgeving(nieuw);
+      if (viaDialoog && nieuw === 'real') haptiek('stevig');
+    } catch {
+      // setOmgeving vangt zijn eigen fouten af; mocht er toch iets doorkomen, dan blijft de
+      // omgeving de bewaarde en toont de knop die stand.
     } finally {
+      bezigRef.current = false;
       setBezigWisselen(false);
+    }
+    if (naDemoRef.current) {
+      naDemoRef.current = false;
+      if (nieuw !== 'demo') wissel('demo');
     }
   }
 
-  // Naar demo mag zonder vragen: dat kan geen geld kosten. Naar echt is de stap die je per ongeluk
-  // zet en pas merkt bij je eerste order, dus daar staat een bevestiging voor.
+  // Naar demo mag met een tik: dat kan geen geld kosten. Naar echt komt hier alleen na 800 ms
+  // vasthouden (SegmentKnop), de stap die je anders per ongeluk zet en pas merkt bij je eerste order.
   function kiesOmgeving(nieuw: EtoroOmgeving) {
-    if (nieuw === omgeving || bezigWisselen) return;
-    if (nieuw === 'demo') {
-      wissel('demo');
+    if (bezigRef.current) {
+      if (nieuw === 'demo') naDemoRef.current = true;
       return;
     }
+    if (nieuw === omgeving) return;
+    wissel(nieuw);
+  }
+
+  // Met een schermlezer is vasthouden lastig; dan vraagt een gewone activering op Echt deze
+  // bevestiging. Oranje waarschuwing, geen rood: het is geen fout en niets gaat stuk.
+  function bevestigEcht(nieuw: EtoroOmgeving) {
+    if (nieuw !== 'real' || nieuw === omgeving || bezigRef.current) return;
     toonDialoog({
       variant: 'waarschuwing',
       titel: 'Overschakelen naar echt',
       tekst: 'Orders die je hierna bevestigt gaan naar je echte eToro-account, met je eigen geld. Je portfolio in Kader toont vanaf dan alleen je echte posities.',
       knoppen: [
-        { label: 'Naar echt', soort: 'destructief', onDruk: () => wissel('real') },
+        {
+          label: 'Naar echt',
+          soort: 'primair',
+          // Opnieuw kijken bij het drukken: de dialoog kan open hebben gestaan terwijl er al gewisseld werd.
+          onDruk: () => { if (!bezigRef.current) wissel('real', true); },
+        },
         { label: 'Annuleren', soort: 'secundair' },
       ],
     });
@@ -153,244 +206,213 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
     setOmgeving(omgeving);
   }
 
+  // Niet gekoppeld of alleen lezen is neutraal; handelen krijgt de winstkleur, maar alleen als tekst
+  // en rand van een pil, nooit als gevuld vlak.
+  const kanHandelen = sleutelStatus !== 'Niet ingesteld' && sleutelStatus !== 'Alleen lezen';
+  const chipKleur = kanHandelen ? colors.winst : colors.tekstGedimd;
+
+  const valutaUitleg = koersOntbreekt
+    ? 'De wisselkoers is nog niet opgehaald, dus bedragen staan voorlopig in dollars. Zodra er internet is pakt de app dit vanzelf op.'
+    : valuta === 'EUR' && eurPerUsd !== null
+      ? `Koersen en bedragen worden omgerekend tegen €${eurPerUsd.toFixed(4)} per dollar.`
+      : 'Marktdata en eToro rekenen allebei in dollars. Kies euro als je liever ziet wat een bedrag in je eigen valuta is.';
+
   return (
     <>
-    <BottomSheet zichtbaar={zichtbaar && !changelogOpen && !wizardOpen} onSluiten={onSluiten} velStijl={styles.vel}>
-      <View style={styles.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Instellingen</Text>
-        <Pressable
-          onPress={onSluiten}
-          accessibilityLabel="Sluiten"
-          accessibilityRole="button"
-          style={styles.sluitKnop}
-        >
-          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator style={{ maxHeight: inhoudHoogte }}>
-        <Text style={[Type.overline, styles.label, { color: colors.tekstGedimd }]}>WEERGAVE</Text>
-        <View style={styles.opties}>
-          {OPTIES.map(({ modus: optieModus, label, Icon }) => {
-            const actief = modus === optieModus;
-            return (
+      <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
+        {sluit => (
+          <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
+            <View style={[styles.header, { paddingTop: spacing.sm + extraKopruimte }]}>
+              <Text accessibilityRole="header" style={[styles.titel, { color: colors.tekstPrimair }]}>
+                Instellingen
+              </Text>
               <Pressable
-                key={optieModus}
-                onPress={() => setModus(optieModus)}
+                onPress={() => sluit()}
+                style={[styles.sluitKnop, { backgroundColor: colors.verhoogd }]}
                 accessibilityRole="button"
-                accessibilityState={{ selected: actief }}
-                accessibilityLabel={label}
-                style={[
-                  styles.optie,
-                  {
-                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                    borderColor: actief ? colors.cta : colors.rand,
-                  },
-                ]}
+                accessibilityLabel="Sluiten"
               >
-                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                  {label}
-                </Text>
+                <X size={18} color={colors.tekstPrimair} strokeWidth={2} />
               </Pressable>
-            );
-          })}
-        </View>
+            </View>
 
-        <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
-          VALUTA
-        </Text>
-        <View style={styles.opties}>
-          {VALUTAS.map(({ valuta: optieValuta, label, Icon }) => {
-            const actief = valuta === optieValuta;
-            return (
-              <Pressable
-                key={optieValuta}
-                onPress={() => kiesValuta(optieValuta)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: actief }}
-                accessibilityLabel={`Bedragen in ${label.toLowerCase()}`}
-                style={[
-                  styles.optie,
-                  {
-                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                    borderColor: actief ? colors.cta : colors.rand,
-                  },
-                ]}
+            <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+              <LijstGroep
+                titel="eToro"
+                voetnoot={
+                  omgeving === 'real'
+                    ? 'Orders die je bevestigt gaan naar je echte eToro-account, met je eigen geld. Demo en echt gebruiken dezelfde sleutel; alleen het adres waar een order heen gaat verschilt.'
+                    : `Demo is oefengeld. ${schermlezer ? 'Dubbeltik op Echt en bevestig' : 'Houd Echt vast'} om over te stappen naar je echte account. Je portfolio toont daarna alleen je echte posities. Demo en echt gebruiken dezelfde sleutel; alleen het adres waar een order heen gaat verschilt.`
+                }
               >
-                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={[Type.caption, styles.uitleg, { color: koersOntbreekt ? colors.letOp : colors.tekstGedimd }]}>
-          {koersOntbreekt
-            ? 'De wisselkoers is nog niet opgehaald, dus bedragen staan voorlopig in dollars. Zodra er internet is pakt de app dit vanzelf op.'
-            : valuta === 'EUR' && eurPerUsd !== null
-              ? `Koersen en bedragen worden omgerekend tegen €${eurPerUsd.toFixed(4)} per dollar. Orders reken je bij eToro in dollars af, dus die schermen blijven in dollars.`
-              : 'Marktdata en eToro rekenen allebei in dollars. Kies euro als je liever ziet wat een bedrag in je eigen valuta is.'}
-        </Text>
+                <LijstRij
+                  icoon={Link2}
+                  icoonKleur={colors.cta}
+                  titel="Koppeling"
+                  sub="Sleutel op dit toestel"
+                  onPress={() => setWizardOpen(true)}
+                  accessibilityLabel={`eToro-koppeling, sleutel op dit toestel, nu ${sleutelStatus.toLowerCase()}`}
+                  rechts={
+                    <>
+                      <View style={[styles.chip, { borderColor: kanHandelen ? colors.winst : colors.rand }]}>
+                        <Text style={[Type.caption, styles.chipTekst, { color: chipKleur }]}>{sleutelStatus}</Text>
+                      </View>
+                      <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
+                    </>
+                  }
+                />
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Handelsomgeving</Text>
+                  <SegmentKnop
+                    opties={OMGEVINGEN}
+                    actief={omgeving}
+                    onKies={kiesOmgeving}
+                    vasthouden={VASTHOUDEN}
+                    onTikZonderVasthouden={id => { if (id === 'real') toonHoudHint(); }}
+                    schermlezerBevestig={bevestigEcht}
+                    geblokkeerd={bezigWisselen}
+                  />
+                  {hintGetoond && (
+                    <Animated.Text
+                      accessibilityLiveRegion="polite"
+                      style={[Type.caption, styles.hint, { color: colors.tekstGedimd }, hintStijl]}
+                    >
+                      Houd Echt vast om over te stappen.
+                    </Animated.Text>
+                  )}
+                </View>
+              </LijstGroep>
 
-        <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
-          MELDINGEN
-        </Text>
-        <View style={styles.opties}>
-          {MELDINGKEUZES.map(({ aan, label, Icon }) => {
-            const actief = meldingen === aan;
-            return (
-              <Pressable
-                key={label}
-                onPress={() => kiesMeldingen(aan)}
-                disabled={bezigMeldingen}
-                accessibilityRole="button"
-                accessibilityState={{ selected: actief, disabled: bezigMeldingen }}
-                accessibilityLabel={aan ? 'Meldingen aan' : 'Meldingen uit'}
-                style={[
-                  styles.optie,
-                  {
-                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                    borderColor: actief ? colors.cta : colors.rand,
-                    opacity: bezigMeldingen ? 0.6 : 1,
-                  },
-                ]}
+              <LijstGroep
+                titel="Weergave"
+                style={styles.groep}
+                lijnInspringing={spacing.base}
+                voetnoot={
+                  <>
+                    <Text style={[Type.caption, { color: koersOntbreekt ? colors.letOp : colors.tekstGedimd }]}>
+                      {valutaUitleg}
+                    </Text>
+                    <Text style={[Type.caption, styles.voetnootVervolg, { color: colors.tekstGedimd }]}>
+                      Orders reken je bij eToro altijd in dollars af, dus de ordervensters blijven in dollars.
+                    </Text>
+                  </>
+                }
               >
-                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
-          {meldingen
-            ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open positie aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
-            : 'Kader stuurt geen enkele melding meer, ook geen prijsalerts. Je alerts blijven staan en gaan weer werken zodra je dit aanzet.'}
-        </Text>
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Thema</Text>
+                  <SegmentKnop opties={THEMAS} actief={modus} onKies={setModus} />
+                </View>
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Valuta</Text>
+                  <SegmentKnop opties={VALUTAS} actief={valuta} onKies={kiesValuta} />
+                </View>
+              </LijstGroep>
 
-        <Text style={[Type.overline, styles.label, styles.labelRuim, { color: colors.tekstGedimd }]}>
-          HANDELSOMGEVING
-        </Text>
-        <View style={styles.opties}>
-          {OMGEVINGEN.map(({ omgeving: optieOmgeving, label, Icon }) => {
-            const actief = omgeving === optieOmgeving;
-            return (
-              <Pressable
-                key={optieOmgeving}
-                onPress={() => kiesOmgeving(optieOmgeving)}
-                disabled={bezigWisselen}
-                accessibilityRole="button"
-                accessibilityState={{ selected: actief, disabled: bezigWisselen }}
-                accessibilityLabel={label}
-                style={[
-                  styles.optie,
-                  {
-                    backgroundColor: actief ? colors.cta + '1A' : colors.verhoogd,
-                    borderColor: actief ? colors.cta : colors.rand,
-                    opacity: bezigWisselen ? 0.6 : 1,
-                  },
-                ]}
+              <LijstGroep
+                titel="Meldingen"
+                style={styles.groep}
+                voetnoot={
+                  meldingen
+                    ? 'Kader stuurt een dagelijkse herinnering, meldt het als een open positie aandacht vraagt of het marktklimaat omslaat, en waarschuwt je bij een prijsalert die je zelf hebt gezet.'
+                    : 'Kader stuurt geen enkele melding meer, ook geen prijsalerts. Je alerts blijven staan en gaan weer werken zodra je dit aanzet.'
+                }
               >
-                <Icon size={20} color={actief ? colors.cta : colors.tekstGedimd} strokeWidth={1.75} />
-                <Text style={[Type.caption, { color: actief ? colors.cta : colors.tekstGedimd, marginTop: spacing.xs }]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
-          In demo gaan orders naar je oefenaccount bij eToro. In echt gaan ze met je eigen geld. Kader
-          gebruikt in allebei dezelfde sleutel; alleen het adres waar de order heen gaat verschilt.
-        </Text>
+                <LijstRij
+                  icoon={Bell}
+                  titel="Meldingen"
+                  sub="Posities, marktklimaat en prijsalerts"
+                  rechts={
+                    // Grijs als hij aan staat, niet groen: aan is geen goedkeuring.
+                    <Switch
+                      value={meldingen}
+                      onValueChange={kiesMeldingen}
+                      disabled={bezigMeldingen}
+                      trackColor={{ true: colors.tekstGedimd, false: colors.rand }}
+                      // Zonder thumbColor kleurt Android de knop in zijn eigen accent (groenblauw).
+                      thumbColor={meldingen ? colors.tekstPrimair : colors.verhoogd}
+                      accessibilityLabel="Meldingen"
+                    />
+                  }
+                />
+              </LijstGroep>
 
-        <View style={[styles.menuGroep, { borderTopColor: colors.rand }]}>
-          <Pressable
-            onPress={() => setWizardOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={`eToro-sleutel instellen, nu ${sleutelStatus.toLowerCase()}`}
-            style={styles.menuKnop}
-          >
-            <Link2 size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-            <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>eToro-sleutel</Text>
-            <Text
-              style={[
-                Type.caption,
-                {
-                  color: sleutelStatus === 'Niet ingesteld'
-                    ? colors.tekstGedimd
-                    : sleutelStatus === 'Alleen lezen' ? colors.tekstPrimair : colors.winst,
-                },
-              ]}
-            >
-              {sleutelStatus}
-            </Text>
-            <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-          </Pressable>
+              <LijstGroep titel="Over Kader" style={styles.groep}>
+                <LijstRij
+                  icoon={FileText}
+                  titel="Wijzigingen"
+                  waarde={VERSIE}
+                  rechts="pijl"
+                  onPress={() => setChangelogOpen(true)}
+                  accessibilityLabel={VERSIE ? `Wijzigingen, versie ${VERSIE}` : 'Wijzigingen'}
+                />
+              </LijstGroep>
 
-          <Pressable
-            onPress={() => setChangelogOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Wijzigingen"
-            style={styles.menuKnop}
-          >
-            <FileText size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-            <Text style={[Type.body, styles.menuTekst, { color: colors.tekstPrimair }]}>Wijzigingen</Text>
-            <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-          </Pressable>
-        </View>
-      </ScrollView>
-    </BottomSheet>
+              <View style={styles.disclaimer}>
+                <Disclaimer metRand={false} />
+              </View>
+            </ScrollView>
+          </View>
+        )}
+      </PodiumScherm>
 
-    <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
-    <EtoroKoppelingWizard
-      zichtbaar={wizardOpen}
-      onSluiten={() => setWizardOpen(false)}
-      onOpgeslagen={naOpslaan}
-    />
+      {/* Eigen Modals, dus ze liggen boven het scherm; dat blijft eronder gewoon staan. */}
+      <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
+      <EtoroKoppelingWizard
+        zichtbaar={wizardOpen}
+        onSluiten={() => setWizardOpen(false)}
+        onOpgeslagen={naOpslaan}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  vel: { maxHeight: '90%' },
-  titelRij: {
+  root: { flex: 1 },
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.base,
+    gap: spacing.md,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.xs,
   },
-  sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
-  label: { marginBottom: spacing.sm },
-  labelRuim: { marginTop: spacing.lg },
-  uitleg: { marginTop: spacing.sm, lineHeight: 18 },
-  opties: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  optie: {
+  titel: {
     flex: 1,
-    borderWidth: 1.5,
-    borderRadius: radii.knop,
-    paddingVertical: spacing.md,
+    fontFamily: Fonts.sansSemiBold,
+    fontWeight: '600',
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.4,
+  },
+  sluitKnop: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
   },
-  menuGroep: {
-    marginTop: spacing.base,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: spacing.xs,
+  scroll: {
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.xl,
   },
-  menuKnop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+  groep: { marginTop: spacing.lg },
+  chip: {
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    // Smal genoeg dat de titel bij 360 dp en grote letter ruimte houdt; de tekst loopt dan door
+    // op een tweede regel in plaats van afgeknipt te worden.
+    maxWidth: 128,
+  },
+  chipTekst: { textAlign: 'center' },
+  segmentRij: {
+    paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    minHeight: 44,
+    gap: spacing.sm,
   },
-  menuTekst: { flex: 1 },
+  rijLabel: { fontWeight: '600' },
+  hint: { marginTop: spacing.xs },
+  voetnootVervolg: { marginTop: spacing.xs },
+  disclaimer: { marginTop: spacing.lg, alignItems: 'center' },
 });

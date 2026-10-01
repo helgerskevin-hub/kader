@@ -43,18 +43,26 @@ daaronder een **hoofd-tabbalk** met 3 tabs:
 ### Tab 1 — 🎯 Analyse
 Bevat 3 sub-tabbladen:
 - **📊 Marktanalyse** — knop "🚀 Start Analyse". Haalt verse data op en toont per
-  kans een kaart met: huidige prijs, entry-zone, 🛑 stop-loss, 🎯 take-profit,
-  risk/reward, signaalscore + RSI, een koopadvies-badge en een uitklapbaar
-  "ℹ️ Over deze coin"-blok. Knoppen per kaart: "✅ Getrade" en "✏️ Aanpassen".
+  kans een compacte kaart (TradeCard) met de score als ring rond het coinlogo,
+  de huidige prijs, een koopadvies-badge en een vlakgrafiek van 30 dagen met de
+  verandering erbij (pil "30D"). Tik op de kaart klapt hem uit: entry-zone,
+  stop-loss en take-profit als één stop-doel-baan met een stip voor de huidige
+  koers, risk/reward, RSI en het blok "Over deze coin". Knoppen in het
+  uitgeklapte deel: "Getrade", "Koop" en "Details". Details opent het
+  detailscherm, dat uit de kaart groeit; een tik op de kaart zelf opent het niet.
 - **👥 Traders kopiëren** — toont per opgeslagen trader hun huidige posities met
   live entry/stop/take-profit in een tabel; per rij een "✅ Getrade"-knop.
 - **⚡ Momentum-radar (tab Kansen)**: scant dezelfde 57 eToro-coins als Markt,
   maar vraagt iets anders: welke coins staan dicht bij hun hoogste koers van 90
   dagen (gebacktest, meting I en J). Scant vanzelf bij openen (hooguit elke 30
-  minuten) en onthoudt het laatste resultaat. Bovenaan een top-3 carrousel,
-  daaronder kaarten met rangpijltje, sparkline, momentumbalkjes, een uitbraak-plan
-  (stop op de EMA20, doel 2x ATR boven de 90d-top) en een KOOP/WATCH-oordeel (KOOP
-  alleen bij R/R vanaf 1:2). Staat niets dicht bij zijn top, dan zegt het scherm
+  minuten) en onthoudt het laatste resultaat. Bovenaan een top-3 carrousel
+  (mini-kaarten met scorering rond het logo en een vlakgrafiek; een tik opent het detailscherm), daaronder kaarten
+  (KansKaart) die net als op Markt werken: tik klapt uit, Details opent het
+  detailscherm. De kaart toont rangpijltje, scorering rond het logo, vlakgrafiek
+  van 30 dagen met verandering en momentumbalkjes; uitgeklapt staan het
+  uitbraak-plan (stop op de EMA20, doel 2x ATR boven de 90d-top) als stop-doel-baan
+  met stip voor de koers, het KOOP/WATCH-oordeel (KOOP alleen bij R/R vanaf 1:2)
+  en de knoppen "Getrade", "Koop" en "Details". Staat niets dicht bij zijn top, dan zegt het scherm
   dat eerlijk en toont het de drie sterkste als WATCH.
 
 ### Tab 2 — 📈 Mijn Trades
@@ -62,13 +70,19 @@ Bevat 3 sub-tabbladen:
   Stop-loss, Take-profit.
 - **🔔 Pushmeldingen-kaart** (nieuw): aan/uit-schakelaar "controle elke 10 min" +
   testknop, met uitleg en een tijdstempel van de laatste controle.
-- **Samenvattingskaart** (5 vakjes): Open posities · Ingelegd · Huidige waarde ·
-  Totaal W/V · Actie nodig.
+- **Samenvattingskaart** (PortfolioStatusKaart): totale waarde, een pil voor het
+  open resultaat, een segmentknop (schuifknop) om de periode te kiezen voor het
+  resultaat over die periode, en een sync-chip rechtsboven met het moment van de
+  laatste eToro-sync. Er is geen vermogensgrafiek: de app bewaart nog geen
+  dagelijkse reeks.
 - Optie "Auto-vernieuwen (1 min)" + knop "🔄 Prijzen vernieuwen".
-- **Open posities** als kaarten: live prijs, jouw entry, resultaat (W/V % en €),
-  🛑 stop / 🎯 doel, een voortgangsbalk (entry → take-profit), en een tip-tekst
-  met een advies-badge (VERKOOP NU / NEEM WINST / OVERWEEG WINST / HOUD VAST /
-  LET OP). Knoppen: "✓ Gesloten markeren" en "verwijderen".
+- **Open posities** als positiekaarten (PositieKaart), één soort kaart; de
+  wissel tussen compact en uitgebreid bestaat niet meer. Ingeklapt: coinlogo,
+  status, het resultaat in procenten groot met het bedrag eronder, en een
+  stop-doel-baan met een stip voor de live koers. Bij een nieuwe koers licht
+  het getal kort op. Tik klapt de kaart uit met niveaus, plan, afbouwadvies
+  (VERKOOP NU / NEEM WINST / OVERWEEG WINST / HOUD VAST / LET OP) en de
+  knoppen; Details opent het detailscherm.
 - **Gesloten** posities in een tabel.
 
 ### Tab 3 — 👥 eToro Traders
@@ -274,25 +288,44 @@ bij de nuchtere toon. Eén icon-familie per rol, consistent doorvoeren.
 
 ## 6. Sleutelcomponenten
 
-**Trade-kaart (hero) — Executive-Dashboard-aanpak:**
-- Grote live prijs + gekleurd W/V; **stoplicht-indicator** (groen/geel/rood) als
-  border-left of statuspil voor de advies-badge (VERKOOP NU / NEEM WINST /
-  OVERWEEG WINST / HOUD VAST / LET OP).
-- Horizontale **voortgangsbalk** met drie ankers: 🛑/■ stop (rood) — ■ entry
-  (grijs) — 🎯/■ doel (groen), plus een marker voor de huidige koers.
-- **Sparkline** (zie §7) voor de recente koers; één primaire knop, "verwijderen"
-  als rustige tekst-link.
+**Positiekaart (Portfolio, PositieKaart):**
+- Het resultaat in procenten is het grote getal, het bedrag staat eronder;
+  een nieuwe koers laat het getal kort oplichten. Coinlogo en statuspil
+  (stoplicht-kleuren) staan in de kop.
+- Eén **stop-doel-baan** met stop links en doel rechts, en een stip voor de
+  huidige koers.
+- Tik klapt de kaart uit (niveaus, plan, afbouwadvies, knoppen); "Details"
+  opent het detailscherm. Geen compact/uitgebreid-wissel.
 
-**Analyse-kans-kaart:** entry-zone, stop, doel, R/R en signaalscore. Toon de
-score als compacte ring/staaf (KPI-stijl) i.p.v. kaal getal. Indicatoren
-(RSI/MACD) en "Over deze coin" achter een rustige uitklap (progressieve
-onthulling).
+**Analyse-kans-kaart (Markt en Kansen):** de score staat als ring rond het
+coinlogo, naast prijs, badge en een vlakgrafiek van 30 dagen met de verandering.
+Entry-zone, stop, doel en R/R zitten als stop-doel-baan met stip voor de koers
+in het uitgeklapte deel, samen met indicatoren (RSI/MACD), "Over deze coin" en
+de pilknoppen "Getrade", "Koop" en "Details". Tik = uitklappen, Details =
+detailscherm.
 
 **eToro-resultaatkaart:** 🟢/🟡/🔴-oordeel groot, totaalscore als ring,
 aanbevolen Copy Stop Loss % in een apart vak, onderbouwing als drie korte regels.
 
-**Samenvattingskaart:** 4–6 KPI-vakjes (Executive Dashboard adviseert max 4–6),
-grote cijfers (24–48px), stoplicht-kleuren voor "Actie nodig".
+**Samenvattingskaart (Portfolio):** grote cijfers (24–48px), een pil voor het
+open resultaat, een segmentknop voor de periode en een sync-chip rechtsboven.
+
+**Ordervensters (Kopen, Verkopen, Stop en doel, Trade vastleggen):** alle vier
+blijven sheets. Kop met coinlogo, titel en een DEMO- of ECHT-merkje.
+- Kopen: groot bedrag dat rolt, snelknoppen $50/$100/$250, plus 25% en Max
+  alleen als eToro het vrije saldo gaf. Daaronder "Plan van Kader": de baan en
+  twee tegels "bij stop" en "bij doel" in dollars, uitgerekend met de stop die
+  echt naar eToro gaat.
+- Verkopen: geschat resultaat groot, de baan, een lijst (aantal, aankoopprijs,
+  huidige prijs, je krijgt ongeveer) en een zin dat het een schatting is.
+- Stop en doel: grepen op een baan, velden met - en +, "bij stop" en "bij doel"
+  voor de positie, weghalen als tekstknop. De grepen komen nooit voorbij
+  eToro's stop-loss-grens; zonder bekende grens geen verzonnen grens.
+- Trade vastleggen: bedrag met snelknoppen, aankoopprijs en aantal (automatisch),
+  het plan in dollars, een gewone blauwe opslaanknop.
+- Bevestigen: Demo is een blauwe knop die je tikt. Echt is een inktkleurige
+  knop die je 800 ms vasthoudt, met een rode regel erboven; het vinkje komt
+  pas na eToro's ja.
 
 **Data-tabellen (Gesloten posities, Traders kopiëren):** waarde-labels zichtbaar,
 horizontale scroll op mobiel; overweeg multi-select/bulk-acties (ux-rule) als de

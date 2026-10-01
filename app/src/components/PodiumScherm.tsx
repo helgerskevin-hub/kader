@@ -83,12 +83,15 @@ interface Props {
   // swipe). Gaat zichtbaar van buitenaf naar false, dan speelt de animatie ook, maar volgt er
   // geen onSluiten: de ouder wist het al.
   onSluiten: () => void;
+  // Android-terugknop: krijgt eerst de kans. Geeft hij true terug (bijvoorbeeld omdat het scherm een
+  // eigen subpagina sloot), dan is de druk verwerkt en sluit het scherm niet.
+  onTerug?: () => boolean;
   // Als functie krijg je sluit() mee. Gebruik die voor de X en andere sluitknoppen in het scherm,
   // zodat ze eerst wegbewegen en pas daarna onSluiten aanroepen.
   children: React.ReactNode | ((sluit: Sluit) => React.ReactNode);
 }
 
-export function PodiumScherm({ zichtbaar, onSluiten, children }: Props) {
+export function PodiumScherm({ zichtbaar, onSluiten, onTerug, children }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
@@ -344,7 +347,10 @@ export function PodiumScherm({ zichtbaar, onSluiten, children }: Props) {
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
-      onRequestClose={() => sluit()}
+      onRequestClose={() => {
+        if (onTerug?.()) return;
+        sluit();
+      }}
       onShow={startOpenen}
     >
       {/* Binnen een Modal ziet de GestureHandlerRootView om de app niets: een Modal is een eigen

@@ -58,6 +58,42 @@ export function uitklapIn(reduceMotion: boolean): EntryExitAnimationFunction {
   return reduceMotion ? UITKLAP_IN_RUSTIG : UITKLAP_IN;
 }
 
+// Zoals uitklapIn, maar voor een uitklap die uit meerdere blokken bestaat: blok `index` begint pas
+// na staggerVertraging(index), zodat de inhoud van boven naar beneden uit de kop lijkt te rollen
+// in plaats van als één vlak te verschijnen. Met Minder beweging alleen de fade, zonder vertraging:
+// een staffeling is ook beweging, en wie daarom vraagt hoort alles meteen te kunnen lezen.
+function maakUitklapInGestaffeld(index: number, reduceMotion: boolean): EntryExitAnimationFunction {
+  const vertraging = staggerVertraging(index);
+  return () => {
+    'worklet';
+    if (reduceMotion) {
+      return { initialValues: { opacity: 0 }, animations: { opacity: vervaag(1, duur.kort) } };
+    }
+    return {
+      initialValues: { opacity: 0, transform: [{ translateY: -6 }] },
+      animations: {
+        opacity: withDelay(vertraging, withTiming(1, { duration: duur.midden, easing: curve.fade })),
+        transform: [{ translateY: withDelay(vertraging, withSpring(0, veer.standaard)) }],
+      },
+    };
+  };
+}
+
+// Gecachet om dezelfde reden als kaartLandt hieronder: een nieuwe functie per render laat
+// Reanimated de layout-animatie steeds opnieuw registreren. Eén functie per blok en per stand van
+// Minder beweging.
+const uitklapInGestaffeldCache = new Map<string, EntryExitAnimationFunction>();
+
+export function uitklapInGestaffeld(index: number, reduceMotion: boolean): EntryExitAnimationFunction {
+  const sleutel = `${index}:${reduceMotion ? 1 : 0}`;
+  let functie = uitklapInGestaffeldCache.get(sleutel);
+  if (!functie) {
+    functie = maakUitklapInGestaffeld(index, reduceMotion);
+    uitklapInGestaffeldCache.set(sleutel, functie);
+  }
+  return functie;
+}
+
 // Inhoud die dichtklapt: alleen een korte fade, want wat eronder ligt schuift er al overheen.
 // Ook met Minder beweging, daarom via vervaag().
 const UITKLAP_UIT: EntryExitAnimationFunction = () => {

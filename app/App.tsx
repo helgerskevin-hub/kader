@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { View, StyleSheet, LayoutChangeEvent, useWindowDimensions } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -32,7 +32,7 @@ import { PortfolioScreen } from './src/screens/PortfolioScreen';
 import { TradersScreen } from './src/screens/TradersScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { laadVlag, bewaarVlag, laadTekst, bewaarTekst, SLEUTELS } from './src/storage/opslag';
-import { heeftEnigeSleutel } from './src/state/etoroSleutels';
+import { haalOmgeving, heeftEnigeSleutel } from './src/state/etoroSleutels';
 import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
 import { meldingenAan } from './src/state/meldingVoorkeur';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
@@ -158,8 +158,13 @@ function ScanWachter({ onWissel }: { onWissel: (bezig: boolean) => void }) {
 function AppInhoud() {
   const { colors, donkerActief } = useTheme();
   // Zodra er sleutels zijn opgeslagen alsnog synchroniseren: de sync bij het openen van de app
-  // draaide toen nog zonder koppeling en zou anders pas na een herstart iets ophalen.
-  const { synchroniseer } = usePortfolio();
+  // draaide toen nog zonder koppeling en zou anders pas na een herstart iets ophalen. Via
+  // setOmgeving met de bewaarde omgeving, net als Instellingen: dat ververst ook het schrijfrecht en
+  // synchroniseert daarna, en wisselt nooit van omgeving.
+  const { setOmgeving } = usePortfolio();
+  const naKoppelen = useCallback(() => {
+    haalOmgeving().then(setOmgeving).catch(() => {});
+  }, [setOmgeving]);
   const { reduceMotion, naar } = useBeweging();
   const { width: schermBreedte } = useWindowDimensions();
   const [onboardingKlaar, setOnboardingKlaar] = useState(false);
@@ -498,7 +503,8 @@ function AppInhoud() {
       <EtoroKoppelingWizard
         zichtbaar={etoroSetupOpen}
         onSluiten={() => setEtoroSetupOpen(false)}
-        onOpgeslagen={synchroniseer}
+        onOpgeslagen={naKoppelen}
+        toonNaarPortfolio
       />
     </View>
     </NavigatieProvider>

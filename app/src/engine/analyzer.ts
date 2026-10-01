@@ -84,6 +84,10 @@ export function stopAfstandStructuur(
 // Minimaal aantal candles voordat EMA50 en consorten iets betekenen.
 export const MIN_CANDLES = EMA_LANG + 5;
 
+// Dagen koersverloop op de Markt-kaart. Eén close extra, zodat eerste tegen laatste punt precies
+// deze periode beslaat: de candles zijn dagcandles, dus 31 closes zijn 30 dagen.
+export const SPARKLINE_DAGEN_MARKT = 30;
+
 // De scoring zelf, zonder netwerk. `candles` is de historie tot en met de candle die
 // beoordeeld wordt; alles wat later komt bestaat voor deze functie niet. De backtest
 // schuift daardoor gewoon een venster op (candles.slice(0, i + 1)) en kan per constructie
@@ -282,6 +286,10 @@ export function scoorCandles(
     macdBullish: macdNu > signaalNu,
     volumeRatio, score, redenen,
     signaal: signaalTekst, highConviction, voldoetAanRR, profiel, richting,
+    // Alleen bij Binance: dat zijn dagcandles, dus 31 closes is precies 30 dagen. De CoinGecko-
+    // fallback levert 4-uurs candles, en dan beslaan die 31 closes ~5 dagen: een grafiek en een
+    // "30D"-pil die dan iets anders beweren dan er staat. Zonder reeks vallen ze allebei weg.
+    sparkline: bron === 'Binance' ? close.slice(-(SPARKLINE_DAGEN_MARKT + 1)) : undefined,
   };
 }
 
@@ -477,7 +485,7 @@ if (require.main === module) {
     'de default hoort long te zijn');
 
   // Niveaus van een echte short: stop BOVEN de entry, doel eronder, en een R/R die de drempel haalt.
-  const kort = scoorCandles('TEST', c, 'binance', { richting: 'short' });
+  const kort = scoorCandles('TEST', c, 'Binance', { richting: 'short' });
   console.assert(kort !== null, 'de testcandles horen een uitkomst te geven');
   if (kort) {
     console.assert(kort.richting === 'short', `richting moet short zijn, was ${kort.richting}`);
@@ -491,10 +499,17 @@ if (require.main === module) {
     console.assert(!kort.highConviction, 'een short hoort nooit high conviction te zijn');
   }
 
-  const lang = scoorCandles('TEST', c, 'binance');
+  const lang = scoorCandles('TEST', c, 'Binance');
   console.assert(lang !== null && lang.richting === 'long', 'zonder richting hoort er een long uit te komen');
+  console.assert(lang !== null && lang.sparkline?.length === SPARKLINE_DAGEN_MARKT + 1
+    && lang.sparkline[SPARKLINE_DAGEN_MARKT] === c[c.length - 1].close,
+    'sparkline hoort de laatste 31 closes te zijn, de nieuwste achteraan');
   console.assert(lang !== null && lang.stopLoss < lang.entry && lang.takeProfit > lang.entry,
     'de long-niveaus mogen niet veranderd zijn');
+  // 4-uurs candles van de fallback mogen nooit als 30 dagen getoond worden.
+  const fallback = scoorCandles('TEST', c, 'CoinGecko (fallback)');
+  console.assert(fallback !== null && fallback.sparkline === undefined,
+    'bij de CoinGecko-fallback hoort er geen sparkline te zijn');
 
   // De short-poort is fail-closed, precies andersom dan de koop-poort.
   console.assert(poortOpenShort(null) === false, 'zonder klimaat hoort de short-poort dicht te zijn');

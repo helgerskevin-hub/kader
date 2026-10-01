@@ -5,6 +5,21 @@ export interface ChangelogEntry {
   versie: string;
   datum: string;
   punten: string[];
+  // Uitgelichte wijzigingen voor de "nieuw in deze versie"-melding. Icoonnamen zijn sleutels en
+  // geen componenten, zodat dit bestand vrij blijft van UI-imports; ChangelogSheet vertaalt ze.
+  // `vis` is optioneel een hoofdstuk-id uit VISUALISATIES (components/informatie/vis), ook als
+  // sleutel. Met `vis` wordt het hoogtepunt een veegbare kaart met die animatie; zonder `vis` valt
+  // de melding terug op het icoon.
+  hoogtepunten?: {
+    icoon: 'kaarten' | 'keurmerk' | 'koop' | 'koppeling' | 'menu' | 'informatie';
+    vis?: string;
+    titel: string;
+    tekst: string;
+  }[];
+  // Ingekorte lijst voor het scherm Wijzigingen in de app: een paar korte punten per onderdeel.
+  // `punten` blijft de volledige lijst (gelijk aan CHANGELOG.md) en wordt in de app alleen getoond
+  // als er geen groepen zijn.
+  groepen?: { kop: string; punten: string[] }[];
   // Mijlpaal-release: toont de feestelijke opening (vallende bitcoins) bij de
   // "nieuw in deze versie"-melding.
   feest?: boolean;
@@ -12,9 +27,113 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
-    datum: '2026-09-29',
+    versie: '0.2.0',
+    datum: '2026-10-01',
+    hoogtepunten: [
+      {
+        icoon: 'kaarten',
+        vis: 'score',
+        titel: 'Rustiger kaarten',
+        tekst: 'Markt, Kansen en Portfolio hebben compactere kaarten die je met een tik uitklapt, en op Markt en Kansen staat de score als ring rond het coinlogo.',
+      },
+      {
+        icoon: 'keurmerk',
+        vis: 'advies',
+        titel: 'Sterk koop, bevestigd',
+        tekst: 'HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD, en op een uitgeklapte kaart zie je welke bevestigingen meestaan.',
+      },
+      {
+        icoon: 'koop',
+        vis: 'handelen',
+        titel: 'Kopen met overzicht',
+        tekst: 'Je kiest een bedrag met snelknoppen en ziet in dollars wat je verliest bij de stop en wint bij het doel.',
+      },
+      {
+        icoon: 'koppeling',
+        vis: 'koppelen',
+        titel: 'eToro koppelen in vijf stappen',
+        tekst: 'Je kiest eerst of je alleen meekijkt of ook handelt, en de verbindingstest laat per regel zien wat werkt.',
+      },
+    ],
+    groepen: [
+      {
+        kop: 'Kaarten en signalen',
+        punten: [
+          'Compactere kaarten op Markt, Kansen en Portfolio: tik om uit te klappen, Details opent het detailscherm',
+          'HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD',
+          'Coins hebben hun eigen logo, en op Markt en Kansen staat de score als ring eromheen',
+          'Bij een gemengd klimaat, of als de R/R door eToro\'s stop onder 2,0 zakt, geeft Kader geen koopsignaal',
+        ],
+      },
+      {
+        kop: 'Portfolio',
+        punten: [
+          'Je resultaat staat in procenten groot bovenaan elke kaart, met het bedrag eronder',
+          'Sluit eToro een positie op je stop-loss of doel, dan krijg je een melding, ook als de app dicht is (dan kijkt Kader hooguit eens per kwartier)',
+        ],
+      },
+      {
+        kop: 'Handelen',
+        punten: [
+          'FLOW, ENJ en THETA zijn bij eToro alleen te bekijken; Kader biedt ze niet meer te koop aan',
+          'Een nieuw ordervenster met snelknoppen voor het bedrag en het plan van Kader in dollars',
+          'Stop en doel verzet je met grepen op één baan, binnen de grens die eToro hanteert',
+          'Wissel je tussen demo en echt terwijl een ordervenster openstaat, dan gaat er geen order uit',
+          'In demo zet je winst vast met een stop boven je aankoopprijs',
+        ],
+      },
+      {
+        kop: 'eToro',
+        punten: [
+          'Koppelen gaat in vijf stappen, met een verbindingstest die per regel laat zien wat werkt',
+        ],
+      },
+      {
+        kop: 'Instellingen',
+        punten: [
+          'Instellingen, Meldingen en Informatie zijn volledige schermen met gegroepeerde lijsten',
+          'Naar Echt houd je Echt 800 ms vast; terug naar Demo is één tik',
+        ],
+      },
+      {
+        kop: 'Informatie',
+        punten: [
+          'Herschreven in 21 hoofdstukken, elk met een korte animatie, en je kunt zoeken',
+        ],
+      },
+    ],
     punten: [
+      'In demo kun je met de stopgreep en "winst beschermen" nu ook met een eToro-koppeling winst vastzetten, met een stop boven je aankoopprijs. Een meting wijst erop dat eToro de minimale afstand dan vanaf de huidige koers meet, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat. In je echte account blijft de stop voorlopig onder je aankoopprijs, tot dat daar ook gemeten is',
+      'Het Marktklimaat-bericht klopt nu met wat Kader doet: bij een gemengd klimaat geeft Kader geen koopsignalen',
+      'Schuift eToro je stop zo op dat de R/R onder 2,0 zakt, dan staat de kaart op Markt op AFWACHTEN in plaats van KOOPZONE of STERK KOOP',
+      'Terug uit een hoofdstuk van Informatie kom je weer uit waar je in de index was gebleven',
+      'Instellingen, Meldingen en Informatie zijn volledige schermen met gegroepeerde lijsten, zoals je dat van je telefoon kent',
+      'Naar Echt overstappen doe je in Instellingen door Echt 800 ms vast te houden, net als de orderknop. Terug naar Demo is één tik. Het rode bevestigvenster is weg; met een schermlezer krijg je nog wel een bevestiging',
+      'Het menu rechtsboven laat zien of eToro gekoppeld is en of je in demo of echt staat',
+      'Meldingen staan per dag gegroepeerd, met het coinlogo en een link naar de positie of de markt. Bij een prijsalert staat de huidige koers erbij als Kader die kent',
+      'Informatie is herschreven: 21 hoofdstukken, elk met wat je ziet, hoe Kader rekent en wat je ermee doet, plus een korte animatie. Je kunt zoeken, en onder Bronnen staat waar de koersen en de coinlogo\'s vandaan komen, met hun licenties',
+      'De titel bovenaan een scherm wordt niet meer afgekapt naast het DEMO-merkje; het merkje staat nu onder de titel',
+      'Nieuw in deze versie toont de hoogtepunten als kaarten die je opzij veegt, elk met een korte animatie. De lijst Alle wijzigingen in de app is ingekort tot de hoofdzaken per onderdeel',
+      'eToro koppelen gaat nu in vijf stappen op een eigen scherm, met een voortgangsbalk. Je kiest eerst of je alleen wilt meekijken of ook wilt handelen, en de uitleg past zich daarop aan',
+      'Sleutels plak je met een Plak-knop. Kader kijkt alleen of het eruitziet als een sleutel en zegt het als er bijvoorbeeld een spatie in staat',
+      'De verbindingstest toont per regel wat werkt: de sleutel, je posities in demo en echt (met het aantal), en of handelen mag. Werkt de sleutel nergens, dan zie je per omgeving waarom en wat je kunt doen',
+      'Wijzig je een sleutel na een geslaagde test, dan moet je opnieuw testen voor je kunt opslaan',
+      'Koppelen via de vraag bij het opstarten ververst nu meteen of je mag handelen; eerder gebeurde dat pas na een herstart',
+      'Kopen, verkopen, stop en doel en een trade vastleggen hebben een nieuw venster. Het bedrag staat groot in beeld met snelknoppen ($50, $100, $250). 25% en Max staan er alleen als eToro je vrije saldo doorgeeft; zonder saldo verzint Kader geen maximum',
+      'Het plan van Kader staat nu in dollars: wat je verliest als de stop geraakt wordt en wat je wint bij het doel, voor het bedrag dat je intikt. Zet eToro de stop zelf, dan staat er geen bedrag bij stop',
+      'Stop en doel verzet je met grepen op een baan, met - en + of door een bedrag te typen. De grepen gaan nooit voorbij de grens die eToro voor die coin hanteert, en het venster zegt het als je daar tegenaan zit. Weghalen is een tekstknop. Heeft Kader een voorstel om winst te beschermen, dan zet één tik het in het veld; doorgeven doe je nog steeds zelf',
+      'Bij verkopen staat het geschatte resultaat groot, met wat je ongeveer terugkrijgt. Er staat eerlijk bij dat het een schatting is: eToro sluit op zijn eigen koers en rekent kosten',
+      'De knop voor echt geld is nu donker in plaats van rood, want rood betekent in Kader verlies. Echt geld herken je aan het ECHT-merkje, de rode regel erboven en het vasthouden, dat nog steeds 800 ms duurt. In demo blijft het een blauwe knop die je tikt',
+      'Wisselt je omgeving tussen demo en echt terwijl een ordervenster openstaat, dan gaat er geen order meer de deur uit. Je krijgt de vraag het venster opnieuw te openen',
+      'Nieuwe kaarten op Markt, Kansen en Portfolio: compacter, zodat er meer op het scherm past. Tik op een kaart om hem uit te klappen; het detailscherm open je met de knop Details',
+      'Op Markt en Kansen staat de score nu rond het coinlogo, met een koersgrafiek van 30 dagen en de verandering erbij. In het uitgeklapte deel vind je de knoppen Getrade en Koop',
+      'Stop en doel staan nu samen op één baan, met een stip voor de huidige koers',
+      'Portfolio: je resultaat staat in procenten groot bovenaan de kaart, het bedrag eronder. Bij een nieuwe koers licht het getal kort op. De wissel tussen compact en uitgebreid is weg, want elke kaart klapt nu zelf uit',
+      'Portfolio-overzicht: je kiest de periode met een schuifknop en de laatste sync staat rechtsboven',
+      'Coins hebben nu hun eigen logo: in het detailscherm, in je historie en in de lijst met relatieve sterkte op Markt. Heeft Kader van een coin geen logo, dan zie je de afkorting in een gekleurd rondje',
+      'HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD. Het verschil met gewoon STERK KOOP zat nooit in drie scorepunten maar in de bevestigingen: trend, MACD, volume en R/R. Klap een kaart op Markt uit en je ziet welke er meestaan en welke ontbreekt. De drempels zijn niet veranderd',
+      'De kaarten op Markt hebben geen gekleurde rand of gloed meer, en AFWACHTEN ligt niet meer plat als een uitgeschakelde kaart. Het oordeel staat in de badge',
+      'Kader spreekt nu op een paar vaste plekken van je kader: "In het kader" boven de top 3 op Kansen, "Binnen je kader" in plaats van "Op koers" bij een positie die volgens plan loopt, en de melding als een positie de rand van je kader nadert. De ochtendmelding heet "Het kader van vandaag staat klaar"',
       'Coins die eToro vanwege wettelijke beperkingen op alleen bekijken zet (zoals FLOW) konden in Kader nog gekocht worden, waarna eToro de order na een tijdje annuleerde. Kader heeft alle 57 coins gecontroleerd tegen eToro. Drie daarvan zijn bij eToro alleen te bekijken en niet te kopen: FLOW, ENJ en THETA. Ze hebben in Kader geen koopknop en geen eToro-label meer, ze staan niet meer in "Wat moet ik nu kopen?" en de koopsheet legt uit waarom. Ze blijven wel in de analyse staan. De andere 54 coins zijn te koop. Kader herkent FLOW ook zelf aan de gegevens van eToro, zodat een order niet meer uitgaat die later geannuleerd wordt',
       'Het percentage achter je resultaat over een periode (Portfolio) had geen uitleg en las als rendement op je hele vermogen. Het is je resultaat gedeeld door het geld dat in die periode in posities zat; je vrije saldo telt niet mee. Dat staat er nu onder',
       'De disclaimer zegt nu waarom je moet kijken: "Geen financieel advies. De koers op eToro kan afwijken." Kader rekent met openbare marktdata, eToro met een eigen koers plus spread',

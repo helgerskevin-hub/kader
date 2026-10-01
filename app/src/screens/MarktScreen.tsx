@@ -22,7 +22,7 @@ import { usePortfolio } from '../state/PortfolioProvider';
 import { infoVoor } from '../engine/coinInfo';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { SkeletonCard } from '../components/SkeletonCard';
+import { SkeletonKaart } from '../components/SkeletonKaart';
 import { Drukbaar } from '../components/Drukbaar';
 import { MarktBalk } from '../components/MarktBalk';
 import { OfflineMelding } from '../components/OfflineMelding';
@@ -227,12 +227,12 @@ export function MarktScreen() {
           // de kop die aan het eind van de scan groeit) schuiven op een veer naar hun nieuwe plek.
           itemLayoutAnimation={schuifOvergang(reduceMotion)}
           renderItem={({ item, index }) => (
-            // Tijdens het laden kijk je alleen: de kaart is nog niet tikbaar. De cijfers op de kaart
-            // zijn wel al definitief, maar het signaal niet: de klimaatpoort hangt af van de hele
-            // markt, en een koopknop of detailscherm op een KOOP die aan het eind nog kan wegvallen
-            // is precies de verkeerde uitnodiging. Ook de relatieve sterkte (VS BTC) komt pas aan het
-            // eind. Scrollen blijft gewoon werken, want pointerEvents="none" laat de aanraking door
-            // naar de lijst.
+            // Tijdens het laden kijk je alleen: de kaart is nog niet tikbaar, dus ook niet uit te
+            // klappen naar Koop en Details. De cijfers op de kaart zijn wel al definitief, maar het
+            // signaal niet: de klimaatpoort hangt af van de hele markt, en een koopknop of
+            // detailscherm op een KOOP die aan het eind nog kan wegvallen is precies de verkeerde
+            // uitnodiging. Ook de relatieve sterkte (VS BTC) komt pas aan het eind. Scrollen blijft
+            // gewoon werken, want pointerEvents="none" laat de aanraking door naar de lijst.
             <Animated.View
               entering={kaartLandt(landVolgorde(item.symbool, index), reduceMotion)}
               exiting={uitklapUit()}
@@ -250,6 +250,7 @@ export function MarktScreen() {
                 onKoop={magHandelen ? setKoopTrade : undefined}
                 limiet={limietVoor(stopLimieten, item.symbool)}
                 versusBtc={rsPerSymbool[item.symbool]}
+                volgorde={landVolgorde(item.symbool, index)}
               />
             </Animated.View>
           )}
@@ -362,7 +363,7 @@ export function MarktScreen() {
               <>
                 {Array.from({ length: Math.max(1, 3 - weergegevenTrades.length) }).map((_, i) => (
                   <Animated.View key={i} exiting={uitklapUit()}>
-                    <SkeletonCard />
+                    <SkeletonKaart />
                   </Animated.View>
                 ))}
               </>

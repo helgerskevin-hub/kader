@@ -14,6 +14,8 @@ import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { AdviceBadge } from './AdviceBadge';
 import { Drukbaar } from './Drukbaar';
+import { KaderLogo } from './KaderLogo';
+import { ScoreRing } from './ScoreRing';
 import { Sparkline } from './Sparkline';
 import { RangLabel } from './KansKaart';
 import { afstandLabel } from './MomentumBalken';
@@ -53,9 +55,19 @@ export function KansenTop3({ kansen, onOpenDetail, stopLimieten }: Props) {
 
   return (
     <View style={styles.wrapper}>
-      <Text style={[Type.overline, styles.kop, { color: colors.tekstGedimd }]}>
-        TOP {kansen.length} OP MOMENTUM
-      </Text>
+      <View style={styles.kop}>
+        <KaderLogo size={22} variant="outline" />
+        <View>
+          <Text style={[Type.sectiekop, styles.kopTitel, { color: colors.tekstPrimair }]}>In het kader</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+            {kansen.length >= 3
+              ? 'De drie sterkste op de radar'
+              : kansen.length === 2
+                ? 'De twee sterkste op de radar'
+                : 'De sterkste op de radar'}
+          </Text>
+        </View>
+      </View>
       <ScrollView
         horizontal
         snapToInterval={stap}
@@ -108,7 +120,10 @@ const MiniKaart = memo(function MiniKaart({ kans, signaal, volgorde, breedte, on
   useValutaStand();
   const { colors } = useTheme();
   const afstand = kans.ingredienten.afstandHigh90d;
+  const nieuw = kans.rangVerschil === 'nieuw';
 
+  // Tik opent hier het detailscherm, anders dan de kaarten eronder: de carrousel klapt niet uit,
+  // want een kaart die in een horizontale strook groeit duwt de hele lijst eronder weg.
   return (
     <Drukbaar
       onPress={() => onOpenDetail(kans)}
@@ -118,36 +133,78 @@ const MiniKaart = memo(function MiniKaart({ kans, signaal, volgorde, breedte, on
       accessibilityLabel={`Bekijk ${kans.symbool}, momentumscore ${Math.round(kans.momentumScore)}`}
     >
       <View style={styles.kaartKop}>
-        <AdviceBadge advies={signaal} score={kans.momentumScore} />
-        <RangLabel verschil={kans.rangVerschil} />
+        <ScoreRing symbool={kans.symbool} score={kans.momentumScore} maat={44} volgorde={volgorde} />
+        <View style={styles.kopMidden}>
+          <Text style={[Type.titel, styles.symbool, { color: colors.tekstPrimair }]}>{kans.symbool}</Text>
+          {/* Twee regels is genoeg voor elke naam op de radar; zo kapt er nooit iets af. */}
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]} numberOfLines={2}>
+            {kans.naam}
+          </Text>
+        </View>
+        {/* NIEUW staat onderaan naast de badge; hier alleen een rangwissel. */}
+        {!nieuw && <RangLabel verschil={kans.rangVerschil} />}
       </View>
-      <View style={styles.rij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{kans.symbool}</Text>
-        <Text style={[Type.caption, styles.naam, { color: colors.tekstGedimd }]} numberOfLines={1}>
-          {kans.naam}
-        </Text>
+      {/* Wrap: op 360 dp passen een lange prijs en "12,3% onder 90d-top" niet altijd naast
+          elkaar in de smalle carrouselkaart. */}
+      <View style={styles.prijsRij}>
+        <Text style={[Type.prijsGroot, styles.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(kans.prijs)}</Text>
+        {afstand !== null && (
+          <View style={[styles.pil, { backgroundColor: colors.verhoogd }]}>
+            <Text style={[Type.prijs, styles.pilTekst, { color: colors.tekstPrimair }]}>
+              {afstandLabel(afstand, true)}
+            </Text>
+          </View>
+        )}
       </View>
-      <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(kans.prijs)}</Text>
-      <Sparkline reeks={kans.sparkline} hoogte={32} volgorde={volgorde} />
-      {afstand !== null && (
-        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{afstandLabel(afstand)}</Text>
+      {kans.sparkline.length >= 2 && (
+        <Sparkline reeks={kans.sparkline} hoogte={44} vlak stip volgorde={volgorde} />
       )}
+      <View style={styles.voet}>
+        <AdviceBadge advies={signaal} score={kans.momentumScore} />
+        {nieuw && <RangLabel verschil="nieuw" />}
+      </View>
     </Drukbaar>
   );
 });
 
 const styles = StyleSheet.create({
   wrapper: { marginBottom: spacing.sm },
-  kop: { paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
+  kop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+  },
+  // Type.sectiekop is 16; de kop is bewust een tikje groter dan de sectiekoppen.
+  kopTitel: { fontSize: 17 },
   spoor: { paddingHorizontal: spacing.base, paddingBottom: spacing.xs, gap: spacing.sm },
   kaart: {
     borderRadius: radii.kaart,
     padding: spacing.base,
-    gap: spacing.sm,
+    gap: 10,
   },
-  kaartKop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  rij: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
-  naam: { flex: 1 },
+  kaartKop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  kopMidden: { flex: 1, minWidth: 0 },
+  // Type.titel is 21 met regelhoogte 28; naast de ring van 44 is 26 strakker.
+  symbool: { lineHeight: 26 },
+  prijsRij: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    rowGap: spacing.xs,
+    columnGap: spacing.sm,
+  },
+  // Type.prijsGroot is 21; hier staat de prijs op 17, zoals op de kaarten eronder.
+  prijs: { fontSize: 17, lineHeight: 22 },
+  pil: {
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
+  },
+  pilTekst: { fontSize: 11.5, lineHeight: 14 },
+  voet: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
   puntenRij: {
     flexDirection: 'row',
     justifyContent: 'center',

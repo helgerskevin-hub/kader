@@ -178,7 +178,7 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
       meldingen.push({
         sleutel: sleutelVoor(trade.id, 'verhoogTP'),
         doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
-        titel: `${trade.symbool} nadert je doel`,
+        titel: `${trade.symbool} nadert de rand van je kader`,
         tekst: `De koers staat op ${fmtPrijs(koers)}, dicht bij je doel van ${fmtPrijs(trade.takeProfit)}, en het momentum is nog sterk. Overweeg je doel te verhogen naar ${fmtPrijs(vers.takeProfit)}.`,
       });
     }
@@ -250,7 +250,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
       titel: nieuw === 'gunstig' ? 'Het marktklimaat is weer gunstig' : 'De bear-modus is voorbij',
       tekst: nieuw === 'gunstig'
         ? 'BTC staat weer boven zijn 50-daags gemiddelde en de marktbreedte stijgt. Kader toont vanaf nu weer koopsignalen.'
-        : 'Het klimaat is van ongunstig naar gemengd gegaan. De bear-modus is uit, maar de markt is nog niet overtuigend: Kader is voorzichtig met koopsignalen.',
+        : 'Het klimaat is van ongunstig naar gemengd gegaan. De bear-modus is uit, maar de markt is nog niet overtuigend. Kader geeft pas weer koopsignalen als het klimaat gunstig is.',
     };
   }
 
@@ -268,7 +268,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
     sleutel: sleutelVoor('markt', 'klimaat'),
     doel: { soort: 'markt' },
     titel: 'Het marktklimaat is verzwakt',
-    tekst: `De markt is van gunstig naar gemengd gegaan. Koopsignalen blijven zichtbaar, maar de rugwind is weg.${posities}`,
+    tekst: `De markt is van gunstig naar gemengd gegaan. Kader geeft geen koopsignalen meer tot het klimaat weer gunstig is.${posities}`,
   };
 }
 
@@ -300,7 +300,7 @@ async function beoordeelMarkt(
       sleutel: sleutelVoor(t.symbool, 'sterkeKoop'),
       doel: { soort: 'coin', symbool: t.symbool },
       titel: `Sterk koopsignaal: ${t.symbool}`,
-      tekst: `${t.symbool} scoort ${t.score} van de 100 (${t.redenen.join(', ')}). Entry ${fmtPrijs(t.entry)}, stop ${fmtPrijs(t.stopLoss)}, doel ${fmtPrijs(t.takeProfit)}.`,
+      tekst: `${t.symbool} scoort ${t.score} van de 100. Trend, MACD en volume staan mee. Entry ${fmtPrijs(t.entry)}, stop ${fmtPrijs(t.stopLoss)}, doel ${fmtPrijs(t.takeProfit)}.`,
     }));
 
   if (!klimaat) return meldingen;

@@ -9,6 +9,8 @@
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~56.0.12",
     "expo-background-task": "~56.0.22",
+    "expo-clipboard": "~56.0.4",
+    "expo-constants": "~56.0.27",
     "expo-font": "~56.0.7",
     "expo-haptics": "~56.0.3",
     "expo-notifications": "~56.0.18",

@@ -82,21 +82,25 @@ export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props)
       <View style={styles.linksGroep}>
         <KaderLogo size={26} variant="outline" />
         <View style={styles.links}>
-          <Text style={[Type.titel, { color: colors.tekstPrimair }]} numberOfLines={1}>{titel}</Text>
-          {meta ? (
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{meta}</Text>
+          <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{titel}</Text>
+          {(toonDemoPil && omgeving === 'demo') || meta ? (
+            <View style={styles.metaRij}>
+              {toonDemoPil && omgeving === 'demo' && (
+                <View
+                  style={[styles.demoPil, { backgroundColor: colors.letOp + '22', borderColor: colors.letOp }]}
+                  accessibilityLabel="Demo-omgeving actief, orders gaan niet met echt geld"
+                >
+                  <Text style={[Type.overline, { color: colors.letOp }]}>DEMO</Text>
+                </View>
+              )}
+              {meta ? (
+                <Text style={[Type.caption, styles.meta, { color: colors.tekstGedimd }]}>{meta}</Text>
+              ) : null}
+            </View>
           ) : null}
         </View>
       </View>
       <View style={styles.rechtsGroep}>
-        {toonDemoPil && omgeving === 'demo' && (
-          <View
-            style={[styles.demoPil, { backgroundColor: colors.letOp + '22', borderColor: colors.letOp }]}
-            accessibilityLabel="Demo-omgeving actief, orders gaan niet met echt geld"
-          >
-            <Text style={[Type.overline, { color: colors.letOp }]}>DEMO</Text>
-          </View>
-        )}
         {rechts ? <View style={styles.rechts}>{rechts}</View> : null}
         <Pressable
           ref={kebabRef}
@@ -147,9 +151,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     flexShrink: 1,
+    minWidth: 0,
   },
   links: {
     gap: 2,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  metaRij: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  meta: {
     flexShrink: 1,
   },
   rechtsGroep: {

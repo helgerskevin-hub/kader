@@ -8,6 +8,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import Animated from 'react-native-reanimated';
+import { CoinLogo } from './CoinLogo';
 import { useUitleg, UitlegKnop, UitlegTekst } from './UitlegKnop';
 
 interface Props {
@@ -81,11 +82,16 @@ function Regel({ item, onOpen }: { item: RelatieveSterkte; onOpen: () => void })
         { backgroundColor: pressed ? colors.verhoogd : 'transparent' },
       ]}
     >
-      <Text style={[Type.sectiekop, styles.symbool, { color: colors.tekstPrimair }]}>{item.symbool}</Text>
-      <Text style={[Type.caption, styles.naam, { color: colors.tekstGedimd }]} numberOfLines={1}>
-        {naam}
-        {item.bovenEma50 ? ' · boven EMA50' : ''}
-      </Text>
+      <CoinLogo symbool={item.symbool} grootte={32} />
+      {/* Symbool en naam onder elkaar: naast het logo is een rij op 360 dp te smal om naam en
+          "boven EMA50" achter het symbool kwijt te kunnen. */}
+      <View style={styles.naamKolom}>
+        <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{item.symbool}</Text>
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]} numberOfLines={2}>
+          {naam}
+          {item.bovenEma50 ? ' · boven EMA50' : ''}
+        </Text>
+      </View>
       <Text style={[Type.prijs, { color: kleur, fontSize: 13 }]}>{verschil}</Text>
       <ChevronRight size={14} color={colors.tekstGedimd} strokeWidth={2} />
     </Pressable>
@@ -120,6 +126,5 @@ const styles = StyleSheet.create({
     borderRadius: radii.veld,
     minHeight: 44,
   },
-  symbool: { minWidth: 52 },
-  naam: { flex: 1 },
+  naamKolom: { flex: 1 },
 });

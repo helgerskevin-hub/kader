@@ -32,6 +32,9 @@ export interface AnnuleerResultaat {
 interface PortfolioContextWaarde {
   trades: PortfolioTrade[];
   livePrijzen: Record<string, number>;
+  // Epoch-ms waarop de koers per symbool in livePrijzen is opgehaald. Een mislukte poll laat de
+  // oude koers staan; hiermee ziet een scherm dat erop leunt voor een grens hoe oud die is.
+  livePrijsTijd: Record<string, number>;
   geladen: boolean;
   syncing: boolean;
   // Epoch-ms van de laatste geslaagde verversing, of null als er nog nooit een lukte. Blijft
@@ -122,6 +125,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<PortfolioTrade[]>([]);
   const [geladen, setGeladen] = useState(false);
   const [livePrijzen, setLivePrijzen] = useState<Record<string, number>>({});
+  const [livePrijsTijd, setLivePrijsTijd] = useState<Record<string, number>>({});
   const [syncing, setSyncing] = useState(false);
   const [laatsteSync, setLaatsteSync] = useState<number | null>(null);
   const [syncFout, setSyncFout] = useState(false);
@@ -216,6 +220,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     try {
       const prijzen = await haalLaatstePrijzen(openSymbolen);
       setLivePrijzen(prev => ({ ...prev, ...prijzen }));
+      const opgehaald = Date.now();
+      setLivePrijsTijd(prev => ({ ...prev, ...Object.fromEntries(Object.keys(prijzen).map(s => [s, opgehaald])) }));
       markeerGesynct();
     } catch {
       // Fout niet doorgooien: het minuut-interval en de foreground-listener roepen dit kaal aan.
@@ -757,7 +763,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // Zonder memo is dit elke render een vers object, en abonneert elke consument (ook AppInhoud,
   // die alleen synchroniseer gebruikt) zich daardoor op elke wijziging, inclusief de 60s-prijzenpoll.
   const waarde = useMemo<PortfolioContextWaarde>(() => ({
-    trades: zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    trades: zichtbareTrades, livePrijzen, livePrijsTijd, geladen, syncing, laatsteSync, syncFout, etoroFout,
     vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, wachtendeOrderLijst: zichtbareWachtendeOrders, etoroGekoppeld,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,
@@ -765,7 +771,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     noteerOnbekendeOrder, controleerOnbekendeOrders, verzoenNaOrder,
     orderUitkomsten, noteerGeplaatsteOrder, annuleerWachtendeOrder, wisOrderUitkomst,
   }), [
-    zichtbareTrades, livePrijzen, geladen, syncing, laatsteSync, syncFout, etoroFout,
+    zichtbareTrades, livePrijzen, livePrijsTijd, geladen, syncing, laatsteSync, syncFout, etoroFout,
     vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, zichtbareWachtendeOrders, etoroGekoppeld,
     voegTradeToe, wijzigTrade, sluitTrade, verwijderTrade, verversPrijzen,
     synchroniseer,

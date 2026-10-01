@@ -37,6 +37,11 @@
 //                      Draai dit BUITEN Amerikaanse beursuren (voor 15:30 of na 22:00 NL-tijd, of in
 //                      het weekend), anders wordt de order meteen gevuld en valt er niets te wachten.
 //                      Gaat voor --order: met beide vlaggen draait alleen deze meting.
+//   --stopmeting       meet waartegen eToro minStopLossPercentage toetst als je de stop van een
+//                      LOPENDE positie wijzigt: de aankoopprijs of de huidige koers. Plaatst geen
+//                      order; verzet alleen via PATCH op het demo-pad de stop van een bestaande
+//                      demo-positie in --symbool (liefst een die in winst staat) en zet hem aan het
+//                      eind terug. Geen positie in dat symbool? Draai eerst met --order.
 
 const BASIS = 'https://public-api.etoro.com/api';
 
@@ -59,6 +64,7 @@ const PLAATS_ORDER = heeft('--order');
 const DUBBEL = heeft('--dubbel');
 const GEEN_SL = heeft('--geen-sl');
 const PROBEER_PATCH = heeft('--patch');
+const STOPMETING = heeft('--stopmeting');
 
 function guid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -175,6 +181,13 @@ async function main() {
 
   if (WACHTEND) {
     await meetWachtendeOrder(instrumentId, portfolioPad, posities);
+    toonBevindingen();
+    return;
+  }
+
+  if (STOPMETING) {
+    const koersNu = Number(exact?.currentRate ?? exact?.internalClosingPrice ?? exact?.lastPrice ?? NaN);
+    await meetStopReferentie(instrumentId, koersNu, portfolioPad, posities);
     toonBevindingen();
     return;
   }
@@ -387,6 +400,83 @@ async function main() {
 
   toonBevindingen();
   console.log('\nRuim de demo-positie handmatig op in eToro, of gebruik fase 3 zodra sluitPositie bestaat.');
+}
+
+// ---------- Stopreferentie (--stopmeting) ----------
+// Vraag (afronding 0.2, B3): eToro eist voor long x1 een stop van minimaal 10% en maximaal 100%.
+// bepaalStop meet dat tegen de aankoopprijs en keurt elke stop op of boven de aankoopprijs af,
+// waardoor je in NiveausSheet nooit winst kunt vastzetten. Een aanwijzing in §9a van het plan
+// (stop van ~10% naar ~5,8% onder de aankoopprijs via PATCH, geaccepteerd) zegt dat eToro bij
+// wijzigen niet tegen de aankoopprijs meet. Deze meting moet zeggen waartegen dan wel.
+//
+// Alleen PATCH op het demo-pad. Elke stop ligt hier minstens 0,5% onder de huidige koers, zodat
+// geen enkele poging de positie direct sluit. Aan het eind gaat de oorspronkelijke stop terug.
+async function meetStopReferentie(instrumentId: number, koers: number, portfolioPad: string, posities: any[]) {
+  streep('S. Stopreferentie  -> toetst eToro de stopafstand tegen de aankoopprijs of de huidige koers?');
+  // De posities komen uit het portfoliopad dat werkte. Is dat het echte pad, dan zijn het echte
+  // posities, en hun positie-ID's horen niet op het demo-pad van de PATCH hieronder.
+  if (!portfolioPad.includes('/demo/')) {
+    noteer(`Het werkende portfoliopad (${portfolioPad}) is geen demo-pad, dus geen meting. Deze meting draait alleen op demo-posities.`);
+    return;
+  }
+  if (!isFinite(koers) || koers <= 0) {
+    noteer('Geen huidige koers in de zoekrespons, dus geen meting. Probeer het later opnieuw.');
+    return;
+  }
+  const kandidaten = posities.filter(p => p.instrumentID === instrumentId && Number(p.openRate) > 0);
+  if (kandidaten.length === 0) {
+    noteer(`Geen open demo-positie in ${SYMBOOL}. Draai eerst met --order (een demo-order van $${BEDRAG}) en daarna opnieuw met --stopmeting.`);
+    return;
+  }
+  // De positie die het meest in winst staat: alleen daar valt een stop boven de aankoopprijs te testen.
+  const pos = [...kandidaten].sort((a, b) => Number(a.openRate) - Number(b.openRate))[0];
+  const positionId = pos.positionID;
+  const open = Number(pos.openRate);
+  const origineel = Number(pos.stopLossRate);
+  const winstPct = (koers / open - 1) * 100;
+  const pctOnder = (ref: number, stop: number) => ((ref - stop) / ref * 100).toFixed(2);
+  noteer(`positie ${positionId}: openRate=${open} koers=${koers} (${winstPct.toFixed(2)}% t.o.v. open) stop nu=${origineel}`);
+
+  const pad = `/trading/demo/positions/${positionId}`;
+  const afgerond = (x: number) => Math.round(x * 100) / 100;
+
+  async function probeer(naam: string, stop: number) {
+    stop = afgerond(stop);
+    if (stop >= koers * 0.995) {
+      noteer(`${naam}: overgeslagen, stop ${stop} ligt te dicht bij of boven de koers ${koers}`);
+      return;
+    }
+    const antwoord = await roep(pad, { versie: 'v2', methode: 'PATCH', body: { stopLossRate: stop, stopLossType: 'fixed' } });
+    // PATCH geeft 202 en werkt asynchroon; of eToro de stop echt zette zie je pas in het portfolio,
+    // en dat loopt achter (§9a). Dus herhaald kijken, maximaal drie minuten.
+    let gezien: number | undefined;
+    if (antwoord.status >= 200 && antwoord.status < 300) {
+      for (let i = 0; i < 12; i++) {
+        await new Promise(r => setTimeout(r, 15000));
+        const p = await roep(portfolioPad);
+        const nu = ((p.data as any)?.clientPortfolio?.positions ?? []).find((x: any) => x.positionID === positionId);
+        gezien = Number(nu?.stopLossRate);
+        if (Math.abs(gezien - stop) / stop < 0.001) break;
+      }
+    }
+    const gelukt = gezien !== undefined && Math.abs(gezien - stop) / stop < 0.001;
+    noteer(`${naam}: stop ${stop} (${pctOnder(open, stop)}% onder open, ${pctOnder(koers, stop)}% onder koers) -> PATCH ${antwoord.status}${antwoord.status >= 300 ? ` ${antwoord.ruw.slice(0, 200)}` : ''}; stop in portfolio daarna ${gezien ?? '?'} -> ${gelukt ? 'GEZET' : 'NIET GEZET'}`);
+  }
+
+  // T0: controle. Ruim meer dan 10% onder zowel de aankoopprijs als de koers; dit hoort altijd te
+  // lukken. Lukt dit niet, dan zegt de rest van de meting niets.
+  await probeer('T0 controle', Math.min(open, koers) * 0.85);
+  // T1: binnen 10% van de aankoopprijs, onder de koers. Gezet = minimum niet tegen de aankoopprijs.
+  await probeer('T1 5% onder open', open * 0.95);
+  // T2: boven de aankoopprijs, minder dan 10% onder de koers. Alleen zinnig als de positie in winst staat.
+  if (winstPct > 1.5) await probeer('T2 tussen open en koers', (open + koers) / 2);
+  else noteer('T2 overgeslagen: positie staat niet genoeg in winst voor een stop boven de aankoopprijs');
+  // T3: boven de aankoopprijs, ruim meer dan 10% onder de koers.
+  if (winstPct > 12.5) await probeer('T3 net boven open', open * 1.005);
+  else noteer('T3 overgeslagen: daarvoor moet de positie meer dan 12,5% in winst staan');
+  // Terugzetten.
+  if (origineel > 0) await probeer('Terugzetten', origineel);
+  noteer('Duiding: T1 gezet en T2 gezet = geen minimum tegen de aankoopprijs; T2 niet gezet bij weinig winst = minimum tegen de huidige koers; T1 niet gezet = minimum tegen de aankoopprijs.');
 }
 
 // ---------- Wachtende orders (--wachtend) ----------

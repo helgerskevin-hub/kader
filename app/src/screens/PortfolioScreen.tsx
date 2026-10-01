@@ -1,44 +1,39 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, Pressable, TextInput, ScrollView,
   StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
-import { Plus, X, Wallet, CheckCircle, XCircle, Clock, LayoutList, Rows3 } from 'lucide-react-native';
-import { fmtPrijs, fmtPct, fmtRR, fmtResultaatUsd, fmtBedrag } from '../engine/format';
+import { Plus, X, Wallet } from 'lucide-react-native';
+import { fmtBedrag } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing, radii, shadow } from '../theme/tokens';
+import { spacing, radii } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { haptiek } from '../theme/haptiek';
 import { UitklapPijl } from '../components/UitklapPijl';
 import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
-import { useDrukVeer } from '../components/Drukbaar';
 import { BottomSheet } from '../components/BottomSheet';
 import { Disclaimer } from '../components/Disclaimer';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { PortfolioStatusKaart } from '../components/PortfolioStatusKaart';
 import { VerdelingKaart } from '../components/VerdelingKaart';
 import { WachtendeOrdersKaart } from '../components/WachtendeOrdersKaart';
-import { SkeletonCard } from '../components/SkeletonCard';
+import { SkeletonKaart } from '../components/SkeletonKaart';
 import { HistorieScherm } from '../components/HistorieScherm';
 import { VerdelingScherm } from '../components/VerdelingScherm';
-import { CompacteTradeRegel } from '../components/CompacteTradeRegel';
-import { TradeActiesSheet } from '../components/TradeActiesSheet';
+import { PositieKaart } from '../components/PositieKaart';
 import { VerkoopOrderSheet } from '../components/VerkoopOrderSheet';
 import { NiveausSheet } from '../components/NiveausSheet';
 import { EtoroOmgeving, WachtendeOrder } from '../engine/etoro';
 import { omschrijfOnbekendeOrder } from '../state/lopendeOrders';
 import { adviesBijUitkomst, meldingNaAnnuleren, omschrijfUitkomst } from '../state/orderUitkomsten';
-import { PortfolioTrade, Richting, bronVan, nieuweId, richtingVan, tekenVan } from '../state/portfolioTypes';
-import { RichtingBadge } from '../components/RichtingBadge';
+import { PortfolioTrade, Richting, bronVan, nieuweId, richtingVan } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
-import { bepaalAdvies } from '../state/advies';
 import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
-import { AfbouwRegel } from '../components/AfbouwRegel';
 import { BlootstellingKaart } from '../components/BlootstellingKaart';
 import { KapitaalSheet } from '../components/KapitaalSheet';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
@@ -46,14 +41,13 @@ import { useMarkt } from '../state/MarktProvider';
 import { useNavigatie } from '../state/navigatie';
 import { MeldingNotitie } from '../components/MeldingNotitie';
 import { berekenPortfolioWaarde } from '../state/statistieken';
-import { useWeergave, Weergave } from '../state/useWeergave';
 import { useCoinDetail } from '../components/CoinDetailScherm';
 import { vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
 import { sleutelUitkomst } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
 
-// ---------- TradeRegel ----------
+// ---------- eToro-bestuurbaarheid ----------
 // Kan deze rij bij eToro verkocht en gewijzigd worden? Alles moet kloppen: de trade komt uit eToro,
 // we kennen zowel het positie- als het instrument-ID, en de positie hoort bij de omgeving waar de
 // app nu in staat. Een positie-ID uit de ene omgeving naar het endpoint van de andere sturen is een
@@ -66,327 +60,6 @@ export function isEtoroBestuurbaar(trade: PortfolioTrade, omgeving: EtoroOmgevin
     && typeof trade.etoroInstrumentID === 'number'
     && (trade.etoroOmgeving ?? 'real') === omgeving;
 }
-
-function TradeRegel({ trade, livePrijs, onVraagSluiten, onVerwijder, onBewerk, onOpenDetail, onVerkoop, onNiveaus, afbouw }: {
-  trade: PortfolioTrade;
-  livePrijs: number | undefined;
-  onVraagSluiten: (trade: PortfolioTrade, status: 'gewonnen' | 'verloren') => void;
-  onVerwijder: (id: string) => void;
-  onBewerk: (trade: PortfolioTrade) => void;
-  // Ontbreken als deze rij niet bij eToro te besturen is; dan blijft de rij zoals hij was.
-  onVerkoop?: (trade: PortfolioTrade) => void;
-  onNiveaus?: (trade: PortfolioTrade) => void;
-  onOpenDetail: (trade: PortfolioTrade) => void;
-  // Het klimaat-bewuste advies, of null als er niets bijzonders te melden is.
-  afbouw?: AfbouwAdvies | null;
-}) {
-  const { colors } = useTheme();
-  // Het detailscherm groeit uit deze kaart; de kaart veert daarom ook mee bij indrukken, net als
-  // op het marktscherm.
-  const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
-
-  const statusKleur = trade.status === 'gewonnen' ? colors.winst
-    : trade.status === 'verloren' ? colors.verlies
-    : colors.tekstGedimd;
-
-  const StatusIcon = trade.status === 'gewonnen' ? CheckCircle
-    : trade.status === 'verloren' ? XCircle
-    : Clock;
-
-  const statusLabel = trade.status === 'gewonnen' ? 'Gewonnen'
-    : trade.status === 'verloren' ? 'Verloren'
-    : 'Open';
-
-  const richting = richtingVan(trade);
-  const teken = tekenVan(trade);
-  const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs, richting);
-
-  const adviesKleur = advies.kleur === 'winst' ? colors.winst
-    : advies.kleur === 'verlies' ? colors.verlies
-    : advies.kleur === 'letOp' ? colors.letOp
-    : colors.tekstGedimd;
-
-  const heeftAantal = typeof trade.aantalCoins === 'number' && trade.aantalCoins > 0;
-  const resultaatUsd = livePrijs !== undefined && heeftAantal
-    ? (livePrijs - trade.entryPrijs) * trade.aantalCoins! * teken
-    : null;
-  const resultaatPct = livePrijs !== undefined
-    ? (livePrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
-    : null;
-  const resultaatKleur = resultaatUsd !== null
-    ? (resultaatUsd >= 0 ? colors.winst : colors.verlies)
-    : colors.tekstGedimd;
-
-  const behaaldPct = trade.exitPrijs !== undefined
-    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
-    : null;
-  // eToro's resultaatUsd is inclusief kosten en dus het echte resultaat, en staat al op het juiste
-  // teken. Alleen als we dat niet hebben (handmatige trade) rekenen we het bruto koersverschil uit,
-  // en dan moet dat verschil ook door tekenVan.
-  const behaaldUsd = typeof trade.resultaatUsd === 'number'
-    ? trade.resultaatUsd
-    : trade.exitPrijs !== undefined && heeftAantal
-      ? (trade.exitPrijs - trade.entryPrijs) * trade.aantalCoins! * teken
-      : null;
-  // Kleuren op het bedrag, niet op het koersverschil. Een trade kan net boven entry sluiten en na
-  // kosten toch verlies zijn; dan hoort er geen groene +0,4% naast een rode "verloren"-badge.
-  const behaaldKleur = behaaldUsd !== null
-    ? (behaaldUsd >= 0 ? colors.winst : colors.verlies)
-    : behaaldPct !== null
-      ? (behaaldPct >= 0 ? colors.winst : colors.verlies)
-      : colors.tekstGedimd;
-
-  // De gekleurde linkerstreep is weg, net als op het marktscherm. Een open positie houdt zijn
-  // schaduw en zweeft, een afgesloten positie verliest hem en krijgt een rand, zodat je historie
-  // visueel wegzakt achter wat nog loopt.
-  const open = trade.status === 'open';
-
-  return (
-    <Animated.View ref={druk.ref} style={[
-      tradeStyles.kaart,
-      open ? shadow.kaart : null,
-      {
-        backgroundColor: colors.kaart,
-        borderWidth: open ? 0 : 1,
-        borderColor: open ? 'transparent' : colors.rand,
-      },
-      druk.stijl,
-    ]}>
-      <Pressable
-        onPress={() => {
-          druk.legBronVast();
-          onOpenDetail(trade);
-        }}
-        onPressIn={druk.drukIn}
-        onPressOut={druk.drukUit}
-        accessibilityRole="button"
-        accessibilityLabel={`${trade.symbool} detail bekijken`}
-      >
-      <View style={tradeStyles.kop}>
-        <View style={tradeStyles.kopLinks}>
-          <View style={tradeStyles.symboolRij}>
-            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
-            <RichtingBadge richting={richting} />
-          </View>
-          {trade.naam ? (
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{trade.naam}</Text>
-          ) : null}
-        </View>
-        <View style={tradeStyles.kopRechts}>
-          <StatusIcon size={14} color={statusKleur} strokeWidth={1.75} />
-          <Text style={[Type.caption, { color: statusKleur }]}>{statusLabel}</Text>
-        </View>
-      </View>
-
-      {/* Adviesveld. Het bolletje draagt hier de kleur die eerst in de linkerstreep zat. */}
-      <View style={[tradeStyles.advies, { backgroundColor: colors.verhoogd }]}>
-        <View style={[tradeStyles.adviesStip, { backgroundColor: open ? adviesKleur : behaaldKleur }]} />
-        <Text style={[Type.caption, tradeStyles.adviesTekst, { color: open ? adviesKleur : behaaldKleur, lineHeight: 18, fontWeight: '600' }]}>
-          {trade.status === 'open'
-            ? advies.tekst
-            : `Gesloten op ${fmtPrijs(trade.exitPrijs ?? trade.entryPrijs)}${behaaldPct !== null ? ` (${fmtPct(behaaldPct)})` : ''}.`}
-        </Text>
-      </View>
-
-      {trade.status === 'open' && afbouw && (
-        <AfbouwRegel advies={afbouw} huidigeStop={trade.stopLoss} />
-      )}
-
-      {/* Niveaus. Bij long staat de stop links (laagste prijs) en het doel rechts, bij short is dat
-          andersom: de kolomvolgorde volgt dezelfde laag→hoog-logica als LevelRow/PositieBalk. */}
-      <View style={tradeStyles.niveaus}>
-        <View style={tradeStyles.niveau}>
-          <Text style={[Type.overline, { color: richting === 'short' ? colors.winst : colors.verlies }]}>
-            {richting === 'short' ? 'DOEL' : 'STOP'}
-          </Text>
-          <Text style={[Type.prijs, { color: richting === 'short' ? colors.winst : colors.verlies, fontSize: 13 }]}>
-            {(richting === 'short' ? trade.takeProfit : trade.stopLoss) > 0 ? fmtPrijs(richting === 'short' ? trade.takeProfit : trade.stopLoss) : '—'}
-          </Text>
-        </View>
-        <View style={tradeStyles.niveau}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtPrijs(trade.entryPrijs)}</Text>
-        </View>
-        <View style={tradeStyles.niveau}>
-          <Text style={[Type.overline, { color: richting === 'short' ? colors.verlies : colors.winst }]}>
-            {richting === 'short' ? 'STOP' : 'DOEL'}
-          </Text>
-          <Text style={[Type.prijs, { color: richting === 'short' ? colors.verlies : colors.winst, fontSize: 13 }]}>
-            {(richting === 'short' ? trade.stopLoss : trade.takeProfit) > 0 ? fmtPrijs(richting === 'short' ? trade.stopLoss : trade.takeProfit) : '—'}
-          </Text>
-        </View>
-        <View style={tradeStyles.niveau}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>R/R</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{trade.rr > 0 ? fmtRR(trade.rr) : '—'}</Text>
-        </View>
-      </View>
-
-      {/* Live resultaat voor open trades (alleen tonen als we een live prijs hebben) */}
-      {trade.status === 'open' && livePrijs !== undefined && (
-        <View style={[tradeStyles.niveaus, { paddingTop: 0 }]}>
-          <View style={tradeStyles.niveau}>
-            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>LIVE</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtPrijs(livePrijs)}</Text>
-          </View>
-          {resultaatPct !== null && (
-            <View style={tradeStyles.niveau}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>RESULTAAT</Text>
-              <Text style={[Type.prijs, { color: resultaatKleur, fontSize: 13 }]}>
-                {fmtPct(resultaatPct)}
-                {resultaatUsd !== null ? `  ${fmtResultaatUsd(resultaatUsd)}` : ''}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Realized resultaat voor gesloten trades */}
-      {trade.status !== 'open' && trade.exitPrijs !== undefined && (
-        <View style={[tradeStyles.niveaus, { paddingTop: 0 }]}>
-          <View style={tradeStyles.niveau}>
-            <Text style={[Type.overline, { color: colors.tekstGedimd }]}>EXIT</Text>
-            <Text style={[Type.prijs, { color: colors.tekstPrimair, fontSize: 13 }]}>{fmtPrijs(trade.exitPrijs)}</Text>
-          </View>
-          {behaaldPct !== null && (
-            <View style={tradeStyles.niveau}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEHAALD</Text>
-              <Text style={[Type.prijs, { color: behaaldKleur, fontSize: 13 }]}>
-                {fmtPct(behaaldPct)}
-                {behaaldUsd !== null ? `  ${fmtResultaatUsd(behaaldUsd)}` : ''}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {trade.notitie ? (
-        <Text style={[Type.caption, tradeStyles.notitie, { color: colors.tekstGedimd }]}>
-          {trade.notitie}
-        </Text>
-      ) : null}
-      </Pressable>
-
-      <View style={[tradeStyles.voet, { borderTopColor: colors.rand }]}>
-        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{trade.datum}</Text>
-        <View style={tradeStyles.voetActies}>
-          {/* Bij een eToro-positie die Kader echt kan besturen vervangen Verkopen en SL/TP de
-              handmatige knoppen: Gewonnen en Verloren zouden hier alleen de lokale administratie
-              wijzigen terwijl de positie bij eToro gewoon open blijft staan, en dat is misleidend. */}
-          {trade.status === 'open' && onVerkoop && onNiveaus && (
-            <>
-              <Pressable
-                style={tradeStyles.voetKnop}
-                onPress={() => onVerkoop(trade)}
-                accessibilityRole="button"
-                accessibilityLabel={`${trade.symbool} verkopen bij eToro`}
-              >
-                <Text style={[Type.caption, { color: colors.verlies }]}>Verkopen</Text>
-              </Pressable>
-              <Pressable
-                style={tradeStyles.voetKnop}
-                onPress={() => onNiveaus(trade)}
-                accessibilityRole="button"
-                accessibilityLabel="Stop-loss en doel aanpassen"
-              >
-                <Text style={[Type.caption, { color: colors.cta }]}>SL/TP</Text>
-              </Pressable>
-            </>
-          )}
-
-          {trade.status === 'open' && !(onVerkoop && onNiveaus) && (
-            <>
-              <Pressable
-                style={tradeStyles.voetKnop}
-                onPress={() => onVraagSluiten(trade, 'gewonnen')}
-                accessibilityRole="button"
-                accessibilityLabel="Gewonnen"
-              >
-                <Text style={[Type.caption, { color: colors.winst }]}>Gewonnen</Text>
-              </Pressable>
-              <Pressable
-                style={tradeStyles.voetKnop}
-                onPress={() => onVraagSluiten(trade, 'verloren')}
-                accessibilityRole="button"
-                accessibilityLabel="Verloren"
-              >
-                <Text style={[Type.caption, { color: colors.verlies }]}>Verloren</Text>
-              </Pressable>
-              <Pressable
-                style={tradeStyles.voetKnop}
-                onPress={() => onBewerk(trade)}
-                accessibilityRole="button"
-                accessibilityLabel="Trade aanpassen"
-              >
-                <Text style={[Type.caption, { color: colors.cta }]}>Aanpassen</Text>
-              </Pressable>
-            </>
-          )}
-          <Pressable
-            style={tradeStyles.voetKnop}
-            onPress={() => onVerwijder(trade.id)}
-            accessibilityRole="button"
-            accessibilityLabel="Trade verwijderen"
-          >
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Verwijder</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
-
-const tradeStyles = StyleSheet.create({
-  kaart: {
-    borderRadius: radii.kaart,
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.md,
-  },
-  adviesStip: { width: 8, height: 8, borderRadius: radii.pill, marginTop: 5 },
-  adviesTekst: { flex: 1 },
-  kop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.base,
-    paddingBottom: spacing.sm,
-  },
-  kopLinks: { gap: 2 },
-  symboolRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  kopRechts: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  advies: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.sm,
-    borderRadius: radii.veld,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  niveaus: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.md,
-    gap: spacing.base,
-    flexWrap: 'wrap',
-  },
-  niveau: { gap: 2 },
-  notitie: {
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
-    fontStyle: 'italic',
-  },
-  voet: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.base,
-    minHeight: 44,
-  },
-  voetActies: { flexDirection: 'row', gap: spacing.base },
-  voetKnop: { paddingVertical: spacing.sm, minHeight: 44, justifyContent: 'center' },
-});
 
 // ---------- Formulier (handmatig toevoegen vanuit Portfolio) ----------
 interface VormData {
@@ -784,52 +457,6 @@ const formStyles = StyleSheet.create({
   },
 });
 
-// ---------- Weergaveschakelaar (uitgebreid/compact) ----------
-function WeergaveSchakelaar({ actief, onWijzig }: {
-  actief: Weergave;
-  onWijzig: (weergave: Weergave) => void;
-}) {
-  const { colors } = useTheme();
-  return (
-    <View style={[weergaveStyles.wrapper, { backgroundColor: colors.verhoogd }]}>
-      <Pressable
-        style={[weergaveStyles.knop, actief === 'uitgebreid' && { backgroundColor: colors.kaart }]}
-        onPress={() => onWijzig('uitgebreid')}
-        accessibilityRole="button"
-        accessibilityLabel="Uitgebreide weergave"
-        hitSlop={4}
-      >
-        <LayoutList size={17} color={actief === 'uitgebreid' ? colors.tekstPrimair : colors.tekstGedimd} strokeWidth={1.75} />
-      </Pressable>
-      <Pressable
-        style={[weergaveStyles.knop, actief === 'compact' && { backgroundColor: colors.kaart }]}
-        onPress={() => onWijzig('compact')}
-        accessibilityRole="button"
-        accessibilityLabel="Compacte weergave"
-        hitSlop={4}
-      >
-        <Rows3 size={17} color={actief === 'compact' ? colors.tekstPrimair : colors.tekstGedimd} strokeWidth={1.75} />
-      </Pressable>
-    </View>
-  );
-}
-
-const weergaveStyles = StyleSheet.create({
-  wrapper: {
-    flexDirection: 'row',
-    borderRadius: radii.knop,
-    padding: 2,
-    gap: 2,
-  },
-  knop: {
-    width: 44,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.knop - 2,
-  },
-});
-
 // ---------- Bron-groepskop (alleen zichtbaar als er meer dan één bron is) ----------
 const BRON_LABEL: Record<'etoro' | 'handmatig', string> = {
   etoro: 'eToro',
@@ -908,11 +535,23 @@ export function PortfolioScreen() {
   const [bewerkTrade, setBewerkTrade] = useState<PortfolioTrade | null>(null);
   const [sluitVerzoek, setSluitVerzoek] = useState<{ trade: PortfolioTrade; status: 'gewonnen' | 'verloren' } | null>(null);
   const { openDetail, detailScherm } = useCoinDetail();
+  // De koersen zitten in een ref zodat de callbacks hieronder stabiel blijven: een callback die op
+  // livePrijzen leunt krijgt bij elke poll een nieuwe identiteit, en dan helpt de memo op
+  // PositieKaart niet meer.
+  const livePrijzenRef = useRef(livePrijzen);
+  livePrijzenRef.current = livePrijzen;
+  const opVraagSluiten = useCallback(
+    (t: PortfolioTrade, status: 'gewonnen' | 'verloren') => setSluitVerzoek({ trade: t, status }),
+    [],
+  );
+  const opOpenPositieDetail = useCallback(
+    (t: PortfolioTrade) => openDetail(vanPortfolioTrade(t, livePrijzenRef.current[t.symbool])),
+    [openDetail],
+  );
   const [etoroBezig, setEtoroBezig] = useState(false);
   const [ververst, setVerverst] = useState(false);
   const [historieOpen, setHistorieOpen] = useState(false);
   const [verdelingOpen, setVerdelingOpen] = useState(false);
-  const [actiesVoor, setActiesVoor] = useState<PortfolioTrade | null>(null);
   const [kapitaalOpen, setKapitaalOpen] = useState(false);
   const { kapitaal, zetKapitaal } = useHandelskapitaal();
   // Het marktscherm heeft de analyse en het klimaat al opgehaald. Dit scherm leunt daarop en scant
@@ -922,7 +561,6 @@ export function PortfolioScreen() {
   const { state: marktState } = useMarkt();
   const { doel: navigatieDoel, wisDoel } = useNavigatie();
   const [meldingNotitie, setMeldingNotitie] = useState<string | null>(null);
-  const { weergave, setWeergave } = useWeergave();
   const reduceMotion = useReduceMotion();
 
   // Welke bron-groepen zijn dichtgeklapt, bewaard tussen app-starts. Standaard staan ze allebei open.
@@ -1187,9 +825,9 @@ export function PortfolioScreen() {
           import), dan blijft de bestaande lijst gewoon staan; dat gebeurt hier niet opnieuw. */}
       {!geladen ? (
         <View style={portfolioStyles.laadWrapper}>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
+          <SkeletonKaart />
+          <SkeletonKaart />
+          <SkeletonKaart />
         </View>
       ) : (
       <Animated.FlatList
@@ -1214,27 +852,17 @@ export function PortfolioScreen() {
           const trade = item.trade;
           return (
             <Animated.View entering={uitklapIn(reduceMotion)} exiting={uitklapUit()}>
-            {weergave === 'compact' ? (
-            <CompacteTradeRegel
-              trade={trade}
-              livePrijs={livePrijzen[trade.symbool]}
-              afbouw={afbouwPerTrade[trade.id]}
-              onOpenDetail={t => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
-              onOpenActies={setActiesVoor}
-            />
-          ) : (
-            <TradeRegel
-              trade={trade}
-              livePrijs={livePrijzen[trade.symbool]}
-              afbouw={afbouwPerTrade[trade.id]}
-              onVraagSluiten={(t, status) => setSluitVerzoek({ trade: t, status })}
-              onVerwijder={verwijderTrade}
-              onBewerk={setBewerkTrade}
-              onVerkoop={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setVerkoopTrade : undefined}
-              onNiveaus={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setNiveausTrade : undefined}
-              onOpenDetail={t => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
-            />
-            )}
+              <PositieKaart
+                trade={trade}
+                livePrijs={livePrijzen[trade.symbool]}
+                afbouw={afbouwPerTrade[trade.id]}
+                onVraagSluiten={opVraagSluiten}
+                onVerwijder={verwijderTrade}
+                onBewerk={setBewerkTrade}
+                onVerkoop={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setVerkoopTrade : undefined}
+                onNiveaus={magHandelen && isEtoroBestuurbaar(trade, omgeving) ? setNiveausTrade : undefined}
+                onOpenDetail={opOpenPositieDetail}
+              />
             </Animated.View>
           );
         }}
@@ -1357,11 +985,10 @@ export function PortfolioScreen() {
 
             {/* Schuift op een veer mee als de blootstellingskaart erboven zijn uitleg openklapt. */}
             {openTrades.length > 0 && (
-              <Animated.View layout={schuifOvergang(reduceMotion)} style={portfolioStyles.weergaveRij}>
+              <Animated.View layout={schuifOvergang(reduceMotion)} style={portfolioStyles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {openTrades.length} {openTrades.length === 1 ? 'OPEN POSITIE' : 'OPEN POSITIES'}
                 </Text>
-                <WeergaveSchakelaar actief={weergave} onWijzig={setWeergave} />
               </Animated.View>
             )}
           </>
@@ -1433,22 +1060,13 @@ export function PortfolioScreen() {
         <NiveausSheet
           zichtbaar
           trade={niveausTrade}
+          huidigePrijs={livePrijzen[niveausTrade.symbool]}
+          afbouwAdvies={afbouwPerTrade[niveausTrade.id] ?? null}
           onSluiten={() => setNiveausTrade(null)}
         />
       )}
 
       {detailScherm}
-
-      <TradeActiesSheet
-        trade={actiesVoor}
-        onSluiten={() => setActiesVoor(null)}
-        onGewonnen={t => setSluitVerzoek({ trade: t, status: 'gewonnen' })}
-        onVerloren={t => setSluitVerzoek({ trade: t, status: 'verloren' })}
-        onAanpassen={setBewerkTrade}
-        onVerwijderen={t => verwijderTrade(t.id)}
-        onVerkoop={actiesVoor && magHandelen && isEtoroBestuurbaar(actiesVoor, omgeving) ? setVerkoopTrade : undefined}
-        onNiveaus={actiesVoor && magHandelen && isEtoroBestuurbaar(actiesVoor, omgeving) ? setNiveausTrade : undefined}
-      />
 
       <HistorieScherm
         zichtbaar={historieOpen}
@@ -1524,10 +1142,7 @@ const portfolioStyles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   lijst: { paddingTop: spacing.md, paddingBottom: spacing.md },
-  weergaveRij: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  lijstKop: {
     marginHorizontal: spacing.base,
     marginBottom: spacing.sm,
   },

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="300" viewBox="0 0 880 300" role="img" aria-labelledby="titel omschrijving">
+  <title id="titel">Kader, structuur in crypto</title>
+  <desc id="omschrijving">Het logo van Kader: vier hoekjes die naar binnen schuiven en het woordmerk Kader met de payoff Structuur in crypto omlijsten.</desc>
+  <style>
+    svg {
+      --kaart: #FFFFFF; --rand: #E2E8F0; --tekst: #0F172A; --gedimd: #64748B; --primair: #1E3A8A;
+      --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg { --kaart: #161B22; --rand: #2A3140; --tekst: #E6EDF3; --gedimd: #8B949E; --primair: #3B82F6; }
+    }
+    .kaart { fill: var(--kaart); stroke: var(--rand); stroke-width: 1; }
+    .woordmerk { font-family: var(--sans); font-weight: 700; font-size: 76px; letter-spacing: -1.5px; fill: var(--tekst); }
+    .payoff { font-family: var(--sans); font-weight: 500; font-size: 19px; letter-spacing: 0.8px; fill: var(--gedimd); }
+    .hoek { fill: none; stroke: var(--primair); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* De vier grote hoeken schuiven één keer naar binnen (curve.binnen uit beweging.ts). */
+    .hoek, .markhoek { animation: 1s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .lb { animation-name: inLB; animation-delay: .15s; }
+    .rb { animation-name: inRB; animation-delay: .21s; }
+    .lo { animation-name: inLO; animation-delay: .27s; }
+    .ro { animation-name: inRO; animation-delay: .33s; }
+    .markhoek.lb { animation-delay: .45s; } .markhoek.rb { animation-delay: .5s; }
+    .markhoek.lo { animation-delay: .55s; } .markhoek.ro { animation-delay: .6s; }
+    @keyframes inLB { from { transform: translate(-18px, -18px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes inRB { from { transform: translate(18px, -18px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes inLO { from { transform: translate(-18px, 18px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes inRO { from { transform: translate(18px, 18px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    /* De trendlijn in het logo tekent zich in via een masker dat openschuift. */
+    .onthul { transform-box: fill-box; transform-origin: left center; animation: onthul .9s cubic-bezier(0.22, 1, 0.36, 1) .9s both; }
+    @keyframes onthul { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .stip { transform-box: fill-box; transform-origin: center; animation: pop .4s cubic-bezier(0.22, 1, 0.36, 1) 1.65s both; }
+    @keyframes pop { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    /* Daarna ademt de stip rustig, met een ruime pauze tussen twee keer. */
+    .halo { opacity: 0; transform-box: fill-box; transform-origin: center; animation: adem 5s cubic-bezier(0.25, 0.1, 0.25, 1) 2.2s infinite; }
+    @keyframes adem { 0% { transform: scale(1); opacity: .55; } 40% { transform: scale(2.6); opacity: 0; } 100% { transform: scale(2.6); opacity: 0; } }
+
+    .tekst { animation: tekstIn .8s cubic-bezier(0.22, 1, 0.36, 1) .35s both; }
+    .payoff { animation: tekstIn .8s cubic-bezier(0.22, 1, 0.36, 1) .5s both; }
+    @keyframes tekstIn { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; }
+      .halo { opacity: 0; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="merk" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E3A8A"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+    <mask id="lijnMasker" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96">
+      <rect class="onthul" x="24" y="26" width="48" height="40" fill="#FFFFFF"/>
+    </mask>
+  </defs>
+
+  <rect class="kaart" x="0.5" y="0.5" width="879" height="299" rx="20"/>
+
+  <!-- Grote hoeken: het kader om het merk -->
+  <path class="hoek lb" d="M214 84 V56 H242"/>
+  <path class="hoek rb" d="M638 56 H666 V84"/>
+  <path class="hoek lo" d="M214 216 V244 H242"/>
+  <path class="hoek ro" d="M638 244 H666 V216"/>
+
+  <!-- Officieel logomark (Kader Logo, app-icoon 96x96), ongewijzigd op 120 px -->
+  <g transform="translate(250 90) scale(1.25)">
+    <rect width="96" height="96" rx="22" fill="url(#merk)"/>
+    <g stroke="#FFFFFF" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path class="markhoek lb" d="M22 38 L22 22 L38 22"/>
+      <path class="markhoek rb" d="M58 22 L74 22 L74 38"/>
+      <path class="markhoek lo" d="M22 58 L22 74 L38 74"/>
+      <path class="markhoek ro" d="M58 74 L74 74 L74 58"/>
+    </g>
+    <polyline mask="url(#lijnMasker)" points="28,62 38,50 48,55 68,32" stroke="#FFFFFF" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95"/>
+    <circle class="halo" cx="68" cy="32" r="4" fill="#FFFFFF"/>
+    <circle class="stip" cx="68" cy="32" r="4" fill="#FFFFFF"/>
+  </g>
+
+  <text class="woordmerk tekst" x="400" y="160">Kader</text>
+  <text class="payoff" x="403" y="196">Structuur in crypto.</text>
+</svg>

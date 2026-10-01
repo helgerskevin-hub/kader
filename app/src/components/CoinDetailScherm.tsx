@@ -18,6 +18,7 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 import { curve, duur, staggerVertraging, veer, vervaag } from '../theme/beweging';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import { CoinLogo } from './CoinLogo';
 import { ScoreBadge } from './ScoreBadge';
 import { RichtingBadge } from './RichtingBadge';
 import { LevelRow } from './LevelRow';
@@ -264,13 +265,16 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
           <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
             <View style={[styles.header, { borderBottomColor: colors.rand, paddingTop: spacing.base + extraKopruimte }]}>
               <View style={styles.headerLinks}>
-                <View style={styles.symboolRij}>
-                  <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
-                  {/* Alleen bij een short. Vrijwel alles is long, dus daar hoort geen label bij; bij een
-                      short moet je het meteen zien, want stop en doel liggen omgekeerd. */}
-                  {data.richting === 'short' && <RichtingBadge richting="short" />}
+                <CoinLogo symbool={data.symbool} grootte={36} />
+                <View style={styles.headerTekst}>
+                  <View style={styles.symboolRij}>
+                    <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
+                    {/* Alleen bij een short. Vrijwel alles is long, dus daar hoort geen label bij; bij een
+                        short moet je het meteen zien, want stop en doel liggen omgekeerd. */}
+                    {data.richting === 'short' && <RichtingBadge richting="short" />}
+                  </View>
+                  <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{data.naam}</Text>
                 </View>
-                <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{data.naam}</Text>
               </View>
               <View style={styles.headerRechts}>
                 {data.prijs !== undefined && (
@@ -574,7 +578,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: spacing.sm,
   },
-  headerLinks: { gap: 2, flex: 1 },
+  headerLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
+  headerTekst: { gap: 2, flexShrink: 1 },
   symboolRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerRechts: { alignItems: 'flex-end', gap: 6 },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', marginTop: -spacing.xs },

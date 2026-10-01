@@ -115,7 +115,7 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
   const wachtOpMaat = useRef(false);
 
   // Tijdens het wegschuiven houden we de laatste inhoud vast. Veel sheets halen hun inhoud uit iets
-  // dat bij het sluiten meteen null wordt (TradeActiesSheet toont `trade`), en dan zou het vel
+  // dat bij het sluiten meteen null wordt (een sheet die een `trade` toont die bij sluiten null wordt), en dan zou het vel
   // halverwege de uitgang leeglopen en inzakken.
   const laatsteKinderen = useRef(children);
   if (zichtbaar) laatsteKinderen.current = children;

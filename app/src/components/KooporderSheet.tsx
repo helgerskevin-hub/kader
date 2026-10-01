@@ -5,9 +5,10 @@
 // bedrag niet in je saldo, dan is bevestigen simpelweg uitgeschakeld. En na een onbekende uitkomst
 // verschijnt er nergens een knop die het verzoek opnieuw verstuurt.
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Wallet, X } from 'lucide-react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Wallet } from 'lucide-react-native';
 import { fmtBedrag, fmtPrijs } from '../engine/format';
+import { deelVanSaldo, maxBedrag, planInGeld } from '../engine/planInGeld';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { bouwKooporderBody, guid, haalSaldoStand, KooporderInvoer, plaatsKooporder, SaldoStand } from '../engine/etoro';
 import { koersFactor } from '../engine/etoroSymbolen';
@@ -28,6 +29,10 @@ import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
 import { RichtingBadge } from './RichtingBadge';
+import { OrderKop } from './order/OrderKop';
+import { BedragInvoer } from './order/BedragInvoer';
+import { SnelKnoppen, SnelOptie } from './order/SnelKnoppen';
+import { PlanInGeldKaart } from './order/PlanInGeld';
 
 // eToro rekent orders in dollars af en het bedrag dat je hier intikt gaat letterlijk zo de order in.
 // Daarom blijft dit scherm in dollars, ook als de app op euro's staat: een omgerekend getal naast
@@ -89,6 +94,10 @@ export function KooporderSheet({
   // Kader dat geld als beschikbaar en werd de order die je erop baseerde door eToro geweigerd.
   const vrijSaldo = saldo?.besteedbaarUsd ?? null;
   const [bezig, setBezig] = useState(false);
+  // Eén bevestiging tegelijk. Een state-vlag komt pas na de volgende render aan, dus twee tikken
+  // binnen één frame zouden er allebei doorheen glippen. Na een geslaagde order blijft dit dicht
+  // tot het venster opnieuw opengaat: tijdens het vinkje mag er geen tweede order uit.
+  const loopt = useRef(false);
   const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
 
@@ -103,6 +112,7 @@ export function KooporderSheet({
     setBedrag('');
     setFout('');
     setBezig(false);
+    loopt.current = false;
     wis();
     setSaldo(null);
     setSaldoBezig(true);
@@ -138,7 +148,9 @@ export function KooporderSheet({
     : advies.soort === 'aangepast' ? advies.stop
     : undefined;
 
-  const bedragGetal = parseFloat(bedrag.replace(',', '.'));
+  // Op centen afgerond: het bedrag staat met twee decimalen in beeld, dus dat is ook wat er naar
+  // eToro gaat. Wie 12.345 tikt ziet $12.35 en koopt voor $12.35.
+  const bedragGetal = Math.round(parseFloat(bedrag.replace(',', '.')) * 100) / 100;
   const heeftBedrag = !isNaN(bedragGetal) && bedragGetal > 0;
 
   const invoer: KooporderInvoer = {
@@ -198,7 +210,8 @@ export function KooporderSheet({
   const magBevestigen = heeftBedrag && blokkade === null && instrumentId !== null;
 
   async function bevestig() {
-    if (!magBevestigen || instrumentId === null) return;
+    if (!magBevestigen || instrumentId === null || loopt.current) return;
+    loopt.current = true;
 
     // Vastleggen vóór het versturen: welke posities stonden er al open? Zonder die lijst zou een
     // positie die je al had een onbevestigde order ten onrechte oplossen.
@@ -213,6 +226,15 @@ export function KooporderSheet({
       if (!sleutels) {
         setFout('Er staat geen eToro-sleutel klaar voor deze omgeving.');
         setBezig(false);
+        loopt.current = false;
+        return;
+      }
+      // De knop is getekend voor één omgeving. Is die intussen gewisseld, dan gaat er niets de deur
+      // uit: anders zou een order die je als demo bevestigde met echt geld kunnen lopen, of andersom.
+      if ((sleutels.omgeving ?? 'real') !== omgeving) {
+        setFout('Je omgeving is net gewisseld. Sluit dit venster en open het opnieuw.');
+        setBezig(false);
+        loopt.current = false;
         return;
       }
 
@@ -241,6 +263,7 @@ export function KooporderSheet({
           onSluiten();
           toonDialoog({
             variant: 'gelukt',
+            rondje: 'gelukt',
             titel: isShort ? 'Short staat bij eToro' : 'Koop staat bij eToro',
             tekst: isShort
               ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`
@@ -267,6 +290,7 @@ export function KooporderSheet({
       if (uitkomst.soort === 'fout') {
         setFout(uitkomst.bericht);
         setBezig(false);
+        loopt.current = false;
         return;
       }
 
@@ -276,7 +300,7 @@ export function KooporderSheet({
         verzoekId: verzoekId.current,
         soort: 'koop',
         symbool,
-        omgeving,
+        omgeving: sleutels.omgeving ?? 'real',
         bedragUsd: bedragGetal,
         bekendePosities,
         tijd: Date.now(),
@@ -288,9 +312,11 @@ export function KooporderSheet({
         // ook nu geen optie.
       }
       setBezig(false);
+      loopt.current = false;
       onSluiten();
       toonDialoog({
         variant: 'waarschuwing',
+        rondje: 'onzeker',
         titel: 'We weten niet of je order is doorgegaan',
         tekst: 'Kader heeft geen antwoord van eToro gekregen. De opdracht staat genoteerd en Kader controleert het zelf bij eToro.',
         resultaat: {
@@ -302,6 +328,7 @@ export function KooporderSheet({
     } catch (e) {
       setFout(e instanceof Error ? e.message : 'Er ging iets mis bij het plaatsen van de order.');
       setBezig(false);
+      loopt.current = false;
     }
   }
 
@@ -309,24 +336,45 @@ export function KooporderSheet({
   // niets in plaats van een half formulier.
   if (!magHandelen) return null;
 
-  const inputStyle = [stijlen.input, {
-    backgroundColor: colors.verhoogd,
-    borderColor: colors.rand,
-    color: colors.tekstPrimair,
-  }];
+  // Snelknoppen: vaste bedragen altijd, 25% en Max alleen als het saldo bekend is. Een optie onder
+  // het eToro-minimum laten we weg, die zou meteen de rode melding opleveren.
+  const snelOpties: SnelOptie[] = [
+    { id: '50', label: '$50', waarde: 50 },
+    { id: '100', label: '$100', waarde: 100 },
+    { id: '250', label: '$250', waarde: 250 },
+    ...(vrijSaldo !== null
+      ? [
+          { id: 'kwart', label: '25%', waarde: deelVanSaldo(vrijSaldo, 0.25, KOSTENMARGE) },
+          { id: 'max', label: 'Max', waarde: maxBedrag(vrijSaldo, KOSTENMARGE) },
+        ]
+      : []),
+  ].filter(o => o.waarde >= MINIMUM_USD);
+
+  function kiesSnel(waarde: number) {
+    if (bezig) return;
+    setBedrag(String(Math.round(waarde * 100) / 100));
+  }
+
+  // Het plan in geld rekent met de stop die echt meegaat. Bij 'vast' zet eToro zelf de stop, dan is
+  // er geen bedrag bij de stop te noemen. De R/R hangt niet van het bedrag af, dus zonder geldig
+  // bedrag rekenen we met 1 dollar zodat de R/R blijft staan, en blijven de tegels leeg.
+  const planStop = advies.soort === 'vast' ? undefined : getoondeStop;
+  const plan = planInGeld({ bedrag: heeftBedrag ? bedragGetal : 1, entry, stop: planStop, doel, richting });
+
+  // Het bedrag in de samenvatting vet, zonder de zin zelf te veranderen.
+  const bedragTekst = heeftBedrag ? fmtBedrag(bedragGetal, DOLLARS) : '';
+  const bedragPlek = bedragTekst ? samenvatting.indexOf(bedragTekst) : -1;
 
   return (
     <BottomSheet zichtbaar={zichtbaar} onSluiten={sluit} velStijl={stijlen.vel}>
-      <View style={stijlen.titelRij}>
-        <Text style={[Type.titel, { color: colors.tekstPrimair }]}>{symbool} {isShort ? 'shorten' : 'kopen'}</Text>
-        <Pressable
-          onPress={sluit}
-          accessibilityLabel="Sluiten"
-          accessibilityRole="button"
-          style={stijlen.sluitKnop}
-        >
-          <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Pressable>
+      <View style={stijlen.kop}>
+        <OrderKop
+          symbool={symbool}
+          titel={`${symbool} ${isShort ? 'shorten' : 'kopen'}`}
+          sub={`${naam} · ${fmtPrijs(entry, DOLLARS)}`}
+          omgeving={omgeving}
+          onSluiten={sluit}
+        />
       </View>
 
       {/* Het onderscheid met een gewone koop moet hier niet te missen zijn: bij een short liggen
@@ -342,33 +390,67 @@ export function KooporderSheet({
         </View>
       )}
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={[stijlen.infoBlok, { backgroundColor: colors.verhoogd, borderColor: colors.rand }]}>
-          <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
-            {symbool} <Text style={[Type.body, { color: colors.tekstGedimd }]}>{naam}</Text>
-          </Text>
-          <View style={stijlen.infoRij}>
-            <View style={stijlen.infoVeld}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(entry, DOLLARS)}</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={stijlen.inhoud}
+      >
+        {/* Het bedrag is het enige dat de gebruiker zelf invult, dus hoort er te staan hoeveel er
+            te besteden is voordat hij begint te tikken en niet als voetnoot eronder. */}
+        <BedragInvoer
+          waarde={bedrag}
+          onWijzig={setBedrag}
+          accessibilityLabel="Bedrag in dollars"
+          bewerkbaar={!bezig}
+          onderschrift={
+            <View style={stijlen.onderschrift}>
+              <View style={stijlen.saldoRij}>
+                <Wallet size={13} color={colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Te besteden</Text>
+                <Text style={[Type.prijs, stijlen.saldoBedrag, { color: colors.tekstPrimair }]}>
+                  {vrijSaldo !== null ? fmtBedrag(vrijSaldo, DOLLARS) : saldoBezig ? 'ophalen...' : 'onbekend'}
+                </Text>
+              </View>
+              {valuta === 'EUR' && eurPerUsd !== null && heeftBedrag ? (
+                <Text style={[Type.caption, stijlen.midden, { color: colors.tekstGedimd }]}>
+                  Dat is ongeveer €{(bedragGetal * eurPerUsd).toFixed(2)}. eToro rekent in dollars af.
+                </Text>
+              ) : null}
+              {vrijSaldo === null && !saldoBezig ? (
+                <Text style={[Type.caption, stijlen.midden, { color: colors.tekstGedimd }]}>
+                  Kader kon je saldo niet bij eToro ophalen. Controleer zelf of dit bedrag past voor je
+                  bevestigt.
+                </Text>
+              ) : null}
+              {/* Staat er geld vast in een order die nog niet gevuld is, dan hoort dat hier en niet pas
+                  in de rode melding: het verklaart waarom "te besteden" lager is dan het bedrag dat je
+                  bij eToro als cash ziet staan. */}
+              {gereserveerdZin ? (
+                <Text style={[Type.caption, stijlen.midden, { color: colors.letOp }]}>
+                  {gereserveerdZin.trim()}
+                </Text>
+              ) : null}
             </View>
-            <View style={stijlen.infoVeld}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                {advies.soort === 'vast' ? 'STOP (KADER)' : 'STOP'}
-              </Text>
-              <Text style={[Type.prijs, { color: colors.verlies }]}>{fmtPrijs(getoondeStop, DOLLARS)}</Text>
-            </View>
-            <View style={stijlen.infoVeld}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>DOEL</Text>
-              <Text style={[Type.prijs, { color: colors.winst }]}>{fmtPrijs(doel, DOLLARS)}</Text>
-            </View>
-          </View>
-          <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.sm, lineHeight: 18 }]}>
-            {isShort
-              ? `De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs: bij een short verkoop je ${symbool} zonder het te bezitten, en verdien je zodra de koers daalt.`
-              : 'De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs, dus je koopt tegen de koers van dat moment.'}
-          </Text>
-        </View>
+          }
+        />
+
+        <SnelKnoppen
+          opties={snelOpties}
+          actief={heeftBedrag ? bedragGetal : undefined}
+          onKies={kiesSnel}
+          accessibilityLabel="Snel bedrag"
+        />
+
+        <PlanInGeldKaart
+          entry={entry}
+          stop={planStop}
+          doel={doel}
+          bijStop={heeftBedrag ? plan?.bijStop ?? null : null}
+          bijDoel={heeftBedrag ? plan?.bijDoel ?? null : null}
+          rr={plan?.rr ?? null}
+          stopAangepast={advies.soort === 'aangepast'}
+          stopTekst={advies.soort === 'vast' ? 'eToro kiest de stop' : undefined}
+        />
 
         {advies.soort === 'aangepast' || advies.soort === 'vast' ? (
           <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
@@ -376,65 +458,43 @@ export function KooporderSheet({
           </View>
         ) : null}
 
-        {/* Het bedrag is het enige dat de gebruiker zelf invult, dus hoort er te staan hoeveel er
-            te besteden is voordat hij begint te tikken en niet als voetnoot eronder. */}
-        <View style={stijlen.labelRij}>
-          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BEDRAG IN $</Text>
-          <View style={stijlen.saldoRij}>
-            <Wallet size={13} color={colors.tekstGedimd} strokeWidth={1.75} />
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Te besteden</Text>
-            <Text style={[Type.prijs, stijlen.saldoBedrag, { color: colors.tekstPrimair }]}>
-              {vrijSaldo !== null ? fmtBedrag(vrijSaldo, DOLLARS) : saldoBezig ? 'ophalen...' : 'onbekend'}
-            </Text>
-          </View>
-        </View>
-        <TextInput
-          style={inputStyle}
-          value={bedrag}
-          onChangeText={setBedrag}
-          placeholder={`minimaal ${MINIMUM_USD}`}
-          placeholderTextColor={colors.tekstGedimd}
-          keyboardType="decimal-pad"
-          editable={!bezig}
-        />
-        {valuta === 'EUR' && eurPerUsd !== null && heeftBedrag ? (
-          <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
-            Dat is ongeveer €{(bedragGetal * eurPerUsd).toFixed(2)}. eToro rekent in dollars af.
-          </Text>
-        ) : null}
-        {vrijSaldo === null && !saldoBezig ? (
-          <Text style={[Type.caption, { color: colors.tekstGedimd, marginTop: spacing.xs }]}>
-            Kader kon je saldo niet bij eToro ophalen. Controleer zelf of dit bedrag past voor je
-            bevestigt.
-          </Text>
-        ) : null}
-        {/* Staat er geld vast in een order die nog niet gevuld is, dan hoort dat hier en niet pas
-            in de rode melding: het verklaart waarom "te besteden" lager is dan het bedrag dat je
-            bij eToro als cash ziet staan. */}
-        {gereserveerdZin ? (
-          <Text style={[Type.caption, { color: colors.letOp, marginTop: spacing.xs }]}>
-            {gereserveerdZin.trim()}
-          </Text>
-        ) : null}
+        <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
+          {isShort
+            ? `De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs: bij een short verkoop je ${symbool} zonder het te bezitten, en verdien je zodra de koers daalt.`
+            : 'De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs, dus je koopt tegen de koers van dat moment.'}
+        </Text>
 
         {instrumentBezig ? (
-          <Text style={[Type.caption, stijlen.melding, { color: colors.tekstGedimd }]}>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
             Kader zoekt {symbool} op bij eToro...
           </Text>
         ) : blokkade ? (
-          <Text style={[Type.caption, stijlen.melding, { color: colors.verlies }]}>{blokkade}</Text>
+          <Text style={[Type.caption, { color: colors.verlies }]}>{blokkade}</Text>
         ) : null}
 
         {fout ? (
-          <Text style={[Type.caption, stijlen.melding, { color: colors.verlies }]}>{fout}</Text>
+          <Text style={[Type.caption, { color: colors.verlies }]}>{fout}</Text>
         ) : null}
 
         {samenvatting ? (
-          <Text style={[Type.body, stijlen.samenvatting, { color: colors.tekstGedimd }]}>{samenvatting}</Text>
+          <Text style={[stijlen.samenvatting, { color: colors.tekstGedimd }]}>
+            {bedragPlek >= 0 ? (
+              <>
+                {samenvatting.slice(0, bedragPlek)}
+                <Text style={[stijlen.samenvattingBedrag, { color: colors.tekstPrimair }]}>{bedragTekst}</Text>
+                {samenvatting.slice(bedragPlek + bedragTekst.length)}
+              </>
+            ) : samenvatting}
+          </Text>
         ) : null}
 
         <OrderBevestigKnop
-          label={`${symbool} ${isShort ? 'shorten' : 'kopen'} bij eToro`}
+          label={omgeving === 'real'
+            ? (isShort ? 'Houd vast om te shorten' : 'Houd vast om te kopen')
+            : (isShort ? 'Shorten in demo' : 'Kopen in demo')}
+          echtWaarschuwing={isShort
+            ? 'Echt geld. Houd de knop vast om te shorten.'
+            : 'Echt geld. Houd de knop vast om te kopen.'}
           omgeving={omgeving}
           bezig={bezig}
           uitgeschakeld={!magBevestigen}
@@ -450,13 +510,7 @@ const stijlen = StyleSheet.create({
   vel: {
     maxHeight: '90%',
   },
-  titelRij: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.base,
-  },
-  sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  kop: { marginBottom: spacing.base },
   richtingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -467,41 +521,16 @@ const stijlen = StyleSheet.create({
     marginBottom: spacing.md,
   },
   richtingBannerTekst: { flex: 1, lineHeight: 18 },
-  infoBlok: {
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  infoRij: {
-    flexDirection: 'row',
-    marginTop: spacing.sm,
-    gap: spacing.base,
-  },
-  infoVeld: { flex: 1 },
+  inhoud: { gap: 14 },
+  onderschrift: { alignItems: 'center', gap: spacing.xs },
+  saldoRij: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  saldoBedrag: { fontSize: 14 },
+  midden: { textAlign: 'center' },
   waarschuwing: {
     borderWidth: 1,
     borderRadius: radii.veld,
     padding: spacing.md,
-    marginBottom: spacing.md,
   },
-  labelRij: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  saldoRij: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  saldoBedrag: { fontSize: 14 },
-  input: {
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: 15,
-    minHeight: 44,
-  },
-  melding: { marginTop: spacing.md },
-  samenvatting: { marginTop: spacing.md, lineHeight: 22 },
+  samenvatting: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  samenvattingBedrag: { fontWeight: '600' },
 });
