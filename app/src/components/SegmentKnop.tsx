@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeProvider';
 import { Fonts } from '../theme/typography';
@@ -8,6 +8,7 @@ import { veer } from '../theme/beweging';
 import { haptiek } from '../theme/haptiek';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { useVasthouden } from '../theme/useVasthouden';
+import { useSchermlezer } from '../theme/useSchermlezer';
 import { HoudVastVulling } from './HoudVastVulling';
 
 export interface SegmentOptie<T extends string> {
@@ -29,6 +30,9 @@ interface Props<T extends string> {
   // Met een schermlezer aan is ingedrukt houden lastig te vinden en te doen. Dan kiest een gewone
   // activering niet zelf, maar vraagt het scherm om een bevestiging (bijvoorbeeld een dialoog).
   schermlezerBevestig?: (id: T) => void;
+  // Zolang dit waar is loopt een vasthouden niet af: de vulling veert terug zonder onKies en zonder
+  // de stevige haptiek, zodat je geen bevestiging voelt van iets dat niet gebeurt.
+  geblokkeerd?: boolean;
 }
 
 // Minimumhoogte, geen vaste hoogte: met een grote systeemletter groeit het label mee en moet de rij
@@ -48,23 +52,13 @@ export function SegmentKnop<T extends string>({
   vasthouden,
   onTikZonderVasthouden,
   schermlezerBevestig,
+  geblokkeerd = false,
 }: Props<T>) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
-  // Met een schermlezer aan is ingedrukt houden lastig; volg de stand live, want die kan wisselen
-  // terwijl het scherm open staat.
-  const [schermlezer, setSchermlezer] = useState(false);
-  useEffect(() => {
-    let actiefNog = true;
-    AccessibilityInfo.isScreenReaderEnabled()
-      .then(aan => { if (actiefNog) setSchermlezer(aan); })
-      .catch(() => {});
-    const abonnement = AccessibilityInfo.addEventListener('screenReaderChanged', setSchermlezer);
-    return () => {
-      actiefNog = false;
-      abonnement.remove();
-    };
-  }, []);
+  // Met een schermlezer aan is ingedrukt houden lastig; de stand wordt live gevolgd.
+  const schermlezer = useSchermlezer();
+  const viaBevestiging = schermlezer && !!schermlezerBevestig;
   // Welke keuze nu vastgehouden wordt. Blijft na loslaten staan, zodat je de vulling ook ziet
   // terugveren; bij voortgang 0 is die onzichtbaar.
   const [vastId, setVastId] = useState<T | null>(null);
@@ -72,7 +66,7 @@ export function SegmentKnop<T extends string>({
   // Pressable vuurt onPress ook bij het loslaten na een volledige houd; dat is dan geen losse tik.
   const voltooid = useRef(false);
   const { voortgang, start, stop } = useVasthouden({
-    geblokkeerd: false,
+    geblokkeerd,
     onVoltooid: () => {
       voltooid.current = true;
       const id = vastRef.current;
@@ -121,7 +115,7 @@ export function SegmentKnop<T extends string>({
     voltooid.current = false;
     // Met een schermlezer en een bevestiging van het scherm loopt het via die bevestiging (opHoudTik);
     // zonder bevestiging blijft vasthouden de weg, anders was de keuze onbereikbaar.
-    if (id === actief || (schermlezer && schermlezerBevestig)) return;
+    if (id === actief || viaBevestiging) return;
     vastRef.current = id;
     setVastId(id);
     start();
@@ -132,12 +126,13 @@ export function SegmentKnop<T extends string>({
   }
 
   function opHoudTik(id: T) {
-    if (id === actief) return;
-    if (schermlezer && schermlezerBevestig) {
-      schermlezerBevestig(id);
+    // Eerst de afgeronde houd: het loslaten daarna is geen nieuwe activering, ook niet als de
+    // schermlezer net tijdens het vasthouden aanging.
+    if (id === actief || voltooid.current) return;
+    if (viaBevestiging) {
+      schermlezerBevestig?.(id);
       return;
     }
-    if (voltooid.current) return;
     onTikZonderVasthouden?.(id);
   }
 
@@ -171,7 +166,11 @@ export function SegmentKnop<T extends string>({
             accessibilityRole="tab"
             accessibilityState={{ selected: geselecteerd }}
             accessibilityLabel={o.uitleg ?? o.label}
-            accessibilityHint={houden && !geselecteerd ? 'Houd ingedrukt om te kiezen' : undefined}
+            accessibilityHint={
+              houden && !geselecteerd
+                ? viaBevestiging ? 'Dubbeltik om te bevestigen' : 'Houd ingedrukt om te kiezen'
+                : undefined
+            }
           >
             {/* Vulling die meeloopt met het vasthouden, zoals op de bevestigknop van een echte order. */}
             {houden && vastId === o.id && (

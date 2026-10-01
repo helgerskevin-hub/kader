@@ -9,6 +9,7 @@ import { Type, Fonts } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { duur, vervaag } from '../theme/beweging';
 import { haptiek } from '../theme/haptiek';
+import { useSchermlezer } from '../theme/useSchermlezer';
 import { PodiumScherm } from './PodiumScherm';
 import { LijstGroep } from './lijst/LijstGroep';
 import { LijstRij } from './lijst/LijstRij';
@@ -90,6 +91,11 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [sleutelStatus, setSleutelStatus] = useState<SleutelStatus>('Niet ingesteld');
   const [bezigWisselen, setBezigWisselen] = useState(false);
+  // De ref is de waarheid tijdens een wissel (state loopt een render achter), en onthoudt een tik op
+  // Demo die binnenkwam terwijl de vorige wissel nog liep: terug naar demo mag nooit verloren gaan.
+  const bezigRef = useRef(false);
+  const naDemoRef = useRef(false);
+  const schermlezer = useSchermlezer();
   const [meldingen, setMeldingen] = useState(true);
   const [bezigMeldingen, setBezigMeldingen] = useState(false);
 
@@ -144,32 +150,50 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   // viaDialoog: de schermlezer-route heeft geen vasthouden gehad, dus ook nog niet de stevige
   // haptiek die useVasthouden bij 100% geeft. Die komt dan hier, pas als de wissel gelukt is.
   async function wissel(nieuw: EtoroOmgeving, viaDialoog = false) {
+    bezigRef.current = true;
     setBezigWisselen(true);
     try {
       await setOmgeving(nieuw);
       if (viaDialoog && nieuw === 'real') haptiek('stevig');
+    } catch {
+      // setOmgeving vangt zijn eigen fouten af; mocht er toch iets doorkomen, dan blijft de
+      // omgeving de bewaarde en toont de knop die stand.
     } finally {
+      bezigRef.current = false;
       setBezigWisselen(false);
+    }
+    if (naDemoRef.current) {
+      naDemoRef.current = false;
+      if (nieuw !== 'demo') wissel('demo');
     }
   }
 
   // Naar demo mag met een tik: dat kan geen geld kosten. Naar echt komt hier alleen na 800 ms
   // vasthouden (SegmentKnop), de stap die je anders per ongeluk zet en pas merkt bij je eerste order.
   function kiesOmgeving(nieuw: EtoroOmgeving) {
-    if (nieuw === omgeving || bezigWisselen) return;
+    if (bezigRef.current) {
+      if (nieuw === 'demo') naDemoRef.current = true;
+      return;
+    }
+    if (nieuw === omgeving) return;
     wissel(nieuw);
   }
 
   // Met een schermlezer is vasthouden lastig; dan vraagt een gewone activering op Echt deze
   // bevestiging. Oranje waarschuwing, geen rood: het is geen fout en niets gaat stuk.
   function bevestigEcht(nieuw: EtoroOmgeving) {
-    if (nieuw !== 'real' || nieuw === omgeving || bezigWisselen) return;
+    if (nieuw !== 'real' || nieuw === omgeving || bezigRef.current) return;
     toonDialoog({
       variant: 'waarschuwing',
       titel: 'Overschakelen naar echt',
       tekst: 'Orders die je hierna bevestigt gaan naar je echte eToro-account, met je eigen geld. Je portfolio in Kader toont vanaf dan alleen je echte posities.',
       knoppen: [
-        { label: 'Naar echt', soort: 'primair', onDruk: () => wissel('real', true) },
+        {
+          label: 'Naar echt',
+          soort: 'primair',
+          // Opnieuw kijken bij het drukken: de dialoog kan open hebben gestaan terwijl er al gewisseld werd.
+          onDruk: () => { if (!bezigRef.current) wissel('real', true); },
+        },
         { label: 'Annuleren', soort: 'secundair' },
       ],
     });
@@ -218,7 +242,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                 voetnoot={
                   omgeving === 'real'
                     ? 'Orders die je bevestigt gaan naar je echte eToro-account, met je eigen geld. Demo en echt gebruiken dezelfde sleutel; alleen het adres waar een order heen gaat verschilt.'
-                    : 'Demo is oefengeld. Houd Echt vast om over te stappen naar je echte account. Je portfolio toont daarna alleen je echte posities. Demo en echt gebruiken dezelfde sleutel; alleen het adres waar een order heen gaat verschilt.'
+                    : `Demo is oefengeld. ${schermlezer ? 'Dubbeltik op Echt en bevestig' : 'Houd Echt vast'} om over te stappen naar je echte account. Je portfolio toont daarna alleen je echte posities. Demo en echt gebruiken dezelfde sleutel; alleen het adres waar een order heen gaat verschilt.`
                 }
               >
                 <LijstRij
@@ -246,6 +270,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                     vasthouden={VASTHOUDEN}
                     onTikZonderVasthouden={id => { if (id === 'real') toonHoudHint(); }}
                     schermlezerBevestig={bevestigEcht}
+                    geblokkeerd={bezigWisselen}
                   />
                   {hintGetoond && (
                     <Animated.Text

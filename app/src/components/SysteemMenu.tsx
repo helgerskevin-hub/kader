@@ -65,6 +65,9 @@ export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldinge
   const vensterBreedte = Dimensions.get('window').width;
   const top = anker.y + anker.hoogte + 4;
   const right = Math.max(spacing.sm, vensterBreedte - (anker.x + anker.breedte));
+  // Vaste breedte: zonder breedte meet Yoga de statusregel als één regel, terwijl hij bij grote
+  // letters op twee regels breekt, en dan valt de onderste rij buiten de kaart.
+  const breedte = Math.min(300, vensterBreedte - right - spacing.sm);
 
   function uitvoeren(actie: () => void) {
     onSluiten();
@@ -79,10 +82,11 @@ export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldinge
             kaartB.value = e.nativeEvent.layout.width;
             kaartH.value = e.nativeEvent.layout.height;
           }}
-          style={[styles.kaart, shadow.modal, { top, right, backgroundColor: colors.kaart, borderColor: colors.rand }, kaartStijl]}
+          style={[styles.kaart, shadow.modal, { top, right, width: breedte, backgroundColor: colors.kaart, borderColor: colors.rand }, kaartStijl]}
         >
           <View
             style={[styles.status, { borderBottomColor: colors.rand }]}
+            accessible
             accessibilityLabel={etoroGekoppeld ? `eToro gekoppeld, ${echt ? 'echte' : 'demo'}-omgeving` : 'eToro niet gekoppeld'}
           >
             <Text style={[Type.caption, styles.statusTekst, { color: colors.tekstGedimd }]}>
@@ -157,7 +161,6 @@ const styles = StyleSheet.create({
   },
   kaart: {
     position: 'absolute',
-    minWidth: 236,
     borderRadius: radii.kaart,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: spacing.xs,

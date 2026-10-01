@@ -70,6 +70,8 @@ export function useVasthouden({ duurMs = 800, geblokkeerd, onVoltooid }: Opties)
 
   function start() {
     if (geblokkeerd) return;
+    // Nooit twee wekkers tegelijk: anders zou een dubbele start onVoltooid twee keer laten vuren.
+    if (wekker.current !== null) clearTimeout(wekker.current);
     // De vulling is de functionele indicator van hoe ver je bent, dus die blijft ook onder Minder
     // beweging gewoon lopen (vandaar reduceMotion: Never); alleen het terugveren bij loslaten
     // verandert daar in een korte fade in plaats van een veer, via naar().
