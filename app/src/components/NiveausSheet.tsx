@@ -126,14 +126,19 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const ingevuldeStop = getal(stopVeld);
   const ingevuldDoel = getal(doelVeld);
 
-  // Wissen is geen niveau, dus dan valt er ook niets te toetsen. bepaalStop meet tegen de
-  // aankoopprijs van de positie, want dat is waar eToro zijn percentages op rekent.
+  // Bij het wijzigen van een lopende long meet eToro de afstand vanaf de huidige koers, niet vanaf
+  // de aankoopprijs (meting 1 okt 2026, zie docs/etoro-direct-handelen-plan.md §12). Daarom krijgt
+  // bepaalStop bij een long de koers als referentie, zodat je winst kunt vastzetten met een stop
+  // boven de aankoopprijs. Zonder bruikbare koers, en bij een short, blijft de aankoopprijs de basis.
+  const koersReferentie = richtingVan(trade) === 'long' && typeof huidigePrijs === 'number'
+    && isFinite(huidigePrijs) && huidigePrijs > 0 ? huidigePrijs : undefined;
+
   // De limiet komt nu per richting binnen, dus een short wordt tegen eToro's short-grenzen getoetst
   // (gemeten: minimaal 10% en maximaal 50% BOVEN de entry, waar een long tot 100% eronder mag).
   // Wissen is geen niveau, dus dan valt er niets te toetsen.
   const advies: StopAdvies = wisStop
     ? { soort: 'ok' }
-    : bepaalStop(trade.entryPrijs, ingevuldeStop, limiet);
+    : bepaalStop(trade.entryPrijs, ingevuldeStop, limiet, koersReferentie);
 
   // Exact de tabel uit het plan: 'aangepast' stuurt het bijgestelde niveau, 'vast' stuurt niets, en
   // 'waarschuwing' komt hieronder niet eens aan een verzoek toe.
@@ -320,7 +325,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     typeof trailing === 'number' && isFinite(trailing) && trailing > 0
     // Alleen als eToro dit niveau zo neemt. Bij 'aangepast' zou de tekst een ander niveau noemen
     // dan wat er de deur uitgaat.
-    && bepaalStop(entry, trailing, limiet).soort === 'ok'
+    && bepaalStop(entry, trailing, limiet, koersReferentie).soort === 'ok'
     && !wisStop
     && (!heeftStop || anders(trailing, ingevuldeStop));
   const voorstelInVerlies = typeof trailing === 'number' && (richting === 'short' ? trailing > entry : trailing < entry);
@@ -333,13 +338,15 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   }
 
   // Staat de stop tegen eToro's minimale afstand aan, dan zeggen we waarom de greep daar stopt.
-  // Alleen met een bekende grens; zonder grens valt er niets uit te leggen.
+  // Alleen met een bekende grens; zonder grens valt er niets uit te leggen. Bij een long met koers
+  // meet de grens vanaf de koers, net als in bepaalStop.
   const minAfstand = limiet && limiet.bewerkbaar ? limiet.minPct : null;
-  const stopAfstandPct = heeftStop ? (richting === 'short' ? ingevuldeStop - entry : entry - ingevuldeStop) / entry * 100 : NaN;
+  const grensBasis = koersReferentie ?? entry;
+  const stopAfstandPct = heeftStop ? (richting === 'short' ? (ingevuldeStop - entry) / entry : (grensBasis - ingevuldeStop) / grensBasis) * 100 : NaN;
   const aanGrens = minAfstand !== null && isFinite(stopAfstandPct)
-    && stopAfstandPct >= minAfstand && stopAfstandPct - minAfstand < (stap / entry) * 100;
+    && stopAfstandPct >= minAfstand && stopAfstandPct - minAfstand < (stap / grensBasis) * 100;
   const grensUitleg = aanGrens && minAfstand !== null
-    ? `Dichter bij je aankoopprijs staat eToro geen stop toe: minimaal ${minAfstand.toFixed(1).replace('.', ',')}% ${richting === 'short' ? 'erboven' : 'eronder'}.`
+    ? `Dichter bij ${koersReferentie !== undefined ? 'de huidige koers' : 'je aankoopprijs'} staat eToro geen stop toe: minimaal ${minAfstand.toFixed(1).replace('.', ',')}% ${richting === 'short' ? 'erboven' : 'eronder'}.`
     : '';
 
   const veldTekst = (uit: boolean, kleur: string) => [stijlen.input, {
