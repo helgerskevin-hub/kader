@@ -1,8 +1,8 @@
 // Verzet de stop-loss en de take-profit van een lopende eToro-positie, of haalt ze weg.
 //
-// Het belangrijkste hier is dat bepaalStop blokkeert vóór er een verzoek uitgaat. eToro weigert een
-// stop buiten zijn eigen grenzen toch, en een afgewezen order op een geldpad is een slechtere
-// gebruikerservaring dan een knop die uit staat met de reden erbij.
+// Het belangrijkste hier is dat bepaalStop vóór er een verzoek uitgaat zegt welke stop eToro echt
+// zet. Gemeten (1 okt 2026, plan §12): een stop buiten de grens weigert eToro niet maar schuift hij
+// stil op, dus zonder deze toets stond er bij eToro een andere stop dan de gebruiker dacht.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle } from 'react-native';
 import { Minus, Plus, Shield } from 'lucide-react-native';
