@@ -12,6 +12,7 @@ import { deelVanSaldo, maxBedrag, planInGeld } from '../engine/planInGeld';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { bouwKooporderBody, guid, haalSaldoStand, KooporderInvoer, plaatsKooporder, SaldoStand } from '../engine/etoro';
 import { koersFactor } from '../engine/etoroSymbolen';
+import { isAlleenBekijken } from '../engine/platforms';
 import { actieveSleutels } from '../state/etoroSleutels';
 import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
@@ -74,7 +75,7 @@ export function KooporderSheet({
   const { gaNaar } = useNavigatie();
   const isShort = richting === 'short';
   const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder, noteerGeplaatsteOrder } = usePortfolio();
-  const instrumentStand = useInstrumentId(zichtbaar ? symbool : null);
+  const instrumentStand = useInstrumentId(zichtbaar && !isAlleenBekijken(symbool) ? symbool : null);
   const instrumentId = instrumentStand.soort === 'gevonden' ? instrumentStand.id : null;
   // Zolang het zoeken loopt is er nog niets mis: dan hoort er geen rode melding te staan en is
   // bevestigen alleen tijdelijk uit.
@@ -195,7 +196,9 @@ export function KooporderSheet({
   // Eén rode melding tegelijk, in de volgorde waarin ze zwaarwegend zijn. Tijdens het zoeken staat
   // er niets: "niet te koppelen" over een coin die nog opgezocht wordt is gewoon onwaar.
   const blokkade =
-    instrumentBezig ? null
+    isAlleenBekijken(symbool)
+      ? `eToro laat je ${symbool} niet kopen: de coin staat bij eToro op alleen bekijken, meestal vanwege wettelijke beperkingen. Een order zou door eToro worden geannuleerd, dus kopen is uitgeschakeld.`
+    : instrumentBezig ? null
     : instrumentId === null
       ? `Kader kan ${symbool} niet aan een eToro-instrument koppelen. Dat kan aan de koppeling liggen (geen sleutel, of eToro even niet bereikbaar) of eToro voert ${symbool} onder een andere naam. Handelen via de app is daarom uitgeschakeld; bij eToro zelf kun je de coin mogelijk gewoon kopen.`
     : advies.soort === 'waarschuwing' ? advies.uitleg

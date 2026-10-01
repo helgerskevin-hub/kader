@@ -6,7 +6,7 @@ import { fmtPrijs, fmtRR } from '../engine/format';
 import { StopLossLimiet } from '../engine/etoroLimieten';
 import { MIN_RISK_REWARD } from '../engine/analyzer';
 import { effectiefSignaal } from '../engine/opportunities';
-import { handelbaarOp, noemPlatforms } from '../engine/platforms';
+import { handelbaarOp, isAlleenBekijken, noemPlatforms } from '../engine/platforms';
 import { KansMetRang, RangVerschil } from '../state/KansenProvider';
 import { useValutaStand } from '../state/useValuta';
 import { useTheme } from '../theme/ThemeProvider';
@@ -99,7 +99,7 @@ export const KansKaart = memo(function KansKaart({
   // Alleen bij een KOOP met een plan: zonder entry, stop en doel valt er geen order te bouwen, en
   // bij WATCH zegt Kader zelf dat het nog niet klopt. Bij een verouderde scan ook niet: dan kan het
   // plan al achterhaald zijn.
-  const kanKopen = !!(plan && signaal === 'KOOP' && !verouderd && onKoop);
+  const kanKopen = !!(plan && signaal === 'KOOP' && !verouderd && onKoop && !isAlleenBekijken(kans.symbool));
   const afstand = kans.ingredienten.afstandHigh90d;
   const schuif = schuifOvergang(reduceMotion);
 

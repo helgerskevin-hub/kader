@@ -10,6 +10,7 @@ import { fmtPrijs } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
+import { isAlleenBekijken } from '../engine/platforms';
 import { Drukbaar } from './Drukbaar';
 import { useValutaStand } from '../state/useValuta';
 
@@ -36,7 +37,8 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
   // Alleen high conviction: gemeten +0,16 R gemiddeld, de sterkste bucket uit de backtest.
   // Een lagere score kan hier ook nog KOOP zijn, maar is niet sterk genoeg voor dit uitgelichte advies.
   const kandidaten = [...trades]
-    .filter(t => t.signaal === 'KOOP' && t.highConviction)
+    // Een coin waar eToro niet in laat handelen is geen advies om nu te kopen.
+    .filter(t => t.signaal === 'KOOP' && t.highConviction && !isAlleenBekijken(t.symbool))
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_KAARTEN);
 
