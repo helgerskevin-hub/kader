@@ -20,11 +20,11 @@ De app heeft vier schermen, bereikbaar via de tabbalk onderin. Je wisselt met ee
   <img src="docs/readme/markt-kaart.svg" alt="Voorbeeld van een kaart op Markt voor een verzonnen munt: score 64 als ring rond het logo, koers 100 dollar, plus 6,9 procent over 30 dagen, een koersgrafiek, de badge KOOPZONE en R/R 1 : 2.4." width="460">
 </p>
 
-**Kansen.** De momentum-radar scant dezelfde coins met een andere vraag: welke staan dicht bij hun hoogste koers van de afgelopen 90 dagen? Elke kandidaat krijgt een uitbraak-plan (stop op de EMA20, doel 2x ATR boven de top van 90 dagen). KOOP verschijnt alleen bij een risico/opbrengst van minstens 1:2, anders staat er WATCH. Staat er niets dicht bij zijn top, dan zegt het scherm dat.
+**Kansen.** De momentum-radar scant dezelfde coins met een andere vraag: welke staan dicht bij hun hoogste koers van de afgelopen 90 dagen? Elke kandidaat krijgt een uitbraak-plan (stop op de EMA20, doel 2x ATR boven de top van 90 dagen). KOOP verschijnt alleen bij een score vanaf 55 en een risico/opbrengst van minstens 1:2, anders staat er WATCH. Staat er niets dicht bij zijn top, dan zegt het scherm dat en toont het de sterkste paar coins als WATCH.
 
-**Portfolio.** Je open posities, uit eToro of handmatig ingevoerd, met je resultaat groot in beeld en een stip op de stop-doel-baan voor de live koers. Uitgeklapt zie je een afbouwadvies (bijvoorbeeld HOUD VAST of NEEM WINST). Kader controleert je posities ook op de achtergrond en stuurt een melding als een positie de rand van je kader nadert of als eToro een positie voor je sluit.
+**Portfolio.** Je open posities, uit eToro of handmatig ingevoerd, met je resultaat groot in beeld en een stip op de stop-doel-baan voor de live koers. Uitgeklapt zie je een afbouwadvies (bijvoorbeeld WINST BESCHERMEN, STOP OPTREKKEN of HOUDT STAND). Kader controleert je posities ook op de achtergrond en stuurt een melding als een positie de rand van je kader nadert of als eToro een positie voor je sluit.
 
-**Traders.** Beoordeel een eToro Popular Investor op consistentie, risico en spreiding. Je krijgt een score van 100, een oordeel GROEN, GEEL of ROOD en een aanbevolen Copy Stop Loss.
+**Traders.** Beoordeel een eToro Popular Investor op consistentie, risico en spreiding. Je krijgt een score van 0 tot 100, een oordeel GROEN, GEEL of ROOD en een aanbevolen Copy Stop Loss.
 
 ## Hoe Kader rekent
 
@@ -63,7 +63,7 @@ De score gaat nooit boven 100.
 - **AFWACHTEN:** geen koopsignaal. De score is lager dan 55, de risico/opbrengst haalt 1:2 niet, of het marktklimaat houdt het signaal tegen.
 - **KOOPZONE:** koopsignaal met een score vanaf 55.
 - **STERK KOOP:** koopsignaal met een score vanaf 72.
-- **BEVESTIGD:** een keurmerk naast STERK KOOP. Dat krijgt een coin alleen bij een score van 75 of hoger en als alle vier de bevestigingen meestaan: opwaartse trend, bullish MACD, volume van minstens 1,3x het gemiddelde en een risico/opbrengst van minstens 1:2. Uitgeklapt zie je welke van de vier er meestaan en welke ontbreekt.
+- **BEVESTIGD:** een keurmerk naast STERK KOOP. Dat krijgt een coin alleen in een gunstig marktklimaat, bij een score van 75 of hoger en als alle vier de bevestigingen meestaan: opwaartse trend, bullish MACD, volume van minstens 1,3x het gemiddelde en een risico/opbrengst van minstens 1:2. Uitgeklapt zie je welke van de vier er meestaan en welke ontbreekt.
 
 ### Het marktklimaat
 
@@ -92,7 +92,7 @@ Koppelen is optioneel en loopt via een wizard van vijf stappen. Je kiest eerst o
 
 Kader staat niet in de Play Store. Je installeert de app zelf (sideloaden):
 
-1. Download de nieuwste `.apk` onder [Releases](../../releases).
+1. Download de nieuwste `.apk` onder [Releases](https://github.com/helgerskevin-hub/kader/releases/latest).
 2. Open het bestand op je Android-telefoon en sta installeren uit deze bron toe.
 3. Een update installeer je over de bestaande app heen; je portfolio en traders blijven bewaard.
 
@@ -102,10 +102,12 @@ De app staat in `app/` (React Native en Expo SDK 56, TypeScript). Je hebt nodig:
 
 ```bash
 cd app
-npm install          # eerste keer, en na elke pull
+npm install          # eerste keer, en na een pull die dependencies wijzigt
 npx expo start       # Metro bundler + dev-client
 npm run android      # bouw en installeer op een aangesloten toestel of emulator
 ```
+
+Na een pull die een native dependency toevoegt of bijwerkt (Reanimated, Skia, gesture-handler, expo-haptics en dergelijke) is één keer `npm run android` nodig; daarna volstaat hot reload weer.
 
 Een release bouw je **altijd** met `npm run release:apk`, nooit met een losse Gradle-build. Dat script doet een schone prebuild en controleert versienummer en ondertekening voordat de APK de deur uit gaat. Elke release is ondertekend met dezelfde sleutel; een andere sleutel zou iedereen dwingen de app eerst te verwijderen, en daarmee hun lokale gegevens.
 
