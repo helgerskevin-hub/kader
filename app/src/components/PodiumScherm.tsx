@@ -8,7 +8,6 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { StatusBar } from 'expo-status-bar';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -212,6 +211,22 @@ export function PodiumScherm({ zichtbaar, onSluiten, onTerug, children }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zichtbaar]);
 
+  // Een Modal is op Android een eigen venster. RN neemt de statusbalkstijl van de app alleen over
+  // als dat venster wordt aangemaakt (ReactModalHostView.updateSystemAppearance), dus na een
+  // themawissel bleven de iconen in de oude kleur staan tot je het scherm sloot. Een wissel van
+  // hardwareAccelerated laat RN het venster opnieuw aanmaken; de inhoud en de React-staat blijven
+  // staan, en startOpenen negeert de tweede onShow. Even wachten zodat de StatusBar in App.tsx
+  // de app-stijl al heeft omgezet.
+  const [vensterVersie, setVensterVersie] = useState(0);
+  const vorigDonker = useRef(donkerActief);
+  useEffect(() => {
+    if (vorigDonker.current === donkerActief) return;
+    vorigDonker.current = donkerActief;
+    if (!gemount) return;
+    const t = setTimeout(() => setVensterVersie(v => v + 1), 80);
+    return () => clearTimeout(t);
+  }, [donkerActief, gemount]);
+
   // Terugval voor als onShow uitblijft, zie START_TERUGVAL_MS.
   useEffect(() => {
     if (!gemount) return;
@@ -346,6 +361,7 @@ export function PodiumScherm({ zichtbaar, onSluiten, onTerug, children }: Props)
       visible
       transparent
       animationType="none"
+      hardwareAccelerated={vensterVersie % 2 === 1}
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={() => {
@@ -357,9 +373,6 @@ export function PodiumScherm({ zichtbaar, onSluiten, onTerug, children }: Props)
       {/* Binnen een Modal ziet de GestureHandlerRootView om de app niets: een Modal is een eigen
           venster, dus hier een eigen root voor de swipe-terug. */}
       <GestureHandlerRootView style={styles.vul} onLayout={bijLayout}>
-        {/* Een Modal is een eigen venster met een eigen statusbalkstijl: zonder dit houdt hij de
-            kleur van het moment van openen als je het thema wisselt terwijl hij openstaat. */}
-        <StatusBar style={donkerActief ? 'light' : 'dark'} />
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dim, dimStijl]} />
         <GestureDetector gesture={swipe}>
           <Animated.View style={[StyleSheet.absoluteFill, schermStijl]}>
