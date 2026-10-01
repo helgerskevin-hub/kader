@@ -506,7 +506,12 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       const regels = beeld.foutstaat;
       return (
         <>
-          {kop('Deze sleutel werkt niet', 'Geen van beide omgevingen accepteert hem. Meestal hoort de User Key bij een andere publieke sleutel.')}
+          {kop(
+            'Deze sleutel werkt niet',
+            uitslag?.soort === 'meFout'
+              ? 'eToro herkent de sleutel niet. Meestal hoort de User Key bij een andere publieke sleutel.'
+              : 'Geen van beide omgevingen accepteert hem. Meestal hoort de User Key bij een andere publieke sleutel.',
+          )}
           <View style={[styles.testLijst, shadow.kaart, { backgroundColor: colors.kaart }]}>
             {regels.map((r, i) => (
               <TestRijWeergave
