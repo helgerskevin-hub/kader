@@ -20,7 +20,7 @@ import { DREMPEL_STERK_KOOP } from '../engine/drempels';
 import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
 import { oordeelRs, rsUitleg } from '../engine/relatieveSterkte';
 import { useValutaStand } from '../state/useValuta';
-import { handelbaarOp, noemPlatforms } from '../engine/platforms';
+import { handelbaarOp, isAlleenBekijken, noemPlatforms } from '../engine/platforms';
 import { PlatformChips } from './PlatformChip';
 import { PlatformSheet } from './PlatformSheet';
 import { useDrukVeer } from './Drukbaar';
@@ -356,7 +356,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
                 {onGetrade && (
                   <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(trade)} />
                 )}
-                {onKoop && (
+                {onKoop && !isAlleenBekijken(trade.symbool) && (
                   <View style={styles.koopGroep}>
                     <PilKnop
                       label="Koop"

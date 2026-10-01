@@ -57,7 +57,25 @@ export function platformVanTrade(t: PortfolioTrade): PlatformId {
 // Demo staat er bewust niet bij. "Verhandelbaar op eToro demo" is geen eigenschap van de coin maar
 // van je account, en op een tradekaart zou dat beweren dat het een ander platform is.
 export function handelbaarOp(symbool: string): PlatformId[] {
-  return ETORO_TRADABLE.has(symbool.toUpperCase()) ? ['etoro'] : [];
+  const s = symbool.toUpperCase();
+  return ETORO_TRADABLE.has(s) && !ALLEEN_BEKIJKEN.has(s) ? ['etoro'] : [];
+}
+
+// Coins die eToro wel toont maar waar je niet in kunt kopen ("deze activa is beperkt tot de modus
+// alleen bekijken"). Een kooporder wordt dan een tijdje later door eToro geannuleerd.
+//
+// Gemeten op 30 sep 2026 met een echte sleutel over alle 57 coins van STANDAARD_UNIVERSUM
+// (scripts/etoro-handelbaarheid.ts): precies drie vallen af. FLOW heeft in de zoekrespons
+// isInternalInstrument true en buyHoldingPct 0, terwijl isBuyEnabled gewoon true is. ENJ en THETA
+// hebben isBuyEnabled false en in de eligibility allowOpenPosition false. Alle andere 54 coins zijn
+// op elk van die velden gelijk. kiesInstrumentTreffer in etoro.ts keurt dezelfde gevallen live af;
+// deze lijst zorgt ervoor dat de knoppen en de aanbeveling ook zonder koppeling kloppen.
+// ETORO_TRADABLE blijft ongemoeid: die bepaalt bij een import of een positie crypto is, en een
+// bestaande positie moet herkend blijven.
+export const ALLEEN_BEKIJKEN = new Set(['FLOW', 'ENJ', 'THETA']);
+
+export function isAlleenBekijken(symbool: string): boolean {
+  return ALLEEN_BEKIJKEN.has(symbool.toUpperCase());
 }
 
 // Voor de schermlezer: "eToro en Bitvavo", "eToro, Bitvavo en Coinbase". Een opsomming met een
@@ -100,6 +118,9 @@ if (require.main === module) {
   // op de kaart niets getekend te worden in plaats van een grijze chip die een platform belooft.
   console.assert(handelbaarOp('VERZONNENCOIN').length === 0, 'een onbekende coin staat nergens');
   console.assert(!handelbaarOp('BTC').includes('etoro-demo'), 'demo is geen eigenschap van een coin');
+  console.assert(handelbaarOp('FLOW').length === 0, 'FLOW is alleen bekijken en dus nergens te koop');
+  console.assert(isAlleenBekijken('ENJ') && isAlleenBekijken('THETA'), 'ENJ en THETA zijn niet te koop');
+  console.assert(isAlleenBekijken('flow') && !isAlleenBekijken('BTC'), 'alleen-bekijken werkt hoofdletterongevoelig');
 
   // ---------- Opsomming voor de schermlezer ----------
   console.assert(noemPlatforms(['etoro']) === 'eToro', 'één platform is gewoon de naam');
