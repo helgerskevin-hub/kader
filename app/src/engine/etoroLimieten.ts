@@ -91,7 +91,20 @@ export type StopAdvies =
 // stop naar de dichtstbijzijnde waarde die eToro wel neemt, zodat het formulier geen niveau toont
 // dat het tegelijk afkeurt. Zonder limiet (geen koppeling of een API-fout) zeggen we niets: een
 // verzonnen grens is erger dan geen grens.
-export function bepaalStop(entry: number, stop: number, limiet: StopLossLimiet | null): StopAdvies {
+//
+// `referentie` is de huidige koers, alleen voor het wijzigen van de stop van een LOPENDE long. Bij
+// het openen meet eToro de afstand tegen de aankoopprijs, bij het wijzigen vermoedelijk tegen de
+// koers. Meting in demo op 1 okt 2026 (BTC, open 84390.07, minimum 10%): een stop van 80170.57 via
+// PATCH werd stil verschoven naar 75992.53, precies 10% onder de koers van dat moment (84436.14)
+// en 9,95% onder de aankoopprijs. Sterke aanwijzing, geen hard bewijs, want de koers lag dicht bij
+// de aankoopprijs. Zie docs/etoro-direct-handelen-plan.md §12. Bij een short negeren we de
+// referentie volledig; daar is niets gemeten.
+export function bepaalStop(
+  entry: number,
+  stop: number,
+  limiet: StopLossLimiet | null,
+  referentie?: number,
+): StopAdvies {
   if (!limiet) return { soort: 'ok' };
   if (!isFinite(entry) || !isFinite(stop) || entry <= 0 || stop <= 0) return { soort: 'ok' };
 
@@ -111,26 +124,31 @@ export function bepaalStop(entry: number, stop: number, limiet: StopLossLimiet |
   // minimum is ruis-krap, het maximum is het maximale verlies). Zeggen wat er mis is en de
   // gebruiker zijn prijs laten nakijken.
   const short = limiet.richting === 'short';
+  // Alleen een long met een bruikbare koers meet vanaf die koers; anders blijft alles op de entry.
+  const metKoers = !short && referentie !== undefined && isFinite(referentie) && referentie > 0;
+  const basis = metKoers ? referentie : entry;
   const kant = short ? 'boven' : 'onder';
-  const verkeerdeKant = short ? stop <= entry : stop >= entry;
+  const verkeerdeKant = short ? stop <= entry : stop >= basis;
   if (verkeerdeKant) {
     return {
       soort: 'waarschuwing',
       uitleg: short
         ? `Je stop ligt op of onder de prijs waarop je short gaat. Kijk die prijs na, bij een short hoort de stop erboven te liggen.`
-        : `Je stop ligt op of boven de aankoopprijs. Kijk je aankoopprijs na, een stop hoort daaronder te liggen.`,
+        : metKoers
+          ? `Je stop ligt op of boven de huidige koers. Een stop hoort eronder te liggen, anders sluit eToro je positie meteen.`
+          : `Je stop ligt op of boven de aankoopprijs. Kijk je aankoopprijs na, een stop hoort daaronder te liggen.`,
     };
   }
 
   const naar = (grensPct: number, reden: string): StopAdvies => {
-    const nieuw = entry * (short ? 1 + grensPct / 100 : 1 - grensPct / 100);
+    const nieuw = short ? entry * (1 + grensPct / 100) : basis * (1 - grensPct / 100);
     return { soort: 'aangepast', stop: nieuw, uitleg: `Stop aangepast naar ${fmtPrijs(nieuw, DOLLARS)}. ${reden}` };
   };
 
   // Altijd een positieve afstand, ongeacht de richting, zodat de vergelijking met de grenzen
   // dezelfde regel blijft.
-  const afstand = (short ? (stop - entry) / entry : (entry - stop) / entry) * 100;
-  const prijsNaam = short ? 'de prijs waarop je short gaat' : 'je aankoopprijs';
+  const afstand = (short ? (stop - entry) / entry : (basis - stop) / basis) * 100;
+  const prijsNaam = short ? 'de prijs waarop je short gaat' : metKoers ? 'de huidige koers' : 'je aankoopprijs';
 
   if (limiet.minPct !== null && afstand < limiet.minPct) {
     return naar(limiet.minPct, `eToro accepteert voor ${limiet.symbool} minimaal ${pct(limiet.minPct)} ${kant} ${prijsNaam}, jouw stop lag ${pct(afstand)} er${kant}.`);
@@ -328,6 +346,48 @@ if (require.main === module) {
   // hele reden dat kiesLimiet richting-bewust moest worden.
   console.assert(bepaalStop(100, 40, lang).soort === 'ok', '60% onder de entry mag bij een long, max is daar 100%');
   console.assert(bepaalStop(100, 160, kort).soort === 'aangepast', '60% boven de entry mag NIET bij een short, max is daar 50%');
+
+  // ---------- referentie: de stop van een lopende long wijzigen ----------
+  // eToro meet bij het wijzigen vanaf de huidige koers (meting 1 okt 2026). Entry 100, koers 120,
+  // minimum 10%: alles tot 108 mag, ook boven de aankoopprijs. Zo zet je winst vast.
+  const wijzig = { symbool: 'BTC', richting: 'long' as const, bewerkbaar: true, minPct: 10, maxPct: 100 };
+  console.assert(bepaalStop(100, 105, wijzig, 120).soort === 'ok', 'een stop boven de entry maar 12,5% onder de koers is ok');
+  const winstTeDicht = bepaalStop(100, 112, wijzig, 120);
+  console.assert(winstTeDicht.soort === 'aangepast' && Math.abs(winstTeDicht.stop - 108) < 1e-9,
+    `een stop 6,7% onder de koers moet naar 108 (10% onder 120), was ${JSON.stringify(winstTeDicht)}`);
+  console.assert(winstTeDicht.soort === 'aangepast' && winstTeDicht.uitleg.includes('huidige koers'),
+    `de uitleg moet over de huidige koers gaan, was ${JSON.stringify(winstTeDicht)}`);
+  console.assert(winstTeDicht.soort === 'aangepast' && !winstTeDicht.uitleg.includes('aankoopprijs'),
+    'met een koers als referentie mag de uitleg niet over de aankoopprijs gaan');
+  const opKoers = bepaalStop(100, 120, wijzig, 120);
+  console.assert(opKoers.soort === 'waarschuwing' && opKoers.uitleg.includes('huidige koers'),
+    `een stop op de koers sluit de positie meteen, was ${JSON.stringify(opKoers)}`);
+  console.assert(bepaalStop(100, 125, wijzig, 120).soort === 'waarschuwing', 'een stop boven de koers is fout');
+  const winstTeVer = bepaalStop(100, 5, { ...wijzig, maxPct: 50 }, 120);
+  console.assert(winstTeVer.soort === 'aangepast' && Math.abs(winstTeVer.stop - 60) < 1e-9,
+    `het maximum telt ook vanaf de koers, was ${JSON.stringify(winstTeVer)}`);
+
+  // Zonder bruikbare referentie: exact het oude gedrag tegen de entry.
+  console.assert(bepaalStop(100, 105, wijzig).soort === 'waarschuwing', 'zonder referentie blijft een stop boven de entry fout');
+  for (const kapot of [NaN, 0, -5, Infinity]) {
+    for (const s of [105, 95, 80, 40]) {
+      console.assert(JSON.stringify(bepaalStop(100, s, wijzig, kapot)) === JSON.stringify(bepaalStop(100, s, wijzig)),
+        `referentie ${kapot} moet het oude gedrag geven bij stop ${s}`);
+    }
+  }
+
+  // Een short negeert de referentie volledig.
+  for (const s of [80, 100, 105, 120, 160, 200]) {
+    for (const r of [90, 100, 130, NaN]) {
+      console.assert(JSON.stringify(bepaalStop(100, s, kort, r)) === JSON.stringify(bepaalStop(100, s, kort)),
+        `short met referentie ${r} moet gelijk zijn aan zonder, stop ${s}`);
+    }
+  }
+
+  // Het gemeten geval: open 84390.07, koers 84436.14, gevraagd 80170.57, eToro zette 75992.53.
+  const btcGemeten = bepaalStop(84390.07, 80170.57, wijzig, 84436.14);
+  console.assert(btcGemeten.soort === 'aangepast' && Math.abs(btcGemeten.stop - 75992.53) < 0.01,
+    `het gemeten geval moet op ~75992.53 uitkomen, was ${JSON.stringify(btcGemeten)}`);
 
   // ---------- etoroNiveaus ----------
   // De hele reden dat deze functie bestaat: entry 100, Kaders stop op 97 (3%), doel op 109. Op
