@@ -6,7 +6,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
-- Winst vastzetten met de stopgreep en "winst beschermen" werkt nu ook met een eToro-koppeling. eToro meet de minimale afstand van je stop vanaf de huidige koers, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat
+- In demo kun je met de stopgreep en "winst beschermen" nu ook met een eToro-koppeling winst vastzetten, met een stop boven je aankoopprijs. Een meting wijst erop dat eToro de minimale afstand dan vanaf de huidige koers meet, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat. In je echte account blijft de stop voorlopig onder je aankoopprijs, tot dat daar ook gemeten is
 - Het Marktklimaat-bericht klopt nu met wat Kader doet: bij een gemengd klimaat geeft Kader geen koopsignalen
 - Schuift eToro je stop zo op dat de R/R onder 2,0 zakt, dan staat de kaart op Markt op AFWACHTEN in plaats van KOOPZONE of STERK KOOP
 - Terug uit een hoofdstuk van Informatie kom je weer uit waar je in de index was gebleven

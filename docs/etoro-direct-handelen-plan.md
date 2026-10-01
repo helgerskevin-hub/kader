@@ -367,3 +367,14 @@ Thom: bij het wijzigen van de stop van een lopende long meet Kader vanaf de huid
 - Bij het openen van een positie (kooporder, `etoroNiveaus`, trade vastleggen) verandert niets: daar blijft de aankoopprijs de referentie.
 - Gevolg voor bitcoin: met een minimum van 10% kan een stop pas boven de aankoopprijs als de positie ruim 10% in winst staat.
 - Restrisico: Kader rekent met de publieke koers, eToro met zijn eigen koers plus spread. Ligt eToro's koers lager, dan kan eToro een stop die Kader net goedkeurt alsnog iets omlaag schuiven. Dat is stil en aan de veilige kant (verder van de koers), en de sync laat de werkelijke stop zien.
+
+### Stand: in echt een plafond op de aankoopprijs (besluit Thom, 1 okt 2026)
+
+De meting hierboven laat zien dat het minimum bij het wijzigen vanaf de koers telt. Of eToro daadwerkelijk een stop boven de aankoopprijs zet, is niet gemeten: T2 (tussen open en koers) en T3 (net boven open) zijn overgeslagen, omdat de positie daar niet genoeg voor in winst stond. Tot die meting er is:
+
+- In demo mag de stop van een lopende long boven de aankoopprijs, zoals hierboven beschreven.
+- In je echte account blokkeert `NiveausSheet` een nieuwe stop op of boven de aankoopprijs (knop uit, met uitleg), ook als `bepaalStop` hem bijstelt naar zo'n niveau. Het voorstel "winst beschermen" verschijnt in echt niet als het op of boven de aankoopprijs ligt, en `greepBereik` krijgt `plafond` = aankoopprijs mee, zodat de stopgreep een stap daaronder stopt. Een stop die al zo bij eToro staat en niet wijzigt, blokkeert een wijziging van alleen het doel niet.
+- De koers blijft daarnaast de referentie voor het minimum: ook in echt moet de stop minstens eToro's minimum onder de koers liggen.
+- `bepaalStop` zelf weet niets van de omgeving en is hiervoor niet veranderd. Shorts zijn niet veranderd.
+
+Hoe te meten: open in demo een long (`--order`) en wacht tot hij meer dan 12,5% in winst staat, of gebruik een bestaande demo-positie die dat al doet. Draai dan `npx tsx scripts/etoro-demo-order.ts --stopmeting`. Dan worden T2 en T3 allebei geprobeerd. Zet eToro ze zoals gevraagd, dan kan het plafond in echt weg.

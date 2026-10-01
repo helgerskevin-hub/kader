@@ -107,22 +107,25 @@ export interface GreepBereik {
   doel: Bereik | null;
 }
 
-// Hoe ver je de grepen mag slepen. Twee soorten grenzen:
+// Hoe ver je de grepen mag slepen. Drie soorten grenzen:
 // - de koers van nu: een stop hoort aan de verlieskant van de koers, een doel aan de winstkant,
 //   met minstens één stap ruimte;
 // - eToro's stop-loss-grens voor deze coin (minimaal en maximaal zoveel procent van de entry, bij
-//   een long met koers van de koers, want zo meet eToro bij het wijzigen).
+//   een long met koers van de koers, want zo meet eToro bij het wijzigen);
+// - een optioneel `plafond` voor een long: de stop blijft minstens één stap daaronder. NiveausSheet
+//   geeft in je echte account de aankoopprijs mee, want een stop daarboven is in echt nog niet gemeten.
 // Zonder limiet (geen koppeling of een API-fout) verzinnen we geen eToro-grens; zonder live koers
 // geen koersgrens. Alles binnen het bereik geeft bij bepaalStop 'ok', dus een greep kan nooit een
 // stop opleveren die eToro weigert of die Kader zelf zou bijstellen.
 export function greepBereik(invoer: {
   entry: number;
   live?: number;
+  plafond?: number;
   richting: Richting;
   limiet: StopLossLimiet | null;
   stap: number;
 }): GreepBereik {
-  const { entry, live, richting, limiet, stap } = invoer;
+  const { entry, live, plafond, richting, limiet, stap } = invoer;
   if (!geldig(entry) || !geldig(stap)) return { stop: null, doel: null };
   const short = richting === 'short';
   const heeftLive = geldig(live);
@@ -139,6 +142,7 @@ export function greepBereik(invoer: {
     const plafonds = [Infinity];
     const vloeren = [stap];
     if (heeftLive) plafonds.push(live - stap);
+    if (geldig(plafond)) plafonds.push(plafond - stap);
     if (eToroGrens) {
       // Bij een lopende long meet eToro de afstand vanaf de huidige koers (meting 1 okt 2026), en
       // bepaalStop krijgt in NiveausSheet die koers als referentie. Met koers mag de greep dus tot
@@ -280,6 +284,15 @@ if (require.main === module) {
   console.assert(winst.stop !== null && winst.stop.max > 100 && winst.stop.max <= 108 && winst.stop.max > 107.99,
     `de greep moet boven de entry tot 108 kunnen, was ${JSON.stringify(winst.stop)}`);
 
+  // In je echte account (plafond op de aankoopprijs): dezelfde winstpositie, maar de greep blijft
+  // een stap onder de entry, want een stop boven de aankoopprijs is in echt nog niet gemeten.
+  const echt = greepBereik({ entry: 100, live: 120, plafond: 100, richting: 'long', limiet: limietLong, stap: 1 });
+  console.assert(allesOk(100, echt.stop, limietLong, 120), `echt-greep bevat een stop die bepaalStop niet ok vindt: ${JSON.stringify(echt.stop)}`);
+  console.assert(echt.stop !== null && echt.stop.max === 99 && echt.stop.max < 100, `in echt blijft de greep onder de entry, was ${JSON.stringify(echt.stop)}`);
+  // Ook zonder limiet houdt het plafond de greep onder de entry.
+  const echtZonderLimiet = greepBereik({ entry: 100, live: 120, plafond: 100, richting: 'long', limiet: null, stap: 1 });
+  console.assert(echtZonderLimiet.stop !== null && echtZonderLimiet.stop.max === 99, `plafond zonder limiet, was ${JSON.stringify(echtZonderLimiet.stop)}`);
+
   // Long zonder koers: oud gedrag, de entry blijft de basis.
   const zonderKoers = greepBereik({ entry: 60000, richting: 'long', limiet: limietLong, stap: 200 });
   console.assert(allesOk(60000, zonderKoers.stop, limietLong), `long zonder koers bevat een stop die bepaalStop niet ok vindt: ${JSON.stringify(zonderKoers.stop)}`);
@@ -289,6 +302,9 @@ if (require.main === module) {
   console.assert(allesOk(60000, gs.stop, limietShort), `short greepbereik bevat een stop die bepaalStop niet ok vindt: ${JSON.stringify(gs.stop)}`);
   console.assert(gs.stop !== null && gs.stop.min >= 66000 && gs.stop.max <= 90000, 'short stop tussen 10% en 50% boven de entry');
   console.assert(gs.doel !== null && gs.doel.max === 57800, 'short doel minstens een stap onder de koers');
+  // Het plafond geldt alleen voor een long; een short verandert er niet door.
+  const gsPlafond = greepBereik({ entry: 60000, live: 58000, plafond: 60000, richting: 'short', limiet: limietShort, stap: 200 });
+  console.assert(JSON.stringify(gsPlafond) === JSON.stringify(gs), `plafond mag een short niet raken, was ${JSON.stringify(gsPlafond)}`);
 
   // Zonder limiet: alleen de koersgrens, geen verzonnen eToro-grens.
   const zl = greepBereik({ entry: 100, live: 110, richting: 'long', limiet: null, stap: 1 });

@@ -133,12 +133,29 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const koersReferentie = richtingVan(trade) === 'long' && typeof huidigePrijs === 'number'
     && isFinite(huidigePrijs) && huidigePrijs > 0 ? huidigePrijs : undefined;
 
+  // Of eToro een stop boven de aankoopprijs neemt, is nog niet gemeten (plan §12, T2 en T3). Tot dat
+  // gemeten is houdt Kader de stop van een long in je echte account onder de aankoopprijs; in demo
+  // mag het wel, daar kost een misser geen echt geld. Shorts veranderen niet.
+  const echtPlafond = richtingVan(trade) === 'long' && tradeOmgeving === 'real';
+  const bovenAankoopInEcht = (stop: number) => echtPlafond && isFinite(stop) && stop >= trade.entryPrijs;
+
   // De limiet komt nu per richting binnen, dus een short wordt tegen eToro's short-grenzen getoetst
   // (gemeten: minimaal 10% en maximaal 50% BOVEN de entry, waar een long tot 100% eronder mag).
-  // Wissen is geen niveau, dus dan valt er niets te toetsen.
-  const advies: StopAdvies = wisStop
+  // Wissen is geen niveau, dus dan valt er niets te toetsen. Komt de stop die zou uitgaan (ook een
+  // door bepaalStop bijgestelde) op of boven de aankoopprijs in echt, dan gaat er niets uit. Een stop
+  // die al zo bij eToro staat en niet wijzigt, blokkeert een wijziging van alleen het doel niet.
+  const eToroAdvies: StopAdvies = wisStop
     ? { soort: 'ok' }
     : bepaalStop(trade.entryPrijs, ingevuldeStop, limiet, koersReferentie);
+  const stopNaToets = eToroAdvies.soort === 'aangepast' ? eToroAdvies.stop : ingevuldeStop;
+  const advies: StopAdvies =
+    (eToroAdvies.soort === 'ok' || eToroAdvies.soort === 'aangepast') && !wisStop && stopNaToets > 0
+      && bovenAankoopInEcht(stopNaToets) && anders(stopNaToets, trade.stopLoss)
+      ? {
+        soort: 'waarschuwing',
+        uitleg: 'In je echte account kan Kader de stop nog niet op of boven je aankoopprijs zetten. Dat is bij eToro nog niet gemeten; in demo kan het wel.',
+      }
+      : eToroAdvies;
 
   // Exact de tabel uit het plan: 'aangepast' stuurt het bijgestelde niveau, 'vast' stuurt niets, en
   // 'waarschuwing' komt hieronder niet eens aan een verzoek toe.
@@ -261,8 +278,8 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const entry = trade.entryPrijs;
   const stap = stapGrootte(entry);
   const bereik = useMemo(
-    () => greepBereik({ entry, live: huidigePrijs, richting, limiet, stap }),
-    [entry, huidigePrijs, richting, limiet, stap],
+    () => greepBereik({ entry, live: huidigePrijs, plafond: echtPlafond ? entry : undefined, richting, limiet, stap }),
+    [entry, huidigePrijs, echtPlafond, richting, limiet, stap],
   );
 
   // De schaal van de baan komt uit de oorspronkelijke niveaus, de koers en de grenzen, nooit uit
@@ -326,6 +343,8 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     // Alleen als eToro dit niveau zo neemt. Bij 'aangepast' zou de tekst een ander niveau noemen
     // dan wat er de deur uitgaat.
     && bepaalStop(entry, trailing, limiet, koersReferentie).soort === 'ok'
+    // In echt geen voorstel op of boven de aankoopprijs, zie echtPlafond.
+    && !bovenAankoopInEcht(trailing)
     && !wisStop
     && (!heeftStop || anders(trailing, ingevuldeStop));
   const voorstelInVerlies = typeof trailing === 'number' && (richting === 'short' ? trailing > entry : trailing < entry);
