@@ -115,14 +115,10 @@ export function bepaalStop(
     };
   }
 
-  // Ligt de stop op of boven de aankoopprijs, dan klopt er iets niet aan de invoer: je koopt onder
-  // je eigen uitstapniveau. Hier verzinnen we geen niveau, want geen van eToro's grenzen is dan een
-  // zinnig antwoord (het minimum is ruis-krap, het maximum is het maximale verlies). Zeggen wat er
-  // mis is en de gebruiker de aankoopprijs laten nakijken.
-  // Bij een long hoort de stop onder de entry, bij een short erboven. Staat hij aan de verkeerde
-  // kant, dan verzinnen we geen niveau: geen van eToro's grenzen is dan een zinnig antwoord (het
-  // minimum is ruis-krap, het maximum is het maximale verlies). Zeggen wat er mis is en de
-  // gebruiker zijn prijs laten nakijken.
+  // Bij een long hoort de stop onder de basis (de koers als die als referentie meekomt, anders de
+  // aankoopprijs), bij een short boven de entry. Staat hij aan de verkeerde kant, dan verzinnen we
+  // geen niveau: geen van eToro's grenzen is dan een zinnig antwoord (het minimum is ruis-krap, het
+  // maximum is het maximale verlies). Zeggen wat er mis is en de gebruiker zijn prijs laten nakijken.
   const short = limiet.richting === 'short';
   // Alleen een long met een bruikbare koers meet vanaf die koers; anders blijft alles op de entry.
   const metKoers = !short && referentie !== undefined && isFinite(referentie) && referentie > 0;
