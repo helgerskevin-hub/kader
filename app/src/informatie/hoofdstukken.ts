@@ -97,13 +97,13 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     icoon: 'ShieldAlert',
     kort: 'eToro eist een minimale afstand voor je stop.',
     zie: 'Soms staat AANGEPAST naast de stop. Kader heeft zijn stop dan verschoven naar een niveau dat eToro accepteert.',
-    reken: 'eToro eist per coin een minimale en maximale afstand tussen je stop en een referentieprijs. Voor bitcoin is dat minimaal 10%. Bij een nieuwe kooporder is die referentie je aankoopprijs; bij het wijzigen van de stop van een lopende positie is het de huidige koers. Ligt de stop van Kader buiten die grenzen, dan schuift hij naar de dichtstbijzijnde grens van eToro.',
-    doe: 'Een verdere stop betekent meer risico bij hetzelfde doel. Zakt de R/R daardoor onder 1 : 2, dan kleurt de R/R oranje, vervalt BEVESTIGD en wordt het label op Markt AFWACHTEN. De uitgeklapte kaart zegt dat Kader hier geen koopsignaal geeft. Op Kansen verdwijnt KOOP dan. Staat je positie ver genoeg in winst, dan kun je in het stopvenster een stop boven je aankoopprijs zetten, zolang hij minstens het minimum onder de koers blijft (bij bitcoin 10%).',
+    reken: 'eToro eist per coin een minimale en maximale afstand tussen je stop en een referentieprijs. Voor bitcoin is dat minimaal 10%. Bij een nieuwe kooporder is die referentie je aankoopprijs; bij het wijzigen van de stop van een lopende koop-positie is het de huidige koers. Ligt de stop van Kader buiten die grenzen, dan schuift hij naar de dichtstbijzijnde grens van eToro.',
+    doe: 'Een verdere stop betekent meer risico bij hetzelfde doel. Zakt de R/R daardoor onder 1 : 2, dan kleurt de R/R oranje, vervalt BEVESTIGD en wordt het label op Markt AFWACHTEN. De uitgeklapte kaart zegt dat Kader hier geen koopsignaal geeft. Op Kansen verdwijnt KOOP dan. Staat je positie ver genoeg in winst, dan kun je in het stopvenster een stop boven je aankoopprijs zetten, zolang hij minstens het minimum onder de koers blijft (bij bitcoin 10%). In je echte account kan dat voorlopig niet: daar blijft de stop onder je aankoopprijs, want dat is bij eToro nog niet gemeten.',
     detail: [
       'Werkt alleen met een eToro-koppeling; zonder koppeling blijft de eigen stop van Kader staan',
       'Laat eToro voor een coin geen stop toe, dan staat er STOP (KADER): een niveau om zelf in de gaten te houden',
       'Kader bewaart de grenzen van eToro een dag',
-      'Bij een lopende positie meet Kader de minimale afstand vanaf de huidige koers, bij een nieuwe kooporder vanaf je aankoopprijs',
+      'Bij een lopende koop-positie meet Kader de minimale afstand vanaf de huidige koers, bij een nieuwe kooporder vanaf je aankoopprijs',
     ],
   },
   {
