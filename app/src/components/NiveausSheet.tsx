@@ -42,6 +42,12 @@ const BAAN_MAX_AFSTAND = 0.35;
 // soms zo dicht bij elkaar dat er niets meer te slepen valt.
 const BAAN_MIN_SPAN = 0.1;
 const BAAN_MARGE = 0.15;
+// Ouder dan dit telt de koers niet meer als referentie voor eToro's minimum. Een mislukte poll laat
+// de vorige koers staan, en een verouderde hoge koers zou een stop toestaan die te dicht bij de
+// werkelijke koers ligt. Dan rekent Kader weer vanaf de aankoopprijs, het oude, behoudende gedrag.
+const KOERS_MAX_LEEFTIJD_MS = 2 * 60 * 1000;
+// Hoe vaak het venster opnieuw kijkt of de koers nog vers genoeg is, ook als er niets verandert.
+const KOERS_CONTROLE_MS = 15 * 1000;
 
 // Op honderdsten afronden voor teken en kleur: -0,004 toont "$0.00" en hoort dan niet rood te zijn.
 const rond = (n: number) => Math.round(n * 100) / 100;
@@ -72,7 +78,7 @@ const anders = (a: number, b: number) => Math.abs(a - b) > 1e-9;
 export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouwAdvies }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
-  const { omgeving, trades, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
+  const { omgeving, trades, livePrijsTijd, verzoenNaOrder, noteerOnbekendeOrder } = usePortfolio();
   const limiet = useStopLossLimiet(trade.symbool, richtingVan(trade));
 
   const [stopVeld, setStopVeld] = useState('');
@@ -87,6 +93,15 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const loopt = useRef(false);
   const { gelukt, vier, sluit, wis } = useGeluktMoment(onSluiten);
   const [fout, setFout] = useState('');
+  // Klok voor de versheid van de koers: zonder nieuwe poll rendert het venster anders niet opnieuw,
+  // en zou een koers die intussen te oud is nog als referentie gelden.
+  const [nu, setNu] = useState(() => Date.now());
+  useEffect(() => {
+    if (!zichtbaar) return;
+    setNu(Date.now());
+    const id = setInterval(() => setNu(Date.now()), KOERS_CONTROLE_MS);
+    return () => clearInterval(id);
+  }, [zichtbaar]);
 
   // Eén id per keer dat de sheet opengaat, niet per klik, zodat een handmatige herhaling na een fout
   // dezelfde x-request-id hergebruikt.
@@ -129,8 +144,11 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   // Bij het wijzigen van een lopende long meet eToro de afstand vanaf de huidige koers, niet vanaf
   // de aankoopprijs (meting 1 okt 2026, zie docs/etoro-direct-handelen-plan.md §12). Daarom krijgt
   // bepaalStop bij een long de koers als referentie, zodat je winst kunt vastzetten met een stop
-  // boven de aankoopprijs. Zonder bruikbare koers, en bij een short, blijft de aankoopprijs de basis.
-  const koersReferentie = richtingVan(trade) === 'long' && typeof huidigePrijs === 'number'
+  // boven de aankoopprijs. Zonder bruikbare of verse koers (zie KOERS_MAX_LEEFTIJD_MS), en bij een
+  // short, blijft de aankoopprijs de basis.
+  const koersTijd = livePrijsTijd[trade.symbool];
+  const koersVers = koersTijd !== undefined && nu - koersTijd < KOERS_MAX_LEEFTIJD_MS;
+  const koersReferentie = richtingVan(trade) === 'long' && koersVers && typeof huidigePrijs === 'number'
     && isFinite(huidigePrijs) && huidigePrijs > 0 ? huidigePrijs : undefined;
 
   // Of eToro een stop boven de aankoopprijs neemt, is nog niet gemeten (plan §12, T2 en T3). Tot dat
@@ -278,8 +296,12 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const entry = trade.entryPrijs;
   const stap = stapGrootte(entry);
   const bereik = useMemo(
-    () => greepBereik({ entry, live: huidigePrijs, plafond: echtPlafond ? entry : undefined, richting, limiet, stap }),
-    [entry, huidigePrijs, echtPlafond, richting, limiet, stap],
+    // live blijft ook een oudere koers: hij houdt de greep alleen onder die koers, dat verruimt niets.
+    // De referentie voor eToro's minimum is wel alleen een verse koers, net als bij bepaalStop.
+    () => greepBereik({
+      entry, live: huidigePrijs, referentie: koersReferentie, plafond: echtPlafond ? entry : undefined, richting, limiet, stap,
+    }),
+    [entry, huidigePrijs, koersReferentie, echtPlafond, richting, limiet, stap],
   );
 
   // De schaal van de baan komt uit de oorspronkelijke niveaus, de koers en de grenzen, nooit uit
