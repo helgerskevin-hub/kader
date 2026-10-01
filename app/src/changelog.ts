@@ -7,11 +7,19 @@ export interface ChangelogEntry {
   punten: string[];
   // Uitgelichte wijzigingen voor de "nieuw in deze versie"-melding. Icoonnamen zijn sleutels en
   // geen componenten, zodat dit bestand vrij blijft van UI-imports; ChangelogSheet vertaalt ze.
+  // `vis` is optioneel een hoofdstuk-id uit VISUALISATIES (components/informatie/vis), ook als
+  // sleutel. Met `vis` wordt het hoogtepunt een veegbare kaart met die animatie; zonder `vis` valt
+  // de melding terug op het icoon.
   hoogtepunten?: {
     icoon: 'kaarten' | 'keurmerk' | 'koop' | 'koppeling' | 'menu' | 'informatie';
+    vis?: string;
     titel: string;
     tekst: string;
   }[];
+  // Ingekorte lijst voor het scherm Wijzigingen in de app: een paar korte punten per onderdeel.
+  // `punten` blijft de volledige lijst (gelijk aan CHANGELOG.md) en wordt in de app alleen getoond
+  // als er geen groepen zijn.
+  groepen?: { kop: string; punten: string[] }[];
   // Mijlpaal-release: toont de feestelijke opening (vallende bitcoins) bij de
   // "nieuw in deze versie"-melding.
   feest?: boolean;
@@ -22,9 +30,73 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-09-30',
     hoogtepunten: [
-      { icoon: 'kaarten', titel: 'Nieuwe kaarten', tekst: 'Compacter, met je resultaat groot in beeld. Tik om uit te klappen.' },
-      { icoon: 'keurmerk', titel: 'Keurmerk BEVESTIGD', tekst: 'HIGH CONVICTION heet nu STERK KOOP met een keurmerk. Uitgeklapt zie je waarom.' },
-      { icoon: 'koop', titel: 'Nieuw koopvenster', tekst: 'Kies een bedrag met één tik en zie wat je riskeert in dollars.' },
+      {
+        icoon: 'kaarten',
+        vis: 'score',
+        titel: 'Rustiger kaarten',
+        tekst: 'Markt, Kansen en Portfolio hebben compactere kaarten die je met een tik uitklapt, en op Markt en Kansen staat de score als ring rond het coinlogo.',
+      },
+      {
+        icoon: 'keurmerk',
+        vis: 'advies',
+        titel: 'Sterk koop, bevestigd',
+        tekst: 'HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD, en op een uitgeklapte kaart zie je welke bevestigingen meestaan.',
+      },
+      {
+        icoon: 'koop',
+        vis: 'handelen',
+        titel: 'Kopen met overzicht',
+        tekst: 'Je kiest een bedrag met snelknoppen en ziet in dollars wat je verliest bij de stop en wint bij het doel.',
+      },
+      {
+        icoon: 'koppeling',
+        vis: 'koppelen',
+        titel: 'eToro koppelen in vijf stappen',
+        tekst: 'Je kiest eerst of je alleen meekijkt of ook handelt, en de verbindingstest laat per regel zien wat werkt.',
+      },
+    ],
+    groepen: [
+      {
+        kop: 'Markt',
+        punten: [
+          'Compactere kaarten op Markt, Kansen en Portfolio: tik om uit te klappen, Details opent het detailscherm',
+          'HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD',
+          'Coins hebben hun eigen logo, en op Markt en Kansen staat de score als ring eromheen',
+        ],
+      },
+      {
+        kop: 'Portfolio',
+        punten: [
+          'Je resultaat staat in procenten groot bovenaan elke kaart, met het bedrag eronder',
+          'Sluit eToro een positie op je stop-loss of doel, dan krijg je een melding, ook als de app dicht is',
+        ],
+      },
+      {
+        kop: 'Handelen',
+        punten: [
+          'Een nieuw ordervenster met snelknoppen voor het bedrag en het plan van Kader in dollars',
+          'Stop en doel verzet je met grepen op één baan, binnen de grens die eToro hanteert',
+        ],
+      },
+      {
+        kop: 'eToro',
+        punten: [
+          'Koppelen gaat in vijf stappen, met een verbindingstest die per regel laat zien wat werkt',
+        ],
+      },
+      {
+        kop: 'Instellingen',
+        punten: [
+          'Instellingen, Meldingen en Informatie zijn volledige schermen met gegroepeerde lijsten',
+          'Naar Echt houd je Echt 800 ms vast; terug naar Demo is één tik',
+        ],
+      },
+      {
+        kop: 'Informatie',
+        punten: [
+          'Herschreven in 21 hoofdstukken, elk met een korte animatie, en je kunt zoeken',
+        ],
+      },
     ],
     punten: [
       'In demo kun je met de stopgreep en "winst beschermen" nu ook met een eToro-koppeling winst vastzetten, met een stop boven je aankoopprijs. Een meting wijst erop dat eToro de minimale afstand dan vanaf de huidige koers meet, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat. In je echte account blijft de stop voorlopig onder je aankoopprijs, tot dat daar ook gemeten is',
@@ -37,7 +109,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Meldingen staan per dag gegroepeerd, met het coinlogo en een link naar de positie of de markt. Bij een prijsalert staat de huidige koers erbij als Kader die kent',
       'Informatie is herschreven: 21 hoofdstukken, elk met wat je ziet, hoe Kader rekent en wat je ermee doet, plus een korte animatie. Je kunt zoeken, en onder Bronnen staat waar de koersen en de coinlogo\'s vandaan komen, met hun licenties',
       'De titel bovenaan een scherm wordt niet meer afgekapt naast het DEMO-merkje; het merkje staat nu onder de titel',
-      'Nieuw in deze versie toont de drie belangrijkste veranderingen, met een knop naar alle wijzigingen',
+      'Nieuw in deze versie toont de hoogtepunten als kaarten die je opzij veegt, elk met een korte animatie. De lijst Alle wijzigingen in de app is ingekort tot de hoofdzaken per onderdeel',
       'eToro koppelen gaat nu in vijf stappen op een eigen scherm, met een voortgangsbalk. Je kiest eerst of je alleen wilt meekijken of ook wilt handelen, en de uitleg past zich daarop aan',
       'Sleutels plak je met een Plak-knop. Kader kijkt alleen of het eruitziet als een sleutel en zegt het als er bijvoorbeeld een spatie in staat',
       'De verbindingstest toont per regel wat werkt: de sleutel, je posities in demo en echt (met het aantal), en of handelen mag. Werkt de sleutel nergens, dan zie je per omgeving waarom en wat je kunt doen',

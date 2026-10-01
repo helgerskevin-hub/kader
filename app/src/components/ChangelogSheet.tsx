@@ -7,6 +7,7 @@ import { spacing, radii } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { PilKnop } from './PilKnop';
 import { LijstGroep } from './lijst/LijstGroep';
+import { NieuwInVersieKaarten } from './NieuwInVersieKaarten';
 import { CHANGELOG, type ChangelogEntry } from '../changelog';
 
 interface Props {
@@ -80,21 +81,35 @@ export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) 
           </View>
 
           <ScrollView showsVerticalScrollIndicator style={{ maxHeight: lijstHoogte }}>
-            {CHANGELOG.map(entry => (
-              <LijstGroep
-                key={entry.versie}
-                titel={entry.datum ? `${versieLabel(entry.versie)} · ${entry.datum}` : versieLabel(entry.versie)}
-                lijnInspringing={spacing.base}
-                style={styles.groep}
-              >
-                {entry.punten.map((punt, i) => (
-                  <View key={i} style={styles.puntRij}>
-                    <Text style={[Type.caption, styles.bullet, { color: colors.tekstGedimd }]}>•</Text>
-                    <Text style={[Type.caption, styles.puntTekst, { color: colors.tekstGedimd }]}>{punt}</Text>
+            {CHANGELOG.map(entry => {
+              const kop = entry.datum ? `${versieLabel(entry.versie)} · ${entry.datum}` : versieLabel(entry.versie);
+              // Met groepen staat de versie als kop boven een kaart per onderdeel, met een paar korte
+              // punten. De volledige lijst (punten) staat dan alleen in CHANGELOG.md.
+              if (entry.groepen && entry.groepen.length > 0) {
+                return (
+                  <View key={entry.versie} style={styles.groep}>
+                    <Text accessibilityRole="header" style={[Type.overline, styles.versieKop, { color: colors.tekstGedimd }]}>
+                      {kop.toUpperCase()}
+                    </Text>
+                    {entry.groepen.map(g => (
+                      <View key={g.kop} style={styles.onderdeel}>
+                        <LijstGroep lijnInspringing={spacing.base}>
+                          <Text accessibilityRole="header" style={[Type.body, styles.onderdeelKop, { color: colors.tekstPrimair }]}>
+                            {g.kop}
+                          </Text>
+                          {g.punten.map((punt, i) => <Punt key={i} tekst={punt} />)}
+                        </LijstGroep>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </LijstGroep>
-            ))}
+                );
+              }
+              return (
+                <LijstGroep key={entry.versie} titel={kop} lijnInspringing={spacing.base} style={styles.groep}>
+                  {entry.punten.map((punt, i) => <Punt key={i} tekst={punt} />)}
+                </LijstGroep>
+              );
+            })}
           </ScrollView>
         </>
       )}
@@ -102,12 +117,27 @@ export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) 
   );
 }
 
-// De "nieuw in deze versie"-opening: een overline, een titel, de hoogtepunten als rijen en één
-// duidelijke knop. Zonder hoogtepunten vallen we terug op de eerste drie punten, als gewone tekst.
+function Punt({ tekst }: { tekst: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.puntRij}>
+      <Text style={[Type.caption, styles.bullet, { color: colors.tekstGedimd }]}>•</Text>
+      <Text style={[Type.caption, styles.puntTekst, { color: colors.tekstGedimd }]}>{tekst}</Text>
+    </View>
+  );
+}
+
+// De "nieuw in deze versie"-opening. Hebben alle hoogtepunten een animatie (vis), dan veegbare
+// kaarten; anders een overline, een titel, de hoogtepunten als rijen en één duidelijke knop. Zonder
+// hoogtepunten vallen we terug op de eerste drie punten, als gewone tekst.
 function Hero({ entry, onSluiten, onAlles }: { entry: ChangelogEntry; onSluiten: () => void; onAlles: () => void }) {
   const { colors } = useTheme();
   const titel = heeftNummer(entry.versie) ? `Versie ${entry.versie}` : 'Nieuw in Kader';
   const hoogtepunten = entry.hoogtepunten;
+
+  if (hoogtepunten && hoogtepunten.length > 0 && hoogtepunten.every(h => !!h.vis)) {
+    return <NieuwInVersieKaarten titel={titel} hoogtepunten={hoogtepunten} onSluiten={onSluiten} onAlles={onAlles} />;
+  }
 
   return (
     <View>
@@ -160,6 +190,9 @@ const styles = StyleSheet.create({
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   groep: { marginBottom: spacing.base },
+  versieKop: { marginBottom: spacing.sm, paddingHorizontal: spacing.base },
+  onderdeel: { marginBottom: spacing.md },
+  onderdeelKop: { fontFamily: Fonts.sansSemiBold, fontWeight: '600', paddingHorizontal: spacing.base, paddingTop: spacing.md, paddingBottom: spacing.xs },
   puntRij: {
     flexDirection: 'row',
     alignItems: 'flex-start',
