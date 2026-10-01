@@ -413,6 +413,12 @@ async function main() {
 // geen enkele poging de positie direct sluit. Aan het eind gaat de oorspronkelijke stop terug.
 async function meetStopReferentie(instrumentId: number, koers: number, portfolioPad: string, posities: any[]) {
   streep('S. Stopreferentie  -> toetst eToro de stopafstand tegen de aankoopprijs of de huidige koers?');
+  // De posities komen uit het portfoliopad dat werkte. Is dat het echte pad, dan zijn het echte
+  // posities, en hun positie-ID's horen niet op het demo-pad van de PATCH hieronder.
+  if (!portfolioPad.includes('/demo/')) {
+    noteer(`Het werkende portfoliopad (${portfolioPad}) is geen demo-pad, dus geen meting. Deze meting draait alleen op demo-posities.`);
+    return;
+  }
   if (!isFinite(koers) || koers <= 0) {
     noteer('Geen huidige koers in de zoekrespons, dus geen meting. Probeer het later opnieuw.');
     return;
