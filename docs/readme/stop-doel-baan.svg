@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="240" viewBox="0 0 760 240" role="img" aria-labelledby="titel omschrijving">
+  <title id="titel">Stop-doel-baan (voorbeeld)</title>
+  <desc id="omschrijving">Voorbeeld van de stop-doel-baan van Kader: links de stop op 90 dollar, het entry-streepje op 100 dollar en rechts het doel op 125 dollar. Een stip voor de koers beweegt rustig tussen entry en doel, de groene vulling loopt van entry tot de stip. Rechtsboven de verhouding risico en opbrengst, 1 : 2.5. Alle cijfers zijn een voorbeeld.</desc>
+  <style>
+    svg {
+      --kaart: #FFFFFF; --verhoogd: #EEF2F7; --rand: #E2E8F0; --tekst: #0F172A; --gedimd: #64748B;
+      --winst: #16A34A; --verlies: #DC2626;
+      --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg { --kaart: #161B22; --verhoogd: #1C2230; --rand: #2A3140; --tekst: #E6EDF3; --gedimd: #8B949E;
+            --winst: #22C55E; --verlies: #EF4444; }
+    }
+    .kaart { fill: var(--kaart); stroke: var(--rand); stroke-width: 1; }
+    .vlak { fill: var(--verhoogd); }
+    .overline { font-family: var(--sans); font-weight: 600; font-size: 12px; letter-spacing: 1.2px; fill: var(--gedimd); }
+    .klein { font-family: var(--sans); font-weight: 500; font-size: 12px; fill: var(--gedimd); }
+    .uitleg { font-family: var(--sans); font-weight: 400; font-size: 13.5px; fill: var(--gedimd); }
+    .prijs { font-family: var(--mono); font-weight: 500; font-size: 15px; fill: var(--tekst); font-variant-numeric: tabular-nums; }
+    .chip { font-family: var(--mono); font-weight: 500; font-size: 13px; fill: var(--gedimd); }
+    .stop { fill: var(--verlies); }
+    .doel { fill: var(--winst); }
+    .vulling { fill: var(--winst); }
+    .entry { fill: var(--tekst); opacity: .55; }
+    .stipRing { fill: var(--kaart); stroke: var(--winst); stroke-width: 4; }
+
+    /* Eén waarde stuurt stip en vulling: zelfde duur, zelfde keyframes, zelfde curve (curve.verplaats).
+       De rust is de eindstand en ook wat je ziet bij Minder beweging. */
+    .koers { transform: translateX(96px); animation: koers 14s cubic-bezier(0.42, 0, 0.58, 1) infinite; }
+    .vulling { transform-box: fill-box; transform-origin: left center; transform: scaleX(0.6667);
+               animation: vul 14s cubic-bezier(0.42, 0, 0.58, 1) infinite; }
+    @keyframes koers {
+      0%, 6% { transform: translateX(0); }
+      28%, 48% { transform: translateX(172px); }
+      68%, 88% { transform: translateX(96px); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes vul {
+      0%, 6% { transform: scaleX(0.2456); }
+      28%, 48% { transform: scaleX(1); }
+      68%, 88% { transform: scaleX(0.6667); }
+      100% { transform: scaleX(0.2456); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; }
+    }
+  </style>
+
+  <rect class="kaart" x="0.5" y="0.5" width="759" height="239" rx="20"/>
+
+  <!-- Kop -->
+  <text class="overline" x="32" y="46">STOP-DOEL-BAAN</text>
+  <rect class="vlak" x="178" y="29" width="86" height="24" rx="12"/>
+  <text class="klein" x="221" y="46" text-anchor="middle">Voorbeeld</text>
+  <rect class="vlak" x="604" y="27" width="124" height="28" rx="14"/>
+  <text class="chip" x="666" y="46" text-anchor="middle">R/R 1 : 2.5</text>
+
+  <!-- Baan: stop links, doel rechts, dus rechts is altijd beter -->
+  <rect class="vlak" x="48" y="117" width="664" height="10" rx="5"/>
+  <rect class="vulling" x="238" y="117" width="228" height="10"/>
+  <rect class="entry" x="236.5" y="111" width="3" height="22" rx="1.5"/>
+  <g class="koers">
+    <text class="klein" x="294" y="95" text-anchor="middle">koers</text>
+    <circle class="stipRing" cx="294" cy="122" r="10"/>
+  </g>
+
+  <!-- Niveaus -->
+  <text class="overline stop" x="48" y="162">STOP</text>
+  <text class="prijs" x="48" y="184">$90.00</text>
+  <text class="overline" x="238" y="162" text-anchor="middle">ENTRY</text>
+  <text class="prijs" x="238" y="184" text-anchor="middle">$100.00</text>
+  <text class="overline doel" x="712" y="162" text-anchor="end">DOEL</text>
+  <text class="prijs" x="712" y="184" text-anchor="end">$125.00</text>
+
+  <text class="uitleg" x="32" y="218">Voorbeeldcijfers. Stop net onder de recente swing low, doel op entry + 3x ATR.</text>
+</svg>

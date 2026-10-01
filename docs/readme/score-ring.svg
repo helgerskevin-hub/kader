@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="270" viewBox="0 0 760 270" role="img" aria-labelledby="titel omschrijving">
+  <title id="titel">Score, oordeel en keurmerk (voorbeeld)</title>
+  <desc id="omschrijving">Voorbeeld: een scorering loopt op tot 80 van 100. Daarnaast verschijnen de badge STERK KOOP met score 80 en het keurmerk BEVESTIGD, met daaronder de vier bevestigingen: trend op, MACD bullish, volume 1,8x en R/R 1 : 2.5. Alle cijfers zijn een voorbeeld.</desc>
+  <style>
+    svg {
+      --kaart: #FFFFFF; --verhoogd: #EEF2F7; --rand: #E2E8F0; --tekst: #0F172A; --gedimd: #64748B;
+      --primair: #1E3A8A; --winst: #16A34A; --opPrimair: #FFFFFF;
+      --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg { --kaart: #161B22; --verhoogd: #1C2230; --rand: #2A3140; --tekst: #E6EDF3; --gedimd: #8B949E;
+            --primair: #3B82F6; --winst: #22C55E; --opPrimair: #0E1117; }
+    }
+    .kaart { fill: var(--kaart); stroke: var(--rand); stroke-width: 1; }
+    .vlak { fill: var(--verhoogd); }
+    .spoor { fill: none; stroke: var(--verhoogd); stroke-width: 10; }
+    .boog { fill: none; stroke: var(--primair); stroke-width: 10; stroke-linecap: round;
+            stroke-dasharray: 100 200; stroke-dashoffset: 20; }
+    .score { font-family: var(--mono); font-weight: 600; font-size: 44px; fill: var(--tekst); font-variant-numeric: tabular-nums; }
+    .overline { font-family: var(--sans); font-weight: 600; font-size: 12px; letter-spacing: 1.2px; fill: var(--gedimd); }
+    .klein { font-family: var(--sans); font-weight: 500; font-size: 12px; fill: var(--gedimd); }
+    .uitleg { font-family: var(--sans); font-weight: 400; font-size: 13.5px; fill: var(--gedimd); }
+    .badgeRand { fill: none; stroke: var(--winst); stroke-width: 1.5; }
+    .badgeTekst { font-family: var(--sans); font-weight: 700; font-size: 13px; letter-spacing: 1px; fill: var(--winst); }
+    .badgeStip { fill: var(--winst); }
+    .keurmerk { fill: var(--primair); }
+    .keurmerkTekst { font-family: var(--sans); font-weight: 700; font-size: 13px; letter-spacing: 1px; fill: var(--opPrimair); }
+    .keurmerkVink { fill: none; stroke: var(--opPrimair); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .naam { font-family: var(--sans); font-weight: 500; font-size: 14px; fill: var(--tekst); }
+    .waarde { font-family: var(--mono); font-weight: 500; font-size: 14px; fill: var(--tekst); }
+    .vinkRond { fill: var(--primair); fill-opacity: .16; }
+    .leegRond { fill: var(--rand); }
+    .vink { fill: none; stroke: var(--primair); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Cyclus van 12 s: ring tekent in (duur.lang, curve.binnen), daarna komen oordeel, keurmerk en
+       vinkjes gestaffeld binnen, dan een lange rust. De rust is ook de stand bij Minder beweging. */
+    .boog { animation: boog 12s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+    @keyframes boog {
+      0% { stroke-dashoffset: 100.5; opacity: 1; }
+      12%, 88% { stroke-dashoffset: 20; opacity: 1; }
+      94% { stroke-dashoffset: 20; opacity: 0; }
+      95%, 99% { stroke-dashoffset: 100.5; opacity: 0; }
+      100% { stroke-dashoffset: 100.5; opacity: 1; }
+    }
+    .oordeel { animation: oordeel 12s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+    @keyframes oordeel {
+      0%, 12% { transform: translateY(6px); opacity: 0; }
+      18%, 88% { transform: none; opacity: 1; }
+      94%, 100% { transform: none; opacity: 0; }
+    }
+    .keurmerkGroep { transform-box: fill-box; transform-origin: center; animation: keurmerk 12s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+    @keyframes keurmerk {
+      0%, 19% { transform: scale(.8); opacity: 0; }
+      23% { transform: scale(1.04); opacity: 1; }
+      26%, 88% { transform: scale(1); opacity: 1; }
+      94%, 100% { transform: scale(1); opacity: 0; }
+    }
+    .kop { animation: kop 12s cubic-bezier(0.25, 0.1, 0.25, 1) infinite; }
+    @keyframes kop { 0%, 24% { opacity: 0; } 29%, 88% { opacity: 1; } 94%, 100% { opacity: 0; } }
+    .vinkGroep { transform-box: fill-box; transform-origin: center; animation: 12s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+    .v1 { animation-name: v1; } .v2 { animation-name: v2; } .v3 { animation-name: v3; } .v4 { animation-name: v4; }
+    @keyframes v1 { 0%, 27% { transform: scale(0); opacity: 0; } 31%, 88% { transform: scale(1); opacity: 1; } 94%, 100% { transform: scale(1); opacity: 0; } }
+    @keyframes v2 { 0%, 29% { transform: scale(0); opacity: 0; } 33%, 88% { transform: scale(1); opacity: 1; } 94%, 100% { transform: scale(1); opacity: 0; } }
+    @keyframes v3 { 0%, 31% { transform: scale(0); opacity: 0; } 35%, 88% { transform: scale(1); opacity: 1; } 94%, 100% { transform: scale(1); opacity: 0; } }
+    @keyframes v4 { 0%, 33% { transform: scale(0); opacity: 0; } 37%, 88% { transform: scale(1); opacity: 1; } 94%, 100% { transform: scale(1); opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; }
+    }
+  </style>
+
+  <rect class="kaart" x="0.5" y="0.5" width="759" height="269" rx="20"/>
+
+  <!-- Ring: blauw en niet groen, want een score is geen resultaat -->
+  <circle class="spoor" cx="128" cy="122" r="70"/>
+  <circle class="boog" cx="128" cy="122" r="70" pathLength="100" transform="rotate(-90 128 122)"/>
+  <text class="score" x="128" y="132" text-anchor="middle">80</text>
+  <text class="overline" x="128" y="156" text-anchor="middle">VAN 100</text>
+
+  <!-- Oordeel en keurmerk -->
+  <g class="oordeel">
+    <rect class="badgeRand" x="250.75" y="33.75" width="166.5" height="30.5" rx="15.25"/>
+    <circle class="badgeStip" cx="268" cy="49" r="3.5"/>
+    <text class="badgeTekst" x="279" y="53.5">STERK KOOP · 80</text>
+  </g>
+  <g class="keurmerkGroep">
+    <rect class="keurmerk" x="428" y="33" width="124" height="32" rx="16"/>
+    <path class="keurmerkVink" d="M442 49 l4 4 l8 -8.5"/>
+    <text class="keurmerkTekst" x="461" y="53.5">BEVESTIGD</text>
+  </g>
+  <rect class="vlak" x="634" y="35" width="94" height="28" rx="14"/>
+  <text class="klein" x="681" y="53.5" text-anchor="middle">Voorbeeld</text>
+
+  <!-- De vier bevestigingen -->
+  <text class="overline kop" x="250" y="100">4 VAN 4 BEVESTIGD</text>
+
+  <rect class="vlak" x="250" y="114" width="234" height="40" rx="10"/>
+  <circle class="leegRond" cx="270" cy="134" r="10"/><g class="vinkGroep v1"><circle class="vinkRond" cx="270" cy="134" r="10"/><path class="vink" d="M265.5 134 l3 3 l6 -6.5"/></g>
+  <text class="naam" x="288" y="139">Trend</text>
+  <text class="waarde" x="472" y="139" text-anchor="end">Op</text>
+
+  <rect class="vlak" x="494" y="114" width="234" height="40" rx="10"/>
+  <circle class="leegRond" cx="514" cy="134" r="10"/><g class="vinkGroep v2"><circle class="vinkRond" cx="514" cy="134" r="10"/><path class="vink" d="M509.5 134 l3 3 l6 -6.5"/></g>
+  <text class="naam" x="532" y="139">MACD</text>
+  <text class="waarde" x="716" y="139" text-anchor="end">Bullish</text>
+
+  <rect class="vlak" x="250" y="162" width="234" height="40" rx="10"/>
+  <circle class="leegRond" cx="270" cy="182" r="10"/><g class="vinkGroep v3"><circle class="vinkRond" cx="270" cy="182" r="10"/><path class="vink" d="M265.5 182 l3 3 l6 -6.5"/></g>
+  <text class="naam" x="288" y="187">Volume</text>
+  <text class="waarde" x="472" y="187" text-anchor="end">1,8x</text>
+
+  <rect class="vlak" x="494" y="162" width="234" height="40" rx="10"/>
+  <circle class="leegRond" cx="514" cy="182" r="10"/><g class="vinkGroep v4"><circle class="vinkRond" cx="514" cy="182" r="10"/><path class="vink" d="M509.5 182 l3 3 l6 -6.5"/></g>
+  <text class="naam" x="532" y="187">R/R</text>
+  <text class="waarde" x="716" y="187" text-anchor="end">1 : 2.5</text>
+
+  <text class="uitleg" x="32" y="246">Voorbeeld. De ring is blauw en niet groen: een score is geen resultaat.</text>
+</svg>
