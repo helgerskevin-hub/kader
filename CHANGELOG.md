@@ -6,6 +6,10 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- Het Marktklimaat-bericht klopt nu met wat Kader doet: bij een gemengd klimaat geeft Kader geen koopsignalen
+- Schuift eToro je stop zo op dat de R/R onder 2,0 zakt, dan staat de kaart op Markt op AFWACHTEN in plaats van KOOPZONE of STERK KOOP
+- De statusbalk in Instellingen en andere schermen wisselt mee als je het thema verandert terwijl het scherm openstaat
+- Terug uit een hoofdstuk van Informatie kom je weer uit waar je in de index was gebleven
 - Instellingen, Meldingen en Informatie zijn volledige schermen met gegroepeerde lijsten, zoals je dat van je telefoon kent
 - Naar Echt overstappen doe je in Instellingen door Echt 800 ms vast te houden, net als de orderknop. Terug naar Demo is één tik. Het rode bevestigvenster is weg; met een schermlezer krijg je nog wel een bevestiging
 - Het menu rechtsboven laat zien of eToro gekoppeld is en of je in demo of echt staat
