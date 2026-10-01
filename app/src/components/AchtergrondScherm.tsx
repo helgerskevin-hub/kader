@@ -54,17 +54,47 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
     if (zichtbaar) {
       setOpen(null);
       setZoek('');
+      indexY.current = 0;
+      herstelIndex.current = false;
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
     }
   }, [zichtbaar]);
 
-  // Bij elk ander hoofdstuk weer bovenaan beginnen.
+  // Een hoofdstuk begint bovenaan. Terug naar de index gaat naar waar je was: die wordt bij het
+  // openen van een hoofdstuk ontmount, en de ScrollView krimpt dan mee naar de hoogte van het
+  // hoofdstuk, dus de stand moet apart onthouden en na de nieuwe layout teruggezet worden.
+  const indexY = useRef(0);
+  const herstelIndex = useRef(false);
+  // Het herstel is pas klaar als de index weer hoog genoeg is om tot indexY te scrollen; daarvoor
+  // klemt de ScrollView de stand af. Tot dan probeert elke nieuwe inhoudshoogte het opnieuw.
+  const inhoudHoogte = useRef(0);
+  const zichtHoogte = useRef(0);
+  const herstel = () => {
+    if (!herstelIndex.current) return;
+    scrollRef.current?.scrollTo({ y: indexY.current, animated: false });
+    if (inhoudHoogte.current - zichtHoogte.current >= indexY.current - 1) herstelIndex.current = false;
+  };
   useEffect(() => {
+    if (open === null) {
+      if (!herstelIndex.current) return;
+      requestAnimationFrame(herstel);
+      return;
+    }
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [open]);
 
+  const openHoofdstuk = (id: string) => {
+    herstelIndex.current = false;
+    setOpen(id);
+  };
+  const terugNaarIndex = () => {
+    herstelIndex.current = true;
+    setOpen(null);
+  };
+
   const onTerug = () => {
     if (open !== null) {
-      setOpen(null);
+      terugNaarIndex();
       return true;
     }
     return false;
@@ -82,12 +112,21 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             contentContainerStyle={[styles.scroll, { paddingTop: spacing.sm + extraKopruimte }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            scrollEventThrottle={32}
+            onScroll={e => { if (open === null && !herstelIndex.current) indexY.current = e.nativeEvent.contentOffset.y; }}
+            // Scrolt de gebruiker zelf, dan wint dat van een herstel dat nog wacht.
+            onScrollBeginDrag={() => { herstelIndex.current = false; }}
+            onLayout={e => { zichtHoogte.current = e.nativeEvent.layout.height; }}
+            onContentSizeChange={(_breedte, hoogte) => {
+              inhoudHoogte.current = hoogte;
+              if (open === null) herstel();
+            }}
           >
             <StapOvergang stapIndex={stapIndex}>
               {open === null ? (
-                <Index zoek={zoek} setZoek={setZoek} onOpen={setOpen} onSluit={() => sluit()} />
+                <Index zoek={zoek} setZoek={setZoek} onOpen={openHoofdstuk} onSluit={() => sluit()} />
               ) : (
-                <Pagina onTerug={() => setOpen(null)}>
+                <Pagina onTerug={terugNaarIndex}>
                   {open === BRONNEN_ID ? <Bronnen /> : hoofdstuk ? <HoofdstukPagina h={hoofdstuk} /> : null}
                 </Pagina>
               )}

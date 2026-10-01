@@ -332,3 +332,50 @@ Aanleiding: een kooporder vanuit Kader bleef bij eToro wachten en werd later gea
 - Posities dragen hun `orderID`. Een gevulde order is dus aan zijn positie te koppelen, mocht dat ooit nodig zijn.
 
 **Nog open:** de veldnamen in een gevulde `ordersForOpen`/`stockOrders`/`entryOrders`. De parser leest beide schrijfwijzen (`orderId`/`orderID`, `instrumentId`/`instrumentID`) en een onleesbaar bedrag wordt nooit als 0 geteld. De eerstvolgende echte wachtende order bevestigt of verfijnt dit.
+
+## 12. Stopreferentie bij wijzigen (1 okt 2026)
+
+### Aanleiding
+
+`bepaalStop` toetste eToro's `minPct`/`maxPct` altijd tegen de aankoopprijs en keurde een long-stop op of boven de aankoopprijs af. In het venster om de stop van een lopende positie te wijzigen blokkeerde dat winst vastzetten: de bevestigknop ging uit, het voorstel "winst beschermen" verdween en de stopgreep kwam niet boven de aankoopprijs.
+
+### Meting (demo, BTC)
+
+Positie 3608388320, `openRate` 84390.07, koers bij de start 84066.66, limiet long x1 minimaal 10% en maximaal 100%. Gewijzigd via `PATCH /api/v2/trading/demo/positions/{id}`.
+
+| Stap | Gevraagde stop | Afstand tot open | Afstand tot koers | Antwoord | Wat eToro zette |
+|---|---|---|---|---|---|
+| T0 | 71456.66 | 15,3% | 15,0% | 202 | 71456.66 |
+| T1 | 80170.57 | 5,0% | 4,6% | 202 | 75992.53 |
+| Terug | 67255.78 | | | 202 | 67255.78 |
+
+- eToro weigert een te krappe stop niet. Hij geeft 202 en schuift de stop stil naar zijn grens.
+- 75992.53 is precies 10% onder 84436.14, de koers op dat moment. 10% onder de open zou 75951.06 zijn. De gezette stop ligt 9,95% onder de open, dus binnen eToro's eigen minimum als de open de referentie was geweest.
+- Duiding: eToro meet de minimale afstand bij het wijzigen tegen de huidige koers. Dit is een sterke aanwijzing en geen hard bewijs, want de koers lag dicht bij de open (verschil ongeveer 0,05%).
+- Dit past bij de eerdere aanwijzing in §9a: daar werd een stop van ongeveer 5,8% onder de vermoede entry via PATCH geaccepteerd.
+- Of het maximum bij het wijzigen ook vanaf de koers telt, is niet gemeten.
+
+### Besluit
+
+Thom: bij het wijzigen van de stop van een lopende long meet Kader vanaf de huidige koers.
+
+### Wat Kader nu doet
+
+- `bepaalStop` heeft een optionele vierde parameter `referentie`. Bij een long met een bruikbare koers rekenen de verkeerde-kant-toets, de afstand en de bijstelling vanaf die koers: een stop op of boven de koers geeft een waarschuwing, een stop boven de aankoopprijs mag zolang hij binnen min en max onder de koers ligt. De uitleg noemt dan "de huidige koers".
+- Bij een short negeert `bepaalStop` de referentie volledig, en zonder bruikbare koers rekent hij zoals altijd vanaf de aankoopprijs.
+- `NiveausSheet` geeft bij een long de koers mee aan elke `bepaalStop`-aanroep (bevestigknop en "winst beschermen"). `greepBereik` laat de stopgreep bij een long met koers lopen tot het minimum onder de koers, ook boven de aankoopprijs. De uitleg aan de greep zegt "de huidige koers".
+- De koers telt alleen als referentie als hij jonger is dan 2 minuten (`KOERS_MAX_LEEFTIJD_MS` in `NiveausSheet`, met `livePrijsTijd` uit `PortfolioProvider`). Een mislukte poll laat de oude koers staan, en een oude hoge koers zou een te krappe stop toestaan; daarna rekent Kader weer vanaf de aankoopprijs.
+- Bij het openen van een positie (kooporder, `etoroNiveaus`, trade vastleggen) verandert niets: daar blijft de aankoopprijs de referentie.
+- Gevolg voor bitcoin: met een minimum van 10% kan een stop pas boven de aankoopprijs als de positie ruim 10% in winst staat.
+- Restrisico: Kader rekent met de publieke koers, eToro met zijn eigen koers plus spread. Ligt eToro's koers lager, dan kan eToro een stop die Kader net goedkeurt alsnog iets omlaag schuiven. Dat is stil en aan de veilige kant (verder van de koers), en de sync laat de werkelijke stop zien.
+
+### Stand: in echt een plafond op de aankoopprijs (besluit Thom, 1 okt 2026)
+
+De meting hierboven laat zien dat het minimum bij het wijzigen vanaf de koers telt. Of eToro daadwerkelijk een stop boven de aankoopprijs zet, is niet gemeten: T2 (tussen open en koers) en T3 (net boven open) zijn overgeslagen, omdat de positie daar niet genoeg voor in winst stond. Tot die meting er is:
+
+- In demo mag de stop van een lopende long boven de aankoopprijs, zoals hierboven beschreven.
+- In je echte account blokkeert `NiveausSheet` een nieuwe stop op of boven de aankoopprijs (knop uit, met uitleg), ook als `bepaalStop` hem bijstelt naar zo'n niveau. Het voorstel "winst beschermen" verschijnt in echt niet als het op of boven de aankoopprijs ligt, en `greepBereik` krijgt `plafond` = aankoopprijs mee, zodat de stopgreep een stap daaronder stopt. Een stop die al zo bij eToro staat en niet wijzigt, blokkeert een wijziging van alleen het doel niet.
+- De koers blijft daarnaast de referentie voor het minimum: ook in echt moet de stop minstens eToro's minimum onder de koers liggen.
+- `bepaalStop` zelf weet niets van de omgeving en is hiervoor niet veranderd. Shorts zijn niet veranderd.
+
+Hoe te meten: open in demo een long (`--order`) en wacht tot hij meer dan 12,5% in winst staat, of gebruik een bestaande demo-positie die dat al doet. Draai dan `npx tsx scripts/etoro-demo-order.ts --stopmeting`. Dan worden T2 en T3 allebei geprobeerd. Zet eToro ze zoals gevraagd, dan kan het plafond in echt weg.

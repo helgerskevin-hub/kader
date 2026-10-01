@@ -25,7 +25,7 @@ const POSITIE: Record<Marktklimaat['klimaat'], number> = {
   gunstig: 5 / 6,
 };
 
-const UITLEG = 'Deze balk toont het marktklimaat: staat BTC boven zijn 50-daags gemiddelde, en stijgt het aandeel coins dat boven zijn eigen 50-daags gemiddelde staat? Beide gunstig is GUNSTIG: in dat klimaat presteerden koopsignalen historisch het best. Beide ongunstig is ONGUNSTIG: in dat soort periodes (2018, 2022, begin 2026) verloren koopsignalen historisch gemiddeld geld, en toont Kader daarom geen KOOP-signalen, hoe hoog de score ook is. Bij GEMENGD blijven de gewone koopsignalen gewoon zichtbaar.';
+const UITLEG = 'Deze balk toont het marktklimaat: staat BTC boven zijn 50-daags gemiddelde, en stijgt het aandeel coins dat boven zijn eigen 50-daags gemiddelde staat? Beide gunstig is GUNSTIG: in dat klimaat presteerden koopsignalen historisch het best. Beide ongunstig is ONGUNSTIG: in dat soort periodes (2018, 2022, begin 2026) verloren koopsignalen historisch gemiddeld geld. Daarom toont Kader alleen bij GUNSTIG koopsignalen: bij GEMENGD en ONGUNSTIG staat elke coin op AFWACHTEN, hoe hoog de score ook is.';
 
 export function MarktBalk({ klimaat }: Props) {
   const { colors } = useTheme();

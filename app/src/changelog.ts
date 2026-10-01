@@ -27,6 +27,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       { icoon: 'koop', titel: 'Nieuw koopvenster', tekst: 'Kies een bedrag met één tik en zie wat je riskeert in dollars.' },
     ],
     punten: [
+      'In demo kun je met de stopgreep en "winst beschermen" nu ook met een eToro-koppeling winst vastzetten, met een stop boven je aankoopprijs. Een meting wijst erop dat eToro de minimale afstand dan vanaf de huidige koers meet, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat. In je echte account blijft de stop voorlopig onder je aankoopprijs, tot dat daar ook gemeten is',
+      'Het Marktklimaat-bericht klopt nu met wat Kader doet: bij een gemengd klimaat geeft Kader geen koopsignalen',
+      'Schuift eToro je stop zo op dat de R/R onder 2,0 zakt, dan staat de kaart op Markt op AFWACHTEN in plaats van KOOPZONE of STERK KOOP',
+      'Terug uit een hoofdstuk van Informatie kom je weer uit waar je in de index was gebleven',
       'Instellingen, Meldingen en Informatie zijn volledige schermen met gegroepeerde lijsten, zoals je dat van je telefoon kent',
       'Naar Echt overstappen doe je in Instellingen door Echt 800 ms vast te houden, net als de orderknop. Terug naar Demo is één tik. Het rode bevestigvenster is weg; met een schermlezer krijg je nog wel een bevestiging',
       'Het menu rechtsboven laat zien of eToro gekoppeld is en of je in demo of echt staat',
