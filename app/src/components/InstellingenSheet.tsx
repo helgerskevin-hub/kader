@@ -328,6 +328,8 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                       onValueChange={kiesMeldingen}
                       disabled={bezigMeldingen}
                       trackColor={{ true: colors.tekstGedimd, false: colors.rand }}
+                      // Zonder thumbColor kleurt Android de knop in zijn eigen accent (groenblauw).
+                      thumbColor={meldingen ? colors.tekstPrimair : colors.verhoogd}
                       accessibilityLabel="Meldingen"
                     />
                   }

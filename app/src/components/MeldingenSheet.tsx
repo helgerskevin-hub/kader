@@ -219,7 +219,10 @@ function Regel({ entry, onKies }: { entry: MeldingLogEntry; onKies: (doel: Meldi
         </View>
       )}
       <View style={styles.tekst}>
+        {/* Tijd onder de titel in plaats van in een eigen kolom: anders krijgen titel en tekst bij
+            grote letters maar de helft van de breedte. */}
         <Text style={[Type.body, styles.vet, { color: colors.tekstPrimair }]}>{entry.titel}</Text>
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{relatieveTijd(entry.tijd)}</Text>
         <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{entry.tekst}</Text>
         {doel ? (
           <View style={styles.bestemmingRij}>
@@ -228,7 +231,6 @@ function Regel({ entry, onKies }: { entry: MeldingLogEntry; onKies: (doel: Meldi
           </View>
         ) : null}
       </View>
-      <Text style={[Type.caption, styles.tijd, { color: colors.tekstGedimd }]}>{relatieveTijd(entry.tijd)}</Text>
     </>
   );
 
@@ -275,7 +277,6 @@ const styles = StyleSheet.create({
   tegel: { width: LOGO, height: LOGO, borderRadius: radii.veld, alignItems: 'center', justifyContent: 'center' },
   tekst: { flex: 1, flexShrink: 1, gap: 2 },
   vet: { fontWeight: '600' },
-  tijd: { flexShrink: 0 },
   bestemmingRij: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: spacing.xs },
   wisKnop: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });
