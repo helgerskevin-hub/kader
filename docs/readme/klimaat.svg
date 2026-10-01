@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="240" viewBox="0 0 760 240" role="img" aria-labelledby="titel omschrijving">
+  <title id="titel">Marktklimaat (voorbeeld)</title>
+  <desc id="omschrijving">Voorbeeld van de klimaatbalk van Kader met drie standen: ongunstig, gemengd en gunstig. De stip glijdt van ongunstig via gemengd naar gunstig. Alleen bij gunstig laat Kader koopsignalen door.</desc>
+  <style>
+    svg {
+      --kaart: #FFFFFF; --verhoogd: #EEF2F7; --rand: #E2E8F0; --tekst: #0F172A; --gedimd: #64748B;
+      --winst: #16A34A; --verlies: #DC2626; --letop: #D97706;
+      --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg { --kaart: #161B22; --verhoogd: #1C2230; --rand: #2A3140; --tekst: #E6EDF3; --gedimd: #8B949E;
+            --winst: #22C55E; --verlies: #EF4444; --letop: #F59E0B; }
+    }
+    .kaart { fill: var(--kaart); stroke: var(--rand); stroke-width: 1; }
+    .vlak { fill: var(--verhoogd); }
+    .overline { font-family: var(--sans); font-weight: 600; font-size: 12px; letter-spacing: 1.2px; fill: var(--gedimd); }
+    .klein { font-family: var(--sans); font-weight: 500; font-size: 12px; fill: var(--gedimd); }
+    .detail { font-family: var(--sans); font-weight: 400; font-size: 13.5px; fill: var(--gedimd); }
+    .uitleg { font-family: var(--sans); font-weight: 400; font-size: 13.5px; fill: var(--gedimd); }
+    .label { font-family: var(--sans); font-weight: 600; font-size: 12px; letter-spacing: .8px; }
+    .rood { fill: var(--verlies); } .amber { fill: var(--letop); } .groen { fill: var(--winst); }
+    .stipRand { fill: none; stroke: #FFFFFF; stroke-width: 3; }
+
+    /* De rust (en Minder beweging) is GUNSTIG. Cyclus van 14 s met lange pauzes per stand;
+       verschuiven met curve.verplaats, wisselen van kleur en tekst als korte cross-fade. */
+    .ong { opacity: 0; } .gem { opacity: 0; } .gun { opacity: 1; }
+    .ong, .gem, .gun { animation: 14s cubic-bezier(0.25, 0.1, 0.25, 1) infinite; }
+    .ong { animation-name: ong; } .gem { animation-name: gem; } .gun { animation-name: gun; }
+    @keyframes ong { 0%, 15% { opacity: 1; } 20%, 95% { opacity: 0; } 99%, 100% { opacity: 1; } }
+    @keyframes gem { 0%, 15% { opacity: 0; } 20%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    @keyframes gun { 0%, 45% { opacity: 0; } 50%, 90% { opacity: 1; } 94%, 100% { opacity: 0; } }
+    .indicator { animation: glij 14s cubic-bezier(0.42, 0, 0.58, 1) infinite; }
+    @keyframes glij {
+      0%, 12% { transform: translateX(-464px); opacity: 1; }
+      22%, 42% { transform: translateX(-232px); opacity: 1; }
+      52%, 90% { transform: translateX(0); opacity: 1; }
+      94% { transform: translateX(0); opacity: 0; }
+      95%, 96% { transform: translateX(-464px); opacity: 0; }
+      100% { transform: translateX(-464px); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; }
+    }
+  </style>
+
+  <rect class="kaart" x="0.5" y="0.5" width="759" height="239" rx="20"/>
+
+  <!-- Kop -->
+  <text class="overline" x="32" y="46">MARKTKLIMAAT</text>
+  <rect class="vlak" x="160" y="29" width="86" height="24" rx="12"/>
+  <text class="klein" x="203" y="46" text-anchor="middle">Voorbeeld</text>
+  <text class="label rood ong" x="728" y="46" text-anchor="end">ONGUNSTIG</text>
+  <text class="label amber gem" x="728" y="46" text-anchor="end">GEMENGD</text>
+  <text class="label groen gun" x="728" y="46" text-anchor="end">GUNSTIG</text>
+
+  <text class="detail ong" x="32" y="78">BTC onder EMA50 · marktbreedte 28% (dalend)</text>
+  <text class="detail gem" x="32" y="78">BTC boven EMA50 · marktbreedte 44% (dalend)</text>
+  <text class="detail gun" x="32" y="78">BTC boven EMA50 · marktbreedte 61% (stijgend)</text>
+
+  <!-- Balk -->
+  <path class="rood" d="M37 108 H264 V118 H37 A5 5 0 0 1 37 108 Z"/>
+  <rect class="amber" x="264" y="108" width="232" height="10"/>
+  <path class="groen" d="M496 108 H723 A5 5 0 0 1 723 118 H496 Z"/>
+
+  <g class="indicator">
+    <circle class="rood ong" cx="612" cy="113" r="11"/>
+    <circle class="amber gem" cx="612" cy="113" r="11"/>
+    <circle class="groen gun" cx="612" cy="113" r="11"/>
+    <circle class="stipRand" cx="612" cy="113" r="11"/>
+  </g>
+
+  <text class="label rood" x="32" y="148">ONGUNSTIG</text>
+  <text class="label amber" x="380" y="148" text-anchor="middle">GEMENGD</text>
+  <text class="label groen" x="728" y="148" text-anchor="end">GUNSTIG</text>
+
+  <text class="uitleg" x="32" y="186">Alleen bij GUNSTIG laat Kader koopsignalen door. Bij GEMENGD en ONGUNSTIG</text>
+  <text class="uitleg" x="32" y="206">blijven score en niveaus zichtbaar, maar wordt een KOOP teruggezet naar afwachten.</text>
+</svg>
