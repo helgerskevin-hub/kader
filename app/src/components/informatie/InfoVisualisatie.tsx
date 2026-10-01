@@ -10,20 +10,28 @@ import { VISUALISATIES } from './vis';
 // Omhulsel om een visualisatie: kaartvlak met 16 dp zijmarge (klimaat en fg rekenen daarop), een
 // label "Voorbeeld" en een knop om het af te spelen. De speelSleutel start op 1 zodat hij bij het
 // openen meteen afspeelt.
-export function InfoVisualisatie({ id }: { id: string }) {
+//
+// `speelSignaal` is voor een omhulsel dat zelf bepaalt wanneer de visualisatie in beeld komt, zoals
+// de kaarten van "Nieuw in deze versie". Bij 0 staat de eindstand er stil (nog niet in beeld); elke
+// verhoging speelt hem opnieuw af, net als de knop.
+export function InfoVisualisatie({ id, speelSignaal }: { id: string; speelSignaal?: number }) {
   const { colors } = useTheme();
-  const reduceMotion = useReduceMotion();
-  const [speelSleutel, setSpeelSleutel] = useState(1);
+  const systeemMinder = useReduceMotion();
+  const [opnieuw, setOpnieuw] = useState(0);
   const Vis = VISUALISATIES[id];
   if (!Vis) return null;
+  const extern = speelSignaal !== undefined;
+  const speelSleutel = (extern ? speelSignaal : 1) + opnieuw;
+  const stil = extern && speelSignaal === 0;
+  const reduceMotion = systeemMinder || stil;
 
   return (
     <View style={[styles.vlak, { backgroundColor: colors.verhoogd }]}>
       <View style={styles.kop}>
         <Text style={[Type.overline, styles.label, { color: colors.tekstGedimd }]}>VOORBEELD</Text>
-        {!reduceMotion ? (
+        {!systeemMinder ? (
           <Pressable
-            onPress={() => setSpeelSleutel(s => s + 1)}
+            onPress={() => setOpnieuw(s => s + 1)}
             style={styles.knop}
             accessibilityRole="button"
             accessibilityLabel="Opnieuw afspelen"
