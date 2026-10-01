@@ -95,7 +95,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   // Boven de drempel blijft de kleur neutraal. Schuift eToro de stop op, dan zakt de R/R mee en is
   // die drempel het enige eerlijke oordeel: de score kan nog zo hoog zijn, met een stop van 10% en
   // een doel van 9% verdien je er niets aan.
-  const haaltRr = niveaus.aangepast ? niveaus.rr >= MIN_RISK_REWARD : trade.voldoetAanRR;
+  const haaltRr = niveaus.aangepast ? niveaus.rr >= MIN_RISK_REWARD - 1e-9 : trade.voldoetAanRR;
   const advies = adviesLabel(trade, haaltRr);
   const uitkomst = bevestigingen(trade, niveaus.rr, haaltRr);
   // Het keurmerk popt alleen als een trade bevestigd raakt terwijl de kaart er al staat. Bij elke
