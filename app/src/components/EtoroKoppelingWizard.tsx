@@ -674,7 +674,18 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
   const toetsenbordRuimte = Math.max(0, toetsenbordHoogte - insets.bottom);
 
   return (
-    <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
+    <PodiumScherm
+      zichtbaar={zichtbaar}
+      onSluiten={onSluiten}
+      // Android-terug doet hetzelfde als de knop linksboven: een stap terug, en alleen op de eerste
+      // en laatste stap sluiten. Tijdens het opslaan gebeurt er niets, de kluis schrijft nog.
+      onTerug={() => {
+        if (bezigOpslaan) return true;
+        if (metSluitKnop) return false;
+        vorige();
+        return true;
+      }}
+    >
       {(sluit) => (
         <View style={styles.root}>
           <View style={styles.top}>
