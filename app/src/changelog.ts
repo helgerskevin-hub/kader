@@ -27,6 +27,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       { icoon: 'koop', titel: 'Nieuw koopvenster', tekst: 'Kies een bedrag met één tik en zie wat je riskeert in dollars.' },
     ],
     punten: [
+      'Winst vastzetten met de stopgreep en "winst beschermen" werkt nu ook met een eToro-koppeling. eToro meet de minimale afstand van je stop vanaf de huidige koers, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat',
       'Het Marktklimaat-bericht klopt nu met wat Kader doet: bij een gemengd klimaat geeft Kader geen koopsignalen',
       'Schuift eToro je stop zo op dat de R/R onder 2,0 zakt, dan staat de kaart op Markt op AFWACHTEN in plaats van KOOPZONE of STERK KOOP',
       'De statusbalk in Instellingen en andere schermen wisselt mee als je het thema verandert terwijl het scherm openstaat',
