@@ -57,18 +57,19 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     groepen: [
       {
-        kop: 'Markt',
+        kop: 'Kaarten en signalen',
         punten: [
           'Compactere kaarten op Markt, Kansen en Portfolio: tik om uit te klappen, Details opent het detailscherm',
           'HIGH CONVICTION heet nu STERK KOOP met het keurmerk BEVESTIGD',
           'Coins hebben hun eigen logo, en op Markt en Kansen staat de score als ring eromheen',
+          'Bij een gemengd klimaat, of als de R/R door eToro\'s stop onder 2,0 zakt, geeft Kader geen koopsignaal',
         ],
       },
       {
         kop: 'Portfolio',
         punten: [
           'Je resultaat staat in procenten groot bovenaan elke kaart, met het bedrag eronder',
-          'Sluit eToro een positie op je stop-loss of doel, dan krijg je een melding, ook als de app dicht is',
+          'Sluit eToro een positie op je stop-loss of doel, dan krijg je een melding, ook als de app dicht is (dan kijkt Kader hooguit eens per kwartier)',
         ],
       },
       {
@@ -76,6 +77,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         punten: [
           'Een nieuw ordervenster met snelknoppen voor het bedrag en het plan van Kader in dollars',
           'Stop en doel verzet je met grepen op één baan, binnen de grens die eToro hanteert',
+          'Wissel je tussen demo en echt terwijl een ordervenster openstaat, dan gaat er geen order uit',
+          'In demo zet je winst vast met een stop boven je aankoopprijs',
         ],
       },
       {

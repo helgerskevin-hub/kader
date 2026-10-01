@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -49,8 +49,10 @@ export function NieuwInVersieKaarten({ titel, hoogtepunten, onSluiten, onAlles }
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const scrollRef = useRef<ScrollView>(null);
-  const [breedte, setBreedte] = useState(0);
-  const { height: schermHoogte } = useWindowDimensions();
+  const strookRef = useRef<ScrollView>(null);
+  const { height: schermHoogte, width: schermBreedte } = useWindowDimensions();
+  // Schatting tot onLayout de echte breedte geeft, zodat het vel niet in een frame groeit.
+  const [breedte, setBreedte] = useState(Math.max(0, schermBreedte - 2 * spacing.base));
   const insets = useSafeAreaInsets();
   const [kopHoogte, setKopHoogte] = useState(0);
   const [voetHoogte, setVoetHoogte] = useState(0);
@@ -75,18 +77,39 @@ export function NieuwInVersieKaarten({ titel, hoogtepunten, onSluiten, onAlles }
     setActief(pagina);
     setSleutels(s => s.map((w, i) => (i === pagina ? w + 1 : w)));
     haptiek('tik');
-  }, [aantal]);
+    strookRef.current?.scrollTo({ y: 0, animated: !reduceMotion });
+  }, [aantal, reduceMotion]);
 
+  const paginaBij = (x: number) => Math.min(aantal - 1, Math.max(0, Math.round(x / stap)));
+
+  // Tijdens het vegen alleen de puntjes bijwerken; afspelen en haptiek pas als de pagina vaststaat.
   function opScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     if (stap <= TUSSENRUIMTE) return;
-    opPagina(Math.round(e.nativeEvent.contentOffset.x / stap));
+    setActief(paginaBij(e.nativeEvent.contentOffset.x));
   }
+
+  function opScrollEinde(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (stap <= TUSSENRUIMTE) return;
+    opPagina(paginaBij(e.nativeEvent.contentOffset.x));
+  }
+
+  // Een sleep zonder momentum eindigt zonder momentum-event; alleen als hij al op een pagina staat.
+  function opSleepEinde(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (stap <= TUSSENRUIMTE) return;
+    const x = e.nativeEvent.contentOffset.x;
+    if (Math.abs(x - paginaBij(x) * stap) < 1) opPagina(paginaBij(x));
+  }
+
+  // Bij een breedtewissel (draaien, vensterformaat) opnieuw vastklikken op de huidige pagina.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ x: laatste.current * stap, animated: false });
+  }, [stap]);
 
   function naar(pagina: number) {
     if (pagina < 0 || pagina >= aantal) return;
     scrollRef.current?.scrollTo({ x: pagina * stap, animated: !reduceMotion });
-    // Zonder animatie komt er op Android niet altijd een scroll-event; zet de pagina dus zelf.
-    opPagina(pagina);
+    // Geanimeerd zet onMomentumScrollEnd de pagina; zonder animatie komt dat event niet.
+    if (reduceMotion) opPagina(pagina);
   }
 
   function opToegankelijkheid(e: AccessibilityActionEvent) {
@@ -113,6 +136,7 @@ export function NieuwInVersieKaarten({ titel, hoogtepunten, onSluiten, onAlles }
       </View>
 
       <ScrollView
+        ref={strookRef}
         style={{ maxHeight: strookHoogte }}
         showsVerticalScrollIndicator
         nestedScrollEnabled
@@ -128,6 +152,8 @@ export function NieuwInVersieKaarten({ titel, hoogtepunten, onSluiten, onAlles }
             decelerationRate="fast"
             showsHorizontalScrollIndicator={false}
             onScroll={opScroll}
+            onMomentumScrollEnd={opScrollEinde}
+            onScrollEndDrag={opSleepEinde}
             scrollEventThrottle={16}
             contentContainerStyle={styles.spoor}
           >

@@ -8,6 +8,7 @@ import { BottomSheet } from './BottomSheet';
 import { PilKnop } from './PilKnop';
 import { LijstGroep } from './lijst/LijstGroep';
 import { NieuwInVersieKaarten } from './NieuwInVersieKaarten';
+import { VISUALISATIES } from './informatie/vis';
 import { CHANGELOG, type ChangelogEntry } from '../changelog';
 
 interface Props {
@@ -135,7 +136,7 @@ function Hero({ entry, onSluiten, onAlles }: { entry: ChangelogEntry; onSluiten:
   const titel = heeftNummer(entry.versie) ? `Versie ${entry.versie}` : 'Nieuw in Kader';
   const hoogtepunten = entry.hoogtepunten;
 
-  if (hoogtepunten && hoogtepunten.length > 0 && hoogtepunten.every(h => !!h.vis)) {
+  if (hoogtepunten && hoogtepunten.length > 0 && hoogtepunten.every(h => !!h.vis && h.vis in VISUALISATIES)) {
     return <NieuwInVersieKaarten titel={titel} hoogtepunten={hoogtepunten} onSluiten={onSluiten} onAlles={onAlles} />;
   }
 
