@@ -250,7 +250,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
       titel: nieuw === 'gunstig' ? 'Het marktklimaat is weer gunstig' : 'De bear-modus is voorbij',
       tekst: nieuw === 'gunstig'
         ? 'BTC staat weer boven zijn 50-daags gemiddelde en de marktbreedte stijgt. Kader toont vanaf nu weer koopsignalen.'
-        : 'Het klimaat is van ongunstig naar gemengd gegaan. De bear-modus is uit, maar de markt is nog niet overtuigend: Kader is voorzichtig met koopsignalen.',
+        : 'Het klimaat is van ongunstig naar gemengd gegaan. De bear-modus is uit, maar de markt is nog niet overtuigend. Kader geeft pas weer koopsignalen als het klimaat gunstig is.',
     };
   }
 
@@ -268,7 +268,7 @@ function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beo
     sleutel: sleutelVoor('markt', 'klimaat'),
     doel: { soort: 'markt' },
     titel: 'Het marktklimaat is verzwakt',
-    tekst: `De markt is van gunstig naar gemengd gegaan. Koopsignalen blijven zichtbaar, maar de rugwind is weg.${posities}`,
+    tekst: `De markt is van gunstig naar gemengd gegaan. Kader geeft geen koopsignalen meer tot het klimaat weer gunstig is.${posities}`,
   };
 }
 
