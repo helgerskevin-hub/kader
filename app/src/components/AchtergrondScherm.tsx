@@ -56,6 +56,7 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
       setZoek('');
       indexY.current = 0;
       herstelIndex.current = false;
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
     }
   }, [zichtbaar]);
 
@@ -64,13 +65,19 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
   // hoofdstuk, dus de stand moet apart onthouden en na de nieuwe layout teruggezet worden.
   const indexY = useRef(0);
   const herstelIndex = useRef(false);
+  // Het herstel is pas klaar als de index weer hoog genoeg is om tot indexY te scrollen; daarvoor
+  // klemt de ScrollView de stand af. Tot dan probeert elke nieuwe inhoudshoogte het opnieuw.
+  const inhoudHoogte = useRef(0);
+  const zichtHoogte = useRef(0);
+  const herstel = () => {
+    if (!herstelIndex.current) return;
+    scrollRef.current?.scrollTo({ y: indexY.current, animated: false });
+    if (inhoudHoogte.current - zichtHoogte.current >= indexY.current - 1) herstelIndex.current = false;
+  };
   useEffect(() => {
     if (open === null) {
       if (!herstelIndex.current) return;
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ y: indexY.current, animated: false });
-        herstelIndex.current = false;
-      });
+      requestAnimationFrame(herstel);
       return;
     }
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -107,10 +114,12 @@ export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
             keyboardShouldPersistTaps="handled"
             scrollEventThrottle={32}
             onScroll={e => { if (open === null && !herstelIndex.current) indexY.current = e.nativeEvent.contentOffset.y; }}
-            onContentSizeChange={() => {
-              if (open === null && herstelIndex.current) {
-                scrollRef.current?.scrollTo({ y: indexY.current, animated: false });
-              }
+            // Scrolt de gebruiker zelf, dan wint dat van een herstel dat nog wacht.
+            onScrollBeginDrag={() => { herstelIndex.current = false; }}
+            onLayout={e => { zichtHoogte.current = e.nativeEvent.layout.height; }}
+            onContentSizeChange={(_breedte, hoogte) => {
+              inhoudHoogte.current = hoogte;
+              if (open === null) herstel();
             }}
           >
             <StapOvergang stapIndex={stapIndex}>
