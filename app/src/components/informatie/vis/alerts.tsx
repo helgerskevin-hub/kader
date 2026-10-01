@@ -83,7 +83,8 @@ export function VisAlerts({ speelSleutel, reduceMotion }: VisProps) {
 
 const styles = StyleSheet.create({
   kaart: { borderWidth: 1, borderRadius: radii.kaart, padding: spacing.base, gap: spacing.md },
-  doelTekst: { position: 'absolute', right: 0, top: DOEL_Y + 4 },
+  // Links onder de stippellijn: daar loopt de koers nog laag, rechts kruist hij het label.
+  doelTekst: { position: 'absolute', left: 0, top: DOEL_Y + 4 },
   bel: {
     position: 'absolute',
     right: 0,

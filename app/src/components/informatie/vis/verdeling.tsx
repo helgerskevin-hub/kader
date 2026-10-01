@@ -55,8 +55,9 @@ export function VisVerdeling({ speelSleutel, reduceMotion }: VisProps) {
           </Group>
         </Canvas>
         <View style={styles.midden} pointerEvents="none">
-          <Text style={[Type.prijs, { fontSize: 13, color: colors.winst }]}>+$100.17</Text>
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>ongerealiseerd</Text>
+          {/* Het gat in de ring is vast; bij grote letters krimpt de tekst in plaats van eruit te lopen. */}
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={[Type.prijs, { fontSize: 13, color: colors.winst }]}>+$100.17</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={[Type.caption, { color: colors.tekstGedimd }]}>ongerealiseerd</Text>
         </View>
       </View>
       <View style={styles.legenda}>
@@ -89,7 +90,8 @@ function Boog(p: { kleur: string; begin: number; aandeel: number; voortgang: { v
 const styles = StyleSheet.create({
   kaart: { borderWidth: 1, borderRadius: radii.kaart, padding: spacing.base, gap: spacing.md, alignItems: 'center' },
   ring: { width: MAAT, height: MAAT, alignItems: 'center', justifyContent: 'center' },
-  midden: { position: 'absolute', alignItems: 'center', width: 88 },
+  // Smaller dan het gat in de ring: boven en onder het midden is het gat al smaller, zodat de tekst nooit over de ring loopt.
+  midden: { position: 'absolute', alignItems: 'center', width: MAAT - 2 * DIKTE - 26 },
   legenda: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },
   legendaRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   stip: { width: 10, height: 10, borderRadius: 5 },
