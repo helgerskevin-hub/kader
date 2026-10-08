@@ -4,6 +4,16 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Een kooporder die eToro al heeft uitgevoerd, blijft niet meer hangen onder Wachtende orders. Kader vraagt de status van je eigen orders na en ververst na een order tot tien minuten lang zelf, zolang de app open staat
+- De balk met In posities en Beschikbaar op Portfolio bleef op Android grijs zodra je eToro-saldo binnenkwam. Hij toont nu weer de verdeling, met een derde stuk Gereserveerd voor geld dat vastzit in wachtende orders
+- Met een eToro-koppeling tellen in die balk alleen je eToro-posities van de omgeving waar je in staat. Handmatige trades worden niet meer bij je eToro-saldo opgeteld, en zo ook je demo-geld niet bij echt geld
+- Op Markt zie je je favorieten weer, ook als ze buiten de top 20 vallen. Met Toon alle coins onder de lijst zie je alle geanalyseerde coins
+- Nieuw hoofdstuk in Informatie: Zo komt de analyse tot stand, van 57 coins naar de lijst op Markt
+- Minder meldingen. Kader meldt nog: de ochtendmelding om 9:00, een sterk koopsignaal, stop of doel geraakt, je eigen prijsalerts, het voorstel om je stop aan te trekken, en het advies om (deels) winst te nemen. De meldingen over een omslaand marktklimaat, over je doel verhogen en over zwakke posities zijn weg
+- Staat een positie een volle stop-afstand in winst, dan stelt Kader voor je stop naar break-even of hoger te zetten. Kan Kader dat voorstel bij eToro doorgeven, dan opent een tik op de melding het stopvenster met het voorstel al ingevuld; doorgeven doe je zelf. In je echte account kan dat voor een stop voorbij je instapprijs nog niet, dan is het alleen een advies
+
 ## 0.2.0
 
 - In demo kun je met de stopgreep en "winst beschermen" nu ook met een eToro-koppeling winst vastzetten, met een stop boven je aankoopprijs. Een meting wijst erop dat eToro de minimale afstand dan vanaf de huidige koers meet, dus bij bitcoin kan dat pas als je positie ruim 10% in winst staat. In je echte account blijft de stop voorlopig onder je aankoopprijs, tot dat daar ook gemeten is
