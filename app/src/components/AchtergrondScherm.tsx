@@ -3,7 +3,7 @@ import { ScrollView, View, Text, Pressable, TextInput, StyleSheet } from 'react-
 import Animated from 'react-native-reanimated';
 import {
   X, ChevronLeft, Search, CircleX, Info,
-  Activity, BadgeCheck, Bell, BellRing, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
+  Activity, BadgeCheck, Bell, BellRing, ChartCandlestick, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
   Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, TrendingDown, Users,
   Wallet, Zap,
   type LucideIcon,
@@ -32,7 +32,7 @@ interface Props {
 
 // Statische map van icoonnaam (uit hoofdstukken.ts) naar component; geen dynamische require.
 const ICONEN: Record<string, LucideIcon> = {
-  Activity, BadgeCheck, Bell, BellRing, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
+  Activity, BadgeCheck, Bell, BellRing, ChartCandlestick, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
   Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, TrendingDown, Users,
   Wallet, Zap,
 };

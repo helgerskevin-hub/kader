@@ -136,6 +136,25 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
 
   // ---------- Markt ----------
   {
+    id: 'marktanalyse',
+    groep: 'markt',
+    titel: 'Zo komt de analyse tot stand',
+    icoon: 'ChartCandlestick',
+    nieuw: true,
+    kort: 'Van 57 coins naar de lijst op Markt, stap voor stap.',
+    zie: 'De lijst op Markt toont standaard de 20 coins die er na de analyse het best voor staan, met je favorieten erbij. Met één tik zie je alle geanalyseerde coins. Elke coin heeft een score, een label en drie niveaus: entry, stop en doel.',
+    reken: 'Kader kijkt naar 57 coins: allemaal handelbaar op eToro en met een USDT-paar op Binance. Per coin komen er 200 dagcandles van Binance, of van CoinGecko als Binance geen data geeft. Daar is geen account of sleutel voor nodig. Op die candles rekent Kader de indicatoren uit en daaruit de score van 0 tot 100. De stop komt onder het laagste punt van de laatste 10 dagen en het doel op de entry plus 3x de ATR. Haalt de R/R geen 1 : 2, dan wordt het geen koopsignaal. Daarna komt de klimaatpoort: alleen bij een gunstig klimaat blijft KOOP staan. Tot slot sorteert Kader de coins met BEVESTIGD eerst, dan de coins die de R/R halen, dan op score, en houdt de eerste 20 over.',
+    doe: 'De analyse start met de knop Start analyse of als je op Markt omlaag veegt. Er loopt geen timer: de lijst is zo vers als je laatste scan. De radar op Kansen is een aparte scan, die opnieuw loopt als hij ouder is dan 30 minuten. In de achtergrond scant Kader elk uur op een sterk koopsignaal, zie Meldingen.',
+    detail: [
+      'Indicatoren: RSI (14), EMA20 en EMA50, MACD (12/26/9), ATR (14) en het volume tegenover het gemiddelde van 20 dagen; zie De indicatoren',
+      'De score, de labels en BEVESTIGD staan bij De Kader-score en Advieslabels',
+      'Stop en doel staan bij Stop en doel; de klimaatpoort bij Het marktklimaat',
+      'Zonder gunstig klimaat staat elke coin op AFWACHTEN, de lijst blijft wel zichtbaar',
+      'Heeft een coin alleen CoinGecko-data, dan zijn de candles grover en wijken stop en doel iets af',
+      'De radar is een aparte scan met eigen niveaus; zie De Momentum-radar',
+    ],
+  },
+  {
     id: 'klimaat',
     groep: 'markt',
     titel: 'Het marktklimaat',
@@ -148,7 +167,6 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
       'Het aandeel coins wordt vergeleken met 20 dagen eerder',
       'Bij gemengd staat elke coin op Markt ook op AFWACHTEN',
       'Voorbeelden van ongunstige perioden: 2018, 2022 en begin 2026',
-      'Je krijgt een melding als het klimaat omslaat',
       'De Momentum-radar op Kansen kijkt niet naar het klimaat',
     ],
   },
@@ -165,7 +183,6 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
       'Geen koopsignalen op Markt zolang het klimaat ongunstig is',
       'Op Markt verschijnt de lijst Wie houdt stand?',
       'Op Portfolio verschijnt per positie een afbouwadvies als daar reden voor is',
-      'Je krijgt een melding als de bear-modus begint en als hij voorbij is',
     ],
   },
   {
@@ -269,13 +286,13 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     icoon: 'Bell',
     nieuw: true,
     kort: 'Wanneer Kader je een melding stuurt.',
-    zie: 'Kader stuurt een melding als er iets verandert dat je moet weten. Je vindt ze terug onder Meldingen in het menu; tik daar op een melding om naar de positie of coin te gaan.',
-    reken: 'Voor je posities: als de koers je doel nadert terwijl het momentum nog sterk is ("nadert de rand van je kader"), als je in winst staat en het momentum afvlakt, als je stop of doel geraakt is, en in een dalende markt als meerdere posities zwak staan. Voor de markt: als het klimaat omslaat, of bij een koopsignaal met BEVESTIGD. Daarnaast je eigen prijsalerts en elke ochtend om 9:00 "Het kader van vandaag staat klaar".',
-    doe: 'Dezelfde melding over dezelfde positie komt hooguit één keer per zes uur. Een geraakte stop, een geraakt doel en je prijsalerts komen meteen; de rest bundelt Kader tot hooguit één melding per uur.',
+    zie: 'Kader stuurt alleen een melding als je iets moet weten of doen. Je vindt ze terug onder Meldingen in het menu; tik daar op een melding om naar de positie of coin te gaan.',
+    reken: 'Dat zijn er zes: elke ochtend om 9:00 "Het kader van vandaag staat klaar"; een sterk koopsignaal uit de achtergrondscan, als de coin BEVESTIGD is en het klimaat gunstig; een geraakte stop of een geraakt doel, bij eigen trades en bij eToro-posities; je eigen prijsalerts; "stop aantrekken" of "winst vastzetten" als je stop naar break-even kan; en een afbouwadvies per positie, alleen als Kader echt adviseert (deels) winst te nemen. Een tik op de stop-melding opent het stopvenster met het voorstel al ingevuld. Jij bevestigt.',
+    doe: 'Dezelfde melding over dezelfde positie komt hooguit één keer per zes uur. Een geraakte stop, een geraakt doel en je prijsalerts komen meteen; de overige trade-meldingen bundelt Kader tot hooguit één per uur. Een melding dat het marktklimaat omslaat, dat een doel hoger kan of dat meerdere posities zwak staan, stuurt Kader niet meer.',
     detail: [
       'Terwijl de app open is: controle elke 5 minuten',
       'Buiten de app: Android kiest zelf het moment, minimaal elk kwartier, dus een melding kan later komen',
-      'Hooguit drie nieuwe koopsignalen per keer',
+      'De scan op sterke koopsignalen loopt hooguit één keer per uur, met hooguit drie nieuwe koopsignalen per keer',
       'Meldingen uit in Instellingen zet ook je prijsalerts stil',
     ],
   },
@@ -446,7 +463,7 @@ export const BRONNEN: { titel: string; tekst: string; licentie?: string }[] = [
 if (require.main === module) {
   const alle = [...HOOFDSTUKKEN, SHORTS_HOOFDSTUK];
 
-  console.assert(HOOFDSTUKKEN.length === 21, `er horen 21 hoofdstukken te zijn, was ${HOOFDSTUKKEN.length}`);
+  console.assert(HOOFDSTUKKEN.length === 22, `er horen 22 hoofdstukken te zijn, was ${HOOFDSTUKKEN.length}`);
 
   const ids = alle.map(h => h.id);
   console.assert(new Set(ids).size === ids.length, `ids moeten uniek zijn: ${ids.join(', ')}`);
@@ -478,8 +495,8 @@ if (require.main === module) {
     console.assert(!/\bkader\b/.test(zonderVast), `"kader" buiten een vaste zin in: ${t}`);
   }
 
-  console.assert(HOOFDSTUKKEN.filter(h => h.nieuw).map(h => h.id).sort().join(',') === 'meldingen,radar',
-    'alleen radar en meldingen horen nieuw te zijn');
+  console.assert(HOOFDSTUKKEN.filter(h => h.nieuw).map(h => h.id).sort().join(',') === 'marktanalyse,meldingen,radar',
+    'alleen marktanalyse, radar en meldingen horen nieuw te zijn');
   console.assert(!ids.includes('kansscore'), 'het oude kansscore-hoofdstuk hoort er niet meer in');
 
   console.log('hoofdstukken.ts self-check geslaagd');
