@@ -144,7 +144,7 @@ export function VerdelingScherm({ zichtbaar, trades, livePrijzen, onSluiten }: P
                       ? 'Nog geen live koersen om je posities te wegen.'
                       : (waarde.ongerealiseerdPct === null
                         ? ''
-                        : `Resultaat ${fmtPct(waarde.ongerealiseerdPct)}, ${fmtResultaatUsd(waarde.ongerealiseerdUsd)}, over een inleg van ${fmtBedrag(waarde.ingelegdUsd)}. `)
+                        : `Resultaat ${fmtPct(waarde.ongerealiseerdPct)}, ${fmtResultaatUsd(waarde.ongerealiseerdUsd)}, over een inleg van ${fmtBedrag(waarde.ingelegdMetKoersUsd)}. `)
                         + 'Verdeling: ' + vol.coins
                           .slice(0, EIGEN_KLEUREN)
                           .map(c => `${c.symbool} ${spreekAandeel(c.aandeel)}`)
