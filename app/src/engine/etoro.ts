@@ -42,6 +42,10 @@ interface EtoroPositie {
   openDateTime: string;
   stopLossRate?: number;
   takeProfitRate?: number;
+  // De order waaruit deze positie ontstond. Niet gemeten; eToro schrijft orderID en orderId door
+  // elkaar, dus beide. Ontbreekt hij, dan valt er niets te koppelen en blijft de order gewoon staan.
+  orderID?: number;
+  orderId?: number;
 }
 
 // Een kooporder die nog niet gevuld is: een limietorder, of een marktorder op een instrument
@@ -390,6 +394,12 @@ type OrderSoort = 'markt' | 'limiet';
 // genegeerd en stond het vastgezette geld weer als besteedbaar. Nu tellen orders en ordersForOpen
 // allebei mee. De oude gokken tellen alleen als geen van beide er is, anders zou dezelfde order
 // onder twee namen dubbel afgetrokken kunnen worden.
+//
+// Een open positie met hetzelfde orderID verbergt de order hier bewust niet. Die koppeling is niet
+// gemeten, en bij een gedeeltelijke vulling zit er nog geld vast. Liever een gevulde order even
+// dubbel tellen dan vastgezet geld als besteedbaar tonen. Een eigen order met een definitieve
+// status valt in PortfolioProvider weg (zie isAfgerond); orderID op een positie wordt nog wel
+// gelezen voor de dev-log hieronder.
 //
 // null = eToro stuurde geen enkele lijst mee.
 function wachtendeLijsten(portfolio: EtoroPortfolioRespons): { soort: OrderSoort; order: EtoroWachtendeOrder }[] | null {
@@ -880,12 +890,17 @@ export interface OrderStatus {
   reden: string | null;
   definitief: boolean;
   orderId: number | null;
+  // Positie-ID's uit positionExecutions; leeg als eToro er (nog) geen meestuurt.
+  positieIds: number[];
 }
 
 interface OrderLookupRespons {
   orderId?: number;
   orderID?: number;
   status?: { id?: number; name?: string; errorCode?: number; errorMessage?: string };
+  // Gemeten (demo): de posities die uit een gevulde order ontstonden. De schrijfwijze van het id is
+  // alleen als positionId gezien; positionID staat erbij omdat eToro dat elders wel zo schrijft.
+  positionExecutions?: { positionId?: number; positionID?: number }[];
 }
 
 // Uit eToro's docs: 3 Filled, 4 Rejected, 7 Canceled, 8 Expired, 9 CanceledPartiallyFilled,
@@ -957,6 +972,9 @@ export async function zoekOrderStatus(
     reden: reden ? reden.slice(0, 200) : null,
     definitief: isDefinitieveStatus(id),
     orderId: positiefGetal(data?.orderId ?? data?.orderID),
+    positieIds: (Array.isArray(data?.positionExecutions) ? data.positionExecutions : [])
+      .map(e => positiefGetal(e?.positionId ?? e?.positionID))
+      .filter((p): p is number => p !== null),
   };
 }
 
@@ -1270,6 +1288,9 @@ export interface EtoroSyncResultaat {
   // meestuurt. Nooit 0 invullen: een verzonnen saldo is erger dan geen saldo, want er wordt een
   // totaal vermogen op gebaseerd.
   vrijSaldoUsd: number | null;
+  // Het kale clientPortfolio.credit, zodat PortfolioProvider het besteedbare bedrag opnieuw kan
+  // uitrekenen over de orders die na isAfgerond nog in beeld blijven.
+  creditUsd: number | null;
   // Wat er vastzit in orders die nog niet gevuld zijn, en hoeveel dat er zijn. Zie bepaalSaldoStand.
   gereserveerdUsd: number | null;
   wachtendeOrders: number;
@@ -1308,6 +1329,22 @@ function bouwWachtendeOrders(
     .sort((a, b) => (b.openTijd ?? 0) - (a.openTijd ?? 0));
 }
 
+// Eenmalig per app-start, alleen in een dev-build: de ruwe orderlijsten plus de orderID per positie.
+// Open punt (TODO.md): in welke lijst blijft een gevulde marktorder met SL/TP staan, en draagt de
+// positie dan hetzelfde orderID? Pas met een echte respons weten we of de koppeling hierboven werkt.
+let orderlijstenGelogd = false;
+function logOrderlijstenEenmalig(portfolio: EtoroPortfolioRespons): void {
+  if (orderlijstenGelogd || typeof __DEV__ === 'undefined' || !__DEV__) return;
+  orderlijstenGelogd = true;
+  const cp = (portfolio.clientPortfolio ?? {}) as Record<string, unknown>;
+  const lijsten = Object.fromEntries(Object.entries(cp).filter(([sleutel, waarde]) => Array.isArray(waarde) && sleutel !== 'positions'));
+  const posities = (portfolio.clientPortfolio?.positions ?? []).map(p => {
+    const { positionID, instrumentID, orderID, orderId, openDateTime } = p ?? {} as EtoroPositie;
+    return { positionID, instrumentID, orderID, orderId, openDateTime };
+  });
+  console.log('[Kader] eToro orderlijsten (eenmalig):', JSON.stringify({ lijsten, posities }, null, 2));
+}
+
 // Open posities en gesloten historie in één keer. Bewust één functie en niet twee losse imports:
 // beide hebben dezelfde instrument- en instrumenttype-lookups nodig, en die endpoints delen een
 // quotum van 60 requests per 60 seconden. Los aanroepen deed elke sync die twee calls dubbel.
@@ -1318,6 +1355,7 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
   ]);
   const posities = portfolio.clientPortfolio?.positions ?? [];
   const orders = leesWachtendeOrders(portfolio);
+  logOrderlijstenEenmalig(portfolio);
 
   // De orders gaan mee in dezelfde instrument-lookup: geen extra request op het gedeelde quotum.
   const ids = [...new Set([
@@ -1344,6 +1382,7 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
     open: bouwOpenTrades(posities, instrumentKaart, cryptoTypeIds, omgeving),
     historie: bouwGeslotenTrades(regels, instrumentKaart, cryptoTypeIds, omgeving),
     vrijSaldoUsd: saldo.besteedbaarUsd,
+    creditUsd: saldo.creditUsd,
     gereserveerdUsd: saldo.gereserveerdUsd,
     wachtendeOrders: saldo.wachtendeOrders,
     wachtendeOrderLijst: bouwWachtendeOrders(orders, instrumentKaart, cryptoTypeIds, omgeving),
@@ -1768,6 +1807,16 @@ if (require.main === module) {
     console.assert(aandelen[0]?.soort === 'limiet' && aandelen[0]?.limietKoers === 150, 'een stockOrder met koers is een limietorder');
     console.assert(aandelen[1]?.soort === 'markt' && aandelen[1]?.limietKoers === null, 'een stockOrder zonder koers is een marktorder');
     console.assert(aandelen[2]?.soort === 'markt', 'een koers van 0 is geen koers, dus marktorder');
+
+    // Fail open: een positie met hetzelfde orderID verbergt de order niet (koppeling niet gemeten,
+    // een gedeeltelijke vulling houdt nog geld vast). Lijst en saldo houden alle drie de orders.
+    const positie = (over: Partial<EtoroPositie>): EtoroPositie => ({
+      positionID: 1, instrumentID: 1001, isBuy: true, units: 1, openRate: 1, openDateTime: '2026-09-01T10:00:00Z', ...over,
+    });
+    const alGevuld = { clientPortfolio: { credit: 100, positions: [positie({ orderID: 41 }), positie({ orderId: 42 })],
+      ordersForOpen: [{ orderId: 41, amount: 10 }, { orderID: 42, amount: 10 }, { orderId: 43, amount: 10 }] } };
+    console.assert(leesWachtendeOrders(alGevuld).length === 3, 'een positie met hetzelfde orderID verbergt de order niet');
+    console.assert(bepaalSaldoStand(alGevuld).gereserveerdUsd === 30, 'het bedrag van zo een order blijft gereserveerd');
   }
 
   // Het sluitantwoord zoals gemeten (28 sep 2026, demo): orderId genest onder orderForClose.orderID.
