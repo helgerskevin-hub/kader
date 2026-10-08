@@ -85,6 +85,14 @@ Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft t
 - [ ] Stop automatisch meetrekken als de trade in de winst loopt. **Verlagen mag nooit**, ook niet als de
       analyse dat zou suggereren. De trailing-berekening zit al in `stopAfstandStructuur()`, en
       `useStopLossLimiet.ts` moet toetsen of eToro het niveau accepteert voordat het verstuurd wordt
+  - [x] Fase 1: advies plus bevestigen met één tik. De melding "zet je winst vast" vuurt vanaf 1R winst
+        (of in winst met afvlakkend momentum); een tik opent het stop-venster met het voorstel ingevuld,
+        de gebruiker bevestigt zelf. Zie `docs/plan-portfolio-fixes.md` punt 4
+  - [ ] Fase 2: meten op demo. `scripts/etoro-demo-order.ts --stopmeting` draaien voor een stop boven de
+        entry, en een demo-order met `isTslEnabled: true` testen (eToro's eigen trailing stop, nooit
+        getest). Werkt een stop boven de entry, dan de blokkade in `NiveausSheet` voor echt geld opheffen
+  - [ ] Fase 3: Kader verhoogt de stop zelf (nooit verlagen), eventueel via eToro's native TSL. Pas na
+        een besluit van Kevin en Thom, zie het besluitpunt hierboven
 - [x] **Doel meebewegen:** gemeten, geen knop bouwen. Het advies vuurt in 1,6% van de trades en wint alleen binnen de ruis (+0,006 R per trade). Zie [meting K](docs/metingen.md#meting-k-doel-meebewegen-29-sep-2026)
 - [ ] Verkoopsignaal als de analyse zegt dat het op is, ook als het doel nog niet geraakt is
 - [ ] Deze bewaking moet in de achtergrondtaak passen. Android's ondergrens is 15 minuten en het systeem

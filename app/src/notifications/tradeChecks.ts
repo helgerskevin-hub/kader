@@ -1,7 +1,5 @@
 import { PortfolioTrade, richtingVan } from '../state/portfolioTypes';
-import { drempelBijnaOpDoel } from '../state/advies';
-import { voorstelTrailingStop, beoordeelPortfolioRisico } from '../state/afbouw';
-import { Klimaat } from '../engine/marktklimaat';
+import { voorstelTrailingStop, bepaalAfbouwAdvies } from '../state/afbouw';
 import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { haalData, haalLaatstePrijzen } from '../engine/marketData';
 import { scoorCandles, analyseerMarkt } from '../engine/analyzer';
@@ -12,7 +10,10 @@ import { MeldingDoel, leesDoel } from './meldingDoel';
 import { bewaarAlerts, geraakteAlerts, laadAlerts, wachtendeSymbolen } from '../state/prijsalerts';
 import { meldingenAan } from '../state/meldingVoorkeur';
 
-type TriggerType = 'verhoogTP' | 'trekStopAan' | 'sterkeKoop' | 'klimaat' | 'portfolioRisico';
+// 'verhoogTP', 'klimaat' en 'portfolioRisico' bestonden tot deze versie. Ze worden niet meer
+// verstuurd; oude regels in het meldingenlog blijven gewoon leesbaar (het log bewaart titel en tekst,
+// niet het type), en oude suppressie-sleutels ruimt snoei na zes uur vanzelf op.
+type TriggerType = 'trekStopAan' | 'sterkeKoop' | 'afbouwen';
 
 // Per trade + trigger het epoch-ms van de laatst verstuurde melding.
 type SuppressieState = Record<string, number>;
@@ -164,112 +165,59 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
 
   const meldingen: Melding[] = [];
 
-  // Doel in zicht en het momentum draagt nog: voorstel om het doel op te rekken naar het verse
-  // ATR-doel. Alleen als dat gunstiger ligt dan het huidige doel, anders is het geen verbetering.
+  // Stop aantrekken: de positie staat minstens 1R in winst (de koers ligt minstens één
+  // stop-afstand voorbij de entry), of hij staat in winst en het momentum vlakt af. Eén melding per
+  // trade voor beide redenen. Alleen melden als het voorstel de stop echt richting winst brengt.
   //
-  // scoorCandles levert vooralsnog alleen long-niveaus (vers.takeProfit ligt altijd boven de
-  // entry), dus voor een short is er nog geen vers doel om naartoe te verhogen. Dat komt met de
-  // short-signalen in PR2; tot die tijd slaan we deze trigger voor shorts over in plaats van een
-  // long-doel op een short te plakken.
-  if (!short) {
-    const bijnaOpDoel = koers > drempelBijnaOpDoel(trade.entryPrijs, trade.takeProfit);
-    const momentumSterk = vers.macdBullish && histogramStijgt;
-    if (bijnaOpDoel && momentumSterk && koers < trade.takeProfit && vers.takeProfit > trade.takeProfit) {
-      meldingen.push({
-        sleutel: sleutelVoor(trade.id, 'verhoogTP'),
-        doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
-        titel: `${trade.symbool} nadert de rand van je kader`,
-        tekst: `De koers staat op ${fmtPrijs(koers)}, dicht bij je doel van ${fmtPrijs(trade.takeProfit)}, en het momentum is nog sterk. Overweeg je doel te verhogen naar ${fmtPrijs(vers.takeProfit)}.`,
-      });
-    }
-  }
-
-  // In winst maar het momentum vlakt af: stop aantrekken tot break-even of, richtinggevoelig, een
-  // ATR van de koers af. Alleen melden als dat de stop echt richting winst brengt.
-  const inWinst = short ? koers < trade.entryPrijs : koers > trade.entryPrijs;
+  // De R rekent met de huidige stop, want de oorspronkelijke stop wordt niet apart bewaard. Dat is
+  // hier precies goed: zodra de stop op break-even of erboven staat, faalt de vormcontrole
+  // hierboven en zwijgt deze trigger vanzelf.
+  //
+  // Dit is alleen advies. Er gaat niets naar eToro: een tik op de melding opent het stop-venster
+  // met het voorstel ingevuld, en pas de bevestigknop daar verzet de stop.
+  const teken = short ? -1 : 1;
+  const winstAfstand = teken * (koers - trade.entryPrijs);
+  const risicoAfstand = teken * (trade.entryPrijs - trade.stopLoss);
+  const inWinst = winstAfstand > 0;
+  const eenRWinst = risicoAfstand > 0 && winstAfstand >= risicoAfstand;
   const momentumVlaktAf = !histogramGunstig;
-  if (inWinst && momentumVlaktAf) {
+  if (inWinst && (eenRWinst || momentumVlaktAf)) {
     // Zelfde berekening als het afbouwadvies in het Portfolio-scherm, bewust uit één bron: een
     // melding die een ander niveau noemt dan het scherm kost het vertrouwen in allebei.
     const voorstel = voorstelTrailingStop(trade.entryPrijs, koers, vers.atr, trade.stopLoss, richting);
     if (voorstel !== null) {
+      const breakEven = Math.abs(voorstel - trade.entryPrijs) < 1e-9;
+      const werkwoord = short ? 'verlagen' : 'verhogen';
+      const niveau = breakEven
+        ? `${fmtPrijs(voorstel)}, je instapprijs (break-even)`
+        : `${fmtPrijs(voorstel)}, dan staat de winst tot daar vast`;
+      const r = (winstAfstand / risicoAfstand).toFixed(1).replace('.', ',');
+      // Alleen een voorstel dat NiveausSheet ook echt kan bevestigen gaat als voorstelStop mee: een
+      // eToro-trade in demo, of in je echte account een niveau dat nog aan de veilige kant van de
+      // instap ligt (zie echtPlafond en echtVloer daar). Anders is het puur advies en opent de tik
+      // gewoon de trade.
+      const echt = (trade.etoroOmgeving ?? 'real') === 'real';
+      const veiligInEcht = short ? voorstel > trade.entryPrijs : voorstel < trade.entryPrijs;
+      const bevestigbaar = trade.bron === 'etoro' && (!echt || veiligInEcht);
+      const slot = bevestigbaar
+        ? ' Tik om het voorstel te bekijken en te bevestigen.'
+        : trade.bron === 'etoro'
+          ? ' Dat niveau kan Kader in je echte account nog niet doorgeven; verzet de stop zelf in de eToro-app.'
+          : ' Pas de stop aan via Aanpassen bij de trade.';
       meldingen.push({
         sleutel: sleutelVoor(trade.id, 'trekStopAan'),
-        doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
-        titel: `${trade.symbool}: momentum vlakt af`,
-        tekst: `Je staat in winst (koers ${fmtPrijs(koers)}), maar het momentum neemt af. Overweeg je stop te ${short ? 'verlagen' : 'verhogen'} van ${fmtPrijs(trade.stopLoss)} naar ${fmtPrijs(voorstel)} om winst vast te zetten.`,
+        doel: bevestigbaar
+          ? { soort: 'trade', tradeId: trade.id, symbool: trade.symbool, voorstelStop: voorstel }
+          : { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
+        titel: eenRWinst ? `${trade.symbool}: zet je winst vast` : `${trade.symbool}: momentum vlakt af`,
+        tekst: eenRWinst
+          ? `Je staat ${r}R in winst (koers ${fmtPrijs(koers)}). Overweeg je stop te ${werkwoord} van ${fmtPrijs(trade.stopLoss)} naar ${niveau}.${slot}`
+          : `Je staat in winst (koers ${fmtPrijs(koers)}), maar het momentum neemt af. Overweeg je stop te ${werkwoord} van ${fmtPrijs(trade.stopLoss)} naar ${niveau}.${slot}`,
       });
     }
   }
 
   return meldingen;
-}
-
-// De laatst gemelde markttoestand. `zwakGemeld` is het aantal zwakke posities waarover al een
-// waarschuwing uitging; daardoor meldt de app alleen verslechtering en niet elke zes uur opnieuw
-// hetzelfde tijdens een bearmarkt die maanden duurt.
-interface KlimaatGeheugen {
-  klimaat: Klimaat | null;
-  zwakGemeld: number;
-}
-
-async function laadKlimaatGeheugen(): Promise<KlimaatGeheugen> {
-  const ruw = await laadObject<Partial<KlimaatGeheugen>>(SLEUTELS.laatsteKlimaat);
-  const klimaat = ruw?.klimaat;
-  return {
-    klimaat: klimaat === 'gunstig' || klimaat === 'gemengd' || klimaat === 'ongunstig' ? klimaat : null,
-    zwakGemeld: typeof ruw?.zwakGemeld === 'number' && Number.isFinite(ruw.zwakGemeld) ? ruw.zwakGemeld : 0,
-  };
-}
-
-// Minimaal aantal zwakke posities voordat een portefeuillebrede waarschuwing terecht is. Bij één
-// zwakke positie is er niets portefeuillebreeds aan de hand; daar gaan de trade-meldingen al over.
-const MIN_ZWAK_VOOR_MELDING = 2;
-
-function klimaatMelding(vorig: Klimaat | null, nieuw: Klimaat, zwak: number, beoordeeld: number): Melding | null {
-  // Eerste meting ooit: dan is er geen omslag, alleen een beginstand. Daar hoort geen melding bij.
-  if (vorig === null || vorig === nieuw) return null;
-
-  const posities = beoordeeld > 0 && zwak > 0
-    ? ` Van je ${beoordeeld} beoordeelde posities ${zwak === 1 ? 'staat er 1' : `staan er ${zwak}`} aan de verkeerde kant van het eigen 50-daags gemiddelde.`
-    : '';
-
-  if (nieuw === 'ongunstig') {
-    return {
-      sleutel: sleutelVoor('markt', 'klimaat'),
-    doel: { soort: 'markt' },
-      titel: 'Marktklimaat omgeslagen naar ongunstig',
-      tekst: `BTC staat onder zijn 50-daags gemiddelde en de marktbreedte daalt. Kader geeft vanaf nu geen koopsignalen meer en schakelt over op bear-modus.${posities}`,
-    };
-  }
-
-  if (vorig === 'ongunstig') {
-    return {
-      sleutel: sleutelVoor('markt', 'klimaat'),
-    doel: { soort: 'markt' },
-      titel: nieuw === 'gunstig' ? 'Het marktklimaat is weer gunstig' : 'De bear-modus is voorbij',
-      tekst: nieuw === 'gunstig'
-        ? 'BTC staat weer boven zijn 50-daags gemiddelde en de marktbreedte stijgt. Kader toont vanaf nu weer koopsignalen.'
-        : 'Het klimaat is van ongunstig naar gemengd gegaan. De bear-modus is uit, maar de markt is nog niet overtuigend. Kader geeft pas weer koopsignalen als het klimaat gunstig is.',
-    };
-  }
-
-  if (nieuw === 'gunstig') {
-    return {
-      sleutel: sleutelVoor('markt', 'klimaat'),
-    doel: { soort: 'markt' },
-      titel: 'Het marktklimaat is gunstig',
-      tekst: 'BTC staat boven zijn 50-daags gemiddelde en de marktbreedte stijgt. In dit klimaat presteerden koopsignalen historisch het best.',
-    };
-  }
-
-  // gunstig -> gemengd
-  return {
-    sleutel: sleutelVoor('markt', 'klimaat'),
-    doel: { soort: 'markt' },
-    titel: 'Het marktklimaat is verzwakt',
-    tekst: `De markt is van gunstig naar gemengd gegaan. Kader geeft geen koopsignalen meer tot het klimaat weer gunstig is.${posities}`,
-  };
 }
 
 // Eén marktronde: haalt de scan één keer op en leidt daar alle marktbrede meldingen uit af. Bewust
@@ -305,37 +253,30 @@ async function beoordeelMarkt(
 
   if (!klimaat) return meldingen;
 
-  // De scan levert voor elke coin een verse koers, dus het risico-oordeel over de open posities
-  // kost hier geen enkel extra verzoek. De achtergrondtaak heeft ook geen andere prijsbron: die
-  // draait buiten de React-tree en kan niet bij de live prijzen in PortfolioProvider.
+  // De scan levert voor elke coin een verse koers en EMA50/ATR, dus het afbouwadvies over de open
+  // posities kost hier geen enkel extra verzoek. De achtergrondtaak heeft ook geen andere prijsbron:
+  // die draait buiten de React-tree en kan niet bij de live prijzen in PortfolioProvider.
+  //
+  // Alleen niveau 'afbouwen' geeft een melding: dat is echt advies om (deels) winst te nemen. De
+  // oude portefeuillebrede melding ("X van je posities staan zwak") is weg, die vroeg nergens om een
+  // concrete handeling. Zelfde berekening als het Portfolio-scherm, dus melding en scherm zeggen
+  // hetzelfde.
   const marktPerSymbool = Object.fromEntries(alle.map(t => [t.symbool, t]));
-  const prijzen = Object.fromEntries(alle.map(t => [t.symbool, t.prijs]));
-  const risico = beoordeelPortfolioRisico(open, prijzen, marktPerSymbool);
-
-  const geheugen = await laadKlimaatGeheugen();
-  const omslag = klimaatMelding(geheugen.klimaat, klimaat.klimaat, risico.zwak, risico.beoordeeld);
-  if (omslag) meldingen.push(omslag);
-
-  // Alleen bij verslechtering: staan er meer posities zwak dan waarover we al gewaarschuwd hebben?
-  // Zonder die vergelijking zou dezelfde waarschuwing een hele bearmarkt lang blijven terugkomen.
-  const verslechterd = klimaat.klimaat === 'ongunstig'
-    && risico.zwak >= MIN_ZWAK_VOOR_MELDING
-    && risico.zwak > geheugen.zwakGemeld;
-  if (verslechterd && !omslag) {
+  for (const trade of open) {
+    const markt = marktPerSymbool[trade.symbool];
+    const advies = bepaalAfbouwAdvies(trade, markt?.prijs, markt, klimaat.klimaat);
+    if (advies?.niveau !== 'afbouwen') continue;
     meldingen.push({
-      sleutel: sleutelVoor('markt', 'portfolioRisico'),
-      doel: { soort: 'portfolio' },
-      titel: `${risico.zwak} van je ${risico.beoordeeld} posities staan zwak`,
-      tekst: `De markt daalt en ${risico.zwak} van je beoordeelde posities staan aan de verkeerde kant van hun 50-daags gemiddelde${risico.dichtBijStop > 0 ? `, waarvan ${risico.dichtBijStop} binnen één dagbeweging van de stop` : ''}. Bekijk in Portfolio wat je wil afbouwen.`,
+      sleutel: sleutelVoor(trade.id, 'afbouwen'),
+      doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
+      titel: `${trade.symbool}: winst beschermen`,
+      tekst: advies.tekst,
     });
   }
 
-  await bewaarObject(SLEUTELS.laatsteKlimaat, {
-    klimaat: klimaat.klimaat,
-    // Buiten een ongunstig klimaat op nul, zodat een volgende bearmarkt weer vanaf de eerste
-    // zwakke positie waarschuwt in plaats van pas boven de vorige stand.
-    zwakGemeld: klimaat.klimaat === 'ongunstig' ? Math.max(risico.zwak, geheugen.zwakGemeld) : 0,
-  } satisfies KlimaatGeheugen);
+  // De klimaatstand blijft bewaard, ook nu de omslagmelding weg is. Het veld zwakGemeld hoorde bij
+  // de vervallen portefeuillemelding en staat er alleen nog voor de vorm.
+  await bewaarObject(SLEUTELS.laatsteKlimaat, { klimaat: klimaat.klimaat, zwakGemeld: 0 });
 
   return meldingen;
 }
@@ -383,7 +324,7 @@ export async function checkPrijsalerts(): Promise<number> {
   // Eerst sturen, dan pas wegschrijven dat hij af is. Andersom zou een app-kill tussen die twee in
   // de alert stilletjes opeten en dan mis je het niveau waar je op wachtte. Nu is het ergste geval
   // dezelfde melding nog een keer, en dat is bij een alert die je zelf zette het minst erge.
-  if (!await stuurTradeMelding(titel, tekst)) return 0;
+  if (!await stuurTradeMelding(titel, tekst, meldingen.length === 1 ? eerste.doel : undefined)) return 0;
 
   const geraakteKoersen = new Map(geraakt.map(g => [g.alert.id, g.koers]));
   await bewaarAlerts(alerts.map(a => {
@@ -463,7 +404,9 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
     const tekst = teVersturen.length === 1
       ? eerste.tekst
       : `${teVersturen.map(m => m.titel).join(', ')}. Open de app voor details.`;
-    if (await stuurTradeMelding(titel, tekst)) {
+    // Alleen een losse melding krijgt een doel mee voor de tik: een bundel gaat over meerdere
+    // trades, die opent gewoon de app en staat per regel in het meldingenlog.
+    if (await stuurTradeMelding(titel, tekst, teVersturen.length === 1 ? eerste.doel : undefined)) {
       for (const melding of teVersturen) bijgewerkt[melding.sleutel] = nu;
       verstuurd = teVersturen.length;
       await loggeMeldingen(teVersturen, nu);
@@ -478,7 +421,7 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   }
 
   const levend = new Set(
-    open.flatMap(t => [sleutelVoor(t.id, 'verhoogTP'), sleutelVoor(t.id, 'trekStopAan')]),
+    open.flatMap(t => [sleutelVoor(t.id, 'trekStopAan'), sleutelVoor(t.id, 'afbouwen')]),
   );
   await bewaarObject(SLEUTELS.meldingSuppressie, snoei(bijgewerkt, levend, nu));
 
