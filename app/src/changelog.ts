@@ -27,7 +27,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.2.1',
     datum: '2026-10-08',
     punten: [
       'Een kooporder die eToro al heeft uitgevoerd, blijft niet meer hangen onder Wachtende orders. Kader vraagt de status van je eigen orders na en ververst na een order tot tien minuten lang zelf, zolang de app open staat',

@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.2.1
 
 - Een kooporder die eToro al heeft uitgevoerd, blijft niet meer hangen onder Wachtende orders. Kader vraagt de status van je eigen orders na en ververst na een order tot tien minuten lang zelf, zolang de app open staat
 - De balk met In posities en Beschikbaar op Portfolio bleef op Android grijs zodra je eToro-saldo binnenkwam. Hij toont nu weer de verdeling, met een derde stuk Gereserveerd voor geld dat vastzit in wachtende orders
