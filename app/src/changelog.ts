@@ -28,8 +28,9 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     versie: '0.2.1',
-    datum: '2026-10-08',
+    datum: '2026-10-09',
     punten: [
+      'Historie is opnieuw opgezet: kies een periode, zie je resultaat met het verloop erbij, filter op gewonnen of verloren, en je trades staan per maand met het maandtotaal. Verwijderen doe je door een trade naar links te vegen, met een paar seconden om het ongedaan te maken',
       'Een kooporder die eToro al heeft uitgevoerd, blijft niet meer hangen onder Wachtende orders. Kader vraagt de status van je eigen orders na en ververst na een order tot tien minuten lang zelf, zolang de app open staat',
       'De balk met In posities en Beschikbaar op Portfolio bleef op Android grijs zodra je eToro-saldo binnenkwam. Hij toont nu weer de verdeling, met een derde stuk Gereserveerd voor geld dat vastzit in wachtende orders',
       'Met een eToro-koppeling tellen in die balk alleen je eToro-posities van de omgeving waar je in staat. Handmatige trades worden niet meer bij je eToro-saldo opgeteld, en zo ook je demo-geld niet bij echt geld',
