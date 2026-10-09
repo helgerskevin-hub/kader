@@ -102,7 +102,7 @@ function behaaldeExit(t: PortfolioTrade): number {
 // stop onder de entry, bij een short erboven, dus `entry - stop` wisselt zelf al van teken.
 // Zonder de correctie zou elke short een negatief risico geven en dus door de risico<=0-check
 // hierboven stilzwijgend verdwijnen, waardoor de hele gem-R-stat alleen nog longs telde.
-function behaaldeRR(t: PortfolioTrade): number | null {
+export function behaaldeRR(t: PortfolioTrade): number | null {
   if (t.stopLoss <= 0) return null;
   const teken = tekenVan(t);
   const risico = teken * (t.entryPrijs - t.stopLoss);
@@ -114,7 +114,7 @@ function behaaldeRR(t: PortfolioTrade): number | null {
 // die gebruiken we als hij er is. Voor handmatige trades kennen we de kosten niet en blijft het
 // bruto koersverschil de beste schatting, met het teken erin zodat een short die in winst sloot
 // (koers daalde) ook als winst telt.
-function resultaatVan(t: PortfolioTrade): number | null {
+export function resultaatVan(t: PortfolioTrade): number | null {
   if (typeof t.resultaatUsd === 'number') return t.resultaatUsd;
   if (typeof t.aantalCoins === 'number' && t.aantalCoins > 0) {
     return tekenVan(t) * (behaaldeExit(t) - t.entryPrijs) * t.aantalCoins;
