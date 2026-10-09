@@ -9,7 +9,7 @@ export interface PortfolioStatistieken {
 
 export interface PortfolioWaarde {
   openPosities: number;        // aantal open trades
-  ingelegdUsd: number;         // som(aantalCoins * entryPrijs) van open trades met live prijs
+  ingelegdUsd: number;         // som(aantalCoins * entryPrijs) van open trades met live prijs, of bedragUsd zonder
   // Ingelegd plus ongerealiseerd. Voor een portfolio met shorts erin is dit je eigen vermogen en
   // niet de marktwaarde van wat je bezit: een short bezit je niet, die lever je.
   huidigeWaardeUsd: number;
@@ -17,19 +17,34 @@ export interface PortfolioWaarde {
   // Alleen posities die zowel een aantal als een live prijs hebben.
   ongerealiseerdUsd: number;
   ongerealiseerdPct: number | null;
-  gewaardeerd: number;         // aantal open posities dat in de waarde meetelt
+  gewaardeerd: number;         // aantal open posities dat in de waarde meetelt (incl. opKostprijs)
+  // Daarvan op kostprijs (bedragUsd, geen aantal of live koers): ze tellen mee in de waarde, maar
+  // niet in het ongerealiseerde resultaat en het percentage, want hun resultaat is onbekend.
+  opKostprijs: number;
+  // Inleg van alleen de posities met een live koers: de basis van ongerealiseerdPct.
+  ingelegdMetKoersUsd: number;
   zonderLivePrijs: number;     // open posities zonder aantal of live prijs
 }
 
+// Met `etoroOmgeving` telt alleen wat bij eToro in die omgeving staat. Nodig zodra de kaart een
+// eToro-saldo naast de posities zet: handmatige trades en trades van andere platforms zijn geen
+// eToro-geld, en in Demo zou echt geld bij speelgeld opgeteld worden. Ontbreekt de omgeving op een
+// trade, dan is het 'real' (zie PortfolioTrade.etoroOmgeving).
 export function berekenPortfolioWaarde(
   trades: PortfolioTrade[],
   livePrijzen: Record<string, number>,
+  opties?: { etoroOmgeving: 'real' | 'demo' },
 ): PortfolioWaarde {
-  const open = trades.filter(t => t.status === 'open');
+  const open = trades.filter(t => t.status === 'open'
+    && (!opties || (t.bron === 'etoro' && (t.etoroOmgeving ?? 'real') === opties.etoroOmgeving)));
 
   let ingelegdUsd = 0;
   let ongerealiseerdUsd = 0;
   let gewaardeerd = 0;
+  let opKostprijs = 0;
+  // Inleg van de posities met een live koers: de noemer van het percentage. Posities op kostprijs
+  // horen daar niet in, anders verdunnen ze het percentage met een verzonnen 0.
+  let ingelegdMetKoersUsd = 0;
   let zonderLivePrijs = 0;
 
   for (const t of open) {
@@ -40,15 +55,25 @@ export function berekenPortfolioWaarde(
       // gaat pas winstgevend als de koers ONDER de entry zakt, dus het ongerealiseerde resultaat
       // draait om het teken (+1 long, -1 short) en niet om huidigeWaarde - ingelegd.
       ingelegdUsd += t.entryPrijs * t.aantalCoins!;
+      ingelegdMetKoersUsd += t.entryPrijs * t.aantalCoins!;
       ongerealiseerdUsd += tekenVan(t) * (livePrijs - t.entryPrijs) * t.aantalCoins!;
       gewaardeerd += 1;
+    } else if (typeof t.bedragUsd === 'number' && t.bedragUsd > 0) {
+      // Geen aantal of live koers, maar eToro gaf wel het bedrag door. Op kostprijs waarderen is
+      // beter dan de positie stil laten wegvallen; het ongerealiseerde deel is dan onbekend en
+      // blijft buiten het resultaat en het percentage.
+      ingelegdUsd += t.bedragUsd;
+      gewaardeerd += 1;
+      opKostprijs += 1;
     } else {
       zonderLivePrijs += 1;
     }
   }
 
-  const huidigeWaardeUsd = ingelegdUsd + ongerealiseerdUsd;
-  const ongerealiseerdPct = ingelegdUsd > 0 ? (ongerealiseerdUsd / ingelegdUsd) * 100 : null;
+  // Een short met groot verlies kan onder nul uitkomen; een negatieve waarde zou de balk en het
+  // totaal verstoren, dus de waarde van de posities zakt niet onder 0.
+  const huidigeWaardeUsd = Math.max(0, ingelegdUsd + ongerealiseerdUsd);
+  const ongerealiseerdPct = ingelegdMetKoersUsd > 0 ? (ongerealiseerdUsd / ingelegdMetKoersUsd) * 100 : null;
 
   return {
     openPosities: open.length,
@@ -57,6 +82,8 @@ export function berekenPortfolioWaarde(
     ongerealiseerdUsd,
     ongerealiseerdPct,
     gewaardeerd,
+    opKostprijs,
+    ingelegdMetKoersUsd,
     zonderLivePrijs,
   };
 }
@@ -166,6 +193,16 @@ if (require.main === module) {
   console.assert(w.ongerealiseerdUsd === 30, `ongerealiseerd moet 30 zijn, was ${w.ongerealiseerdUsd}`);
   console.assert(w.ongerealiseerdPct === 20, `ongerealiseerd% moet 20 zijn, was ${w.ongerealiseerdPct}`);
   console.assert(w.gewaardeerd === 1 && w.zonderLivePrijs === 1, `ADA hoort zonder live prijs te vallen (gewaardeerd ${w.gewaardeerd}, zonder ${w.zonderLivePrijs})`);
+
+  // Op kostprijs (eToro gaf alleen bedragUsd): telt mee in de waarde, niet in het percentage. SOL
+  // +20% blijft +20%, en niet verdund tot +10% door een positie met een verzonnen resultaat van 0.
+  const metKostprijs = berekenPortfolioWaarde([
+    openTrades[0],
+    { id: '6', symbool: 'DOT', naam: 'Polkadot', entryPrijs: 5, stopLoss: 4, takeProfit: 8, rr: 3, datum: '', status: 'open', bedragUsd: 150 },
+  ], { SOL: 60 });
+  console.assert(metKostprijs.huidigeWaardeUsd === 330, `waarde telt kostprijs mee: 330 verwacht, was ${metKostprijs.huidigeWaardeUsd}`);
+  console.assert(metKostprijs.ongerealiseerdPct === 20, `percentage zonder kostprijs-posities: 20 verwacht, was ${metKostprijs.ongerealiseerdPct}`);
+  console.assert(metKostprijs.opKostprijs === 1 && metKostprijs.gewaardeerd === 2, `DOT op kostprijs (op ${metKostprijs.opKostprijs}, gewaardeerd ${metKostprijs.gewaardeerd})`);
 
   // ---------- Short-trades ----------
   // Short: entry 100, stop 110 (erboven), doel 70 (eronder). Voluit gewonnen op het doel is +3R,

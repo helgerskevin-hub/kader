@@ -144,17 +144,25 @@ export function PortfolioStatusKaart({
     transform: [{ rotate: `${rotatie.value}deg` }],
   }));
 
-  // Vermogensbalk: de "belegd"-kleur ligt over de volle balk in de cash-kleur heen en groeit met
-  // een veer, in plaats van dat allebei de stukken los hun breedte aanpassen. Getransformeerd met
-  // een gemeten breedte in plaats van transformOrigin: dat laatste is in React Native nog niet
-  // overal even betrouwbaar, dit rekensommetje (opschalen vanuit het midden, dan terugschuiven tot
-  // de linkerkant weer op zijn plek staat) werkt overal hetzelfde.
-  const [balkBreedte, setBalkBreedte] = useState(0);
+  // Vermogensbalk: de baan heeft de "beschikbaar"-kleur, daarover liggen twee vullingen die vanaf
+  // links groeien: "gereserveerd" (tot en met het aandeel van belegd + gereserveerd) en daarbovenop
+  // "belegd". Elke vulling krijgt een expliciete breedte in pixels: aandeel (0..1, met een veer
+  // animeerbaar) maal de gemeten balkbreedte, uitgerekend in de worklet op de UI-thread. De
+  // breedte is een shared value en geen useState: een state in een useAnimatedStyle-closure
+  // bleef op Android op zijn oude waarde staan. Eerder stond hier scaleX + translateX op een
+  // vulling van width '100%', en dat tekende op Android niets: de balk bleef effen grijs.
+  const balkBreedte = useSharedValue(0);
   const belegdAandeel = useSharedValue(0);
+  const gereserveerdEind = useSharedValue(0);
   const eersteBalk = useRef(true);
 
+  // Bij elke mount opnieuw: de balk hoort bij het openen zacht uit te groeien en niet te springen.
+  useEffect(() => {
+    eersteBalk.current = true;
+  }, []);
+
   function opBalkLayout(e: LayoutChangeEvent) {
-    setBalkBreedte(e.nativeEvent.layout.width);
+    balkBreedte.value = e.nativeEvent.layout.width;
   }
 
   // Alleen de symbolen van posities die de kaart ook echt kan waarderen. Voor de rest is een
@@ -192,43 +200,63 @@ export function PortfolioStatusKaart({
     : gereserveerdUsd !== null && gereserveerdUsd > 0
       ? `${fmtBedrag(gereserveerdUsd)} staat vast in ${wachtendeOrders} wachtende ${orderWoord} bij eToro en telt niet mee als beschikbaar.`
       : `Er ${wachtendeOrders === 1 ? 'wacht' : 'wachten'} ${wachtendeOrders} ${orderWoord} bij eToro. Kader kan niet lezen hoeveel geld daarvan vaststaat, dus dat zit nog in het beschikbare bedrag.`;
-  const belegdUsd = waarde.huidigeWaardeUsd;
-  const totaalUsd = heeftSaldo ? belegdUsd + vrijSaldoUsd : belegdUsd;
-  // Het echte aandeel dat in posities zit. Geclamped, want een negatief of te groot deel zou het
-  // andere stuk van de balk duwen; de twee stukken tellen altijd op tot precies 100 procent. Dit
-  // getal gaat naar de legenda en is altijd de waarheid.
-  const belegdPct = totaalUsd > 0 ? Math.min(100, Math.max(0, (belegdUsd / totaalUsd) * 100)) : 0;
-  // En dit is wat de balk tekent. Een kant die echt nul is blijft nul: nul is geen klein aandeel
-  // maar een afwezig aandeel, en daar hoort geen stukje bij. Een kant die bestaat maar klein is,
-  // krijgt de ondergrens, zodat de verdeling afleesbaar blijft.
-  const belegdPctBalk =
-    belegdUsd <= 0 ? 0
-    : heeftSaldo && vrijSaldoUsd <= 0 ? 100
-    : Math.min(100 - MIN_BALKSTUK_PCT, Math.max(MIN_BALKSTUK_PCT, belegdPct));
+  const belegdUsd = Math.max(0, waarde.huidigeWaardeUsd);
+  // Reserveringen horen bij eToro's equity: dat geld is van jou, het zit alleen vast in een order.
+  // Zonder dit stuk lag het totaal lager dan het bedrag dat eToro zelf toont.
+  const gereserveerdBedrag = heeftSaldo && gereserveerdUsd !== null ? Math.max(0, gereserveerdUsd) : 0;
+  const vrijUsd = heeftSaldo ? Math.max(0, vrijSaldoUsd) : 0;
+  const totaalUsd = heeftSaldo ? belegdUsd + gereserveerdBedrag + vrijUsd : belegdUsd;
+  // Het echte aandeel van elk stuk. Samen precies 100 procent; vrij is de rest. Deze getallen
+  // gaan naar de legenda en zijn altijd de waarheid.
+  const belegdPct = totaalUsd > 0 ? (belegdUsd / totaalUsd) * 100 : 0;
+  const gereserveerdPct = totaalUsd > 0 ? (gereserveerdBedrag / totaalUsd) * 100 : 0;
+  const vrijPct = Math.max(0, 100 - belegdPct - gereserveerdPct);
+  // En dit is wat de balk tekent. Een stuk dat echt nul is blijft nul: nul is geen klein aandeel
+  // maar een afwezig aandeel, en daar hoort geen stukje bij. Een stuk dat bestaat maar klein is,
+  // krijgt de ondergrens, zodat de verdeling afleesbaar blijft. Daarna weer op 100 gebracht.
+  const balkDelen = [belegdUsd > 0 ? belegdPct : 0, gereserveerdBedrag > 0 ? gereserveerdPct : 0, vrijUsd > 0 ? vrijPct : 0]
+    .map(p => (p > 0 ? Math.max(MIN_BALKSTUK_PCT, p) : 0));
+  const balkSom = balkDelen[0] + balkDelen[1] + balkDelen[2];
+  const belegdPctBalk = balkSom > 0 ? (balkDelen[0] / balkSom) * 100 : 0;
+  const gereserveerdEindBalk = balkSom > 0 ? ((balkDelen[0] + balkDelen[1]) / balkSom) * 100 : 0;
   // Met een bekend saldo is er ook zonder gewaardeerde posities een bedrag te tonen: je hebt dan
   // gewoon alles in cash staan.
   const toonBedrag = heeftSaldo || heeftWaardering;
 
   useEffect(() => {
     const doel = belegdPctBalk / 100;
+    const doelEind = gereserveerdEindBalk / 100;
     if (eersteBalk.current) {
       eersteBalk.current = false;
       belegdAandeel.value = naar(doel, 'zacht');
+      gereserveerdEind.value = naar(doelEind, 'zacht');
       return;
     }
     belegdAandeel.value = naar(doel, 'standaard');
+    gereserveerdEind.value = naar(doelEind, 'standaard');
     // naar() zelf is geen afhankelijkheid: alleen een echte aandeelwijziging hoort deze animatie
     // te starten, niet het wisselen van reduce motion.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [belegdPctBalk]);
+  }, [belegdPctBalk, gereserveerdEindBalk]);
 
-  const balkStijl = useAnimatedStyle(() => {
-    const s = belegdAandeel.value;
+  // Breedte in pixels, uitgerekend op de UI-thread. Zolang de balk nog niet gemeten is (0) blijft
+  // het stuk 0 breed, en zodra onLayout de breedte meldt springt het niet maar volgt het aandeel.
+  // Loopt een vulling tot het eind van de baan, dan rondt hij ook rechts af, anders steekt de
+  // rechte kant buiten de ronde baan uit (de baan knipt niet, zie styles.balk).
+  const belegdStijl = useAnimatedStyle(() => {
+    const rechts = belegdAandeel.value >= 0.999 ? radii.pill : 0;
     return {
-      // Opschalen vanuit het midden en dan terugschuiven tot de linkerkant weer op zijn plek
-      // staat: zo groeit het stuk zichtbaar vanaf links, zonder afhankelijk te zijn van
-      // transformOrigin.
-      transform: [{ translateX: -(balkBreedte / 2) * (1 - s) }, { scaleX: s }],
+      width: Math.max(0, belegdAandeel.value) * balkBreedte.value,
+      borderTopRightRadius: rechts,
+      borderBottomRightRadius: rechts,
+    };
+  });
+  const gereserveerdStijl = useAnimatedStyle(() => {
+    const rechts = gereserveerdEind.value >= 0.999 ? radii.pill : 0;
+    return {
+      width: Math.max(0, gereserveerdEind.value) * balkBreedte.value,
+      borderTopRightRadius: rechts,
+      borderBottomRightRadius: rechts,
     };
   });
 
@@ -314,8 +342,9 @@ export function PortfolioStatusKaart({
       )}
 
       {/* Ongerealiseerd resultaat van de open posities, als pil. Mag afbreken: bij een groot bedrag
-          met een grote systeemletter past "open posities, nu" niet meer naast de pil. */}
-      {heeftWaardering ? (
+          met een grote systeemletter past "open posities, nu" niet meer naast de pil. Alleen
+          posities met een live koers hebben een resultaat; die op kostprijs tellen hier niet mee. */}
+      {waarde.gewaardeerd > waarde.opKostprijs ? (
         <View style={styles.resultaatRij}>
           <View style={[styles.resultaatPil, { backgroundColor: resultaatKleur + '1F' }]}>
             <AnimatedGetal
@@ -444,18 +473,14 @@ export function PortfolioStatusKaart({
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             >
-              {/* Eén bewegend stuk in plaats van twee: de balk zelf is al de cash-kleur, en het
-                  belegd-stuk ligt erover heen en groeit met een veer vanaf links. Getekend met
-                  transform (scaleX + een terugschuivende translateX) en niet met width, anders
-                  animeert React Native per frame een layout-eigenschap in plaats van iets dat de
-                  UI-thread zelf kan afhandelen.
-
-                  Er stond hier eerder `flex: belegdUsd` naast `flex: vrijSaldoUsd`, met de gedachte
-                  dat de verhouding dan vanzelf klopt. Op Android kregen beide stukken daar geen
-                  breedte van en bleef alleen de lege baan over: de balk was leeg, ongeacht de
-                  bedragen. Vandaar nu een expliciete meting van de balkbreedte in plaats van flex
-                  of een percentage. */}
-              <Animated.View style={[styles.balkStuk, balkStijl, { width: '100%', backgroundColor: colors.primair }]} />
+              {/* De baan is de beschikbaar-kleur; de vullingen liggen er vanaf links overheen, de
+                  gereserveerde (tot en met zijn eigen stuk) onder de belegde. Pixelbreedte uit de
+                  gemeten balkbreedte, zie hierboven. De echte boosdoener van de lege baan bleek
+                  overflow: 'hidden' op de baan, zie styles.balk. */}
+              {gereserveerdBedrag > 0 && (
+                <Animated.View style={[styles.balkStuk, gereserveerdStijl, { backgroundColor: colors.letOp }]} />
+              )}
+              <Animated.View style={[styles.balkStuk, belegdStijl, { backgroundColor: colors.primair }]} />
             </View>
           )}
           {/* Het percentage staat hier en niet op de balk: een stukje van een paar pixels is geen
@@ -479,18 +504,33 @@ export function PortfolioStatusKaart({
             <View
               style={styles.saldoKolom}
               accessible
-              accessibilityLabel={`Beschikbaar: ${fmtBedrag(vrijSaldoUsd)}, ${spreekAandeel((100 - belegdPct) / 100)} van je vermogen.`}
+              accessibilityLabel={`Beschikbaar: ${fmtBedrag(vrijUsd)}, ${spreekAandeel(vrijPct / 100)} van je vermogen.`}
             >
               <View style={styles.saldoLabelRij}>
                 {/* Vol en in de kleur van de balk: het bolletje is de legenda bij dat stuk, dus een
                     open rondje naast een vol balkstuk zou twee verschillende dingen beweren. */}
                 <View style={[styles.bolletje, { backgroundColor: colors.verdelingOverig }]} />
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                  BESCHIKBAAR · {aandeelTekst((100 - belegdPct) / 100)}
+                  BESCHIKBAAR · {aandeelTekst(vrijPct / 100)}
                 </Text>
               </View>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(vrijSaldoUsd)}</Text>
+              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(vrijUsd)}</Text>
             </View>
+            {gereserveerdBedrag > 0 && (
+              <View
+                style={styles.saldoKolom}
+                accessible
+                accessibilityLabel={`Gereserveerd: ${fmtBedrag(gereserveerdBedrag)} in wachtende orders, ${spreekAandeel(gereserveerdPct / 100)} van je vermogen.`}
+              >
+                <View style={styles.saldoLabelRij}>
+                  <View style={[styles.bolletje, { backgroundColor: colors.letOp }]} />
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                    GERESERVEERD · {aandeelTekst(gereserveerdPct / 100)}
+                  </Text>
+                </View>
+                <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(gereserveerdBedrag)}</Text>
+              </View>
+            )}
           </View>
         </>
       ) : (
@@ -540,6 +580,13 @@ export function PortfolioStatusKaart({
       {waarde.zonderLivePrijs > 0 && (
         <Text style={[Type.caption, styles.melding, { color: colors.tekstGedimd }]}>
           {waarde.zonderLivePrijs} {waarde.zonderLivePrijs === 1 ? 'positie telt' : 'posities tellen'} niet mee in de waarde (geen aantal of live koers).
+        </Text>
+      )}
+
+      {/* Posities die alleen op kostprijs in de waarde staan: geen resultaat bekend */}
+      {waarde.opKostprijs > 0 && (
+        <Text style={[Type.caption, styles.melding, { color: colors.tekstGedimd }]}>
+          {waarde.opKostprijs} {waarde.opKostprijs === 1 ? 'positie staat' : 'posities staan'} op kostprijs in de waarde, want er is geen live koers. Het resultaat telt die niet mee.
         </Text>
       )}
 
@@ -650,15 +697,24 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 18,
   },
+  // Bewust geen overflow: 'hidden'. Op Android (Fabric) knipte die de vullingen volledig weg
+  // zodra de balk pas na de eerste render verscheen, zoals wanneer het eToro-saldo binnenkomt na
+  // een sync: dan bleef alleen de grijze baan over. De vullingen ronden hun linkerkant daarom zelf
+  // af; rechts eindigen ze recht, net als een gevulde balk hoort.
   balk: {
-    flexDirection: 'row',
     height: 8,
     borderRadius: radii.pill,
-    overflow: 'hidden',
     marginTop: 14,
   },
   // Eigen hoogte in plaats van uitrekken: één ding minder dat de layout kan laten vallen.
-  balkStuk: { height: 8 },
+  balkStuk: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: 8,
+    borderTopLeftRadius: radii.pill,
+    borderBottomLeftRadius: radii.pill,
+  },
   saldoRij: {
     flexDirection: 'row',
     gap: spacing.md,

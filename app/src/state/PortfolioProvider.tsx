@@ -6,7 +6,7 @@ import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../sto
 import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving, EtoroFout, EtoroSleutels, WachtendeOrder, OrderUitkomst, annuleerOrder, zoekOrderStatus, guid } from '../engine/etoro';
 import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
-import { GeplaatsteOrder, isMeldenswaard, kiesOmOpTeVragen, ruimOp } from './orderUitkomsten';
+import { GeplaatsteOrder, heeftVerseLopendeOrder, isAfgerond, isMeldenswaard, kiesOmOpTeVragen, ruimOp, saldoOverOrders } from './orderUitkomsten';
 import { bronVan } from './portfolioTypes';
 import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
 import { checkNiveausGeraakt, meldEtoroSluitingen } from '../notifications/sluitingen';
@@ -120,6 +120,17 @@ const TRADE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 // Hoe lang na een aangenomen annulering Kader wacht met de status opvragen. Direct erna kan eToro
 // het verzoek nog aan het verwerken zijn (status 6); langer laat de gebruiker onnodig wachten.
 const STATUS_NA_ANNULEREN_MS = 2_000;
+// Zolang een eigen order van de laatste tien minuten nog geen definitieve status heeft, synct Kader
+// op de voorgrond zo vaak extra (zie heeftVerseLopendeOrder). Eén sync is zo'n vier requests plus
+// hooguit vijf statusopvragen, ruim binnen eToro's 60 per minuut.
+const NA_ORDER_SYNC_INTERVAL_MS = 75_000;
+// Was er net al een eToro-sync (verzoenNaOrder, pull-to-refresh), dan slaat de extra sync een beurt over.
+const MIN_TUSSEN_EXTRA_SYNCS_MS = 45_000;
+// Na de eerste anderhalve minuut van verzoenNaOrder nog drie keer kijken, op 3, 5 en 10 minuten.
+const VERZOEN_NA_ORDER_MS = [5_000, 20_000, 45_000, 90_000, 3 * 60_000, 5 * 60_000, 10 * 60_000];
+// Na een mislukte eToro-sync (meestal 429) zo lang geen extra syncs van de timers of het vangnet;
+// anders blijft elke beurt het quotum verder oprekken. Pull-to-refresh en de app-start blijven mogen.
+const NA_FOUT_WACHT_MS = 3 * 60_000;
 
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<PortfolioTrade[]>([]);
@@ -132,9 +143,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [etoroFout, setEtoroFout] = useState<string | null>(null);
   // Blijft staan tussen syncs door: een mislukte sync maakt het saldo niet onbekend, hij maakt het
   // alleen ouder. Alleen een geslaagde sync die géén credit meekreeg zet 'm terug op null.
-  const [vrijSaldoUsd, setVrijSaldoUsd] = useState<number | null>(null);
-  const [gereserveerdUsd, setGereserveerdUsd] = useState<number | null>(0);
-  const [wachtendeOrders, setWachtendeOrders] = useState(0);
+  // Het kale credit; het vrije saldo, het gereserveerde bedrag en het aantal wachtende orders worden
+  // daaruit afgeleid over de zichtbare orders (zie saldoOverOrders onderaan).
+  const [creditUsd, setCreditUsd] = useState<number | null>(null);
   const [wachtendeOrderLijst, setWachtendeOrderLijst] = useState<WachtendeOrder[]>([]);
   const [etoroGekoppeld, setEtoroGekoppeld] = useState(false);
   // Demo als tussenstand tot haalOmgeving() antwoordt. De omgeving is het enige dat speelgeld van
@@ -170,6 +181,17 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const geplaatsteOrdersRef = useRef<GeplaatsteOrder[]>([]);
   // Er loopt al een werkOrderUitkomstenBij; zie daar waarom er maar één tegelijk mag.
   const uitkomstenBezig = useRef(false);
+  // Leidende kopie van de onbekende orders, om dezelfde reden als geplaatsteOrdersRef: de sync ruimt
+  // ze op zonder dat synchroniseer bij elke wijziging een nieuwe identiteit krijgt.
+  const onbekendeOrdersRef = useRef<OnbekendeOrder[]>([]);
+  // Begin van de laatste eToro-poging, geslaagd of niet, en het moment van de laatste mislukte.
+  // De extra syncs (verzoenNaOrder-timers, het vangnet) houden hun minimale tussenpoos aan op de
+  // poging, en wachten na een fout NA_FOUT_WACHT_MS.
+  const laatsteEtoroPogingRef = useRef(0);
+  const laatsteEtoroFoutRef = useRef(0);
+  // De sync die nu loopt, met de omgeving waarvoor hij startte. Een tweede aanroep sluit daarbij aan
+  // in plaats van een parallelle ronde te starten (dubbel quotum, en twee schrijvers op dezelfde state).
+  const syncBezigRef = useRef<{ omgeving: EtoroOmgeving | null; belofte: Promise<SyncResultaat> } | null>(null);
 
   useEffect(() => { tradesRef.current = trades; }, [trades]);
 
@@ -441,6 +463,26 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setGeplaatsteOrders(geplaatsteOrdersRef.current);
   }, []);
 
+  const bewaarOnbekende = useCallback(async (lijst: OnbekendeOrder[]) => {
+    onbekendeOrdersRef.current = lijst;
+    await bewaarLijst(SLEUTELS.onbekendeOrders, lijst);
+    setOnbekendeOrders(onbekendeOrdersRef.current);
+  }, []);
+
+  // Onbekende orders afstrepen tegen een tradelijst. De aanroeper geeft de lijst mee: vlak na een
+  // import loopt tradesRef nog een render achter, en dan zou een net verschenen positie de order
+  // pas bij de volgende sync oplossen. De volledige lijst, niet de gefilterde: een order in de
+  // andere omgeving moet ook opgelost kunnen worden.
+  const verzoenOnbekende = useCallback((trades: PortfolioTrade[]) => {
+    const huidig = onbekendeOrdersRef.current;
+    const { open, verlopen } = ruimOnbekendeOrdersOp(huidig, trades, Date.now());
+    // Niet elke sync een vers leeg array: dat zou de hele context opnieuw laten renderen.
+    setVerlopenOrders(vorig => vorig.length === 0 && verlopen.length === 0 ? vorig : verlopen);
+    if (open.length + verlopen.length !== huidig.length) {
+      bewaarOnbekende([...open, ...verlopen]).catch(() => {});
+    }
+  }, [bewaarOnbekende]);
+
   // Status opvragen van eerder door Kader geplaatste orders, en oude records opruimen. Draait
   // fire-and-forget na een geslaagde sync: de lookups mogen de sync niet vertragen, en een fout
   // hier (ook bij het wegschrijven) mag nooit etoroFout zetten, want je posities zijn dan gewoon
@@ -468,7 +510,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
           // 404 "No external operation was found". kiesOmOpTeVragen laat alleen orders mét orderId door.
           const status = await zoekOrderStatus({ orderId: order.orderId as number }, sleutels);
           wijzigingen.set(order.verzoekId, status
-            ? { laatstGevraagd: Date.now(), status: { id: status.id, naam: status.naam, reden: status.reden } }
+            ? { laatstGevraagd: Date.now(), status: { id: status.id, naam: status.naam, reden: status.reden }, positieIds: status.positieIds }
             : { laatstGevraagd: Date.now() });
         } catch (e) {
           // Quotum op: de rest van deze ronde zou ook 429 krijgen en het quotum alleen verder
@@ -498,7 +540,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // Volledige sync: prijzen, open eToro-posities en op eToro gesloten posities. Gedeeld door
   // pull-to-refresh, de importknop en de eenmalige sync bij het openen van de app.
   // eToro-fouten worden teruggegeven, niet gegooid: de prijsververs uit stap 1 blijft geldig.
-  const synchroniseer = useCallback(async (): Promise<SyncResultaat> => {
+  const voerSyncUit = useCallback(async (): Promise<SyncResultaat> => {
     const leeg: SyncResultaat = { gekoppeld: false, toegevoegd: 0, bijgewerkt: 0, gesloten: 0, uitHistorie: 0, overgeslagen: [], fout: null };
     await verversPrijzen();
 
@@ -509,7 +551,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       setEtoroGekoppeld(false);
       // Zonder koppeling is er geen saldo om te kennen. Een bedrag van een verwijderde koppeling
       // laten staan zou een totaal vermogen opleveren dat nergens meer op slaat.
-      setVrijSaldoUsd(null);
+      setCreditUsd(null);
       // Zelfde reden: zonder koppeling zijn er geen wachtende orders om te tonen.
       setWachtendeOrderLijst([]);
       return leeg;
@@ -526,10 +568,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     // De omgeving waar deze ronde voor ophaalt. Na de await hieronder kan de gebruiker gewisseld zijn.
     const syncOmgeving = sleutels.omgeving ?? 'real';
     setEtoroGekoppeld(true);
+    laatsteEtoroPogingRef.current = Date.now();
 
     try {
-      const { open, historie, vrijSaldoUsd: saldo, gereserveerdUsd: vast, wachtendeOrders: wachtend, wachtendeOrderLijst: wachtendeLijst } =
-        await importeerEtoroAlles(sleutels);
+      const { open, historie, creditUsd: credit, wachtendeOrderLijst: wachtendeLijst } = await importeerEtoroAlles(sleutels);
       // Alleen na een geslaagde ophaal bijwerken. Mislukt de sync, dan blijft de vorige waarde in
       // beeld: die is oud, maar hij is echt geweest.
       //
@@ -539,9 +581,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       // De trades hieronder mogen wel door: die dragen hun eigen omgeving en worden daarop gefilterd.
       const nogDezelfdeOmgeving = omgevingRef.current === null || omgevingRef.current === syncOmgeving;
       if (nogDezelfdeOmgeving) {
-        setVrijSaldoUsd(saldo);
-        setGereserveerdUsd(vast);
-        setWachtendeOrders(wachtend);
+        setCreditUsd(credit);
         setWachtendeOrderLijst(wachtendeLijst);
       }
       const toegevoegd = importeerEtoroTrades(open.trades);
@@ -556,6 +596,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       // Volledige sync geslaagd (prijzen + eToro): tijdstip verversen naar dit moment.
       setEtoroFout(null);
       markeerGesynct();
+      // Met de vers opgehaalde posities en historie vooraan; tradesRef loopt hier nog achter.
+      verzoenOnbekende([...open.trades, ...historie.trades, ...tradesRef.current]);
       const resultaat: SyncResultaat = {
         gekoppeld: true,
         toegevoegd,
@@ -576,9 +618,33 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       // helemaal niet zijn opgehaald. bepaalSyncStand maakt er nu een oranje eToro-fout van.
       const bericht = e instanceof Error ? e.message : 'Onbekende fout.';
       setEtoroFout(bericht);
+      laatsteEtoroFoutRef.current = Date.now();
       return { ...leeg, gekoppeld: true, fout: bericht };
     }
-  }, [verversPrijzen, importeerEtoroTrades, verwerkEtoroHistorie, markeerGesynct, werkOrderUitkomstenBij]);
+  }, [verversPrijzen, importeerEtoroTrades, verwerkEtoroHistorie, markeerGesynct, werkOrderUitkomstenBij, verzoenOnbekende]);
+
+  // Eén sync tegelijk. Loopt er al een voor dezelfde omgeving, dan krijgt de aanroeper die belofte
+  // terug. Is er intussen van omgeving gewisseld, dan wacht de nieuwe ronde tot de oude klaar is en
+  // draait daarna alsnog, anders zou de nieuwe omgeving pas bij de volgende beurt opgehaald worden.
+  const synchroniseer = useCallback((): Promise<SyncResultaat> => {
+    const bezig = syncBezigRef.current;
+    if (bezig && bezig.omgeving === omgevingRef.current) return bezig.belofte;
+    const belofte: Promise<SyncResultaat> = (bezig ? bezig.belofte.catch(() => {}).then(voerSyncUit) : voerSyncUit())
+      .finally(() => {
+        if (syncBezigRef.current?.belofte === belofte) syncBezigRef.current = null;
+      });
+    syncBezigRef.current = { omgeving: omgevingRef.current, belofte };
+    return belofte;
+  }, [voerSyncUit]);
+
+  // Mag een extra sync (timer of vangnet) nu? Niet als er al een loopt, niet binnen `tussenpoos` na
+  // de vorige poging, en niet binnen NA_FOUT_WACHT_MS na een mislukte.
+  const magExtraSyncen = useCallback((tussenpoos: number): boolean => {
+    const nu = Date.now();
+    return syncBezigRef.current === null
+      && nu - laatsteEtoroPogingRef.current >= tussenpoos
+      && nu - laatsteEtoroFoutRef.current >= NA_FOUT_WACHT_MS;
+  }, []);
 
   // Automatisch bijwerken zodra de app weer op de voorgrond komt: het interval staat stil terwijl
   // de app op de achtergrond is. Buiten de cooldown ook eToro-posities/-historie meenemen, anders
@@ -618,12 +684,20 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     ververHandelStatus();
-    laadLijst<OnbekendeOrder>(SLEUTELS.onbekendeOrders).then(setOnbekendeOrders);
+    // Meteen afstrepen tegen de bewaarde trades, zodat de banner ook zonder verbinding klopt.
+    Promise.all([
+      laadLijst<OnbekendeOrder>(SLEUTELS.onbekendeOrders),
+      laadLijst<PortfolioTrade>(SLEUTELS.portfolio),
+    ]).then(([lijst, bewaard]) => {
+      onbekendeOrdersRef.current = lijst;
+      setOnbekendeOrders(lijst);
+      verzoenOnbekende(bewaard);
+    });
     laadLijst<GeplaatsteOrder>(SLEUTELS.geplaatsteOrders).then(lijst => {
       geplaatsteOrdersRef.current = lijst;
       setGeplaatsteOrders(lijst);
     });
-  }, [ververHandelStatus]);
+  }, [ververHandelStatus, verzoenOnbekende]);
 
   const setOmgeving = useCallback(async (nieuw: EtoroOmgeving) => {
     await zetOmgeving(nieuw);
@@ -632,7 +706,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     omgevingRef.current = nieuw;
     // Het saldo hoort bij de omgeving die je net verlaat. Meteen wissen: mislukt de sync hieronder,
     // dan zou het saldo van je oefenaccount anders onder je echte posities blijven staan.
-    setVrijSaldoUsd(null);
+    setCreditUsd(null);
     // Zelfde reden: de wachtende orders van de vorige omgeving horen hier niet meer te staan.
     setWachtendeOrderLijst([]);
     await ververHandelStatus();
@@ -641,16 +715,11 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     await synchroniseer();
   }, [ververHandelStatus, synchroniseer]);
 
-  const bewaarOnbekende = useCallback(async (lijst: OnbekendeOrder[]) => {
-    await bewaarLijst(SLEUTELS.onbekendeOrders, lijst);
-    setOnbekendeOrders(lijst);
-  }, []);
-
   // Eerst naar schijf, dan pas naar state: als de app precies hier omvalt, mag de order niet
   // verdwijnen. Dit is het enige spoor dat er iets onderweg was.
   const noteerOnbekendeOrder = useCallback(async (order: OnbekendeOrder) => {
-    await bewaarOnbekende([...onbekendeOrders, order]);
-  }, [onbekendeOrders, bewaarOnbekende]);
+    await bewaarOnbekende([...onbekendeOrdersRef.current, order]);
+  }, [bewaarOnbekende]);
 
   // Fire-and-forget vanuit de order-sheets: mag de bevestiging aan de gebruiker niet blokkeren, dus
   // de aanroeper vangt zelf een fout af. Leest de ref, niet de state: die is pas na een render bij,
@@ -666,35 +735,55 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   // Kijken of de onopgeloste orders inmiddels beantwoord zijn door wat er bij eToro staat. Er wordt
   // hier nooit iets opnieuw verstuurd; er wordt alleen gekeken.
+  // Een geslaagde sync strepen ze zelf al af; mislukt hij, dan toch de verlopen-lijst bijwerken.
   const controleerOnbekendeOrders = useCallback(async () => {
-    if (onbekendeOrders.length === 0) return;
-    await synchroniseer();
-    // tradesRef, niet de gefilterde lijst: een order in de andere omgeving moet ook opgelost kunnen
-    // worden, anders blijft hij eeuwig staan als je net gewisseld bent.
-    const { open, verlopen } = ruimOnbekendeOrdersOp(onbekendeOrders, tradesRef.current, Date.now());
-    setVerlopenOrders(verlopen);
-    if (open.length + verlopen.length !== onbekendeOrders.length) {
-      await bewaarOnbekende([...open, ...verlopen]);
-    }
-  }, [onbekendeOrders, synchroniseer, bewaarOnbekende]);
+    if (onbekendeOrdersRef.current.length === 0) return;
+    const resultaat = await synchroniseer();
+    if (!resultaat.gekoppeld || resultaat.fout !== null) verzoenOnbekende(tradesRef.current);
+  }, [synchroniseer, verzoenOnbekende]);
 
   // Na elke order meteen synchroniseren, zodat een order die eToro direct vult ook direct in je
   // portfolio staat. Gemeten loopt het portfolio-endpoint van eToro wel vaak achter: de positie
   // bestond al terwijl hij na 0 en na 5 seconden nog niet in het portfolio stond. Vandaar daarna
-  // nog een paar keer kijken, met ruimere tussenpozen. Vijf syncs van vier requests blijven ruim
-  // binnen eToro's quotum van 60 per minuut.
+  // nog een paar keer kijken, met ruimere tussenpozen. Gemeten liep het soms minuten achter, dus de
+  // reeks loopt door tot tien minuten. Vijf syncs van vier requests in de eerste anderhalve minuut
+  // blijven ruim binnen eToro's quotum van 60 per minuut. Alleen op de voorgrond: een timer die op
+  // de achtergrond afgaat slaat zijn beurt over, de foreground-listener synct bij terugkomst toch.
   const verzoenTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const verzoenNaOrder = useCallback(() => {
     // Een tweede order kort na de eerste start een nieuwe reeks; de oude reeks erbij laten lopen
     // zou alleen dubbel het quotum opmaken.
     verzoenTimers.current.forEach(clearTimeout);
     synchroniseer().catch(() => {});
-    verzoenTimers.current = [5_000, 20_000, 45_000, 90_000].map(na =>
-      setTimeout(() => { synchroniseer().catch(() => {}); }, na),
-    );
-  }, [synchroniseer]);
+    // Elke timer houdt een tussenpoos aan van de helft van de afstand tot zijn voorganger, met
+    // MIN_TUSSEN_EXTRA_SYNCS_MS als plafond. Zo vallen de vroege stappen (5 en 20 seconden) niet weg,
+    // maar slaan de late (3, 5, 10 minuten) een beurt over als het vangnet of pull-to-refresh net synct.
+    verzoenTimers.current = VERZOEN_NA_ORDER_MS.map((na, i) => {
+      const tussenpoos = Math.min(MIN_TUSSEN_EXTRA_SYNCS_MS, (na - (VERZOEN_NA_ORDER_MS[i - 1] ?? 0)) / 2);
+      return setTimeout(() => {
+        if (AppState.currentState === 'active' && magExtraSyncen(tussenpoos)) synchroniseer().catch(() => {});
+      }, na);
+    });
+  }, [synchroniseer, magExtraSyncen]);
 
   useEffect(() => () => verzoenTimers.current.forEach(clearTimeout), []);
+
+  // Vangnet naast verzoenNaOrder: zolang er een eigen order van de laatste tien minuten zonder
+  // definitieve status is, elke 75 seconden een sync. Ook voor een order die vlak na een app-start
+  // nog loopt, waar geen verzoenNaOrder-reeks bij hoort. Stopt vanzelf zodra eToro een eindstatus
+  // geeft of de tien minuten om zijn; leest refs, dus het interval hoeft niet opnieuw te starten.
+  useEffect(() => {
+    if (!geladen) return;
+    const id = setInterval(() => {
+      if (AppState.currentState !== 'active') return;
+      const nu = Date.now();
+      const actief = omgevingRef.current;
+      if (actief === null || !heeftVerseLopendeOrder(geplaatsteOrdersRef.current, actief, nu)) return;
+      if (!magExtraSyncen(MIN_TUSSEN_EXTRA_SYNCS_MS)) return;
+      synchroniseer().catch(() => {});
+    }, NA_ORDER_SYNC_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [geladen, synchroniseer, magExtraSyncen]);
 
   // Annuleert een wachtende order. Nooit automatisch herhalen: net als bij een kooporder beslist de
   // gebruiker, niet een retry-lus.
@@ -748,9 +837,18 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   // Tweede slot naast de omgevingscheck in synchroniseer: alleen de wachtende orders van de actieve
   // omgeving in beeld, zodat er nooit een Annuleren-knop staat bij een order van het andere account.
+  // Plus: een eigen order waarvan de statusopvraag al een eindstatus gaf, ook al stuurt eToro's
+  // achterlopende portfolio hem nog mee (zie isAfgerond). Alleen op die status: een open positie met
+  // hetzelfde orderID verbergt niets, want die koppeling is niet gemeten (zie etoro.ts).
   const zichtbareWachtendeOrders = useMemo(
-    () => wachtendeOrderLijst.filter(o => o.omgeving === omgeving),
-    [wachtendeOrderLijst, omgeving],
+    () => wachtendeOrderLijst.filter(o => o.omgeving === omgeving && !isAfgerond(o, geplaatsteOrders)),
+    [wachtendeOrderLijst, omgeving, geplaatsteOrders],
+  );
+  // Saldo, gereserveerd bedrag en aantal over precies die lijst, zodat een verborgen order ook niet
+  // meer als vastgezet geld telt.
+  const { vrijSaldoUsd, gereserveerdUsd, wachtendeOrders } = useMemo(
+    () => saldoOverOrders(creditUsd, zichtbareWachtendeOrders),
+    [creditUsd, zichtbareWachtendeOrders],
   );
 
   // Zelfde soort filter als hierboven: alleen de meldenswaardige uitkomsten in de actieve omgeving.

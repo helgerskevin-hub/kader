@@ -44,7 +44,7 @@ import { berekenPortfolioWaarde } from '../state/statistieken';
 import { useCoinDetail } from '../components/CoinDetailScherm';
 import { vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
-import { sleutelUitkomst } from '../state/etoroSleutels';
+import { sleutelUitkomst, haalOmgeving, magHandelen as magNuHandelen } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
 
 // ---------- eToro-bestuurbaarheid ----------
@@ -523,6 +523,8 @@ export function PortfolioScreen() {
   } = usePortfolio();
   const [verkoopTrade, setVerkoopTrade] = useState<PortfolioTrade | null>(null);
   const [niveausTrade, setNiveausTrade] = useState<PortfolioTrade | null>(null);
+  // Stopvoorstel uit een aangetikte melding; vult het stopveld in NiveausSheet alvast in.
+  const [niveausVoorstel, setNiveausVoorstel] = useState<number | undefined>(undefined);
   const [controleBezig, setControleBezig] = useState(false);
   // orderId van de wachtende order die op dit moment geannuleerd wordt, of null als er niets loopt.
   const [annuleerBezigId, setAnnuleerBezigId] = useState<number | null>(null);
@@ -572,6 +574,36 @@ export function PortfolioScreen() {
     });
   }, []);
 
+  // Omgeving en schrijfrecht zoals ze op schijf staan. De provider leest dezelfde waarden bij het
+  // opstarten, maar zegt niet wanneer hij klaar is. Komen zijn waarden overeen met deze lezing, dan
+  // is de handelstatus bekend. Nodig bij een koude start vanuit een push-tik: dan staat het doel er
+  // al voordat de trades en het schrijfrecht binnen zijn.
+  const [schijfStatus, setSchijfStatus] = useState<{ omgeving: EtoroOmgeving; mag: boolean } | null>(null);
+  // Per binnenkomend doel opnieuw gelezen, zodat een later gewisselde omgeving niet blijft hangen.
+  useEffect(() => {
+    if (!navigatieDoel) return;
+    let actief = true;
+    setSchijfStatus(null);
+    Promise.all([haalOmgeving(), magNuHandelen()])
+      .then(([o, mag]) => { if (actief) setSchijfStatus({ omgeving: o, mag }); })
+      .catch(() => {});
+    return () => { actief = false; };
+  }, [navigatieDoel]);
+  const handelStatusBekend = schijfStatus !== null
+    && schijfStatus.omgeving === omgeving && schijfStatus.mag === magHandelen;
+  // Begrensd wachten: na een paar seconden verwerken we het doel hoe dan ook, zodat een tik nooit
+  // blijft hangen als de status of de eerste sync uitblijft.
+  // Onthoudt WELK doel verlopen is en niet alleen dat er iets verliep: een boolean stond bij een
+  // volgend doel nog een render lang op true, waardoor dat doel zonder wachten werd verwerkt.
+  const [verlopenDoel, setVerlopenDoel] = useState<typeof navigatieDoel>(null);
+  const doelWachtVerlopen = navigatieDoel !== null && verlopenDoel === navigatieDoel;
+  useEffect(() => {
+    if (!navigatieDoel) return;
+    const doel = navigatieDoel;
+    const timer = setTimeout(() => setVerlopenDoel(doel), 6000);
+    return () => clearTimeout(timer);
+  }, [navigatieDoel]);
+
   // Aangetikt vanuit het meldingenlog: open meteen de trade waar die melding over ging. Het doel
   // wordt hier gewist, ook als de trade niet meer bestaat; anders blijft het staan en springt het
   // scherm bij de volgende render opnieuw open.
@@ -580,13 +612,26 @@ export function PortfolioScreen() {
     // Alleen doelen die op dit scherm thuishoren; de rest laat het Marktscherm staan.
     if (navigatieDoel.soort === 'portfolio') { wisDoel(); return; }
     if (navigatieDoel.soort !== 'trade') return;
+    // Eerst de bewaarde trades en de handelstatus afwachten, anders lijkt de positie gesloten of
+    // opent het detail waar het stop-venster hoorde.
+    if (!geladen) return;
+    if (!handelStatusBekend && !doelWachtVerlopen) return;
 
     // Op id, met het symbool als terugval: een opnieuw geïmporteerde eToro-positie kan een ander
     // id hebben gekregen, en dan is de open trade in dezelfde coin wat je bedoelde.
     const trade = trades.find(t => t.id === navigatieDoel.tradeId)
       ?? trades.find(t => t.symbool === navigatieDoel.symbool && t.status === 'open');
+    // Een net geopende positie staat pas na de eerste sync in de lijst: even blijven wachten.
+    if (!trade && !doelWachtVerlopen) return;
 
-    if (trade) {
+    // Een "zet je winst vast"-melding opent het stop-venster met het voorstel ingevuld, als deze
+    // positie via eToro te wijzigen is. Het venster zelf zegt het als de omgeving niet klopt. Een
+    // handmatige trade krijgt gewoon het detail, de melding noemde het niveau al.
+    if (trade && navigatieDoel.voorstelStop !== undefined && trade.status === 'open'
+      && trade.bron === 'etoro' && magHandelen) {
+      setNiveausVoorstel(navigatieDoel.voorstelStop);
+      setNiveausTrade(trade);
+    } else if (trade) {
       openDetail(vanPortfolioTrade(trade, livePrijzen[trade.symbool]));
     } else {
       setMeldingNotitie(
@@ -594,7 +639,7 @@ export function PortfolioScreen() {
       );
     }
     wisDoel();
-  }, [navigatieDoel, trades, livePrijzen, wisDoel]);
+  }, [navigatieDoel, trades, livePrijzen, wisDoel, magHandelen, geladen, handelStatusBekend, doelWachtVerlopen]);
 
   // Een groep dichtklappen animeert zichzelf: de rijen vervagen weg (exiting) en de groep eronder
   // schuift op via itemLayoutAnimation op de lijst. Openklappen laat de rijen weer invervagen.
@@ -758,7 +803,14 @@ export function PortfolioScreen() {
 
   const openTrades = trades.filter(t => t.status === 'open');
   const afgeslotenCount = trades.length - openTrades.length;
+  // Alle zichtbare open posities, handmatige trades inbegrepen. Dit is wat er in de markt staat, dus
+  // de blootstellingskaart leunt hierop.
   const waarde = berekenPortfolioWaarde(trades, livePrijzen);
+  // Voor de statuskaart: met een eToro-saldo erbij alleen de eToro-posities van de actieve
+  // omgeving, anders loopt het totaal niet gelijk met eToro's equity.
+  const statusWaarde = vrijSaldoUsd !== null
+    ? berekenPortfolioWaarde(trades, livePrijzen, { etoroOmgeving: omgeving })
+    : waarde;
 
 
 
@@ -878,7 +930,7 @@ export function PortfolioScreen() {
         ListHeaderComponent={
           <>
             <PortfolioStatusKaart
-              waarde={waarde}
+              waarde={statusWaarde}
               trades={trades}
               livePrijzen={livePrijzen}
               vrijSaldoUsd={vrijSaldoUsd}
@@ -1062,7 +1114,8 @@ export function PortfolioScreen() {
           trade={niveausTrade}
           huidigePrijs={livePrijzen[niveausTrade.symbool]}
           afbouwAdvies={afbouwPerTrade[niveausTrade.id] ?? null}
-          onSluiten={() => setNiveausTrade(null)}
+          voorstelStop={niveausVoorstel}
+          onSluiten={() => { setNiveausTrade(null); setNiveausVoorstel(undefined); }}
         />
       )}
 

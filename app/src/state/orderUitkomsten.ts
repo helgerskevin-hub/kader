@@ -5,7 +5,7 @@
 //
 // Dit bestand is bewust puur (geen netwerk, geen AsyncStorage), net als lopendeOrders.ts, zodat de
 // opvraag- en opruimregels los te draaien zijn met de self-check onderaan.
-import { EtoroOmgeving, isDefinitieveStatus, statusInGewoneTaal } from '../engine/etoro';
+import { EtoroOmgeving, WachtendeOrder, isDefinitieveStatus, statusInGewoneTaal } from '../engine/etoro';
 import { fmtBedrag } from '../engine/format';
 import { Richting } from './portfolioTypes';
 
@@ -29,6 +29,10 @@ export interface GeplaatsteOrder {
   status?: { id: number; naam: string; reden: string | null };
   // epoch ms van de laatste keer dat Kader de status heeft opgevraagd.
   laatstGevraagd?: number;
+  // De posities die eToro bij deze order noemt (positionExecutions). Alleen ter informatie: bij een
+  // gedeeltelijke vulling (5) staat hier al een positie terwijl de rest nog wacht, dus verbergen
+  // gaat op de status, niet hierop.
+  positieIds?: number[];
 }
 
 // Na 24 uur zonder uitsluitsel stopt Kader met opvragen. Een order die zo lang wacht is geen bug in
@@ -73,17 +77,63 @@ export function isMeldenswaard(order: GeplaatsteOrder): boolean {
   return status !== undefined && isDefinitieveStatus(status.id) && status.id !== 3;
 }
 
-// Een gevulde verkoop blijft een dag staan in plaats van meteen te verdwijnen. De sluitingsmelding
-// moet hem nog kunnen vinden, en eToro's historie loopt soms een sync achter op de orderstatus: de
-// order kan al Filled zijn (en hier opgeruimd) voordat de gesloten positie in de historie staat.
-// Dan zou een eigen verkoop op het doel als "doel gehaald door eToro" gemeld worden. Kost niets:
-// isMeldenswaard en moetOpvragen slaan een gevulde order toch al over.
+// Een gevulde order blijft een dag staan in plaats van meteen te verdwijnen. Bij een verkoop moet de
+// sluitingsmelding hem nog kunnen vinden, want eToro's historie loopt soms een sync achter op de
+// orderstatus; anders zou een eigen verkoop op het doel als "doel gehaald door eToro" gemeld worden.
+// Bij een koop om dezelfde reden andersom: eToro's portfolio kan de order nog minutenlang als
+// wachtend meesturen, en alleen deze status zegt dan dat hij al gevuld is (zie isAfgerond). Kost
+// niets: isMeldenswaard en moetOpvragen slaan een gevulde order toch al over.
 export function ruimOp(orders: GeplaatsteOrder[], nu: number): GeplaatsteOrder[] {
   return orders.filter(o => {
-    if (o.status?.id === 3 && !(o.soort === 'verkoop' && nu - o.tijd < OPVRAAG_VENSTER_MS)) return false;
+    if (o.status?.id === 3 && nu - o.tijd >= OPVRAAG_VENSTER_MS) return false;
     if (nu - o.tijd >= BEWAAR_MS) return false;
     return true;
   });
+}
+
+// Weet Kader zeker dat deze wachtende order niet meer wacht? Alleen op positief bewijs: een eigen
+// order met hetzelfde orderId waarvan de opgevraagde status definitief is (gevuld, geweigerd,
+// geannuleerd, verlopen). Geen status, een onbekend id of een order van iemand anders: blijft staan,
+// want een order ten onrechte verbergen verstopt geld dat echt vastzit.
+export function isAfgerond(order: WachtendeOrder, geplaatst: GeplaatsteOrder[]): boolean {
+  if (order.orderId === null) return false;
+  return geplaatst.some(o =>
+    o.orderId === order.orderId
+    && o.omgeving === order.omgeving
+    && o.status !== undefined
+    && isDefinitieveStatus(o.status.id),
+  );
+}
+
+// Saldo over precies de orders die in beeld blijven, zodat het gereserveerde bedrag, het aantal en
+// de lijst nooit uit elkaar lopen. Zelfde regels als bepaalSaldoStand in etoro.ts: één order zonder
+// leesbaar bedrag maakt de optelling onbetrouwbaar, en dan wordt er niets afgetrokken.
+export function saldoOverOrders(creditUsd: number | null, orders: WachtendeOrder[]): {
+  vrijSaldoUsd: number | null; gereserveerdUsd: number | null; wachtendeOrders: number;
+} {
+  let gereserveerd = 0;
+  for (const order of orders) {
+    if (order.bedragUsd === null) return { vrijSaldoUsd: creditUsd, gereserveerdUsd: null, wachtendeOrders: orders.length };
+    gereserveerd += order.bedragUsd;
+  }
+  return {
+    vrijSaldoUsd: creditUsd === null ? null : Math.max(0, creditUsd - gereserveerd),
+    gereserveerdUsd: gereserveerd,
+    wachtendeOrders: orders.length,
+  };
+}
+
+// Na een order synct Kader een tijdje extra vaak, want eToro's portfolio loopt achter. Zo lang:
+// daarna is een order die nog wacht gewoon een wachtende order (limiet, of een dichte beurs).
+export const EXTRA_SYNC_VENSTER_MS = 10 * 60 * 1000;
+
+// Is er een eigen order van de laatste tien minuten waarvan de uitkomst nog niet definitief is?
+export function heeftVerseLopendeOrder(geplaatst: GeplaatsteOrder[], omgeving: EtoroOmgeving, nu: number): boolean {
+  return geplaatst.some(o =>
+    o.omgeving === omgeving
+    && nu - o.tijd < EXTRA_SYNC_VENSTER_MS
+    && !(o.status !== undefined && isDefinitieveStatus(o.status.id)),
+  );
 }
 
 // Orders staan altijd in dollars bij eToro, net als op de orderschermen zelf.
@@ -201,7 +251,8 @@ if (require.main === module) {
 
   const gevuld: GeplaatsteOrder = { ...basis, status: { id: 3, naam: 'Filled', reden: null } };
   console.assert(!isMeldenswaard(gevuld), 'een gevulde order is geen nieuws');
-  console.assert(ruimOp([gevuld], nu).length === 0, 'een gevulde order wordt meteen opgeruimd');
+  console.assert(ruimOp([gevuld], nu).length === 1, 'een gevulde koop blijft een dag staan, zodat de kaart hem kan verbergen');
+  console.assert(ruimOp([{ ...gevuld, tijd: nu - OPVRAAG_VENSTER_MS }], nu).length === 0, 'na een dag verdwijnt een gevulde koop');
   const gevuldeVerkoop: GeplaatsteOrder = { ...gevuld, soort: 'verkoop' };
   console.assert(ruimOp([gevuldeVerkoop], nu).length === 1, 'een gevulde verkoop blijft een dag staan voor de sluitingsmelding');
   console.assert(ruimOp([{ ...gevuldeVerkoop, tijd: nu - OPVRAAG_VENSTER_MS }], nu).length === 0, 'na een dag verdwijnt ook een gevulde verkoop');
@@ -261,6 +312,36 @@ if (require.main === module) {
   console.assert(!adviesBijUitkomst(verkoopGeweigerd).includes('kopen'), 'een verkoop krijgt nooit het koopadvies');
   console.assert(adviesBijUitkomst({ ...verkoopGeweigerd, status: { id: 9, naam: '', reden: null } }).startsWith('Een deel van je positie is wel verkocht'),
     'verkoop gedeeltelijk uitgevoerd: een deel is wel verkocht');
+
+  // De kaart verbergt alleen op positief bewijs.
+  const wachtend: WachtendeOrder = {
+    orderId: 384361926, instrumentId: 1, soort: 'markt', richting: 'long', bedragUsd: 50, limietKoers: null,
+    stopLoss: null, takeProfit: null, openTijd: null, statusId: null, symbool: 'SOL', naam: 'Solana', omgeving: 'demo',
+  };
+  console.assert(isAfgerond(wachtend, [gevuld]), 'een gevulde eigen order verdwijnt van de kaart');
+  console.assert(isAfgerond(wachtend, [geannuleerd]), 'een geannuleerde eigen order verdwijnt van de kaart');
+  console.assert(!isAfgerond(wachtend, [basis]), 'zonder status blijft de order staan');
+  console.assert(!isAfgerond(wachtend, [wachtOpMarkt]), 'status 11 blijft staan');
+  console.assert(!isAfgerond(wachtend, [{ ...gevuld, omgeving: 'real' }]), 'een order uit de andere omgeving telt niet');
+  console.assert(!isAfgerond({ ...wachtend, orderId: null }, [gevuld]), 'een order zonder id blijft staan');
+  console.assert(!isAfgerond(wachtend, []), 'een order van buiten Kader blijft staan');
+
+  // Het saldo telt alleen de orders die in beeld blijven.
+  const tweede: WachtendeOrder = { ...wachtend, orderId: 2, bedragUsd: 30 };
+  const zichtbaar = [wachtend, tweede].filter(o => !isAfgerond(o, [gevuld]));
+  const saldo = saldoOverOrders(100, zichtbaar);
+  console.assert(saldo.wachtendeOrders === 1 && saldo.gereserveerdUsd === 30 && saldo.vrijSaldoUsd === 70,
+    'een afgeronde order telt niet mee in het aantal en het gereserveerde bedrag');
+  const onleesbaar = saldoOverOrders(100, [wachtend, { ...tweede, bedragUsd: null }]);
+  console.assert(onleesbaar.gereserveerdUsd === null && onleesbaar.vrijSaldoUsd === 100 && onleesbaar.wachtendeOrders === 2,
+    'een order zonder bedrag: niets aftrekken, wel tellen');
+  console.assert(saldoOverOrders(20, [wachtend]).vrijSaldoUsd === 0, 'nooit onder nul');
+  console.assert(saldoOverOrders(null, []).vrijSaldoUsd === null, 'geen credit blijft onbekend');
+
+  console.assert(heeftVerseLopendeOrder([basis], 'demo', nu), 'een verse order zonder status houdt de extra sync aan');
+  console.assert(!heeftVerseLopendeOrder([gevuld], 'demo', nu), 'een gevulde order niet');
+  console.assert(!heeftVerseLopendeOrder([basis], 'real', nu), 'een order in de andere omgeving niet');
+  console.assert(!heeftVerseLopendeOrder([{ ...basis, tijd: nu - EXTRA_SYNC_VENSTER_MS }], 'demo', nu), 'na tien minuten niet meer');
 
   // ruimOp rekent vanaf o.tijd, ook voor een order die nooit is opgevraagd (geen orderId).
   console.assert(ruimOp([{ ...basis, orderId: undefined, tijd: nu - BEWAAR_MS - 1 }], nu).length === 0,

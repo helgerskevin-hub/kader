@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import type { MeldingDoel } from './meldingDoel';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -84,7 +85,10 @@ export async function zorgVoorTradeKanaal(): Promise<void> {
 // De trigger bepaalt het kanaal, niet de content: een trigger met alleen een channelId is expo's
 // ChannelAwareTriggerInput, die direct bezorgt én op het juiste kanaal landt. Met `trigger: null`
 // kan dat niet en valt de melding terug op expo's fallback-kanaal.
-export async function stuurTradeMelding(titel: string, tekst: string): Promise<boolean> {
+//
+// `doel` gaat mee in de data van de melding, zodat een tik erop in de app op de juiste plek uitkomt
+// (zie NavigatieProvider in state/navigatie.tsx). Zonder doel opent een tik gewoon de app.
+export async function stuurTradeMelding(titel: string, tekst: string, doel?: MeldingDoel): Promise<boolean> {
   if (!await zorgVoorPermissie()) return false;
   await zorgVoorTradeKanaal();
   await Notifications.scheduleNotificationAsync({
@@ -92,6 +96,7 @@ export async function stuurTradeMelding(titel: string, tekst: string): Promise<b
     content: {
       title: titel,
       body: `${tekst} ${DISCLAIMER}`,
+      ...(doel ? { data: { doel } } : {}),
     },
     trigger: Platform.OS === 'android' ? { channelId: KANAAL_TRADES } : null,
   });

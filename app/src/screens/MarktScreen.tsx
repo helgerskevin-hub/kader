@@ -64,6 +64,8 @@ export function MarktScreen() {
   const [filter, setFilter] = useState<Filter>('alle');
   const [marktFilters, setMarktFilters] = useState<MarktFilterState>(STANDAARD_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Standaard de top van de analyse; de knop onder de lijst klapt uit naar alle geanalyseerde coins.
+  const [toonAlles, setToonAlles] = useState(false);
   // Eén keer per scherm, niet per kaart: de stop-loss-grenzen van eToro voor alle coins. Ze bepalen
   // welke stop er op de kaarten staat, want Kaders eigen niveau is voor de meeste coins krapper dan
   // eToro toestaat en dan is het een niveau dat je niet kunt zetten.
@@ -152,9 +154,17 @@ export function MarktScreen() {
     ? state.trades
     : state.status === 'loading' ? state.voorlopig : [];
 
-  const gesorteerdeTrades = [...bronTrades]
+  // De lijst toont de top van de analyse, maar favorieten horen er altijd bij, ook als ze buiten
+  // die top vallen: `alle` bevat elke geanalyseerde coin. Tijdens het laden is er alleen de
+  // voorlopige top, dus dan valt er niets bij te zoeken.
+  const alleCoins = state.status === 'success' ? state.alle : bronTrades;
+  const topSymbolen = new Set(bronTrades.map(t => t.symbool));
+  const basisLijst = filter === 'favorieten' || toonAlles
+    ? alleCoins
+    : [...bronTrades, ...alleCoins.filter(t => !topSymbolen.has(t.symbool) && isFavoriet(t.symbool))];
+  const gesorteerdeTrades = [...basisLijst]
     .sort((a, b) => Number(isFavoriet(b.symbool)) - Number(isFavoriet(a.symbool)));
-  const aantalFavorieten = gesorteerdeTrades.filter(t => isFavoriet(t.symbool)).length;
+  const aantalFavorieten = alleCoins.filter(t => isFavoriet(t.symbool)).length;
   const weergegevenTrades = (filter === 'favorieten'
     ? gesorteerdeTrades.filter(t => isFavoriet(t.symbool))
     : gesorteerdeTrades
@@ -339,7 +349,7 @@ export function MarktScreen() {
               </Animated.View>
               <Animated.View layout={schuifOvergang(reduceMotion)} style={styles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
-                  {state.trades.length} van {state.bekeken} coins · gesorteerd op signaalsterkte
+                  {weergegevenTrades.length} van {state.bekeken} coins · gesorteerd op signaalsterkte
                 </Text>
               </Animated.View>
             </Animated.View>
@@ -368,7 +378,21 @@ export function MarktScreen() {
                 ))}
               </>
             ) : (
-              <Disclaimer />
+              <>
+                {filter === 'alle' && state.status === 'success' && state.alle.length > state.trades.length && (
+                  <Drukbaar
+                    style={styles.toonMeer}
+                    onPress={() => setToonAlles(v => !v)}
+                    accessibilityRole="button"
+                    accessibilityLabel={toonAlles ? 'Alleen de top 20 tonen' : `Alle ${state.alle.length} coins tonen`}
+                  >
+                    <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+                      {toonAlles ? `Toon alleen de top ${state.trades.length}` : `Toon alle ${state.alle.length} coins`}
+                    </Text>
+                  </Drukbaar>
+                )}
+                <Disclaimer />
+              </>
             )
           }
         />
@@ -628,6 +652,12 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   tabTekst: { fontWeight: '600' },
+  toonMeer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    marginTop: spacing.sm,
+  },
   leegInLijst: {
     alignItems: 'center',
     paddingTop: spacing.xl,

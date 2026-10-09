@@ -1,6 +1,7 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import * as Notifications from 'expo-notifications';
 import { Tab } from '../components/BottomNav';
-import { MeldingDoel } from '../notifications/meldingDoel';
+import { MeldingDoel, leesDoel } from '../notifications/meldingDoel';
 
 // Navigatie op verzoek van iets dat zelf niet weet welk tabblad er open staat, zoals het
 // meldingenlog in de header. Dat log zit in ScreenHeader en die staat op elk scherm, dus een tik
@@ -47,6 +48,25 @@ export function NavigatieProvider({ wisselTab, children }: {
   }, []);
 
   const wisDoel = useCallback(() => setDoel(null), []);
+
+  // Een tik op een push-melding in de notificatiebalk. stuurTradeMelding geeft een losse melding
+  // haar doel mee in de data; hier gaat dat doel dezelfde weg als een tik in het meldingenlog. De
+  // hook geeft ook de tik terug die de app vanuit een koude start opende. Na verwerken gewist, anders
+  // zou dezelfde tik bij een volgende mount opnieuw navigeren. Een melding zonder (geldig) doel, zoals
+  // een bundel of de dagelijkse herinnering, opent gewoon de app.
+  const laatsteTik = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!laatsteTik || laatsteTik.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const volgende = leesDoel(laatsteTik.notification.request.content.data?.doel);
+    // Wissen is ook nodig voor de volgende tik: alle trade-meldingen delen één identifier, en de hook
+    // negeert een nieuwe tik met dezelfde identifier zolang de vorige nog staat.
+    try {
+      Notifications.clearLastNotificationResponse();
+    } catch {
+      // Niet beschikbaar op dit platform: dan navigeren we gewoon, hooguit een keer te veel.
+    }
+    if (volgende) gaNaar(volgende);
+  }, [laatsteTik, gaNaar]);
 
   const waarde = useMemo<NavigatieWaarde>(() => ({ doel, gaNaar, wisDoel }), [doel, gaNaar, wisDoel]);
 

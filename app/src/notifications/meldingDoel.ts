@@ -7,7 +7,12 @@
 export type MeldingDoel =
   // Een positie in je portfolio. `symbool` staat er naast het id bij als terugval: een trade die
   // opnieuw uit eToro is geïmporteerd kan een ander id hebben gekregen.
-  | { soort: 'trade'; tradeId: string; symbool: string }
+  //
+  // `voorstelStop` staat er alleen bij de melding "stop aantrekken": een tik opent dan het
+  // stop-venster met dit niveau al ingevuld. Optioneel, zodat oude logregels zonder dit veld gewoon
+  // als gewone trade-tik blijven werken. Het is een voorstel: verzetten gebeurt pas na de
+  // bevestigknop in dat venster, nooit vanuit de melding zelf.
+  | { soort: 'trade'; tradeId: string; symbool: string; voorstelStop?: number }
   // Een coin die je (nog) niet hebt, zoals bij een koopsignaal. Hoort thuis op het Marktscherm.
   | { soort: 'coin'; symbool: string }
   // Gaat over je posities als geheel, niet over één trade.
@@ -31,7 +36,11 @@ export function leesDoel(ruw: unknown): MeldingDoel | null {
   if (soort === 'trade') {
     const tradeId = tekst((ruw as { tradeId?: unknown }).tradeId);
     const symbool = tekst((ruw as { symbool?: unknown }).symbool);
-    return tradeId && symbool ? { soort: 'trade', tradeId, symbool } : null;
+    if (!tradeId || !symbool) return null;
+    const voorstel = (ruw as { voorstelStop?: unknown }).voorstelStop;
+    return typeof voorstel === 'number' && Number.isFinite(voorstel) && voorstel > 0
+      ? { soort: 'trade', tradeId, symbool, voorstelStop: voorstel }
+      : { soort: 'trade', tradeId, symbool };
   }
   if (soort === 'coin') {
     const symbool = tekst((ruw as { symbool?: unknown }).symbool);
