@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, useWindowDimensions,
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { ChevronRight } from 'lucide-react-native';
 import { Trade } from '../engine/types';
 import { infoVoor } from '../engine/coinInfo';
@@ -33,6 +34,7 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
   const [actief, setActief] = useState(0);
   // De laatst gemelde pagina, zodat een scroll-event dat dezelfde pagina oplevert geen setState doet.
   const laatste = useRef(0);
+  const strookGebaar = useMemo(() => Gesture.Native().disallowInterruption(true), []);
 
   // Alleen high conviction: gemeten +0,16 R gemiddeld, de sterkste bucket uit de backtest.
   // Een lagere score kan hier ook nog KOOP zijn, maar is niet sterk genoeg voor dit uitgelichte advies.
@@ -81,26 +83,30 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView
-        horizontal
-        snapToInterval={stap}
-        snapToAlignment="start"
-        disableIntervalMomentum
-        showsHorizontalScrollIndicator={false}
-        onScroll={opScroll}
-        scrollEventThrottle={16}
-        decelerationRate="fast"
-        contentContainerStyle={styles.spoor}
-      >
-        {kandidaten.map(trade => (
-          <Kaart
-            key={trade.symbool}
-            trade={trade}
-            onOpenDetail={onOpenDetail}
-            breedte={kaartBreedte}
-          />
-        ))}
-      </ScrollView>
+      {/* De strook is een RNGH-gebaar dat niet te onderbreken is: zonder dit wint de tab-pager in
+          App.tsx bij een snelle veeg en schiet je naar de buurtab in plaats van naar de volgende kaart. */}
+      <GestureDetector gesture={strookGebaar}>
+        <ScrollView
+          horizontal
+          snapToInterval={stap}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          showsHorizontalScrollIndicator={false}
+          onScroll={opScroll}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          contentContainerStyle={styles.spoor}
+        >
+          {kandidaten.map(trade => (
+            <Kaart
+              key={trade.symbool}
+              trade={trade}
+              onOpenDetail={onOpenDetail}
+              breedte={kaartBreedte}
+            />
+          ))}
+        </ScrollView>
+      </GestureDetector>
 
       {/* De puntjes zeggen twee dingen tegelijk: er zijn er meer, en je bent bij de zoveelste. */}
       <View

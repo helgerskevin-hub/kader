@@ -1,8 +1,9 @@
-import React, { memo, useRef, useState } from 'react';
+import React, { useMemo, memo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, useWindowDimensions,
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { fmtPrijs } from '../engine/format';
 import { StopLossLimiet } from '../engine/etoroLimieten';
 import { effectiefSignaal } from '../engine/opportunities';
@@ -40,6 +41,7 @@ export function KansenTop3({ kansen, onOpenDetail, stopLimieten }: Props) {
   const [actief, setActief] = useState(0);
   // De laatst gemelde pagina, zodat een scroll-event met dezelfde pagina geen setState doet.
   const laatste = useRef(0);
+  const strookGebaar = useMemo(() => Gesture.Native().disallowInterruption(true), []);
   const { colors } = useTheme();
 
   const kaartBreedte = Math.round((width - spacing.base * 2) * BREEDTE_FACTOR + spacing.base);
@@ -68,28 +70,32 @@ export function KansenTop3({ kansen, onOpenDetail, stopLimieten }: Props) {
           </Text>
         </View>
       </View>
-      <ScrollView
-        horizontal
-        snapToInterval={stap}
-        snapToAlignment="start"
-        disableIntervalMomentum
-        showsHorizontalScrollIndicator={false}
-        onScroll={opScroll}
-        scrollEventThrottle={16}
-        decelerationRate="fast"
-        contentContainerStyle={styles.spoor}
-      >
-        {kansen.map((kans, i) => (
-          <MiniKaart
-            key={kans.symbool}
-            kans={kans}
-            signaal={effectiefSignaal(kans, limietVoor(stopLimieten, kans.symbool)).signaal}
-            volgorde={i}
-            breedte={kaartBreedte}
-            onOpenDetail={onOpenDetail}
-          />
-        ))}
-      </ScrollView>
+      {/* De strook is een RNGH-gebaar dat niet te onderbreken is: zonder dit wint de tab-pager in
+          App.tsx bij een snelle veeg en schiet je naar de buurtab in plaats van naar de volgende kaart. */}
+      <GestureDetector gesture={strookGebaar}>
+        <ScrollView
+          horizontal
+          snapToInterval={stap}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          showsHorizontalScrollIndicator={false}
+          onScroll={opScroll}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          contentContainerStyle={styles.spoor}
+        >
+          {kansen.map((kans, i) => (
+            <MiniKaart
+              key={kans.symbool}
+              kans={kans}
+              signaal={effectiefSignaal(kans, limietVoor(stopLimieten, kans.symbool)).signaal}
+              volgorde={i}
+              breedte={kaartBreedte}
+              onOpenDetail={onOpenDetail}
+            />
+          ))}
+        </ScrollView>
+      </GestureDetector>
       <View
         style={styles.puntenRij}
         accessibilityRole="adjustable"

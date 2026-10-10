@@ -27,6 +27,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-10-10',
+    punten: [
+      'Vegen door de drie sterkste op de radar (en de carrousel op Markt) schiet niet meer per ongeluk door naar een andere tab, ook niet bij een snelle veeg',
+      'Het detailscherm van een coin heeft de nieuwe opmaak: de scorering om het logo, elke sectie als kaart, het plan als stop-doelbaan met de koers erop en de indicatoren als tegels',
+    ],
+  },
+  {
     versie: '0.2.1',
     datum: '2026-10-09',
     punten: [

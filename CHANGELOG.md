@@ -4,6 +4,11 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Vegen door de drie sterkste op de radar (en de carrousel op Markt) schiet niet meer per ongeluk door naar een andere tab, ook niet bij een snelle veeg
+- Het detailscherm van een coin heeft de nieuwe opmaak: de scorering om het logo, elke sectie als kaart, het plan als stop-doelbaan met de koers erop en de indicatoren als tegels
+
 ## 0.2.1
 
 - Historie is opnieuw opgezet: kies een periode, zie je resultaat met het verloop erbij, filter op gewonnen of verloren, en je trades staan per maand met het maandtotaal. Verwijderen doe je door een trade naar links te vegen, met een paar seconden om het ongedaan te maken
