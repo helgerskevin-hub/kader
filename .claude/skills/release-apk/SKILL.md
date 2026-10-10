@@ -59,7 +59,7 @@ time.
    ```powershell
    $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.x.x-hotspot"
    $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-   Set-Location D:\dev\crypto-market\app
+   Set-Location D:\dev\Kader\app
    npm run release:apk
    ```
    Linux (ai-workstation):
