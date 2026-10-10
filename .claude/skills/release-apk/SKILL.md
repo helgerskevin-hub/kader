@@ -34,8 +34,16 @@ a clean prebuild and verifies the result before it can be shipped.
 Same as `run-android`: JDK 17 in `JAVA_HOME` (not the JBR bundled with
 Android Studio), `ANDROID_HOME` set, and the Gradle
 auto-provisioning workaround in `~/.gradle/gradle.properties`. See
-that skill for the exact commands and gotchas if the build fails with
+that skill (it has Windows and Linux subsections) for the exact
+commands and gotchas if the build fails with
 `NoSuchFieldError ... IBM_SEMERU`.
+
+On Linux (ai-workstation) `source ~/.profile` provides `JAVA_HOME`
+(`/usr/lib/jvm/java-17-openjdk-amd64`) and `ANDROID_HOME`
+(`~/Android/Sdk`). Keep the Gradle memory caps in
+`~/.gradle/gradle.properties`; a release build is heavy, so run
+`./gradlew --stop` afterwards and do not run an emulator at the same
+time.
 
 ## Build & verify
 
@@ -45,14 +53,24 @@ that skill for the exact commands and gotchas if the build fails with
    on someone's phone — check `CHANGELOG.md` and prior GitHub release
    assets if unsure, don't just increment from `app.json`'s previous
    value, since past releases have drifted from it before).
-2. Run the release script:
+2. Run the release script.
+
+   Windows:
    ```powershell
    $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.x.x-hotspot"
    $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
    Set-Location D:\dev\crypto-market\app
    npm run release:apk
    ```
-   This runs `app/scripts/bouw-release.mjs`, which:
+   Linux (ai-workstation):
+   ```bash
+   source ~/.profile
+   cd ~/dev/Kader/app
+   npm run release:apk
+   ```
+   The script is cross-platform: it picks `gradlew` or `gradlew.bat`,
+   the `aapt2`/`apksigner` file names, and the default SDK location per
+   OS by itself. It runs `app/scripts/bouw-release.mjs`, which:
    - runs `expo prebuild -p android --clean` (forces a fresh native
      project so `build.gradle` picks up the current `app.json`);
    - runs `gradlew assembleRelease`;
@@ -67,6 +85,11 @@ that skill for the exact commands and gotchas if the build fails with
    exactly which check (version or signing) didn't match.
 
 ## Gotcha: stale gradle daemons lock `android/` on `--clean`
+
+(Windows only in practice. On Linux open files do not block deletion,
+so `expo prebuild --clean` normally just works. If a build looks stuck,
+run `./gradlew --stop` in `app/android` and check
+`pgrep -fa GradleDaemon`.)
 
 If `android/` was left in a partial or locked state from a previous
 build attempt, `expo prebuild --clean` fails with `EBUSY: resource
@@ -86,6 +109,10 @@ transient Windows file locks than `Remove-Item`.
 
 ## Signing: do not change it
 
+There is no release keystore, on any machine, and nothing in this flow
+needs one. None is present on ai-workstation either (only the generated
+`app/android/app/debug.keystore`). Do not create or copy one.
+
 The debug keystore (`app/android/app/debug.keystore`, regenerated
 identically by every `expo prebuild`) is what every installed copy of
 Kader is currently signed with. Introducing a real release keystore
@@ -96,7 +123,9 @@ it first; it defeats the whole point of this skill.
 
 ## Publishing
 
-After the script succeeds:
+After the script succeeds. On ai-workstation `gh` is already logged in
+(account `decibel95`, config in `~/.config/gh/hosts.yml`); on Windows use
+your own `gh auth login`. The command is the same on both:
 ```bash
 gh release create v<version> app/kader-<version>.apk --title "Kader v<version>" --notes "..."
 ```
