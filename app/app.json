@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kader",
     "slug": "kader",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.kader.app",
       "allowBackup": false,
-      "versionCode": 36
+      "versionCode": 37
     },
     "web": {
       "favicon": "./assets/favicon.png"

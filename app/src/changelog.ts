@@ -27,7 +27,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.2.2',
     datum: '2026-10-10',
     punten: [
       'Vegen door de drie sterkste op de radar (en de carrousel op Markt) schiet niet meer per ongeluk door naar een andere tab, ook niet bij een snelle veeg',
