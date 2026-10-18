@@ -27,7 +27,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.2.3',
     datum: '2026-10-18',
     punten: [
       'In Historie staat nu bovenaan je portfoliowaarde over tijd. Sleep met je vinger over de lijn en je ziet de waarde op elke dag. Vanaf nu bewaart Kader elke dag je echte waarde; de tijd daarvoor rekent Kader terug uit je eToro-trades, zonder stortingen en opnames',

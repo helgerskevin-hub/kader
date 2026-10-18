@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.2.3
 
 - In Historie staat nu bovenaan je portfoliowaarde over tijd. Sleep met je vinger over de lijn en je ziet de waarde op elke dag. Vanaf nu bewaart Kader elke dag je echte waarde; de tijd daarvoor rekent Kader terug uit je eToro-trades, zonder stortingen en opnames
 - De koersgrafiek van een coin heeft nu ook 24U en 7D. Je ziet het verloop per kwartier en per uur, en bij het scrubben staat het tijdstip erbij
