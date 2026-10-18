@@ -9,6 +9,8 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 - In Historie staat nu bovenaan je portfoliowaarde over tijd. Sleep met je vinger over de lijn en je ziet de waarde op elke dag. Vanaf nu bewaart Kader elke dag je echte waarde; de tijd daarvoor rekent Kader terug uit je eToro-trades, zonder stortingen en opnames
 - De koersgrafiek van een coin heeft nu ook 24U en 7D. Je ziet het verloop per kwartier en per uur, en bij het scrubben staat het tijdstip erbij
 - Bij de stop staat nu gewoon één waarde: de stop die je bij eToro echt kunt zetten. Het label AANGEPAST en de uitleg erover zijn weg; de R/R rekent zoals altijd met die stop. Bij een positie in je portfolio toont Kader je echte stop bij eToro
+- Een melding "zet je winst vast" noemt nu de juiste R. Kader rekende met je huidige stop, en stond die al vlak onder je instap, dan werd een kleine winst al snel "16R". Kader onthoudt nu de stop waarmee je positie opende en rekent daarmee, ook voor de gemiddelde R in je statistieken. Bij posities van vóór deze versie gebruikt Kader je huidige stop zolang die nog onder je instap ligt
+- Je kunt in je echte account nu ook een stop boven je aankoopprijs zetten om winst vast te zetten, net als in demo, zolang hij onder de huidige koers blijft. Een tik op de melding "zet je winst vast" opent dan altijd het stopvenster met het voorstel ingevuld; doorgeven doe je zelf
 
 ## 0.2.2
 

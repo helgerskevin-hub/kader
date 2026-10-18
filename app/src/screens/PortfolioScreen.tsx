@@ -172,6 +172,8 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
       richting: form.richting,
       entryPrijs: entry,
       stopLoss: stop,
+      // Verzet je de stop via Aanpassen, dan blijft de oorspronkelijke staan voor de R-berekening.
+      initieleStop: bestaand?.initieleStop,
       takeProfit: tp,
       rr,
       datum: bestaand ? bestaand.datum : new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }),

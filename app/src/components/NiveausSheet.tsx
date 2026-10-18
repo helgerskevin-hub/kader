@@ -113,10 +113,10 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   // dezelfde x-request-id hergebruikt.
   useEffect(() => {
     if (!zichtbaar) return;
-    // Een voorstel uit een melding vult de stop alvast in, behalve als het in je echte account op of
-    // voorbij de instapprijs ligt: dat kan Kader nog niet doorgeven, en dan legt voorstelUitleg
-    // hieronder uit waarom het veld de huidige stop houdt.
-    setStopVeld(meldingVoorstel !== undefined && !bovenAankoopInEcht(meldingVoorstel)
+    // Een voorstel uit een melding vult de stop alvast in, behalve als het al voorbij de huidige koers
+    // ligt (de koers is sinds de melding gedraaid) of er geen verse koers is om dat te toetsen: dan
+    // legt voorstelUitleg hieronder uit waarom het veld de huidige stop houdt.
+    setStopVeld(meldingVoorstel !== undefined && !voorbijKoers(meldingVoorstel)
       ? zonderExponent(meldingVoorstel)
       : trade.stopLoss > 0 ? trade.stopLoss.toString() : '');
     setDoelVeld(trade.takeProfit > 0 ? trade.takeProfit.toString() : '');
@@ -162,21 +162,27 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const koersReferentie = richtingVan(trade) === 'long' && koersVers && typeof huidigePrijs === 'number'
     && isFinite(huidigePrijs) && huidigePrijs > 0 ? huidigePrijs : undefined;
 
-  // Of eToro een stop boven de aankoopprijs neemt, is nog niet gemeten (plan §12, T2 en T3). Tot dat
-  // gemeten is houdt Kader de stop van een long in je echte account onder de aankoopprijs; in demo
-  // mag het wel, daar kost een misser geen echt geld. Voor een short geldt het spiegelbeeld: in echt
-  // geen stop op of onder de instapprijs. Dat blokkeert ook als de limieten nog niet binnen zijn,
-  // want dan toetst bepaalStop niets en zou een break-even-stop anders na één tik uitgaan.
-  const echtPlafond = richtingVan(trade) === 'long' && tradeOmgeving === 'real';
-  const echtVloer = richtingVan(trade) === 'short' && tradeOmgeving === 'real';
-  const bovenAankoopInEcht = (stop: number) => isFinite(stop)
-    && ((echtPlafond && stop >= trade.entryPrijs) || (echtVloer && stop <= trade.entryPrijs));
-  const voorbijInstap = echtVloer ? 'op of onder je instapprijs' : 'op of boven je aankoopprijs';
+  // Een stop voorbij de instapprijs (boven de aankoop bij een long, onder de instap bij een short)
+  // zet winst vast en mag, in demo en in je echte account. Dan moet hij wel nog aan de verliezende
+  // kant van de huidige koers liggen, anders sluit eToro de positie meteen. Dat toetsen kan alleen
+  // met een verse koers, dus zonder verse koers gaat zo'n stop niet uit. Een stop aan de verliezende
+  // kant van de instap valt hier buiten: die toetst bepaalStop al zoals altijd.
+  const verseKoers = koersVers && typeof huidigePrijs === 'number' && isFinite(huidigePrijs) && huidigePrijs > 0
+    ? huidigePrijs : undefined;
+  const isShort = richtingVan(trade) === 'short';
+  const voorbijKoers = (stop: number) => {
+    if (!isFinite(stop) || stop <= 0) return false;
+    const voorbijInstap = isShort ? stop <= trade.entryPrijs : stop >= trade.entryPrijs;
+    if (!voorbijInstap) return false;
+    if (verseKoers === undefined) return true;
+    return isShort ? stop <= verseKoers : stop >= verseKoers;
+  };
+  const kantVanKoers = isShort ? 'boven' : 'onder';
 
   // De limiet komt nu per richting binnen, dus een short wordt tegen eToro's short-grenzen getoetst
   // (gemeten: minimaal 10% en maximaal 50% BOVEN de entry, waar een long tot 100% eronder mag).
   // Wissen is geen niveau, dus dan valt er niets te toetsen. Komt de stop die zou uitgaan (ook een
-  // door bepaalStop bijgestelde) op of boven de aankoopprijs in echt, dan gaat er niets uit. Een stop
+  // door bepaalStop bijgestelde) voorbij de instap en voorbij de koers, dan gaat er niets uit. Een stop
   // die al zo bij eToro staat en niet wijzigt, blokkeert een wijziging van alleen het doel niet.
   const eToroAdvies: StopAdvies = wisStop
     ? { soort: 'ok' }
@@ -184,10 +190,12 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   const stopNaToets = eToroAdvies.soort === 'aangepast' ? eToroAdvies.stop : ingevuldeStop;
   const advies: StopAdvies =
     (eToroAdvies.soort === 'ok' || eToroAdvies.soort === 'aangepast') && !wisStop && stopNaToets > 0
-      && bovenAankoopInEcht(stopNaToets) && anders(stopNaToets, trade.stopLoss)
+      && voorbijKoers(stopNaToets) && anders(stopNaToets, trade.stopLoss)
       ? {
         soort: 'waarschuwing',
-        uitleg: `In je echte account kan Kader de stop nog niet ${voorbijInstap} zetten. Dat is bij eToro nog niet gemeten; in demo kan het wel.`,
+        uitleg: verseKoers === undefined
+          ? 'Kader heeft geen verse koers om deze stop aan te toetsen. Ververs de koers en probeer het opnieuw.'
+          : `Je stop hoort ${kantVanKoers} de huidige koers (${fmtDollar(verseKoers)}) te liggen, anders sluit eToro je positie meteen.`,
       }
       : eToroAdvies;
 
@@ -315,9 +323,9 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     // live blijft ook een oudere koers: hij houdt de greep alleen onder die koers, dat verruimt niets.
     // De referentie voor eToro's minimum is wel alleen een verse koers, net als bij bepaalStop.
     () => greepBereik({
-      entry, live: huidigePrijs, referentie: koersReferentie, plafond: echtPlafond ? entry : undefined, richting, limiet, stap,
+      entry, live: huidigePrijs, referentie: koersReferentie, richting, limiet, stap,
     }),
-    [entry, huidigePrijs, koersReferentie, echtPlafond, richting, limiet, stap],
+    [entry, huidigePrijs, koersReferentie, richting, limiet, stap],
   );
 
   // De schaal van de baan komt uit de oorspronkelijke niveaus, de koers en de grenzen, nooit uit
@@ -381,8 +389,8 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
     // Alleen als eToro dit niveau zo neemt. Bij 'aangepast' zou de tekst een ander niveau noemen
     // dan wat er de deur uitgaat.
     && bepaalStop(entry, trailing, limiet, koersReferentie).soort === 'ok'
-    // In echt geen voorstel voorbij de instapprijs, zie echtPlafond en echtVloer.
-    && !bovenAankoopInEcht(trailing)
+    // Geen voorstel dat al voorbij de koers ligt, zie voorbijKoers.
+    && !voorbijKoers(trailing)
     && !wisStop
     && (!heeftStop || anders(trailing, ingevuldeStop));
   const voorstelInVerlies = typeof trailing === 'number' && (richting === 'short' ? trailing > entry : trailing < entry);
@@ -390,8 +398,10 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
   // Uitleg bij een voorstel uit een melding, zodat het venster niet stil iets anders toont dan de
   // melding noemde.
   const voorstelUitleg = meldingVoorstel === undefined ? ''
-    : bovenAankoopInEcht(meldingVoorstel)
-      ? `Kader stelde voor je stop naar ${fmtDollar(meldingVoorstel)} te zetten, ${voorbijInstap}. In je echte account kan Kader dat nog niet doorgeven: eToro is daarop nog niet gemeten. In demo kan het wel. Je kunt de stop zelf in de eToro-app verzetten.`
+    : voorbijKoers(meldingVoorstel)
+      ? verseKoers === undefined
+        ? `Kader stelde voor je stop naar ${fmtDollar(meldingVoorstel)} te zetten. Er is nu geen verse koers om dat aan te toetsen, dus het veld houdt je huidige stop. Ververs de koers en kijk opnieuw.`
+        : `Kader stelde voor je stop naar ${fmtDollar(meldingVoorstel)} te zetten, maar de koers staat nu op ${fmtDollar(verseKoers)}. Dat niveau ligt daar al voorbij, dus het veld houdt je huidige stop.`
       : `Voorstel uit je melding: stop naar ${fmtDollar(meldingVoorstel)}, al ingevuld. Er gaat pas iets naar eToro als je bevestigt.`;
 
   function neemVoorstel() {
@@ -498,7 +508,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
         </View>
 
         {voorstelUitleg ? (
-          <View style={[stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: bovenAankoopInEcht(meldingVoorstel as number) ? colors.letOp : colors.winst }]}>
+          <View style={[stijlen.melding, { backgroundColor: colors.verhoogd, borderColor: voorbijKoers(meldingVoorstel as number) ? colors.letOp : colors.winst }]}>
             <Text style={[Type.caption, { color: colors.tekstPrimair, lineHeight: 18 }]}>{voorstelUitleg}</Text>
           </View>
         ) : null}
