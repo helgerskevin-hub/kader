@@ -1,4 +1,4 @@
-import { PortfolioTrade, richtingVan } from '../state/portfolioTypes';
+import { PortfolioTrade, richtingVan, risicoStop } from '../state/portfolioTypes';
 import { voorstelTrailingStop, bepaalAfbouwAdvies } from '../state/afbouw';
 import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { haalData, haalLaatstePrijzen } from '../engine/marketData';
@@ -169,15 +169,17 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   // stop-afstand voorbij de entry), of hij staat in winst en het momentum vlakt af. Eén melding per
   // trade voor beide redenen. Alleen melden als het voorstel de stop echt richting winst brengt.
   //
-  // De R rekent met de huidige stop, want de oorspronkelijke stop wordt niet apart bewaard. Dat is
-  // hier precies goed: zodra de stop op break-even of erboven staat, faalt de vormcontrole
-  // hierboven en zwijgt deze trigger vanzelf.
+  // De R rekent met de oorspronkelijke stop (initieleStop, zie risicoStop), niet met de huidige.
+  // Met de huidige stop gaf een stop die al vlak onder de instap stond een risico van bijna nul, en
+  // daarmee meldde INJ "16,2R" bij een winst van nog geen 1R. Zonder bruikbare oorspronkelijke stop
+  // noemt de melding geen R en telt alleen het momentum.
   //
   // Dit is alleen advies. Er gaat niets naar eToro: een tik op de melding opent het stop-venster
   // met het voorstel ingevuld, en pas de bevestigknop daar verzet de stop.
   const teken = short ? -1 : 1;
   const winstAfstand = teken * (koers - trade.entryPrijs);
-  const risicoAfstand = teken * (trade.entryPrijs - trade.stopLoss);
+  const basisStop = risicoStop(trade);
+  const risicoAfstand = basisStop === null ? 0 : teken * (trade.entryPrijs - basisStop);
   const inWinst = winstAfstand > 0;
   const eenRWinst = risicoAfstand > 0 && winstAfstand >= risicoAfstand;
   const momentumVlaktAf = !histogramGunstig;
@@ -192,18 +194,12 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
         ? `${fmtPrijs(voorstel)}, je instapprijs (break-even)`
         : `${fmtPrijs(voorstel)}, dan staat de winst tot daar vast`;
       const r = (winstAfstand / risicoAfstand).toFixed(1).replace('.', ',');
-      // Alleen een voorstel dat NiveausSheet ook echt kan bevestigen gaat als voorstelStop mee: een
-      // eToro-trade in demo, of in je echte account een niveau dat nog aan de veilige kant van de
-      // instap ligt (zie echtPlafond en echtVloer daar). Anders is het puur advies en opent de tik
-      // gewoon de trade.
-      const echt = (trade.etoroOmgeving ?? 'real') === 'real';
-      const veiligInEcht = short ? voorstel > trade.entryPrijs : voorstel < trade.entryPrijs;
-      const bevestigbaar = trade.bron === 'etoro' && (!echt || veiligInEcht);
+      // Een eToro-trade kan NiveausSheet zelf bevestigen, in demo en in je echte account. Een
+      // handmatige trade niet: daar opent de tik gewoon de trade.
+      const bevestigbaar = trade.bron === 'etoro';
       const slot = bevestigbaar
         ? ' Tik om het voorstel te bekijken en te bevestigen.'
-        : trade.bron === 'etoro'
-          ? ' Dat niveau kan Kader in je echte account nog niet doorgeven; verzet de stop zelf in de eToro-app.'
-          : ' Pas de stop aan via Aanpassen bij de trade.';
+        : ' Pas de stop aan via Aanpassen bij de trade.';
       meldingen.push({
         sleutel: sleutelVoor(trade.id, 'trekStopAan'),
         doel: bevestigbaar

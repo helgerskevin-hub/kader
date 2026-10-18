@@ -8,6 +8,13 @@ export interface PortfolioTrade {
   naam: string;
   entryPrijs: number;
   stopLoss: number;
+  // De stop zoals hij stond toen de positie opende. stopLoss hierboven schuift mee zodra je hem
+  // verzet (trailing stop, break-even), en R rekenen op die verschoven stop gaf onzin: een stop net
+  // onder de instap maakt het risico bijna nul en dus elke kleine winst "16R". eToro-posities krijgen
+  // hem bij de eerste sync waarin Kader de positie ziet, ook die Kader zelf plaatste (eToro geeft dan
+  // de verzonden stop terug); handmatige trades bij het invoeren. Ontbreekt bij oudere trades, zie
+  // risicoStop hieronder.
+  initieleStop?: number;
   takeProfit: number;
   rr: number;
   datum: string;
@@ -60,6 +67,16 @@ export function bronVan(t: PortfolioTrade): 'etoro' | 'handmatig' {
 // overal in plaats van `t.richting`, anders leest elke oude trade als undefined.
 export function richtingVan(t: PortfolioTrade): Richting {
   return t.richting === 'short' ? 'short' : 'long';
+}
+
+// De stop waarop R gerekend wordt: de oorspronkelijke stop, en bij oudere trades zonder dat veld de
+// huidige stop, maar alleen zolang die nog aan de verliezende kant van de instap ligt. Staat hij op
+// of voorbij break-even, dan is er geen risico meer om R in uit te drukken en is null het eerlijke
+// antwoord. Geen stop (0) is ook null.
+export function risicoStop(t: PortfolioTrade): number | null {
+  const stop = t.initieleStop ?? t.stopLoss;
+  if (!(stop > 0)) return null;
+  return tekenVan(t) * (t.entryPrijs - stop) > 0 ? stop : null;
 }
 
 // +1 voor een long, -1 voor een short. Hiermee wordt elke winst-, verlies- en R-berekening één

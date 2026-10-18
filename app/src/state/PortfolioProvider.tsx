@@ -283,7 +283,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   }, [geladen, verversPrijzen]);
 
   const voegTradeToe = useCallback((trade: PortfolioTrade) => {
-    setTrades(prev => [trade, ...prev]);
+    // Een handmatige trade begint hier; de stop die je bij het invoeren opgeeft is de oorspronkelijke.
+    const metStop = trade.initieleStop === undefined && trade.stopLoss > 0 ? { ...trade, initieleStop: trade.stopLoss } : trade;
+    setTrades(prev => [metStop, ...prev]);
   }, []);
 
   const wijzigTrade = useCallback((trade: PortfolioTrade) => {
@@ -329,9 +331,19 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       for (const trade of nieuwe) {
         const index = resultaat.findIndex(t => t.etoroPositionID === trade.etoroPositionID);
         if (index >= 0) {
-          resultaat[index] = { ...trade, id: resultaat[index].id, status: resultaat[index].status };
+          // De verse eToro-versie vervangt de positie volledig, dus de oorspronkelijke stop moet
+          // expliciet mee: eToro kent alleen de huidige. Een oude positie zonder initieleStop krijgt
+          // hem hier niet alsnog, want de huidige stop kan dan al verzet zijn (zie risicoStop).
+          resultaat[index] = {
+            ...trade,
+            id: resultaat[index].id,
+            status: resultaat[index].status,
+            initieleStop: resultaat[index].initieleStop,
+          };
         } else {
-          resultaat.unshift(trade);
+          // Eerste keer gezien: de stop van nu is de oorspronkelijke stop. Ook voor een order die
+          // Kader net plaatste, want eToro geeft dan precies de verzonden stop terug.
+          resultaat.unshift(trade.stopLoss > 0 ? { ...trade, initieleStop: trade.stopLoss } : trade);
         }
       }
       return resultaat;
