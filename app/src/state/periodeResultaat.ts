@@ -12,10 +12,11 @@ import { PortfolioTrade, tekenVan } from './portfolioTypes';
 //   2. Ongerealiseerd: hoeveel je nog open posities in diezelfde periode zijn bewogen. Daarvoor is
 //      per positie een referentiekoers nodig, de slotkoers op de dag waarop de periode begon.
 //
-// Wat hier nadrukkelijk NIET gebeurt, is een vermogenscurve reconstrueren. Kader bewaart geen
-// historie van je cashsaldo en geen momentopnames van je totale vermogen, dus "wat was ik een jaar
-// geleden waard" is niet te beantwoorden zonder het te verzinnen. Dit is de eerlijke variant van
-// dezelfde vraag: wat heeft het geld dat in die periode aan het werk was, opgeleverd.
+// Wat hier nadrukkelijk NIET gebeurt, is een vermogenscurve reconstrueren. Kader kent geen
+// historie van je cashsaldo, dus "wat was ik een jaar geleden waard" is hier niet te beantwoorden.
+// Dit is de eerlijke variant van dezelfde vraag: wat heeft het geld dat in die periode aan het
+// werk was, opgeleverd. De waardegrafiek in Historie (portfolioWaarde.ts) doet het wel, met
+// dagelijkse momentopnames en een teruggerekend stuk ervoor dat zegt dat het teruggerekend is.
 
 export type PeriodeId = 'dag' | '1M' | '3M' | '6M' | '1J' | 'alles';
 

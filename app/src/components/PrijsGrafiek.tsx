@@ -56,6 +56,9 @@ interface Props {
   // Haalt de koers binnen 24 uur of 7 dagen op. Zonder deze functie staan de knoppen 24U en 7D er
   // niet. Moet per coin stabiel zijn (useCallback), want een nieuwe functie wist de cache.
   laadIntraday?: (id: IntradayId) => Promise<Candle[] | null>;
+  // Opmaak van de bedragen langs de as en in het scrublabel. Standaard een muntkoers; de
+  // portfoliowaarde in Historie geeft fmtBedrag mee, want daar horen twee decimalen.
+  formatWaarde?: (n: number) => string;
 }
 
 const PAD = 10;
@@ -101,7 +104,7 @@ function fmtDatumKort(tijd?: number, bereik?: BereikId): string {
   return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
 }
 
-export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday }: Props) {
+export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -550,12 +553,13 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
 
             {/* Achtergrondpil onder de tekst: zonder die dekking loopt een niveaulijn die toevallig
                 op de hoogste of laagste koers uitkomt dwars door de cijfers heen. */}
-            <Text style={[Type.label, styles.prijsLabelBoven, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{fmtPrijs(geometrie.max)}</Text>
-            <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{fmtPrijs(geometrie.min)}</Text>
+            <Text style={[Type.label, styles.prijsLabelBoven, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{formatWaarde(geometrie.max)}</Text>
+            <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{formatWaarde(geometrie.min)}</Text>
 
             <ScrubLabel
               reeks={reeks}
               bereik={getoond.bereik}
+              formatWaarde={formatWaarde}
               scrubI={scrubI}
               scrubZicht={scrubZicht}
               cursorX={cursorX}
@@ -670,6 +674,7 @@ function NiveauLijn({ index, kleur, vorm, morph, breedte, reduceMotion }: Niveau
 interface ScrubLabelProps {
   reeks: Candle[];
   bereik: BereikId;
+  formatWaarde: (n: number) => string;
   scrubI: SharedValue<number>;
   scrubZicht: SharedValue<number>;
   cursorX: SharedValue<number>;
@@ -680,7 +685,7 @@ interface ScrubLabelProps {
 // UI-thread mee met de vinger; alleen de tekst gaat via React, en dan uitsluitend als de vinger
 // een ander punt aanwijst. Dat zijn er hooguit een paar honderd per veeg, niet één per frame, en
 // alleen dit kleine label rendert opnieuw, niet de hele grafiek.
-function ScrubLabel({ reeks, bereik, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelProps) {
+function ScrubLabel({ reeks, bereik, formatWaarde, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelProps) {
   const { colors } = useTheme();
   const [actief, setActief] = useState<number | null>(null);
 
@@ -711,7 +716,7 @@ function ScrubLabel({ reeks, bereik, scrubI, scrubZicht, cursorX, breedte }: Scr
       {actiefVeilig !== null && (
         <>
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[actiefVeilig].tijd, bereik)}</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(reeks[actiefVeilig].close)}</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{formatWaarde(reeks[actiefVeilig].close)}</Text>
         </>
       )}
     </Animated.View>

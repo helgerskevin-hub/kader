@@ -17,7 +17,7 @@ import { duur, veer } from '../theme/beweging';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { haptiek, haptiekVanUI } from '../theme/haptiek';
 import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
-import { fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
+import { fmtBedrag, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { PortfolioTrade, tekenVan } from '../state/portfolioTypes';
 import { behaaldeRR, berekenStatistieken, resultaatVan } from '../state/statistieken';
 import { PERIODES, PeriodeId, periodeGrens } from '../state/periodeResultaat';
@@ -28,10 +28,19 @@ import { useDrukVeer } from './Drukbaar';
 import { SegmentKnop, type SegmentOptie } from './SegmentKnop';
 import { Sparkline } from './Sparkline';
 import { LegeStaatBeeld } from './LegeStaatBeeld';
+import { PrijsGrafiek } from './PrijsGrafiek';
+import { useWaardeReeks } from '../state/useWaardeReeks';
+import type { WaardePunt } from '../state/portfolioWaarde';
+import type { Candle } from '../engine/types';
 
 interface Props {
   zichtbaar: boolean;
   trades: PortfolioTrade[];
+  // Voor de waardegrafiek: de koersen en het totaal van nu, zoals de portfoliokaart ze toont.
+  // waardeNu is null zonder eToro-saldo, en dan is er geen grafiek.
+  livePrijzen: Record<string, number>;
+  waardeNu: number | null;
+  omgeving: 'real' | 'demo';
   onSluiten: () => void;
   onOpenDetail: (trade: PortfolioTrade) => void;
   onVerwijder: (id: string) => void;
@@ -61,7 +70,7 @@ interface MaandGroep {
   trades: PortfolioTrade[];
 }
 
-export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onVerwijder }: Props) {
+export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgeving, onSluiten, onOpenDetail, onVerwijder }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -132,6 +141,13 @@ export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onV
 
   const samenvatting = useMemo(() => berekenSamenvatting(inPeriode), [inPeriode]);
 
+  const waardeReeks = useWaardeReeks(trades, livePrijzen, waardeNu, omgeving, zichtbaar);
+  const waardeInPeriode = useMemo(() => {
+    const grens = periodeGrens(periode, Date.now());
+    return grens === null ? waardeReeks.punten : waardeReeks.punten.filter(p => p.tijd >= grens);
+  }, [waardeReeks.punten, periode]);
+  const heeftGrafiek = waardeReeks.punten.length >= 2;
+
   // Het Demo-label zegt alleen iets als er ook echte trades tussen staan. Staat alles in demo, dan
   // is het op elke rij hetzelfde woord en dus ruis.
   const toonDemo = useMemo(() => {
@@ -168,7 +184,7 @@ export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onV
             </Pressable>
           </View>
 
-          {alleGesloten.length === 0 && !wachtend ? (
+          {alleGesloten.length === 0 && !wachtend && !heeftGrafiek ? (
             <View style={styles.leeg}>
               <LegeStaatBeeld>
                 <History size={26} color={colors.primair} strokeWidth={1.5} />
@@ -187,9 +203,11 @@ export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onV
             >
               <SegmentKnop opties={PERIODE_OPTIES} actief={periode} onKies={kiesPeriode} />
 
+              {heeftGrafiek && <WaardeKaart punten={waardeInPeriode} />}
+
               {inPeriode.length === 0 ? (
                 <Text style={[Type.body, styles.periodeLeeg, { color: colors.tekstGedimd }]}>
-                  Geen afgesloten trades in deze periode.
+                  {alleGesloten.length === 0 ? 'Nog geen afgesloten trades.' : 'Geen afgesloten trades in deze periode.'}
                 </Text>
               ) : (
                 <>
@@ -254,6 +272,53 @@ export function HistorieScherm({ zichtbaar, trades, onSluiten, onOpenDetail, onV
         </View>
       )}
     </PodiumScherm>
+  );
+}
+
+// ---------- Waarde over tijd ----------
+
+// Je portfoliowaarde over de gekozen periode, met dezelfde grafiek als bij een coin: vinger erover
+// en je ziet de waarde op die dag.
+function WaardeKaart({ punten }: { punten: WaardePunt[] }) {
+  const { colors } = useTheme();
+  const candles = useMemo<Candle[]>(
+    () => punten.map(p => ({ open: p.waarde, high: p.waarde, low: p.waarde, close: p.waarde, volume: 0, tijd: p.tijd })),
+    [punten],
+  );
+  if (punten.length < 2) {
+    return (
+      <View style={[styles.samenvatting, shadow.kaart, { backgroundColor: colors.kaart }]}>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>PORTFOLIOWAARDE</Text>
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Te weinig punten in deze periode voor een lijn.</Text>
+      </View>
+    );
+  }
+
+  const eerste = punten[0].waarde;
+  const laatste = punten[punten.length - 1].waarde;
+  const verschil = laatste - eerste;
+  const pct = eerste > 0 ? (verschil / eerste) * 100 : null;
+  const kleur = verschil >= 0 ? colors.winst : colors.verlies;
+  // Tot waar de lijn teruggerekend is. Daarna zijn het echte opnames van wat eToro toonde.
+  const berekend = punten.filter(p => p.berekend);
+  const tot = berekend.length > 0 ? berekend[berekend.length - 1].tijd : null;
+
+  return (
+    <View style={[styles.samenvatting, shadow.kaart, { backgroundColor: colors.kaart }]}>
+      <View style={{ gap: 2 }}>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>PORTFOLIOWAARDE</Text>
+        <Text style={[styles.totaal, { color: colors.tekstPrimair }]}>{fmtBedrag(laatste)}</Text>
+        <Text style={[Type.caption, { color: kleur }]}>
+          {fmtResultaatUsd(verschil)}{pct !== null ? ` (${fmtPct(pct)})` : ''} in deze periode
+        </Text>
+      </View>
+      <PrijsGrafiek candles={candles} toonPeriodes={false} hoogte={160} formatWaarde={fmtBedrag} />
+      {tot !== null && (
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+          Tot en met {new Date(tot).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} teruggerekend uit je trades, zonder stortingen en opnames. Daarna bewaart Kader elke dag je echte waarde.
+        </Text>
+      )}
+    </View>
   );
 }
 

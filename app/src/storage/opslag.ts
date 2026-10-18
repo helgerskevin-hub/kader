@@ -109,6 +109,9 @@ export const SLEUTELS = {
   // de stop of het doel raakte. Eén melding per trade per niveau; wordt opgeschoond zodra de trade
   // niet meer open staat.
   gemeldeNiveaus: 'gemelde_niveaus',
+  // Je totale portfoliowaarde per kalenderdag, per eToro-omgeving ({ real: [...], demo: [...] }).
+  // Voor de waardegrafiek in Historie; zie state/portfolioWaarde.ts.
+  waardeMomentopnames: 'waarde_momentopnames',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
