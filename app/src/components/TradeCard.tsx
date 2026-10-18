@@ -15,7 +15,6 @@ import { AdviceBadge } from './AdviceBadge';
 import { BevestigdKeurmerk } from './BevestigdKeurmerk';
 import { Bevestigingen } from './Bevestigingen';
 import { bevestigingen } from '../engine/bevestigingen';
-import { AangepastPil } from './LevelRow';
 import { DREMPEL_STERK_KOOP } from '../engine/drempels';
 import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
 import { oordeelRs, rsUitleg } from '../engine/relatieveSterkte';
@@ -240,19 +239,10 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
             <View style={styles.niveaus}>
               <View style={styles.niveauPaar}>
                 <View style={styles.niveau}>
-                  {/* Staat de stop op eToro's grens in plaats van op die van Kader, dan zegt de pil
-                      dat het getal is aangepast. Het waarom staat hieronder bij WAAROM. */}
                   <Text style={[Type.overline, { color: colors.verlies }]}>STOP</Text>
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[Type.prijs, styles.niveauWaarde, { color: colors.tekstPrimair }]}>
                     {fmtPrijs(niveaus.stop)}
                   </Text>
-                  {/* Onder de prijs en niet naast STOP: in een kolom van een kwart kaartbreedte past
-                      het woord niet naast het label. */}
-                  {niveaus.aangepast && (
-                    <View style={styles.pilLinks}>
-                      <AangepastPil />
-                    </View>
-                  )}
                 </View>
                 <View style={styles.niveau}>
                   <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>
@@ -333,8 +323,8 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
                 {koopadvies.uitleg}
               </Text>
             ) : null}
-            {/* Staat de stop op eToro's grens in plaats van op die van Kader, dan hoort hier te staan
-                waarom. Anders lijkt het getal een rekenfout. */}
+            {/* Alleen als eToro voor deze coin helemaal geen stop toelaat. Een opgeschoven stop is
+                gewoon de stop en krijgt geen uitleg. */}
             {niveaus.uitleg ? (
               <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
                 {niveaus.uitleg}
@@ -482,7 +472,6 @@ const styles = StyleSheet.create({
   },
   niveauPaar: { flexDirection: 'row', flex: 1, gap: spacing.sm },
   niveau: { flex: 1, minWidth: 0, gap: 2 },
-  pilLinks: { alignSelf: 'flex-start', marginTop: 2 },
   niveauWaarde: { fontSize: 13 },
   notitie: { lineHeight: 18, marginTop: spacing.sm },
   tegels: { flexDirection: 'row', gap: spacing.sm },

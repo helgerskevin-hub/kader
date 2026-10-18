@@ -155,7 +155,9 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   // meeste coins krapper dan eToro's minimum (bij BTC 10%), en dan is het niveau uit de analyse een
   // getal waar je niets mee kunt. Zonder koppeling of grens blijft alles precies zoals Kader het
   // berekende.
-  const etoro = heeftNiveaus
+  // Bij een positie in je portfolio is de stop de echte stop bij eToro; daar valt niets meer aan te
+  // passen.
+  const etoro = heeftNiveaus && data.context !== 'portfolio'
     ? etoroNiveaus(data.entry!, data.stopLoss!, data.takeProfit!, stopLimiet)
     : null;
   const getoondeStop = etoro ? etoro.stop : data.stopLoss;
@@ -363,7 +365,6 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                       doel={data.takeProfit!}
                       live={data.prijs}
                       labels
-                      stopAangepast={etoro?.aangepast ?? false}
                     />
                     <View style={styles.entryRij}>
                       <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>

@@ -102,7 +102,6 @@ function ShortRegel({ trade, magHandelen, onGetrade, onKoop, onOpenDetail, limie
           entry={trade.entry}
           doel={trade.takeProfit}
           richting="short"
-          stopAangepast={niveaus.aangepast}
         />
       </View>
 

@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Bij de stop staat nu gewoon één waarde: de stop die je bij eToro echt kunt zetten. Het label AANGEPAST en de uitleg erover zijn weg; de R/R rekent zoals altijd met die stop. Bij een positie in je portfolio toont Kader je echte stop bij eToro
+
 ## 0.2.2
 
 - Vegen door de drie sterkste op de radar (en de carrousel op Markt) schiet niet meer per ongeluk door naar een andere tab, ook niet bij een snelle veeg
