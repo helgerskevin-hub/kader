@@ -34,7 +34,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { useValutaStand } from '../state/useValuta';
-import { BereikId, STANDAARD_BEREIK, beschikbareBereiken, geldigBereik, reeksVoorBereik } from '../engine/grafiekBereik';
+import { BereikId, IntradayId, STANDAARD_BEREIK, beschikbareBereiken, geldigBereik, isIntraday, reeksVoorBereik } from '../engine/grafiekBereik';
 import { curve, duur, veer, staggerVertraging, vervaag } from '../theme/beweging';
 import { useBeweging } from '../theme/useReduceMotion';
 import { useTabZichtbaar } from '../state/tabZichtbaar';
@@ -53,8 +53,15 @@ interface Props {
   // Uit voor de voorbeeldgrafiek onder het informatie-scherm: dat is een plaatje bij een uitleg,
   // geen coin waar je doorheen wilt bladeren.
   toonPeriodes?: boolean;
+  // Haalt de koers binnen 24 uur of 7 dagen op. Zonder deze functie staan de knoppen 24U en 7D er
+  // niet. Moet per coin stabiel zijn (useCallback), want een nieuwe functie wist de cache.
+  laadIntraday?: (id: IntradayId) => Promise<Candle[] | null>;
+  // Opmaak van de bedragen langs de as en in het scrublabel. Standaard een muntkoers; de
+  // portfoliowaarde in Historie geeft fmtBedrag mee, want daar horen twee decimalen.
+  formatWaarde?: (n: number) => string;
 }
 
+const GEEN_NIVEAUS: Niveau[] = [];
 const PAD = 10;
 // Ruimte rechts van de lijn. De laatste stip met zijn halo stond anders half buiten het doek.
 const RECHTS = 8;
@@ -86,12 +93,19 @@ interface Punten {
   laagsteI: number;
 }
 
-function fmtDatumKort(tijd?: number): string {
+// Bij 24U telt alleen het tijdstip, bij 7D de dag plus het uur, en daarboven de datum.
+function fmtDatumKort(tijd?: number, bereik?: BereikId): string {
   if (!tijd) return '';
-  return new Date(tijd).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+  const d = new Date(tijd);
+  if (bereik === '24U') return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+  if (bereik === '7D') {
+    const dag = d.toLocaleDateString('nl-NL', { weekday: 'short' });
+    return `${dag} ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
 }
 
-export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes = true }: Props) {
+export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -101,11 +115,31 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
   const [breedte, setBreedte] = useState(0);
   const [periode, setPeriode] = useState<BereikId>(STANDAARD_BEREIK);
 
-  const periodes = toonPeriodes ? beschikbareBereiken(candles) : [];
+  const metIntraday = toonPeriodes && laadIntraday !== undefined;
+  const periodes = toonPeriodes ? beschikbareBereiken(candles, metIntraday) : [];
   // Niet op de keuze zelf markeren maar op wat er echt getoond wordt: heeft deze coin te weinig
   // historie voor de gekozen periode, dan valt hij terug op Alles en hoort die knop op te lichten.
-  const actievePeriode = geldigBereik(candles, periode);
-  const reeks = useMemo(() => reeksVoorBereik(candles, periode), [candles, periode]);
+  const actievePeriode = geldigBereik(candles, periode, metIntraday);
+
+  // Intraday-reeksen worden pas opgehaald als je de knop kiest, en daarna bewaard zolang het scherm
+  // open is. Tijdens het laden blijft de vorige lijn staan; de pil staat al op de nieuwe keuze.
+  const [intraday, setIntraday] = useState<Partial<Record<IntradayId, Candle[]>>>({});
+  const vorigeReeksRef = useRef<{ reeks: Candle[]; bereik: BereikId } | null>(null);
+  useEffect(() => { setIntraday({}); }, [laadIntraday]);
+
+  const getoond = useMemo<{ reeks: Candle[]; bereik: BereikId }>(() => {
+    if (isIntraday(actievePeriode)) {
+      const data = intraday[actievePeriode];
+      if (data) return { reeks: data, bereik: actievePeriode };
+      return vorigeReeksRef.current ?? { reeks: reeksVoorBereik(candles, STANDAARD_BEREIK), bereik: STANDAARD_BEREIK };
+    }
+    return { reeks: reeksVoorBereik(candles, actievePeriode), bereik: actievePeriode };
+  }, [candles, actievePeriode, intraday]);
+  vorigeReeksRef.current = getoond;
+  const reeks = getoond.reeks;
+  // Binnen een dag of week beweegt de koers een paar procent, en een stop 10% lager drukt die
+  // beweging dan plat onderin. Daar laten we de niveaulijnen weg; het plan staat eronder.
+  const niveaus = isIntraday(getoond.bereik) ? GEEN_NIVEAUS : alleNiveaus;
   const sluitkoersen = useMemo(() => reeks.map(c => c.close), [reeks]);
 
   // De aanroepers bouwen `niveaus` bij elke render opnieuw als array. Op de waarden sleutelen
@@ -453,7 +487,20 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
     if (id !== actievePeriode) haptiek('tik');
     scrubI.value = -1;
     scrubZicht.value = 0;
+    const terug = periode;
     setPeriode(id);
+    if (isIntraday(id) && laadIntraday && !intraday[id]) {
+      const laad = laadIntraday;
+      laad(id).then(data => {
+        if (data && data.length >= 2) {
+          setIntraday(m => ({ ...m, [id]: data }));
+        } else {
+          // Geen data: terug naar wat er stond, in plaats van een knop die oplicht bij een lijn
+          // die er niet bij hoort.
+          setPeriode(p => (p === id ? terug : p));
+        }
+      });
+    }
   }
 
   if (!geometrie) {
@@ -510,11 +557,13 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
 
             {/* Achtergrondpil onder de tekst: zonder die dekking loopt een niveaulijn die toevallig
                 op de hoogste of laagste koers uitkomt dwars door de cijfers heen. */}
-            <Text style={[Type.label, styles.prijsLabelBoven, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{fmtPrijs(geometrie.max)}</Text>
-            <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{fmtPrijs(geometrie.min)}</Text>
+            <Text style={[Type.label, styles.prijsLabelBoven, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{formatWaarde(geometrie.max)}</Text>
+            <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{formatWaarde(geometrie.min)}</Text>
 
             <ScrubLabel
               reeks={reeks}
+              bereik={getoond.bereik}
+              formatWaarde={formatWaarde}
               scrubI={scrubI}
               scrubZicht={scrubZicht}
               cursorX={cursorX}
@@ -525,8 +574,8 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
       </GestureHandlerRootView>
 
       <View style={styles.datumRij}>
-        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[0].tijd)}</Text>
-        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[reeks.length - 1].tijd)}</Text>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[0].tijd, getoond.bereik)}</Text>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[reeks.length - 1].tijd, getoond.bereik)}</Text>
       </View>
 
       {/* Alleen tonen als er iets te kiezen valt: bij een bron die maar een maand teruggaat zou elke
@@ -628,6 +677,8 @@ function NiveauLijn({ index, kleur, vorm, morph, breedte, reduceMotion }: Niveau
 
 interface ScrubLabelProps {
   reeks: Candle[];
+  bereik: BereikId;
+  formatWaarde: (n: number) => string;
   scrubI: SharedValue<number>;
   scrubZicht: SharedValue<number>;
   cursorX: SharedValue<number>;
@@ -638,7 +689,7 @@ interface ScrubLabelProps {
 // UI-thread mee met de vinger; alleen de tekst gaat via React, en dan uitsluitend als de vinger
 // een ander punt aanwijst. Dat zijn er hooguit een paar honderd per veeg, niet één per frame, en
 // alleen dit kleine label rendert opnieuw, niet de hele grafiek.
-function ScrubLabel({ reeks, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelProps) {
+function ScrubLabel({ reeks, bereik, formatWaarde, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelProps) {
   const { colors } = useTheme();
   const [actief, setActief] = useState<number | null>(null);
 
@@ -668,8 +719,8 @@ function ScrubLabel({ reeks, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelP
     >
       {actiefVeilig !== null && (
         <>
-          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[actiefVeilig].tijd)}</Text>
-          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtPrijs(reeks[actiefVeilig].close)}</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[actiefVeilig].tijd, bereik)}</Text>
+          <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{formatWaarde(reeks[actiefVeilig].close)}</Text>
         </>
       )}
     </Animated.View>
@@ -700,17 +751,18 @@ const styles = StyleSheet.create({
   bereikHouder: {
     marginTop: spacing.sm,
   },
+  // Met 24U en 7D erbij zijn het zes knoppen; met deze maten passen ze op 320 dp.
   bereikRij: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   bereikPil: {
     paddingVertical: 6,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderRadius: radii.pill,
     minHeight: 32,
-    minWidth: 52,
+    minWidth: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

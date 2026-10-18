@@ -448,11 +448,10 @@ export function KooporderSheet({
           bijStop={heeftBedrag ? plan?.bijStop ?? null : null}
           bijDoel={heeftBedrag ? plan?.bijDoel ?? null : null}
           rr={plan?.rr ?? null}
-          stopAangepast={advies.soort === 'aangepast'}
           stopTekst={advies.soort === 'vast' ? 'eToro kiest de stop' : undefined}
         />
 
-        {advies.soort === 'aangepast' || advies.soort === 'vast' ? (
+        {advies.soort === 'vast' ? (
           <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
             <Text style={[Type.caption, { color: colors.letOp }]}>{advies.uitleg}</Text>
           </View>

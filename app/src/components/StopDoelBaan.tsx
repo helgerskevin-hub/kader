@@ -13,7 +13,6 @@ import { staggerVertraging, veer } from '../theme/beweging';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { fmtPrijs } from '../engine/format';
 import { useValutaStand } from '../state/useValuta';
-import { AangepastPil } from './LevelRow';
 
 interface Props {
   stop: number;
@@ -23,9 +22,6 @@ interface Props {
   live?: number;
   // STOP en DOEL met hun prijs onder de baan.
   labels?: boolean;
-  // De stop staat op eToro's grens en niet op die van Kader: dan komt de AANGEPAST-pil naast het
-  // STOP-label, zoals in de niveaurij van de uitklap. Alleen zichtbaar met labels.
-  stopAangepast?: boolean;
   // Uit als een omliggend tikvlak al een eigen label draagt: TalkBack leest dan niet twee keer
   // dezelfde koers voor, en het tikvlak blijft één element.
   accessible?: boolean;
@@ -51,7 +47,7 @@ function clamp01(v: number): number {
 // terugschuivende translateX op zijn plek komt (zoals de vermogensbalk op Portfolio), de stip
 // schuift met translateX. Zo hoeft React Native per frame geen layout uit te rekenen.
 export function StopDoelBaan({
-  stop, entry, doel, live, labels = false, stopAangepast = false, accessible = true, volgorde = 0,
+  stop, entry, doel, live, labels = false, accessible = true, volgorde = 0,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement blijven
   // de prijzen na het omzetten in de oude valuta staan.
@@ -188,7 +184,6 @@ export function StopDoelBaan({
         <View style={styles.labelsRij}>
           <View style={styles.labelPaar}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>STOP</Text>
-            {stopAangepast && <AangepastPil />}
             <Text style={[Type.prijs, styles.prijs, { color: stop > 0 ? colors.tekstPrimair : colors.tekstGedimd }]}>
               {stopTekst}
             </Text>

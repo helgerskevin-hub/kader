@@ -377,8 +377,8 @@ export function PortfolioStatusKaart({
 
       {/* Resultaat over een gekozen periode, direct onder het resultaat van nu: allebei antwoorden
           ze op "hoe doe ik het", het ene over nu en het andere terugkijkend. De meldingen staan
-          onder de balk, bij het geld waar ze over gaan. Geen grafiek: Kader bewaart geen dagelijkse
-          reeks van je vermogen, en een verzonnen lijn is erger dan geen lijn.
+          onder de balk, bij het geld waar ze over gaan. De waardegrafiek staat in Historie, niet hier:
+          deze kaart blijft over nu gaan.
 
           Eén segmentknop met een pil die meeschuift, zoals de tabbalk. De zes keuzes passen op
           360 dp op één regel (ongeveer 49 punten per segment), en de haptiek bij een wissel zit in

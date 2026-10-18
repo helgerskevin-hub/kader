@@ -212,7 +212,9 @@ export function etoroNiveaus(
     rr: nieuwRisico > 0 ? beloning / nieuwRisico : 0,
     aangepast: true,
     vast: false,
-    uitleg: advies.uitleg,
+    // Geen uitleg: voor de gebruiker is dit gewoon de stop. Dat Kaders eigen niveau krapper lag,
+    // doet er bij het handelen niet toe; alleen de R/R beweegt mee.
+    uitleg: '',
   };
 }
 
@@ -394,7 +396,7 @@ if (require.main === module) {
   console.assert(geklemd.aangepast, 'een stop van 3% moet bij een minimum van 10% aangepast worden');
   console.assert(Math.abs(geklemd.stop - 90) < 1e-9, `de stop moet naar 90, was ${geklemd.stop}`);
   console.assert(Math.abs(geklemd.rr - 0.9) < 1e-9, `de R/R hoort met de stop mee te bewegen, was ${geklemd.rr}`);
-  console.assert(geklemd.uitleg !== '', 'een aangepaste stop hoort uitleg te dragen');
+  console.assert(geklemd.uitleg === '', 'een aangepaste stop is gewoon de stop, zonder uitleg');
 
   // Past de eigen stop wel, dan blijft alles exact zoals Kader het berekende.
   const past = etoroNiveaus(100, 85, 130, btcLimiet);

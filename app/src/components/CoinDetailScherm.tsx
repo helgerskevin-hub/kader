@@ -8,7 +8,8 @@ import Animated, {
 import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
-import { haalData } from '../engine/marketData';
+import { haalData, haalIntraday } from '../engine/marketData';
+import type { IntradayId } from '../engine/grafiekBereik';
 import { infoVoor, genereerKoopadvies, genereerShortadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
@@ -124,6 +125,14 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
     if (status === 'success') binnenkomstGehad.current = true;
   }, [status]);
 
+  // Per coin één functie, zodat de grafiek zijn opgehaalde 24U/7D-reeksen niet bij elke render
+  // weggooit.
+  const symbool = data?.symbool;
+  const laadIntraday = useCallback(
+    (id: IntradayId) => (symbool ? haalIntraday(symbool, id) : Promise.resolve(null)),
+    [symbool],
+  );
+
   async function laadData(symbool: string) {
     setStatus('loading');
     const result = await haalData(symbool);
@@ -155,7 +164,9 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   // meeste coins krapper dan eToro's minimum (bij BTC 10%), en dan is het niveau uit de analyse een
   // getal waar je niets mee kunt. Zonder koppeling of grens blijft alles precies zoals Kader het
   // berekende.
-  const etoro = heeftNiveaus
+  // Bij een positie in je portfolio is de stop de echte stop bij eToro; daar valt niets meer aan te
+  // passen.
+  const etoro = heeftNiveaus && data.context !== 'portfolio'
     ? etoroNiveaus(data.entry!, data.stopLoss!, data.takeProfit!, stopLimiet)
     : null;
   const getoondeStop = etoro ? etoro.stop : data.stopLoss;
@@ -341,7 +352,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
             {status === 'success' && indicatoren && (
               <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
                 <Animated.View entering={binnenkomst()} style={kaart}>
-                  <PrijsGrafiek candles={candles} niveaus={niveaus} />
+                  <PrijsGrafiek candles={candles} niveaus={niveaus} laadIntraday={laadIntraday} />
                 </Animated.View>
 
                 {heeftNiveaus && (
@@ -363,7 +374,6 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                       doel={data.takeProfit!}
                       live={data.prijs}
                       labels
-                      stopAangepast={etoro?.aangepast ?? false}
                     />
                     <View style={styles.entryRij}>
                       <Text style={[Type.overline, { color: colors.tekstGedimd }]}>ENTRY</Text>

@@ -230,11 +230,10 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
             bijStop={plan?.bijStop ?? null}
             bijDoel={plan?.bijDoel ?? null}
             rr={isFinite(rr) && rr > 0 ? rr : null}
-            stopAangepast={advies.soort === 'aangepast'}
           />
         ) : null}
 
-        {advies.soort !== 'ok' ? (
+        {advies.soort === 'vast' || advies.soort === 'waarschuwing' ? (
           <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
             <Text style={[Type.caption, { color: colors.letOp }]}>{advies.uitleg}</Text>
           </View>

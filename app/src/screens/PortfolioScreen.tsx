@@ -23,6 +23,7 @@ import { VerdelingKaart } from '../components/VerdelingKaart';
 import { WachtendeOrdersKaart } from '../components/WachtendeOrdersKaart';
 import { SkeletonKaart } from '../components/SkeletonKaart';
 import { HistorieScherm } from '../components/HistorieScherm';
+import { useWaardeMomentopname } from '../state/useWaardeReeks';
 import { VerdelingScherm } from '../components/VerdelingScherm';
 import { PositieKaart } from '../components/PositieKaart';
 import { VerkoopOrderSheet } from '../components/VerkoopOrderSheet';
@@ -813,6 +814,12 @@ export function PortfolioScreen() {
   const statusWaarde = vrijSaldoUsd !== null
     ? berekenPortfolioWaarde(trades, livePrijzen, { etoroOmgeving: omgeving })
     : waarde;
+  // Het totaal zoals de statuskaart het toont (posities + gereserveerd + vrij), maar alleen als het
+  // compleet is: met een positie zonder koers zou de opname van vandaag te laag uitvallen.
+  const waardeNu = vrijSaldoUsd !== null && statusWaarde.zonderLivePrijs === 0
+    ? Math.max(0, statusWaarde.huidigeWaardeUsd) + Math.max(0, gereserveerdUsd ?? 0) + Math.max(0, vrijSaldoUsd)
+    : null;
+  useWaardeMomentopname(waardeNu, omgeving);
 
 
 
@@ -1126,6 +1133,9 @@ export function PortfolioScreen() {
       <HistorieScherm
         zichtbaar={historieOpen}
         trades={trades}
+        livePrijzen={livePrijzen}
+        waardeNu={waardeNu}
+        omgeving={omgeving}
         onSluiten={() => setHistorieOpen(false)}
         onOpenDetail={t => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool]))}
         onVerwijder={verwijderTrade}

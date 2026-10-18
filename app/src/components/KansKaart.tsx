@@ -219,7 +219,6 @@ export const KansKaart = memo(function KansKaart({
                   doel={plan.takeProfit}
                   live={kans.prijs}
                   labels
-                  stopAangepast={niveaus.aangepast}
                 />
                 {/* De stop staat hier op de EMA20 en niet op de swing low zoals op Markt. Zonder deze
                     regel lijkt een andere stop voor dezelfde coin een fout. */}
@@ -233,8 +232,7 @@ export const KansKaart = memo(function KansKaart({
                     R/R {fmtRR(niveaus.rr)}, onder {fmtRR(MIN_RISK_REWARD)}: geen koopsignaal.
                   </Text>
                 )}
-                {/* Staat de stop op eToro's grens in plaats van op die van Kader, dan hoort hier te
-                    staan waarom. Anders lijkt het getal een rekenfout. */}
+                {/* Alleen als eToro voor deze coin helemaal geen stop toelaat. */}
                 {niveaus.uitleg ? (
                   <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
                     {niveaus.uitleg}

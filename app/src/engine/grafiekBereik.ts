@@ -10,13 +10,25 @@
 // als je niets aanraakt.
 import { Candle } from './types';
 
-export type BereikId = '1M' | '3M' | '6M' | 'alles';
+// 24U en 7D tonen intraday-candles (kwartier- en uurcandles) die de grafiek apart ophaalt; de
+// dagcandles van de analyse hebben op een dag maar een of twee punten.
+export type IntradayId = '24U' | '7D';
+export type BereikId = IntradayId | '1M' | '3M' | '6M' | 'alles';
 
 export interface Bereik {
   id: BereikId;
   label: string;
   // null = alles wat de bron teruggaf.
   dagen: number | null;
+}
+
+export const INTRADAY_BEREIKEN: readonly Bereik[] = [
+  { id: '24U', label: '24U', dagen: 1 },
+  { id: '7D', label: '7D', dagen: 7 },
+];
+
+export function isIntraday(id: BereikId): id is IntradayId {
+  return id === '24U' || id === '7D';
 }
 
 export const BEREIKEN: readonly Bereik[] = [
@@ -47,10 +59,16 @@ export function spanInDagen(candles: Candle[]): number {
 //
 // De marge van één dag vangt op dat de laatste candle van vandaag is: 200 dagelijkse candles
 // spannen 199 dagen, en dan hoort 180 er nog gewoon bij te staan.
-export function beschikbareBereiken(candles: Candle[]): Bereik[] {
+//
+// Met `metIntraday` staan 24U en 7D vooraan. Die halen hun eigen data op, dus ze staan er ook als de
+// dagcandles zelf niets te kiezen geven; dan blijft van de dagknoppen alleen Alles over.
+export function beschikbareBereiken(candles: Candle[], metIntraday = false): Bereik[] {
   const span = spanInDagen(candles);
-  if (span <= 0) return [];
-  const bruikbaar = BEREIKEN.filter(b => b.dagen === null || b.dagen < span - 1);
+  const bruikbaar = span <= 0 ? [] : BEREIKEN.filter(b => b.dagen === null || b.dagen < span - 1);
+  if (metIntraday) {
+    const dag = bruikbaar.length < 2 ? BEREIKEN.filter(b => b.dagen === null) : bruikbaar;
+    return [...INTRADAY_BEREIKEN, ...dag];
+  }
   // Blijft alleen "Alles" over, dan valt er niets te kiezen en hoort de rij helemaal weg.
   return bruikbaar.length < 2 ? [] : bruikbaar;
 }
@@ -58,7 +76,8 @@ export function beschikbareBereiken(candles: Candle[]): Bereik[] {
 // Welk bereik er echt getoond wordt. Staat de keuze op iets wat deze coin niet kan leveren (een
 // andere coin met minder historie, of een bron die terugvalt op CoinGecko), dan zakt hij terug naar
 // 'alles' in plaats van een lege grafiek te tonen.
-export function geldigBereik(candles: Candle[], gekozen: BereikId): BereikId {
+export function geldigBereik(candles: Candle[], gekozen: BereikId, metIntraday = false): BereikId {
+  if (isIntraday(gekozen)) return metIntraday ? gekozen : 'alles';
   const beschikbaar = beschikbareBereiken(candles);
   if (beschikbaar.length === 0) return 'alles';
   return beschikbaar.some(b => b.id === gekozen) ? gekozen : 'alles';
@@ -69,7 +88,8 @@ export function geldigBereik(candles: Candle[], gekozen: BereikId): BereikId {
 export function reeksVoorBereik(candles: Candle[], gekozen: BereikId): Candle[] {
   if (candles.length < MIN_PUNTEN) return candles;
 
-  const id = geldigBereik(candles, gekozen);
+  // Een intraday-keuze hoort bij een andere reeks; op dagcandles is dat gewoon alles.
+  const id = isIntraday(gekozen) ? 'alles' : geldigBereik(candles, gekozen);
   const bereik = BEREIKEN.find(b => b.id === id);
   if (!bereik || bereik.dagen === null) return candles;
 
@@ -146,6 +166,17 @@ if (require.main === module) {
   }));
   console.assert(reeksVoorBereik(zonderTijd, '1M').length === 50,
     'candles zonder tijd geven gewoon de hele reeks');
+
+  // ---------- Intraday ----------
+  const metIntra = beschikbareBereiken(dagelijks(200), true).map(b => b.id);
+  console.assert(metIntra.join(',') === '24U,7D,1M,3M,6M,alles',
+    `intraday staat vooraan, was: ${metIntra.join(',')}`);
+  const kortMetIntra = beschikbareBereiken(dagelijks(30), true).map(b => b.id);
+  console.assert(kortMetIntra.join(',') === '24U,7D,alles',
+    `met weinig dagdata blijven 24U, 7D en Alles, was: ${kortMetIntra.join(',')}`);
+  console.assert(geldigBereik(dagelijks(200), '24U', true) === '24U', '24U mag met een intraday-bron');
+  console.assert(geldigBereik(dagelijks(200), '7D') === 'alles', 'zonder intraday-bron valt 7D terug');
+  console.assert(reeksVoorBereik(dagelijks(200), '24U').length === 200, 'op dagcandles is 24U alles');
 
   console.log('grafiekBereik.ts self-check geslaagd');
 }

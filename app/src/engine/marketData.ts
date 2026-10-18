@@ -1,4 +1,5 @@
 import { Candle } from './types';
+import type { IntradayId } from './grafiekBereik';
 
 const BINANCE_BASES = [
   'https://api.binance.com',
@@ -60,15 +61,17 @@ export async function haalBinanceKlines(
   symbool: string,
   interval = '1d',
   limit = 200,
+  // Minder candles dan dit telt als mislukt. Standaard genoeg voor de EMA50 van de analyse.
+  minimum = EMA_LANG + 1,
 ): Promise<Candle[] | null> {
   const pair = pairVoor(symbool);
   for (const base of BINANCE_BASES) {
     const data = await httpGet<unknown[][]>(`${base}/api/v3/klines`, {
       symbol: pair, interval, limit: String(limit),
     });
-    if (Array.isArray(data) && data.length > EMA_LANG) {
+    if (Array.isArray(data) && data.length >= minimum) {
       const candles = parseBinanceKlines(data);
-      if (candles.length > EMA_LANG) return candles;
+      if (candles.length >= minimum) return candles;
     }
   }
   return null;
@@ -112,6 +115,17 @@ export async function haalDagHistorie(symbool: string, dagen = 400): Promise<Can
   const binance = await haalBinanceKlines(symbool, '1d', limit);
   if (binance && binance.length > 0) return binance;
   return haalCoingeckoMarktChart(symbool, dagen);
+}
+
+// Koersverloop binnen een dag of week, alleen voor de grafiek. 24U is 96 kwartiercandles, 7D 168
+// uurcandles. Geen indicatoren hierop, dus geen minimum van EMA_LANG. Valt Binance weg, dan geeft
+// CoinGecko's /market_chart bij days=1 vijfminutenpunten en bij days=7 uurpunten.
+export async function haalIntraday(symbool: string, id: IntradayId): Promise<Candle[] | null> {
+  const [interval, limit, dagen] = id === '24U' ? ['15m', 96, 1] as const : ['1h', 168, 7] as const;
+  const binance = await haalBinanceKlines(symbool, interval, limit, 2);
+  if (binance) return binance;
+  const cg = await haalCoingeckoMarktChart(symbool, dagen);
+  return cg && cg.length >= 2 ? cg : null;
 }
 
 // CoinGecko's /market_chart in plaats van /ohlc: die laatste geeft op een jaar vier-uurs of
