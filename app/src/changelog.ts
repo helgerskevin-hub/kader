@@ -27,6 +27,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-10-18',
+    punten: [
+      'Een melding "zet je winst vast" noemt nu de juiste R. Kader rekende met je huidige stop, en stond die al vlak onder je instap, dan werd een kleine winst al snel "16R". Kader onthoudt nu de stop waarmee je positie opende en rekent daarmee, ook voor de gemiddelde R in je statistieken. Bij posities van vóór deze versie gebruikt Kader je huidige stop zolang die nog onder je instap ligt',
+      'Je kunt in je echte account nu ook een stop boven je aankoopprijs zetten om winst vast te zetten, net als in demo, zolang hij onder de huidige koers blijft. Een tik op de melding "zet je winst vast" opent dan altijd het stopvenster met het voorstel ingevuld; doorgeven doe je zelf',
+    ],
+  },
+  {
     versie: '0.2.2',
     datum: '2026-10-10',
     punten: [

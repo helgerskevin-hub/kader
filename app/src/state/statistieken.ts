@@ -1,4 +1,4 @@
-import { PortfolioTrade, tekenVan } from './portfolioTypes';
+import { PortfolioTrade, risicoStop, tekenVan } from './portfolioTypes';
 
 export interface PortfolioStatistieken {
   afgesloten: number;
@@ -102,10 +102,14 @@ function behaaldeExit(t: PortfolioTrade): number {
 // stop onder de entry, bij een short erboven, dus `entry - stop` wisselt zelf al van teken.
 // Zonder de correctie zou elke short een negatief risico geven en dus door de risico<=0-check
 // hierboven stilzwijgend verdwijnen, waardoor de hele gem-R-stat alleen nog longs telde.
+//
+// Het risico rekent met de oorspronkelijke stop (risicoStop), niet met de stop waarop de trade
+// eindigde: een trade die met een stop op break-even sloot had anders een risico van nul.
 export function behaaldeRR(t: PortfolioTrade): number | null {
-  if (t.stopLoss <= 0) return null;
+  const stop = risicoStop(t);
+  if (stop === null) return null;
   const teken = tekenVan(t);
-  const risico = teken * (t.entryPrijs - t.stopLoss);
+  const risico = teken * (t.entryPrijs - stop);
   if (risico <= 0) return null;
   return teken * (behaaldeExit(t) - t.entryPrijs) / risico;
 }

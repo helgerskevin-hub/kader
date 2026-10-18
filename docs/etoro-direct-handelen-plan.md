@@ -379,3 +379,13 @@ De meting hierboven laat zien dat het minimum bij het wijzigen vanaf de koers te
 - `bepaalStop` zelf weet niets van de omgeving en is hiervoor niet veranderd. Shorts zijn niet veranderd.
 
 Hoe te meten: open in demo een long (`--order`) en wacht tot hij meer dan 12,5% in winst staat, of gebruik een bestaande demo-positie die dat al doet. Draai dan `npx tsx scripts/etoro-demo-order.ts --stopmeting`. Dan worden T2 en T3 allebei geprobeerd. Zet eToro ze zoals gevraagd, dan kan het plafond in echt weg.
+
+### Plafond in echt opgeheven (besluit Thom, 18 okt 2026), meting nog open
+
+Het plafond hierboven is weg: in `NiveausSheet` mag een stop van een lopende positie nu ook in je echte account voorbij de instapprijs (boven de aankoop bij een long, onder de instap bij een short). De nieuwe voorwaarde geldt in demo en echt gelijk: zo'n stop moet aan de verliezende kant van een verse koers liggen (`voorbijKoers`), en zonder verse koers gaat hij niet uit. `greepBereik` krijgt geen `plafond` meer. De melding "zet je winst vast" opent bij elke eToro-trade het stopvenster met het voorstel, ook in echt.
+
+Wat niet veranderd is: `bepaalStop` toetst een short nog steeds tegen de instapprijs (stop moet erboven), omdat de koers als referentie alleen voor longs gemeten is. Een break-even-voorstel op een short loopt daar, met bekende limieten, dus nog steeds op een waarschuwing, in demo en in echt.
+
+**Open meetpunt, vóór het mergen van deze wijziging:**
+
+- [ ] Eenmalig in het echte account, met een klein bedrag, via Kader een stop boven de aankoopprijs zetten op een long die ruim genoeg in winst staat (minstens eToro's minimum onder de koers, bij BTC 10%). Daarna in de eToro-app controleren dat de stop op dat niveau staat en niet is teruggezet of geweigerd. Uitkomst (datum, coin, gevraagde en werkelijke stop) hier noteren.
