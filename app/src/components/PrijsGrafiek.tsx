@@ -61,6 +61,7 @@ interface Props {
   formatWaarde?: (n: number) => string;
 }
 
+const GEEN_NIVEAUS: Niveau[] = [];
 const PAD = 10;
 // Ruimte rechts van de lijn. De laatste stip met zijn halo stond anders half buiten het doek.
 const RECHTS = 8;
@@ -104,7 +105,7 @@ function fmtDatumKort(tijd?: number, bereik?: BereikId): string {
   return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
 }
 
-export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs }: Props) {
+export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -136,6 +137,9 @@ export function PrijsGrafiek({ candles, niveaus = [], hoogte = 180, toonPeriodes
   }, [candles, actievePeriode, intraday]);
   vorigeReeksRef.current = getoond;
   const reeks = getoond.reeks;
+  // Binnen een dag of week beweegt de koers een paar procent, en een stop 10% lager drukt die
+  // beweging dan plat onderin. Daar laten we de niveaulijnen weg; het plan staat eronder.
+  const niveaus = isIntraday(getoond.bereik) ? GEEN_NIVEAUS : alleNiveaus;
   const sluitkoersen = useMemo(() => reeks.map(c => c.close), [reeks]);
 
   // De aanroepers bouwen `niveaus` bij elke render opnieuw als array. Op de waarden sleutelen
