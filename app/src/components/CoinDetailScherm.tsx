@@ -8,7 +8,8 @@ import Animated, {
 import { X, CheckCircle, ShoppingCart, Bell } from 'lucide-react-native';
 import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
-import { haalData } from '../engine/marketData';
+import { haalData, haalIntraday } from '../engine/marketData';
+import type { IntradayId } from '../engine/grafiekBereik';
 import { infoVoor, genereerKoopadvies, genereerShortadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
@@ -123,6 +124,14 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   useEffect(() => {
     if (status === 'success') binnenkomstGehad.current = true;
   }, [status]);
+
+  // Per coin één functie, zodat de grafiek zijn opgehaalde 24U/7D-reeksen niet bij elke render
+  // weggooit.
+  const symbool = data?.symbool;
+  const laadIntraday = useCallback(
+    (id: IntradayId) => (symbool ? haalIntraday(symbool, id) : Promise.resolve(null)),
+    [symbool],
+  );
 
   async function laadData(symbool: string) {
     setStatus('loading');
@@ -343,7 +352,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
             {status === 'success' && indicatoren && (
               <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
                 <Animated.View entering={binnenkomst()} style={kaart}>
-                  <PrijsGrafiek candles={candles} niveaus={niveaus} />
+                  <PrijsGrafiek candles={candles} niveaus={niveaus} laadIntraday={laadIntraday} />
                 </Animated.View>
 
                 {heeftNiveaus && (

@@ -6,6 +6,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- De koersgrafiek van een coin heeft nu ook 24U en 7D. Je ziet het verloop per kwartier en per uur, en bij het scrubben staat het tijdstip erbij
 - Bij de stop staat nu gewoon één waarde: de stop die je bij eToro echt kunt zetten. Het label AANGEPAST en de uitleg erover zijn weg; de R/R rekent zoals altijd met die stop. Bij een positie in je portfolio toont Kader je echte stop bij eToro
 
 ## 0.2.2

@@ -30,6 +30,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-10-18',
     punten: [
+      'De koersgrafiek van een coin heeft nu ook 24U en 7D. Je ziet het verloop per kwartier en per uur, en bij het scrubben staat het tijdstip erbij',
       'Bij de stop staat nu gewoon één waarde: de stop die je bij eToro echt kunt zetten. Het label AANGEPAST en de uitleg erover zijn weg; de R/R rekent zoals altijd met die stop. Bij een positie in je portfolio toont Kader je echte stop bij eToro',
     ],
   },
