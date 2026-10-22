@@ -133,13 +133,13 @@ export const PositieKaart = memo(function PositieKaart({
   function vraagVerwijderen() {
     toonDialoog({
       variant: 'waarschuwing',
-      titel: 'Trade verwijderen?',
+      titel: eToroBestuurbaar ? 'Niet meer tonen in Kader?' : 'Trade verwijderen?',
       tekst: bronVan(trade) === 'etoro'
-        ? `${trade.symbool} verdwijnt uit Kader. Bij eToro blijft de positie gewoon open, en Kader haalt hem daarna niet meer op.`
+        ? `${trade.symbool} verdwijnt uit Kader. Dit verkoopt niets: bij eToro blijft de positie gewoon open, en Kader haalt hem daarna niet meer op. Wil je verkopen, kies dan Verkopen.`
         : `${trade.symbool} verdwijnt uit je portfolio in Kader.`,
       knoppen: [
         { label: 'Terug' },
-        { label: 'Verwijderen', soort: 'destructief', onDruk: () => onVerwijder(trade.id) },
+        { label: eToroBestuurbaar ? 'Niet meer tonen' : 'Verwijderen', soort: 'destructief', onDruk: () => onVerwijder(trade.id) },
       ],
     });
   }
@@ -333,7 +333,7 @@ export const PositieKaart = memo(function PositieKaart({
               <>
                 <PilKnop
                   label="Verkopen"
-                  variant="tweede"
+                  variant="cta"
                   onPress={() => onVerkoop!(trade)}
                   accessibilityLabel={`${trade.symbool} verkopen bij eToro`}
                 />
@@ -366,13 +366,18 @@ export const PositieKaart = memo(function PositieKaart({
                 />
               </>
             )}
-            <PilKnop
-              label="Verwijder"
-              variant="tweede"
-              onPress={vraagVerwijderen}
-              accessibilityLabel="Trade verwijderen"
-              tekstKleur={colors.verlies}
-            />
+            {/* Bij een eToro-positie stond Verwijder naast Verkopen, en wie wilde verkopen tikte er
+                geregeld op. Daar verkoopt hij ook niets, hij verbergt alleen. Dus daar staat hij niet
+                meer in de knoppenrij maar als stille regel onderaan, met zijn echte naam. */}
+            {!eToroBestuurbaar && (
+              <PilKnop
+                label="Verwijder"
+                variant="tweede"
+                onPress={vraagVerwijderen}
+                accessibilityLabel="Trade verwijderen"
+                tekstKleur={colors.verlies}
+              />
+            )}
           </Animated.View>
 
           {/* De naam staat alleen hier: een lange naam hoort in het uitgeklapte deel, niet in de
@@ -395,6 +400,20 @@ export const PositieKaart = memo(function PositieKaart({
               accessibilityLabel={`${trade.symbool} details bekijken`}
             />
           </Animated.View>
+
+          {eToroBestuurbaar && (
+            <Animated.View entering={uitklapInGestaffeld(6, reduceMotion)}>
+              <Pressable
+                onPress={vraagVerwijderen}
+                accessibilityRole="button"
+                accessibilityLabel={`${trade.symbool} niet meer tonen in Kader, verkoopt niets`}
+                hitSlop={spacing.sm}
+                style={styles.verberg}
+              >
+                <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Niet meer tonen in Kader</Text>
+              </Pressable>
+            </Animated.View>
+          )}
         </Animated.View>
       )}
     </Animated.View>
@@ -494,4 +513,5 @@ const styles = StyleSheet.create({
   },
   voetRij: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   geopend: { flexShrink: 1 },
+  verberg: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
 });
