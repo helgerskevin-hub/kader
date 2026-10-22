@@ -1,97 +1,71 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code in this repository. Loaded every session, so it holds only always-needed facts and rules.
+Architecture overview per folder: **`docs/architectuur.md`**, read it before working in an unfamiliar part of `app/src/`.
 
 ## What this is
 
-**Kader** is a personal crypto copy-trading analysis tool (not financial advice; it produces technical signals). It analyses free public market data and outputs concrete trades with a pre-computed entry, ATR-based stop-loss and take-profit (minimum 1:2 risk/reward), plus an eToro "Popular Investor" auditor. **All user-facing text is Dutch** -- keep generated output, UI strings and comments in Dutch to match the existing code.
+**Kader** is a personal crypto copy-trading analysis tool (not financial advice; it produces technical signals). It analyses free public market data and outputs concrete trades with a pre-computed entry, stop-loss and take-profit (minimum 1:2 risk/reward), plus an eToro "Popular Investor" auditor. **All user-facing text is Dutch**: keep UI strings, generated output and comments in Dutch.
 
-The project is a single Android app: React Native + Expo, located in `app/`. App id: `com.kader.app`.
+Single Android app: React Native + Expo in `app/`, app id `com.kader.app`.
 
 ## Commands
 
-App (from `app/`):
+From `app/`:
 ```bash
 npm install          # eerste keer
 npx expo start       # Metro bundler + dev-client
-npm run android      # bouw en installeer op aangesloten device/emulator
-npm run release:apk  # release-APK, altijd via de release-apk skill, zie onder
+npm run android      # bouw en installeer op device/emulator
+npm run release:apk  # release-APK, alleen via de release-apk skill
 ```
 
-Building the APK needs JDK 17+ (Android Studio's JBR volstaat) and the Android SDK (platform 35+). Set `JAVA_HOME` and `ANDROID_HOME` before building. Project must be on a local drive without spaces (e.g. `C:\dev`).
+Building needs JDK 17+ (Android Studio's JBR volstaat), the Android SDK (platform 35+), `JAVA_HOME` and `ANDROID_HOME`, and a local path without spaces (e.g. `C:\dev`).
 
-Stack: Expo SDK 56, React Native 0.85, React 19, TypeScript 6. Expo's API is recent, dus [app/AGENTS.md](app/AGENTS.md) verwijst naar de versie-specifieke docs op `docs.expo.dev/versions/v56.0.0/`, lees die voor je Expo-code schrijft. Reanimated, worklets, Skia, gesture-handler, expo-haptics en expo-clipboard zijn native deps: na het pullen van code die ze toevoegt of bijwerkt is één keer `npm run android` nodig (volledige rebuild), daarna volstaat hot reload weer.
+Stack: Expo SDK 56, React Native 0.85, React 19, TypeScript 6. Read the version-specific Expo docs linked from [app/AGENTS.md](app/AGENTS.md) before writing Expo code. Reanimated, worklets, Skia, gesture-handler, expo-haptics and expo-clipboard are native deps: after pulling code that adds or updates them, run `npm run android` once (full rebuild).
 
-There is **no test suite** and no linter configured. Gebruik de **`run-android`** skill om een wijziging op de emulator te verifiëren, dat is de enige verificatie die er is.
+**No test suite, no linter.** The only verification is the **`run-android`** skill on the emulator.
 
-## Architecture (`app/src/`)
+## Pitfalls (always apply)
 
-- **`engine/`** -- alle marktlogica, geen UI. `analyzer.ts` (`analyseerMarkt()`, de hoofdanalyse) en `opportunities.ts` (`zoekKansen()`, de "grote kansen"-scanner over een breder coin-set) zijn losse bestanden, niet hetzelfde. `auditor.ts` scoort een eToro-trader (consistentie, drawdown/return, concentratie) naar een 🟢/🟡/🔴-oordeel. `etoro.ts` en `etoroLimieten.ts` zijn de eToro API-client, zie de eigen sectie hieronder. `indicators.ts` (RSI/EMA/MACD/ATR/volume, met de hand geschreven zodat de tool blijft werken als een externe indicator-lib breekt) en `marketData.ts` (Binance klines + CoinGecko-fallback via native `fetch`, geen API-keys) zijn de databasis. Verder `coinInfo.ts`, `coinDetailData.ts`, `format.ts`, `types.ts`. `index.ts` is een barrel-export.
-- **`screens/`** -- MarktScreen, KansenScreen, PortfolioScreen, TradersScreen, OnboardingScreen. `BottomNav.tsx` (in `components/`) is de tabbalk; de tabs zitten in een swipebare pager in `App.tsx` (vinger-gestuurd, met een glijdende pil-indicator in de tabbalk).
-- **`components/`** -- herbruikbare UI. Drie die je moet kennen voor nieuwe schermen: `BottomSheet.tsx` is de gedeelde sheet-basis (sleepbaar dicht aan de bovenrand, sluit ook op backdrop-tik, houdt rekening met de Android-gesturebalk) en moet hergebruikt worden voor elke nieuwe sheet in plaats van een kale `Modal`; `PodiumScherm.tsx` is de gedeelde basis voor full-screen views (transparante Modal die met een card-grow vanuit `bronRect` opent en met swipe-terug vanaf de linkerrand sluit) en moet hergebruikt worden voor elk nieuw full-screen scherm in plaats van een kale `Modal`, zie `CoinDetailScherm.tsx`, `AchtergrondScherm.tsx` en `HistorieScherm.tsx`; `ScreenHeader.tsx` draagt het boek- en tandwiel-icoon op elk scherm. Verder `FoutGrens.tsx` (error boundary).
-- **`state/`** -- MarktProvider en PortfolioProvider (React Context). PortfolioProvider regelt ook de eToro-sync (bij app-start buiten een cooldown, bij swipe, bij de eToro-knop). Verder `advies.ts`, `statistieken.ts` (portfolio stats), `syncStatus.ts`, `useFavorieten.ts`, `useStopLossLimiet.ts`, `portfolioTypes.ts`.
-- **`storage/opslag.ts`** -- AsyncStorage-wrapper voor traders, portfolio, eToro-sleutels en formulierconcepten (`laadObject`/`bewaarObject`).
-- **`notifications/meldingen.ts`** -- push notifications via `expo-notifications`.
-- **`theme/`** -- tokens, typography, ThemeProvider (system/light/dark mode), plus `useToetsenbordHoogte`. `beweging.ts` heeft de motion-tokens (veren, duren, curves, stagger) waar elke animatie uit hoort te putten in plaats van losse ms-waarden; `useReduceMotion`/`useBeweging` geven daarbovenop automatisch het Apple-gedrag bij Android's "Minder beweging" terug. `haptiek.ts` is de enige plek die `expo-haptics` rechtstreeks aanroept (benoemde momenten zoals `tik`, `succes`, `drempel`). `lijstBeweging.ts` levert de layout-overgangen voor lijsten en uitklappers (Reanimated, niet `LayoutAnimation`).
-- **`changelog.ts`** -- in-app changelogbron voor het changelog-scherm en de "nieuw in deze versie"-popup, moet in sync blijven met `CHANGELOG.md`.
+- **New sheet:** reuse `components/BottomSheet.tsx`, never a bare `Modal`. **New full-screen view:** reuse `components/PodiumScherm.tsx`, never a bare `Modal`.
+- **Animations** take their values from `theme/beweging.ts` (no loose ms values); list transitions via `theme/lijstBeweging.ts` (Reanimated, not `LayoutAnimation`). **Haptics** only through `theme/haptiek.ts`.
+- **`etoroFetch` must send a real GUID in `x-request-id`** (use `guid()`, not `nieuweId()`: base36 gave a 422).
+- **eToro keys live in expo-secure-store**, never AsyncStorage (that goes into Android's backup). The Demo/Echt switch only picks the API path, and that path is the only thing separating play money from real money. Orders only after an explicit confirmation per order.
+- **Stop-loss limits:** without an eToro link or on an API error, show no warning. An invented limit is worse than none.
+- **`TaskManager.defineTask` must stay at module level** in `notifications/achtergrondtaak.ts`, and `App.tsx` must import that file at the top, otherwise the task does not exist when Android wakes the app. Android's minimum interval is 15 minutes.
+- Market data uses native `fetch` (no CORS in React Native, no API keys).
 
-### Key tunables (`app/src/engine/analyzer.ts`)
-`STANDAARD_UNIVERSUM` (57 coins, dezelfde lijst als op eToro handelbaar is), `SWING_PERIODE` (10, lookback voor de swing-low stop), `REWARD_MULTIPLIER` (3.0, take-profit), `MIN_RISK_REWARD` (2.0), `HIGH_CONVICTION_SCORE` (75). Default `topN` in `analyseerMarkt()` is 20. De scan haalt coins op in parallelle blokken van 6 (`GELIJKTIJDIG`), niet één voor één. De stop wordt net onder de recente swing low geplaatst (`stopAfstandStructuur`), geclamped op een 0.5x-3x ATR-band zodat hij niet ruis-krap en niet absurd ver is; take-profit = `entry + 3xATR`. R/R = reward / stop-afstand verschilt daarom **per coin**, en coins onder `MIN_RISK_REWARD` worden gefilterd. Score 0-100 beloont uptrend (EMA20>EMA50), koers boven EMA20, gezonde RSI, bullish MACD en volumepieken.
+## Design
 
-## App specifics
-
-- Market-data requests use native `fetch` (no CORS issues in React Native).
-- App id / name: `com.kader.app` / "Kader".
-- **eToro API-koppeling**: de gebruiker koppelt een eToro API-sleutel via de wizard in [EtoroKoppelingWizard.tsx](app/src/components/EtoroKoppelingWizard.tsx). **eToro geeft precies een sleutel uit die zowel demo als echt bestuurt** (gemeten, zie `docs/etoro-direct-handelen-plan.md` 9a), dus Kader bewaart een sleutelpaar; de Demo/Echt-schakelaar kiest alleen het PAD, en dat pad is het enige dat speelgeld van echt geld scheidt. Het schrijfrecht blijft wel per omgeving, want de scopes kunnen per omgeving verschillen. Sleutels lopen via [etoroSleutels.ts](app/src/state/etoroSleutels.ts) en staan in expo-secure-store (niet in AsyncStorage, dat gaat mee in Android's back-up); de keuzelogica staat puur en getoetst in [sleutelKeuze.ts](app/src/engine/sleutelKeuze.ts). Naast lezen kan de app ook orders plaatsen, altijd pas na een expliciete bevestiging per order. [engine/etoro.ts](app/src/engine/etoro.ts) is de client: `importeerEtoroAlles()` haalt zowel open posities als de handelshistorie van het afgelopen jaar op. **`etoroFetch` moet een echte GUID sturen in de `x-request-id`-header** (via de `guid()`-helper, niet `nieuweId()`, dat laatste is base36 en gaf een 422). [engine/etoroLimieten.ts](app/src/engine/etoroLimieten.ts) valideert een voorgestelde stop-loss tegen eToro's eligibility-endpoint; dat endpoint heeft een eigen quotum van 20 requests/minuut, dus [useStopLossLimiet.ts](app/src/state/useStopLossLimiet.ts) cachet de limieten een dag in AsyncStorage. Zonder koppeling of bij een API-fout: geen waarschuwing tonen, een verzonnen grens is erger dan geen grens.
-- Push notifications via `expo-notifications`: [meldingen.ts](app/src/notifications/meldingen.ts) doet de dagelijkse herinnering en `stuurTradeMelding()`. De trade-bewuste logica zit in [tradeChecks.ts](app/src/notifications/tradeChecks.ts) (`checkOpenTrades()`): per open trade verse candles via `haalData` + `scoorCandles({ minRR: 0 })`, plus de MACD-histogram-helling voor "momentum sterk / vlakt af". Twee aanroepers delen die functie en dus ook de herhaal-suppressie in AsyncStorage (`SLEUTELS.meldingSuppressie`, een hard venster van zes uur per trade+trigger; de oude uitzondering bij >2% niveau-drift is weg omdat die op ruis steeds opnieuw meldde): de prijs-poll in `PortfolioProvider` (elke 5 min, alleen op de voorgrond) en de `expo-background-task`-taak in [achtergrondtaak.ts](app/src/notifications/achtergrondtaak.ts). **`TaskManager.defineTask` moet op module-niveau blijven staan** en `App.tsx` moet dat bestand bovenaan importeren, anders bestaat de taak niet als Android de app ervoor wakker maakt. Android's ondergrens is 15 minuten en het systeem kiest zelf het moment, dus "elke 10 minuten" is niet haalbaar. De checks gaan uit van long: `PortfolioTrade` heeft geen richting-veld.
-- The APK is signed with the default debug key (fine for personal sideloading; Play Store would need a release keystore).
-
-## Design context
-
-Before any UI or design work, always read the following files first:
-
-- `docs/app-beschrijving-voor-claude-design.md` -- screen-by-screen description, user flows, and copy
-- `docs/huisstijl-kader.md` -- brand identity, colour palette, typography, tone of voice
-- `Design system voor React Native app.zip` (repo root) -- component library, spacing tokens, UI patterns
-- `docs/Logo.zip` -- official logo assets and usage rules
-
-Tone: sober, helpful, Dutch, never hype-y; always carry the disclaimer "Geen financieel advies. De koers op eToro kan afwijken." (Kader uses public market data, eToro has its own price plus spread, so the disclaimer says why to check, not just that you should).
+For any UI or design work, use the **`kader-design`** skill: it points to the house style, screen descriptions, design system and logo.
+Tone: sober, helpful, Dutch, never hype-y. Always carry the disclaimer "Geen financieel advies. De koers op eToro kan afwijken."
 
 ## Team and Git workflow
 
-Thom and Kevin both work on this project via Claude Code -- both write code and app features, not just design. Neither is a programmer; the AI does the writing.
+Thom and Kevin both work on this project via Claude Code; both write features, neither is a programmer. Full workflow: `docs/github-werkwijze.md`.
 
-See `docs/github-werkwijze.md` for the full agreed workflow. Key points:
+- **`main` is always stable and installable.** Never commit work-in-progress to main.
+- **One branch per task**, merge via Pull Request.
+- **Coordinate first** (chat/WhatsApp) about what you pick up: two sessions on the same files cause hard merge conflicts.
+- A SessionStart hook runs `git fetch origin` and shows recent commits from all branches. Look at them before starting.
 
-- **`main` is always stable and installable.** Never commit work-in-progress directly to main.
-- **One branch per task.** Create a branch before starting, merge via Pull Request when done.
-- **Coordinate first.** Tell each other (chat/WhatsApp) what you're picking up before starting -- two Claude Code sessions working on the same files simultaneously creates hard-to-fix merge conflicts.
-- **Before starting any session:** run `git fetch origin` and check `git log --all --oneline --graph` to see what the other person may have pushed.
+## Model and effort
 
-## Plan mode
-
-When using `/plan` to design a feature or task:
-- **During exploration:** once it's clear what needs to be done, provide a model and effort recommendation for the next phase (further analysis, planning, implementation)
-- **At plan completion:** always end the plan with a **model and effort recommendation** for execution
-
-This ensures the chosen tools and reasoning depth match the complexity at each phase. See the global `CLAUDE.md` for guidance on the recommendation format.
+If the current model or effort clearly does not fit the task (Opus on high for a typo, Haiku for a subtle bug), say so in one line before starting, with the reason. Otherwise say nothing about it. Plan mode only for large or risky changes.
 
 ## Version control & releases
 
-Claude is in charge of version numbering and the changelog for this project.
+Claude is in charge of version numbering and the changelog.
 
-- **Always update the changelog when a user-facing change lands**, both `CHANGELOG.md` (repo root) and the in-app source `app/src/changelog.ts` (used by the changelog screen and the "nieuw in deze versie" popup). Keep them in sync, newest entry first, Dutch text.
-- **Claude decides the version number** (`app/app.json`, `version` field), following the existing `0.1.x` scheme unless told otherwise. **Bump the version number only when a release build is actually built**, not while features are still landing. Between releases, keep the version as-is and just keep the changelog up to date; assign the new number at build time.
-- **Only build and publish a release APK to GitHub when explicitly asked.** Finishing a feature or a batch of fixes does not by itself warrant a release. If work has accumulated that would make a sensible release, ask the user whether they want one, don't just make it.
-- **Always build the release APK via the `release-apk` skill (`npm run release:apk` in `app/`), never with a bare `expo run:android` or `gradlew assembleRelease`.** `app/android/` is gitignored and only regenerated by `expo prebuild`; a bare Gradle build reuses whatever is already there, so the native `versionCode` silently drifts behind `app.json` after a version bump. That drift broke installability of the 0.1.1 and 0.1.3 releases (see `CHANGELOG.md` 0.1.4) before anyone building locally would necessarily notice, since it only bites once someone else already has a newer versionCode installed. The `release-apk` skill forces a clean prebuild and verifies versionCode/versionName and the signing key before the APK is allowed to ship.
-- **Never change the release signing key.** Every installed copy of Kader is signed with the same Expo debug key (`app/android/app/debug.keystore`, regenerated identically by every prebuild). Switching to a real release keystore would force every user to uninstall the app first, losing their local portfolio and traders data.
+- **Update the changelog with every user-facing change**: both `CHANGELOG.md` (repo root) and `app/src/changelog.ts`. Keep them in sync, newest first, Dutch.
+- **Claude decides the version number** (`app/app.json`, `version`), following the existing scheme. **Bump it only when a release build is actually built**; between releases only the changelog grows.
+- **Only build and publish a release APK when explicitly asked.** If enough work has piled up for a sensible release, ask; don't just do it.
+- **Always build via the `release-apk` skill**, never a bare `expo run:android` or `gradlew assembleRelease`: `app/android/` is gitignored and a bare build reuses a stale `versionCode`, which broke installability of 0.1.1 and 0.1.3.
+- **Never change the signing key.** Every installed copy uses the Expo debug key (`app/android/app/debug.keystore`, regenerated identically by prebuild). A new key forces every user to uninstall and lose their local data.
 
-## Writing and language rules
+## Writing rules
 
-These rules apply everywhere: code comments, UI strings, generated reports, documentation, and any other text in this project.
+Apply everywhere: code comments, UI strings, generated reports, documentation, code output.
 
-**No em-dashes.** Never use an em-dash (--) as punctuation. Use a comma, colon, semicolon, or plain hyphen instead. This includes output generated by code.
-
-**No generic AI text.** Avoid hollow filler phrases like "Certainly!", "Great question!", "It's worth noting that...", "In conclusion...", or any other phrasing that reads like a template. Write like a person who knows what they're talking about and gets to the point.
-
-Keep text direct, human, and in Dutch where the user sees it.
+- **No em-dashes** (the long dash, U+2014). Use a comma, colon, semicolon or plain hyphen instead.
+- **No generic AI filler** ("Certainly!", "It's worth noting that...", "In conclusion..."). Get to the point.
