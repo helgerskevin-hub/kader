@@ -42,6 +42,10 @@ interface EtoroPositie {
   openDateTime: string;
   stopLossRate?: number;
   takeProfitRate?: number;
+  // Niet gemeten op een positie, wel op een order (zie hierboven). Ontbreekt hij, dan vangt
+  // echtNiveau() het "geen stop"-getal alsnog af.
+  isNoStopLoss?: boolean;
+  isNoTakeProfit?: boolean;
   // De order waaruit deze positie ontstond. Niet gemeten; eToro schrijft orderID en orderId door
   // elkaar, dus beide. Ontbreekt hij, dan valt er niets te koppelen en blijft de order gewoon staan.
   orderID?: number;
@@ -1071,6 +1075,19 @@ function symboolVan(instrument: EtoroInstrument | undefined): string {
 // boven de entry en de beloning eronder. Zonder de spiegelformule zou de long-berekening op een
 // short altijd door de guard (openRate > stopLoss) vallen en stilzwijgend rr: 0 opleveren, ook als
 // er wel degelijk geldige niveaus stonden.
+// eToro stuurt bij een positie zonder stop geen leeg veld maar een onzinkoers, gemeten bij een
+// long: 0.0000000892 voor APT. Die als stop tonen suggereert een kader dat er niet is. Een stop of
+// doel meer dan 100x van de instap af is in de praktijk "geen", dus 0, net als een handmatige
+// trade zonder stop.
+const ONZIN_FACTOR = 100;
+export function echtNiveau(ruw: number | undefined, openRate: number, soort: 'stop' | 'doel', richting: Richting, geen?: boolean): number {
+  if (geen === true || typeof ruw !== 'number' || !(ruw > 0) || !(openRate > 0)) return 0;
+  // Long: de stop ligt onder de instap, het doel erboven. Short: gespiegeld.
+  const omlaag = (soort === 'stop') === (richting === 'long');
+  if (omlaag ? ruw < openRate / ONZIN_FACTOR : ruw > openRate * ONZIN_FACTOR) return 0;
+  return ruw;
+}
+
 function berekenRR(stopLoss: number, takeProfit: number, openRate: number, richting: Richting): number {
   if (stopLoss <= 0 || takeProfit <= 0) return 0;
   if (richting === 'short') {
@@ -1087,13 +1104,13 @@ export function naarPortfolioTrade(positie: EtoroPositie, symbool: string, omgev
   // Voor elke andere coin is de factor 1 en verandert er niets.
   const factor = koersFactor(symbool);
   const openRate = positie.openRate / factor;
-  const stopLoss = (positie.stopLossRate ?? 0) / factor;
-  const takeProfit = (positie.takeProfitRate ?? 0) / factor;
   // Bewust `=== false` en niet de waarheidswaarde van isBuy: het veld is getypeerd als verplicht,
   // maar dat is een aanname over ongevalideerde JSON. Ontbreekt hij, dan is long de veilige uitkomst
   // (zelfde keuze als in de historie hieronder). Met een waarheidstest zou een ontbrekend veld een
   // stilzwijgende short opleveren, met omgekeerde winst, balk en trailing stop.
   const richting: Richting = positie.isBuy === false ? 'short' : 'long';
+  const stopLoss = echtNiveau((positie.stopLossRate ?? 0) / factor, openRate, 'stop', richting, positie.isNoStopLoss);
+  const takeProfit = echtNiveau((positie.takeProfitRate ?? 0) / factor, openRate, 'doel', richting, positie.isNoTakeProfit);
   const rr = berekenRR(stopLoss, takeProfit, openRate, richting);
 
   return {
@@ -1225,11 +1242,11 @@ export function naarGeslotenTrade(regel: EtoroHistorieRegel, symbool: string, om
   const factor = koersFactor(symbool);
   const openRate = regel.openRate / factor;
   const closeRate = regel.closeRate / factor;
-  const stopLoss = (regel.stopLossRate ?? 0) / factor;
-  const takeProfit = (regel.takeProfitRate ?? 0) / factor;
   // isBuy ontbreekt soms in de historie-respons; ontbreken betekent long, hetzelfde als vóór deze
   // versie toen shorts nog overgeslagen werden (zie ook bouwGeslotenTrades hieronder).
   const richting: Richting = regel.isBuy === false ? 'short' : 'long';
+  const stopLoss = echtNiveau((regel.stopLossRate ?? 0) / factor, openRate, 'stop', richting);
+  const takeProfit = echtNiveau((regel.takeProfitRate ?? 0) / factor, openRate, 'doel', richting);
   const rr = berekenRR(stopLoss, takeProfit, openRate, richting);
   const netProfit = regel.netProfit ?? 0;
 

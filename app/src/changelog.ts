@@ -27,6 +27,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-10-22',
+    punten: [
+      'Een eToro-positie zonder stop toont geen onzinstop als 0.0000000892 meer. Kader zegt nu gewoon: "Je hebt geen stop. Dit gaat tegen het Kader in"',
+      'Bij een eToro-positie staat Verkopen nu als hoofdknop, en Verwijder staat niet meer ernaast. Wil je een positie uit Kader halen zonder te verkopen, dan staat onderaan de kaart "Niet meer tonen in Kader"',
+    ],
+  },
+  {
     versie: '0.2.3',
     datum: '2026-10-18',
     punten: [

@@ -3,11 +3,11 @@ import { AppState } from 'react-native';
 import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
-import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving, EtoroFout, EtoroSleutels, WachtendeOrder, OrderUitkomst, annuleerOrder, zoekOrderStatus, guid } from '../engine/etoro';
+import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving, EtoroFout, EtoroSleutels, WachtendeOrder, OrderUitkomst, annuleerOrder, zoekOrderStatus, guid, echtNiveau } from '../engine/etoro';
 import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { GeplaatsteOrder, heeftVerseLopendeOrder, isAfgerond, isMeldenswaard, kiesOmOpTeVragen, ruimOp, saldoOverOrders } from './orderUitkomsten';
-import { bronVan } from './portfolioTypes';
+import { bronVan, richtingVan } from './portfolioTypes';
 import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
 import { checkNiveausGeraakt, meldEtoroSluitingen } from '../notifications/sluitingen';
 
@@ -334,11 +334,14 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
           // De verse eToro-versie vervangt de positie volledig, dus de oorspronkelijke stop moet
           // expliciet mee: eToro kent alleen de huidige. Een oude positie zonder initieleStop krijgt
           // hem hier niet alsnog, want de huidige stop kan dan al verzet zijn (zie risicoStop).
+          // Een oudere versie bewaarde eToro's "geen stop"-koers (0.0000000892) als oorspronkelijke
+          // stop; die valt hier weg, anders rekent de R ermee alsof er een kader was.
+          const oud = resultaat[index].initieleStop;
           resultaat[index] = {
             ...trade,
             id: resultaat[index].id,
             status: resultaat[index].status,
-            initieleStop: resultaat[index].initieleStop,
+            initieleStop: oud !== undefined && echtNiveau(oud, trade.entryPrijs, 'stop', richtingVan(trade)) > 0 ? oud : undefined,
           };
         } else {
           // Eerste keer gezien: de stop van nu is de oorspronkelijke stop. Ook voor een order die

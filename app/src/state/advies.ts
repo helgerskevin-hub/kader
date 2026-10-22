@@ -28,10 +28,19 @@ export function bepaalAdvies(
     return { tekst: 'Live prijs laden...', kort: 'Live prijs laden', kleur: 'neutraal' };
   }
 
-  if (stopLoss <= 0 || takeProfit <= 0) {
+  // Zonder stop is er geen kader, en dat is belangrijker dan een ontbrekend doel: zeg het hardop.
+  if (stopLoss <= 0) {
     return {
-      tekst: 'Stel een stop-loss en take-profit in om advies te zien.',
-      kort: 'Geen stop/doel',
+      tekst: 'Je hebt geen stop. Dit gaat tegen het Kader in: zonder stop is je verlies niet begrensd.',
+      kort: 'Geen stop',
+      kleur: 'letOp',
+    };
+  }
+
+  if (takeProfit <= 0) {
+    return {
+      tekst: 'Stel een take-profit in om advies te zien.',
+      kort: 'Geen doel',
       kleur: 'neutraal',
     };
   }
