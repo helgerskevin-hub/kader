@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.2.4
 
 - De bear-modus-kaart op Markt heeft de nieuwe opmaak: een kop met icoon en "Actief"-label in plaats van de rode rand, en de punten waar Kader op let staan als rijen met een eigen icoon
 - Een eToro-positie zonder stop toont geen onzinstop als 0.0000000892 meer. Kader zegt nu gewoon: "Je hebt geen stop. Dit gaat tegen het Kader in"

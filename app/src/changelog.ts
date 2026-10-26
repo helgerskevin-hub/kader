@@ -27,8 +27,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
-    datum: '2026-10-22',
+    versie: '0.2.4',
+    datum: '2026-10-26',
     punten: [
       'De bear-modus-kaart op Markt heeft de nieuwe opmaak: een kop met icoon en "Actief"-label in plaats van de rode rand, en de punten waar Kader op let staan als rijen met een eigen icoon',
       'Een eToro-positie zonder stop toont geen onzinstop als 0.0000000892 meer. Kader zegt nu gewoon: "Je hebt geen stop. Dit gaat tegen het Kader in"',
