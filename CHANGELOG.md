@@ -6,6 +6,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- De bear-modus-kaart op Markt heeft de nieuwe opmaak: een kop met icoon en "Actief"-label in plaats van de rode rand, en de punten waar Kader op let staan als rijen met een eigen icoon
 - Een eToro-positie zonder stop toont geen onzinstop als 0.0000000892 meer. Kader zegt nu gewoon: "Je hebt geen stop. Dit gaat tegen het Kader in"
 - Bij een eToro-positie staat Verkopen nu als hoofdknop, en Verwijder staat niet meer ernaast. Wil je een positie uit Kader halen zonder te verkopen, dan staat onderaan de kaart "Niet meer tonen in Kader"
 
