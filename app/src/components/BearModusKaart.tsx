@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { ShieldAlert } from 'lucide-react-native';
+import { ShieldAlert, Briefcase, TrendingUp, Bell, type LucideIcon } from 'lucide-react-native';
 import { BearModusStand } from '../state/bearModus';
 import { fmtPct } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
-import { spacing, radii } from '../theme/tokens';
+import { spacing, radii, shadow } from '../theme/tokens';
 import Animated from 'react-native-reanimated';
 import { useUitleg, UitlegKnop, UitlegTekst } from './UitlegKnop';
 import { useValutaStand } from '../state/useValuta';
@@ -33,30 +33,33 @@ export function BearModusKaart({ stand }: Props) {
   const toonTeller = stand !== null && stand.dagen >= 1;
 
   return (
-    <Animated.View layout={schuif} style={[styles.wrapper, { backgroundColor: colors.kaart, borderColor: colors.verlies }]}>
-      <View style={styles.titelRij}>
-        <View style={styles.titelLinks}>
-          <ShieldAlert size={16} color={colors.verlies} strokeWidth={2} />
-          <Text style={[Type.overline, { color: colors.verlies }]}>BEAR-MODUS ACTIEF</Text>
+    <Animated.View layout={schuif} style={[styles.wrapper, shadow.kaart, { backgroundColor: colors.kaart }]}>
+      <View style={styles.kop}>
+        <View style={[styles.tegel, { backgroundColor: colors.verlies + '1F' }]}>
+          <ShieldAlert size={17} color={colors.verlies} strokeWidth={1.75} />
+        </View>
+        <Text style={[Type.sectiekop, styles.kopTitel, { color: colors.tekstPrimair }]}>Bear-modus</Text>
+        <View style={[styles.pil, { backgroundColor: colors.verlies + '1F' }]}>
+          <Text style={[Type.caption, styles.pilTekst, { color: colors.verlies }]}>Actief</Text>
         </View>
         <UitlegKnop open={open} onWissel={wissel} onderwerp="bear-modus" />
       </View>
 
-      <Text style={[Type.body, { color: colors.tekstPrimair, lineHeight: 22 }]}>
+      <Text style={[Type.body, styles.lopendeTekst, { color: colors.tekstPrimair }]}>
         Kader geeft nu geen koopsignalen. De markt daalt breed, en in dat soort periodes verloren
         koopsignalen historisch gemiddeld geld.
       </Text>
 
       {toonTeller && (
         <View style={styles.tegelRij}>
-          <View style={[styles.tegel, { backgroundColor: colors.verhoogd }]}>
+          <View style={[styles.teller, { backgroundColor: colors.verhoogd }]}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>AL</Text>
             <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
               {stand.dagen} {stand.dagen === 1 ? 'dag' : 'dagen'}
             </Text>
             <Text style={[Type.caption, { color: colors.tekstGedimd }]}>geen koopsignaal</Text>
           </View>
-          <View style={[styles.tegel, { backgroundColor: colors.verhoogd }]}>
+          <View style={[styles.teller, { backgroundColor: colors.verhoogd }]}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MARKT SINDSDIEN</Text>
             <Text style={[
               Type.titel,
@@ -76,11 +79,23 @@ export function BearModusKaart({ stand }: Props) {
         </Text>
       )}
 
-      <View style={[styles.lijst, { borderTopColor: colors.verhoogd }]}>
-        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>WAAR KADER NU OP LET</Text>
-        <Punt tekst="Je open posities: wat is het beschermen waard, en wat houdt nog stand." />
-        <Punt tekst="Wie standhoudt: coins die het beter doen dan bitcoin, als watchlist voor later." />
-        <Punt tekst="De omslag: je krijgt een melding zodra het klimaat weer draait." />
+      <View style={[styles.lijst, { borderTopColor: colors.rand }]}>
+        <Text style={[Type.overline, styles.lijstKop, { color: colors.tekstGedimd }]}>WAAR KADER NU OP LET</Text>
+        <Aandachtspunt
+          icoon={Briefcase}
+          titel="Je open posities"
+          sub="Wat is het beschermen waard, en wat houdt nog stand."
+        />
+        <Aandachtspunt
+          icoon={TrendingUp}
+          titel="Wie standhoudt"
+          sub="Coins die het beter doen dan bitcoin, als watchlist voor later."
+        />
+        <Aandachtspunt
+          icoon={Bell}
+          titel="De omslag"
+          sub="Je krijgt een melding zodra het klimaat weer draait."
+        />
       </View>
 
       <UitlegTekst open={open} tekst={UITLEG} />
@@ -88,12 +103,19 @@ export function BearModusKaart({ stand }: Props) {
   );
 }
 
-function Punt({ tekst }: { tekst: string }) {
+// Zelfde opbouw als een LijstRij (getinte tegel, titel, regel eronder), maar zonder de eigen
+// zijmarge daarvan: binnen deze kaart zou die dubbel inspringen.
+function Aandachtspunt({ icoon: Icoon, titel, sub }: { icoon: LucideIcon; titel: string; sub: string }) {
   const { colors } = useTheme();
   return (
     <View style={styles.puntRij}>
-      <Text style={[Type.caption, { color: colors.tekstGedimd }]}>·</Text>
-      <Text style={[Type.caption, styles.puntTekst, { color: colors.tekstGedimd }]}>{tekst}</Text>
+      <View style={[styles.tegel, { backgroundColor: colors.verhoogd }]}>
+        <Icoon size={17} color={colors.tekstGedimd} strokeWidth={1.75} />
+      </View>
+      <View style={styles.puntTekst}>
+        <Text style={[Type.body, { color: colors.tekstPrimair }]}>{titel}</Text>
+        <Text style={[Type.caption, styles.puntSub, { color: colors.tekstGedimd }]}>{sub}</Text>
+      </View>
     </View>
   );
 }
@@ -104,41 +126,51 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
     borderRadius: radii.kaart,
-    borderLeftWidth: 3,
     padding: spacing.base,
+    gap: spacing.md,
+  },
+  kop: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
-  titelRij: {
-    flexDirection: 'row',
+  kopTitel: { flex: 1 },
+  tegel: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.veld,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
-  titelLinks: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
+  pil: {
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radii.pill,
   },
+  pilTekst: { fontWeight: '700' },
+  lopendeTekst: { lineHeight: 22 },
   tegelRij: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  tegel: {
+  teller: {
     flex: 1,
-    borderRadius: radii.veld,
-    padding: spacing.sm,
-    gap: 2,
+    gap: 4,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.knop,
   },
   lijst: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: spacing.sm,
-    gap: spacing.xs,
+    paddingTop: spacing.md,
+    gap: spacing.md,
   },
+  lijstKop: { marginBottom: -spacing.xs },
   puntRij: {
     flexDirection: 'row',
-    gap: spacing.xs,
+    alignItems: 'center',
+    gap: spacing.md,
   },
-  puntTekst: {
-    flex: 1,
-    lineHeight: 18,
-  },
+  puntTekst: { flex: 1 },
+  puntSub: { lineHeight: 18 },
 });
