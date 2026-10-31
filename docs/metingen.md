@@ -19,7 +19,7 @@ Dit bestand is het archief. De openstaande keuzes die eruit volgen staan in [TOD
 - **Meting E, doel en houdtijd.** Doel 3x ATR met 30 dagen wint over de hele periode (+0,154).
   Kortere doelen geven een hoger trefferpercentage (1,5x ATR haalt 67%) maar minder R.
   `REWARD_MULTIPLIER` blijft 3,0.
-- **Meting F, shorts.** Short op score < 40, doel 2x ATR, 20 dagen: +0,064 over 5377 trades. Het
+- **Meting F, shorts** (shorts zijn op 31 okt 2026 uit de app gehaald; meting F staat niet meer in backtest.ts). Short op score < 40, doel 2x ATR, 20 dagen: +0,064 over 5377 trades. Het
   jaarpatroon was de vraag en dat is overtuigend: 2018 +0,15, 2022 +0,19, 2025 +0,13, 2026 +0,10.
   Alle bearmarkten positief, verliesjaren zijn juist de bulljaren (2020 -0,16, 2024 -0,04). Extra
   filters maken het slechter: "BTC onder EMA200" geeft +0,054, score < 25 geeft +0,026. De simpele

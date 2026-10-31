@@ -27,6 +27,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-10-31',
+    punten: [
+      'Shorts zijn uit Kader gehaald. Er staan geen short-signalen meer op Markt, het boek-icoon heeft geen hoofdstuk Shorts meer, en via eToro kun je alleen nog kopen. Je voert ook geen short meer zelf in. Staat er bij eToro toch een shortpositie of shortorder, dan slaat de import die over en zie je bij het importeren waarom. Shorts die al in Kader stonden, ook gesloten shorts in je historie, zijn verdwenen',
+    ],
+  },
+  {
     versie: '0.2.4',
     datum: '2026-10-26',
     punten: [

@@ -11,7 +11,7 @@
 //      Stortingen en opnames kent Kader niet, dus die zitten er niet in. De grafiek zegt dat erbij.
 //
 // Puur rekenwerk zonder React of opslag, zodat de self-check onderaan in Node draait.
-import { PortfolioTrade, tekenVan } from './portfolioTypes';
+import { PortfolioTrade } from './portfolioTypes';
 import { resultaatVan } from './statistieken';
 import { KoersPunt, koersOp } from './periodeResultaat';
 
@@ -73,7 +73,7 @@ export function resultaatOp(
     if (typeof t.aantalCoins !== 'number' || t.aantalCoins <= 0) continue;
     const k = koers(t.symbool);
     if (k === null) return null;
-    som += tekenVan(t) * (k - t.entryPrijs) * t.aantalCoins;
+    som += (k - t.entryPrijs) * t.aantalCoins;
   }
   return som;
 }

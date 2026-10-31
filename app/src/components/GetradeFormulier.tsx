@@ -9,7 +9,7 @@ import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { planInGeld } from '../engine/planInGeld';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
-import { nieuweId, PortfolioTrade, Richting } from '../state/portfolioTypes';
+import { nieuweId, PortfolioTrade } from '../state/portfolioTypes';
 import { useTheme } from '../theme/ThemeProvider';
 import { Fonts, Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
@@ -28,10 +28,7 @@ const SNEL_BEDRAGEN = [100, 250, 500, 1000].map(v => ({
   waarde: v,
 }));
 
-// De analyse scant vooralsnog alleen longs, dus richting ontbreekt bij die aanroepen. Alleen het
-// detailscherm van een bestaande (mogelijk short) positie geeft hem mee; ontbreekt hij, dan is het
-// een long, dezelfde afspraak als richtingVan() in portfolioTypes.ts.
-export type GetradeBron = Pick<Trade, 'symbool' | 'entry' | 'stopLoss' | 'takeProfit' | 'rr'> & { richting?: Richting };
+export type GetradeBron = Pick<Trade, 'symbool' | 'entry' | 'stopLoss' | 'takeProfit' | 'rr'>;
 
 interface Props {
   zichtbaar: boolean;
@@ -58,11 +55,9 @@ function leegForm(trade: GetradeBron | null): VormData {
 // niveaus volgen (leeg entryveld, stop aan de verkeerde kant van de entry), dan wordt het 0. Dat
 // is de afspraak die de rest van de app al hanteert: etoro.ts doet hetzelfde en het portfolio toont
 // een streepje bij een R/R van 0, in plaats van een cijfer dat aantoonbaar niet meer klopt.
-// Bij een short liggen stop en doel andersom (stop boven, doel onder de entry), dus risico en reward
-// worden in de andere richting gemeten.
-function herberekenRR(entry: number, stop: number, takeProfit: number, richting: Richting = 'long'): number {
-  const risico = richting === 'short' ? stop - entry : entry - stop;
-  const reward = richting === 'short' ? entry - takeProfit : takeProfit - entry;
+function herberekenRR(entry: number, stop: number, takeProfit: number): number {
+  const risico = entry - stop;
+  const reward = takeProfit - entry;
   const rr = reward / risico;
   return risico > 0 && rr > 0 ? rr : 0;
 }
@@ -88,15 +83,11 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
     }
   }, [form.bedragUsd, form.entryPrijs]);
 
-  const richting: Richting = trade?.richting ?? 'long';
-  const isShort = richting === 'short';
-
   // Kader rekent zijn eigen stop uit, maar eToro accepteert niet elke afstand. Meten we tegen de
   // aankoopprijs die je hier invult, want die wijkt af van de entry uit de analyse zodra de koers
   // is doorgelopen. Zonder eToro-koppeling of bij een API-fout blijft de limiet null en zeggen we
-  // niets: liever geen waarschuwing dan een verzonnen grens. De limiet komt per richting binnen,
-  // dus een short wordt tegen eToro's short-grenzen getoetst en niet tegen de ruimere long-grens.
-  const stopLimiet = useStopLossLimiet(trade?.symbool, richting);
+  // niets: liever geen waarschuwing dan een verzonnen grens.
+  const stopLimiet = useStopLossLimiet(trade?.symbool);
   const ingevuldeEntry = parseFloat(form.entryPrijs.replace(',', '.'));
   const advies: StopAdvies = trade
     ? bepaalStop(ingevuldeEntry, trade.stopLoss, stopLimiet)
@@ -104,7 +95,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
 
   // Wat we tonen is ook wat we opslaan: tradeChecks.ts bewaakt later precies deze niveaus.
   const stop = advies.soort === 'aangepast' ? advies.stop : trade?.stopLoss ?? 0;
-  const rr = trade ? herberekenRR(ingevuldeEntry, stop, trade.takeProfit, richting) : 0;
+  const rr = trade ? herberekenRR(ingevuldeEntry, stop, trade.takeProfit) : 0;
 
   function valideerEnOpslaan() {
     const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
@@ -116,12 +107,9 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
     if (isNaN(aantal) || aantal <= 0) { setFout('Aantal coins moet groter dan 0 zijn'); return; }
     if (!trade) return;
     // Een stop aan de verkeerde kant van de aankoopprijs zou meteen als "stop geraakt" in je
-    // portfolio staan. Bij long hoort de stop eronder, bij short erboven: hetzelfde slot dat het
-    // handmatige formulier op het Portfolio-scherm al heeft, nu richting-bewust.
-    if (isShort ? stop <= prijs : stop >= prijs) {
-      setFout(isShort
-        ? 'Stop-loss moet hoger zijn dan de aankoopprijs, kijk je aankoopprijs na'
-        : 'Stop-loss moet lager zijn dan de aankoopprijs, kijk je aankoopprijs na');
+    // portfolio staan: hetzelfde slot dat het handmatige formulier op het Portfolio-scherm al heeft.
+    if (stop >= prijs) {
+      setFout('Stop-loss moet lager zijn dan de aankoopprijs, kijk je aankoopprijs na');
       return;
     }
 
@@ -140,7 +128,6 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
       bedragUsd: bedrag,
       aantalCoins: aantal,
       bron: 'handmatig',
-      richting,
     };
 
     voegTradeToe(portfolioTrade);
@@ -159,7 +146,7 @@ export function GetradeFormulier({ zichtbaar, trade, onSluiten }: Props) {
   const aantalGetal = parseFloat(form.aantalCoins.replace(',', '.'));
   const planBedrag = isFinite(aantalGetal) && aantalGetal > 0 && ingevuldeEntry > 0 ? aantalGetal * ingevuldeEntry : bedragGetal;
   const plan = trade
-    ? planInGeld({ bedrag: planBedrag, entry: ingevuldeEntry, stop, doel: trade.takeProfit, richting })
+    ? planInGeld({ bedrag: planBedrag, entry: ingevuldeEntry, stop, doel: trade.takeProfit })
     : null;
 
   return (

@@ -18,7 +18,7 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 import { haptiek, haptiekVanUI } from '../theme/haptiek';
 import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { fmtBedrag, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
-import { PortfolioTrade, tekenVan } from '../state/portfolioTypes';
+import { PortfolioTrade } from '../state/portfolioTypes';
 import { behaaldeRR, berekenStatistieken, resultaatVan } from '../state/statistieken';
 import { PERIODES, PeriodeId, periodeGrens } from '../state/periodeResultaat';
 import { useValutaStand } from '../state/useValuta';
@@ -511,9 +511,8 @@ function TradeRij({ trade, toonDemo, onOpenDetail, onVerwijder }: {
   const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
   const gewonnen = trade.status === 'gewonnen';
 
-  const teken = tekenVan(trade);
   const behaaldPct = trade.exitPrijs !== undefined
-    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
+    ? (trade.exitPrijs - trade.entryPrijs) / trade.entryPrijs * 100
     : null;
   const usd = resultaatVan(trade);
   const r = behaaldeRR(trade);

@@ -31,7 +31,7 @@ import { NiveausSheet } from '../components/NiveausSheet';
 import { EtoroOmgeving, WachtendeOrder } from '../engine/etoro';
 import { omschrijfOnbekendeOrder } from '../state/lopendeOrders';
 import { adviesBijUitkomst, meldingNaAnnuleren, omschrijfUitkomst } from '../state/orderUitkomsten';
-import { PortfolioTrade, Richting, bronVan, nieuweId, richtingVan } from '../state/portfolioTypes';
+import { PortfolioTrade, bronVan, nieuweId } from '../state/portfolioTypes';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useDialoog } from '../state/DialoogProvider';
 import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
@@ -66,7 +66,6 @@ export function isEtoroBestuurbaar(trade: PortfolioTrade, omgeving: EtoroOmgevin
 interface VormData {
   symbool: string;
   naam: string;
-  richting: Richting;
   entryPrijs: string;
   stopLoss: string;
   takeProfit: string;
@@ -76,14 +75,13 @@ interface VormData {
 }
 
 const leegForm: VormData = {
-  symbool: '', naam: '', richting: 'long', entryPrijs: '', stopLoss: '', takeProfit: '', bedragUsd: '', aantalCoins: '', notitie: '',
+  symbool: '', naam: '', entryPrijs: '', stopLoss: '', takeProfit: '', bedragUsd: '', aantalCoins: '', notitie: '',
 };
 
 function formVanTrade(trade: PortfolioTrade): VormData {
   return {
     symbool: trade.symbool,
     naam: trade.naam,
-    richting: richtingVan(trade),
     entryPrijs: trade.entryPrijs.toString(),
     stopLoss: trade.stopLoss.toString(),
     takeProfit: trade.takeProfit.toString(),
@@ -148,28 +146,16 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
     const bedrag = parseFloat(form.bedragUsd.replace(',', '.'));
     const aantal = parseFloat(form.aantalCoins.replace(',', '.'));
 
-    const isShort = form.richting === 'short';
-
     if (!sym) { setFout('Voer een symbool in (bijv. BTC)'); return; }
     if (isNaN(entry) || entry <= 0) { setFout('Voer een geldige entryprijs in'); return; }
-    // Bij een short liggen stop en doel aan de andere kant van de entry: de stop erboven (je verliest
-    // als de koers stijgt), het doel eronder (je wint als de koers daalt).
-    if (isShort) {
-      if (isNaN(stop) || stop <= entry) { setFout('Stop-loss moet hoger zijn dan de entryprijs bij een short'); return; }
-      if (isNaN(tp) || tp >= entry) { setFout('Take-profit moet lager zijn dan de entryprijs bij een short'); return; }
-    } else {
-      if (isNaN(stop) || stop >= entry) { setFout('Stop-loss moet lager zijn dan de entryprijs'); return; }
-      if (isNaN(tp) || tp <= entry) { setFout('Take-profit moet hoger zijn dan de entryprijs'); return; }
-    }
+    if (isNaN(stop) || stop >= entry) { setFout('Stop-loss moet lager zijn dan de entryprijs'); return; }
+    if (isNaN(tp) || tp <= entry) { setFout('Take-profit moet hoger zijn dan de entryprijs'); return; }
 
-    const rr = isShort
-      ? Math.round(((entry - tp) / (stop - entry)) * 10) / 10
-      : Math.round(((tp - entry) / (entry - stop)) * 10) / 10;
+    const rr = Math.round(((tp - entry) / (entry - stop)) * 10) / 10;
     onOpslaan({
       id: bestaand ? bestaand.id : nieuweId(),
       symbool: sym,
       naam: form.naam.trim(),
-      richting: form.richting,
       entryPrijs: entry,
       stopLoss: stop,
       // Verzet je de stop via Aanpassen, dan blijft de oorspronkelijke staan voor de R-berekening.
@@ -226,34 +212,6 @@ function TradeFormulier({ zichtbaar, bestaand, onSluiten, onOpslaan }: {
           placeholder="bijv. Bitcoin"
           placeholderTextColor={colors.tekstGedimd}
         />
-
-        <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>RICHTING</Text>
-        <View style={formStyles.richtingRij}>
-          <Pressable
-            style={[
-              formStyles.richtingKnop,
-              { borderColor: form.richting === 'long' ? colors.primair : colors.rand },
-              form.richting === 'long' && { backgroundColor: colors.primair + '1A' },
-            ]}
-            onPress={() => setForm(f => ({ ...f, richting: 'long' }))}
-            accessibilityRole="button"
-            accessibilityLabel="Long"
-          >
-            <Text style={[Type.body, { color: form.richting === 'long' ? colors.primair : colors.tekstGedimd, fontWeight: '600' }]}>Long</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              formStyles.richtingKnop,
-              { borderColor: form.richting === 'short' ? colors.goud : colors.rand },
-              form.richting === 'short' && { backgroundColor: colors.goud + '1A' },
-            ]}
-            onPress={() => setForm(f => ({ ...f, richting: 'short' }))}
-            accessibilityRole="button"
-            accessibilityLabel="Short"
-          >
-            <Text style={[Type.body, { color: form.richting === 'short' ? colors.goud : colors.tekstGedimd, fontWeight: '600' }]}>Short</Text>
-          </Pressable>
-        </View>
 
         <Text style={[Type.overline, formStyles.label, { color: colors.tekstGedimd }]}>ENTRYPRIJS *</Text>
         <TextInput
@@ -428,16 +386,6 @@ const formStyles = StyleSheet.create({
   },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   label: { marginTop: spacing.md, marginBottom: spacing.xs },
-  richtingRij: { flexDirection: 'row', gap: spacing.sm },
-  richtingKnop: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: radii.veld,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    minHeight: 44,
-    justifyContent: 'center',
-  },
   input: {
     borderWidth: 1,
     borderRadius: radii.veld,
@@ -716,10 +664,9 @@ export function PortfolioScreen() {
       if (uitkomst.gesloten > 0) delen.push(`${uitkomst.gesloten} automatisch gesloten`);
       if (uitkomst.uitHistorie > 0) delen.push(`${uitkomst.uitHistorie} uit je eToro-historie`);
       if (uitkomst.overgeslagen.length > 0) delen.push(`${uitkomst.overgeslagen.length} overgeslagen`);
-      // Shorts komen nu gewoon binnen; wat hier nog overblijft is geen crypto-instrument. De lijst
-      // gaat in het detailblok en niet achter de tekst aan: hij kan lang worden.
+      // De lijst gaat in het detailblok en niet achter de tekst aan: hij kan lang worden.
       const overgeslagen = uitkomst.overgeslagen.length > 0
-        ? 'Overgeslagen:\n' + uitkomst.overgeslagen.map(o => `- ${o.naam} (geen crypto)`).join('\n')
+        ? 'Overgeslagen:\n' + uitkomst.overgeslagen.map(o => `- ${o.naam} (${o.reden === 'short' ? 'short, Kader doet niets met shorts' : 'geen crypto'})`).join('\n')
         : undefined;
       toonDialoog({
         variant: 'gelukt',
@@ -753,7 +700,7 @@ export function PortfolioScreen() {
       variant: 'waarschuwing',
       titel: 'Order annuleren?',
       // De omgeving van de order zelf, niet de actieve: daar gaat het verzoek over.
-      tekst: `Je annuleert de ${order.richting === 'short' ? 'short' : 'koop'} van ${bedragTekst} in ${order.symbool}.${order.omgeving === 'real' ? ' Dit is je echte account.' : ''}`,
+      tekst: `Je annuleert de koop van ${bedragTekst} in ${order.symbool}.${order.omgeving === 'real' ? ' Dit is je echte account.' : ''}`,
       knoppen: [
         { label: 'Terug' },
         { label: 'Order annuleren', soort: 'destructief', onDruk: () => voerAnnuleringUit(order) },

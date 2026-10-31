@@ -22,7 +22,7 @@ import { VisKoppelen } from './koppelen';
 import { VisPlatforms } from './platforms';
 import { VisTrader } from './trader';
 
-// Hoofdstuk-id naar visualisatie. Shorts heeft er bewust geen.
+// Hoofdstuk-id naar visualisatie.
 export const VISUALISATIES: Record<string, ComponentType<VisProps>> = {
   score: VisScore,
   advies: VisAdvies,

@@ -304,7 +304,7 @@ if (require.main === module) {
   console.assert(zonder.signaal === 'KOOP' && zonder.haaltRr && zonder.niveaus?.aangepast === false,
     `zonder limiet hoort KOOP te blijven: ${JSON.stringify(zonder)}`);
   // Minimaal 10% stop: risico 10, doel 9 verder, R/R 0,9.
-  const limiet: StopLossLimiet = { symbool: 'TEST', richting: 'long', bewerkbaar: true, minPct: 10, maxPct: 100 };
+  const limiet: StopLossLimiet = { symbool: 'TEST', bewerkbaar: true, minPct: 10, maxPct: 100 };
   const krap = effectiefSignaal(koopKans, limiet);
   console.assert(krap.niveaus?.aangepast === true, `een te krappe stop hoort aangepast te worden: ${JSON.stringify(krap.niveaus)}`);
   console.assert(krap.signaal === 'WATCH' && !krap.haaltRr, `onder 1:2 na de correctie hoort WATCH te zijn: ${JSON.stringify(krap)}`);

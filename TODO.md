@@ -117,10 +117,6 @@ Het einddoel. Verlies minimaliseren, winst maximaliseren, zonder dat jij hoeft t
       ruim (+0,192 naar +0,243) en het kost maar 6% van de signaaldagen. Anders dan een drempelverlaging is
       dit een aanscherping. Cijfers in [docs/metingen.md](docs/metingen.md)
   - [ ] Voor het erin gaat: de meting één keer opnieuw draaien op verse data
-- [ ] Nog te bewijzen: een echte short plaatsen via de app. Dat `settlementType: cfd` in de orderbody
-      hoort is afgeleid uit de eligibility-respons, niet gemeten. Draaien met
-      `ETORO_DEMO_API_KEY=... ETORO_DEMO_USER_KEY=... npx tsx scripts/etoro-demo-order.ts --order` vanuit
-      `app/` (die vlag plaatst een echte order op het demo-account)
 - [ ] Trailing stop: het voorgestelde niveau is nu alleen tekst. Zodra er een knop komt die de stop bij
       eToro zet, moet die eerst langs `useStopLossLimiet.ts`
 

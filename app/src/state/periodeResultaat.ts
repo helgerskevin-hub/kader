@@ -1,4 +1,4 @@
-import { PortfolioTrade, tekenVan } from './portfolioTypes';
+import { PortfolioTrade } from './portfolioTypes';
 
 // Je resultaat over een tijdvak, en dat is iets anders dan de twee getallen die de portfoliokaart
 // al toont. Het grote bedrag is je vermogen nu, de groene of rode regel eronder is het
@@ -119,13 +119,12 @@ export function koersOp(reeks: KoersPunt[] | undefined, tijd: number): number | 
 
 // Het werkelijke resultaat van een gesloten trade in dollars. Zelfde regels als in statistieken.ts:
 // eToro's netProfit is inclusief kosten en gaat dus voor; voor handmatige trades blijft het bruto
-// koersverschil de beste schatting, met het teken erin zodat een short die in winst sloot (koers
-// daalde) ook als winst telt.
+// koersverschil de beste schatting.
 function resultaatVan(t: PortfolioTrade): number | null {
   if (typeof t.resultaatUsd === 'number') return t.resultaatUsd;
   const exit = t.exitPrijs ?? (t.status === 'gewonnen' ? t.takeProfit : t.stopLoss);
   if (typeof t.aantalCoins === 'number' && t.aantalCoins > 0) {
-    return tekenVan(t) * (exit - t.entryPrijs) * t.aantalCoins;
+    return (exit - t.entryPrijs) * t.aantalCoins;
   }
   return null;
 }
@@ -183,7 +182,7 @@ export function berekenPeriodeResultaat(
       continue;
     }
 
-    ongerealiseerdUsd += tekenVan(t) * (live - referentie) * t.aantalCoins!;
+    ongerealiseerdUsd += (live - referentie) * t.aantalCoins!;
     openBasis += referentie * t.aantalCoins!;
     meegewogen += 1;
   }
@@ -350,18 +349,6 @@ if (require.main === module) {
   const leeg = berekenPeriodeResultaat([], {}, {}, '1M', nu);
   console.assert(leeg.status === 'leeg', 'lege portfolio is leeg');
   console.assert(leeg.totaalUsd === null && leeg.pct === null, 'lege portfolio geeft null');
-
-  // ---------- Short ----------
-  // Short op BTC, entry 120, live 100, 2 coins, al lang open. Bij alles: +40 (koers daalde).
-  const short: PortfolioTrade = {
-    id: 's1', symbool: 'BTC', naam: 'Bitcoin', entryPrijs: 120, stopLoss: 130, takeProfit: 70,
-    rr: 3, datum: '', status: 'open', aantalCoins: 2, richting: 'short', openTijd: nu - 200 * DAG,
-  };
-  const shortAlles = berekenPeriodeResultaat([short], live, historie, 'alles', nu);
-  console.assert(shortAlles.ongerealiseerdUsd === 40, `short in winst als de koers daalt: +40, was ${shortAlles.ongerealiseerdUsd}`);
-  // 1M: referentie 80, live 100, koers STEEG dus de short verloor: -40.
-  const shortMaand = berekenPeriodeResultaat([short], live, historie, '1M', nu);
-  console.assert(shortMaand.ongerealiseerdUsd === -40, `short verliest bij een stijging: -40, was ${shortMaand.ongerealiseerdUsd}`);
 
   console.log('periodeResultaat.ts self-check geslaagd');
 }

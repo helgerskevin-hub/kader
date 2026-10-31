@@ -7,7 +7,6 @@
 // opvraag- en opruimregels los te draaien zijn met de self-check onderaan.
 import { EtoroOmgeving, WachtendeOrder, isDefinitieveStatus, statusInGewoneTaal } from '../engine/etoro';
 import { fmtBedrag } from '../engine/format';
-import { Richting } from './portfolioTypes';
 
 export interface GeplaatsteOrder {
   // Dezelfde id als de x-request-id waarmee de order de deur uitging. Dient als sleutel in de lijst,
@@ -22,8 +21,6 @@ export interface GeplaatsteOrder {
   positionId?: number;
   omgeving: EtoroOmgeving;
   bedragUsd?: number;
-  // Alleen bij koop: bepaalt of de omschrijving "koop" of "short" zegt.
-  richting?: Richting;
   // epoch ms, het moment waarop de order de deur uitging.
   tijd: number;
   status?: { id: number; naam: string; reden: string | null };
@@ -147,9 +144,7 @@ export function omschrijfUitkomst(order: GeplaatsteOrder): string {
   const bedrag = order.bedragUsd ? ` van ${fmtBedrag(order.bedragUsd, DOLLARS)}` : '';
   const onderwerp = order.soort === 'verkoop'
     ? `Je verkoop van ${order.symbool}`
-    : order.richting === 'short'
-      ? `Je short${bedrag} in ${order.symbool}`
-      : `Je koop${bedrag} in ${order.symbool}`;
+    : `Je koop${bedrag} in ${order.symbool}`;
 
   if (!order.status) return `${onderwerp}, geplaatst op ${tijd}, is nog niet bevestigd door eToro.`;
 
@@ -315,7 +310,7 @@ if (require.main === module) {
 
   // De kaart verbergt alleen op positief bewijs.
   const wachtend: WachtendeOrder = {
-    orderId: 384361926, instrumentId: 1, soort: 'markt', richting: 'long', bedragUsd: 50, limietKoers: null,
+    orderId: 384361926, instrumentId: 1, soort: 'markt', bedragUsd: 50, limietKoers: null,
     stopLoss: null, takeProfit: null, openTijd: null, statusId: null, symbool: 'SOL', naam: 'Solana', omgeving: 'demo',
   };
   console.assert(isAfgerond(wachtend, [gevuld]), 'een gevulde eigen order verdwijnt van de kaart');

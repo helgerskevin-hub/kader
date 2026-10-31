@@ -279,9 +279,9 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
             )}
           </Animated.View>
 
-          {/* De vier eisen bestaan alleen voor een long op het momentum-profiel: trend, MACD en
-              volume betekenen bij een omkeer- of short-trade iets anders. */}
-          {trade.richting === 'long' && trade.profiel === 'momentum' && (
+          {/* De vier eisen bestaan alleen voor het momentum-profiel: trend, MACD en volume
+              betekenen bij een omkeer-trade iets anders. */}
+          {trade.profiel === 'momentum' && (
             <Animated.View entering={uitklapInGestaffeld(1, reduceMotion)}>
               <Bevestigingen uitkomst={uitkomst} />
             </Animated.View>

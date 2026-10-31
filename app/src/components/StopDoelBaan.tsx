@@ -38,9 +38,7 @@ function clamp01(v: number): number {
 }
 
 // Waar de koers staat tussen stop en doel, als één baan. De positie is (v - stop) / (doel - stop):
-// de stop ligt altijd links en het doel altijd rechts, dus rechts is altijd beter. Bij een short
-// liggen stop en doel andersom in prijs, maar deze formule draait dan vanzelf mee; er is geen
-// aparte tak voor nodig.
+// de stop ligt altijd links en het doel altijd rechts, dus rechts is altijd beter.
 //
 // De vulling loopt van entry naar koers, groen als de koers de goede kant op staat en rood als
 // niet. Alleen transform: de vulling is een View van volle breedte die met scaleX + een
@@ -63,8 +61,8 @@ export function StopDoelBaan({
   const livePos = heeftLive ? positie(live) : entryPos;
   // Gunstig is het oordeel over de ECHTE koers, niet over de afgekapte posities: buiten de baan zijn
   // livePos en entryPos allebei 0 of 1 en zouden dan gelijk zijn, terwijl de koers wel degelijk
-  // onder de entry (of onder de stop) kan staan. sign(doel - stop) draait het voor een short mee.
-  const gunstig = heeftLive && (live - entry) * Math.sign(doel - stop) >= 0;
+  // onder de entry (of onder de stop) kan staan.
+  const gunstig = heeftLive && live >= entry;
   const vullingKleur = gunstig ? colors.winst : colors.verlies;
 
   // Waar de koers op de baan staat, als fractie. Vulling en stip lezen allebei deze ene waarde,

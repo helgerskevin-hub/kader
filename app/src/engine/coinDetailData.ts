@@ -1,5 +1,5 @@
 import { Candle, Trade, Opportunity } from './types';
-import { PortfolioTrade, Richting, richtingVan } from '../state/portfolioTypes';
+import { PortfolioTrade } from '../state/portfolioTypes';
 import { infoVoor } from './coinInfo';
 import { rsi, ema, macd, atr } from './indicators';
 
@@ -9,9 +9,6 @@ export interface CoinDetailData {
   symbool: string;
   naam: string;
   context: CoinDetailContext;
-  // Kan overal 'short' zijn: een portfolio-positie, en sinds de short-signalen ook een trade uit
-  // de marktscan. De kansen-scanner levert nog uitsluitend longs.
-  richting: Richting;
   prijs?: number;
   entry?: number;
   stopLoss?: number;
@@ -40,10 +37,6 @@ export function vanTrade(trade: Trade, versusBtc?: number): CoinDetailData {
     symbool: trade.symbool,
     naam: infoVoor(trade.symbool).naam,
     context: 'markt',
-    // De richting van de trade zelf, niet hardgecodeerd long: analyseerMarkt levert short-signalen
-    // in een eigen lijst en die dragen richting 'short'. Zonder dit zou een short opengaan met de
-    // stop en het doel omgewisseld en met bullish onderbouwing eronder.
-    richting: trade.richting,
     prijs: trade.prijs,
     entry: trade.entry,
     stopLoss: trade.stopLoss,
@@ -59,7 +52,6 @@ export function vanOpportunity(kans: Opportunity, signaal: 'KOOP' | 'WATCH'): Co
     symbool: kans.symbool,
     naam: kans.naam || infoVoor(kans.symbool).naam,
     context: 'kansen',
-    richting: 'long',
     prijs: kans.prijs,
     // De radar-niveaus (uitbraak-plan), niet die van de Markt; zonder plan geen niveaus.
     entry: kans.niveaus?.entry,
@@ -77,7 +69,6 @@ export function vanPortfolioTrade(trade: PortfolioTrade, livePrijs?: number): Co
     symbool: trade.symbool,
     naam: trade.naam || infoVoor(trade.symbool).naam,
     context: 'portfolio',
-    richting: richtingVan(trade),
     prijs: livePrijs,
     entry: trade.entryPrijs,
     stopLoss: trade.stopLoss,
