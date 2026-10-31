@@ -7,20 +7,19 @@
 import { useEffect, useState } from 'react';
 import { haalStopLossLimieten } from '../engine/etoro';
 import { StopLossLimiet } from '../engine/etoroLimieten';
-import type { Richting } from '../engine/types';
 import { ETORO_TRADABLE } from '../engine/opportunities';
 import { SLEUTELS, bewaarObject, laadObject } from '../storage/opslag';
 import { actieveSleutels } from './etoroSleutels';
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-// Opgehoogd zodra de vorm van `limieten` wijzigt. Tot versie 2 lag er per symbool één limiet, die
-// altijd de long-config was; sinds fase 4 staat er een per richting, met SYMBOOL:richting als
-// sleutel. Zonder deze controle zou een cache van gisteren gewoon geldig lijken, zouden alle
-// opzoekingen niets vinden en zou de stopvalidatie een dag lang stil uit staan.
+// Opgehoogd zodra de vorm van `limieten` wijzigt. Zonder deze controle zou een cache van gisteren
+// gewoon geldig lijken, zouden alle opzoekingen niets vinden en zou de stopvalidatie een dag lang
+// stil uit staan.
 // Versie 3: sinds etoroSymbolen.ts staan SHIB, PEPE, MATIC, FTM, MKR en RNDR er ook in. Een cache
 // van daarvoor mist ze, en dan kreeg zo'n coin een dag lang een stop die eToro weigert.
-const CACHE_VERSIE = 3;
+// Versie 4: de sleutel is weer alleen het symbool, sinds shorts uit de app zijn (was SYMBOOL:richting).
+const CACHE_VERSIE = 4;
 
 interface Cache {
   versie?: number;
@@ -79,7 +78,6 @@ function cacheBelofte(): Promise<Cache | null> {
 
 export function useStopLossLimiet(
   symbool: string | null | undefined,
-  richting: Richting = 'long',
 ): StopLossLimiet | null {
   const [limiet, setLimiet] = useState<StopLossLimiet | null>(null);
 
@@ -90,10 +88,10 @@ export function useStopLossLimiet(
     }
     let actief = true;
     cacheBelofte().then(cache => {
-      if (actief) setLimiet(cache?.limieten[`${symbool.toUpperCase()}:${richting}`] ?? null);
+      if (actief) setLimiet(cache?.limieten[symbool.toUpperCase()] ?? null);
     });
     return () => { actief = false; };
-  }, [symbool, richting]);
+  }, [symbool]);
 
   return limiet;
 }
@@ -118,8 +116,7 @@ export function useStopLossLimieten(): Record<string, StopLossLimiet> | null {
 export function limietVoor(
   kaart: Record<string, StopLossLimiet> | null,
   symbool: string | null | undefined,
-  richting: Richting = 'long',
 ): StopLossLimiet | null {
   if (!kaart || !symbool) return null;
-  return kaart[`${symbool.toUpperCase()}:${richting}`] ?? null;
+  return kaart[symbool.toUpperCase()] ?? null;
 }

@@ -29,8 +29,6 @@ interface Props {
   onStop: (w: number) => void;
   onDoel: (w: number) => void;
   formatPrijs: (n: number) => string;
-  // Alleen voor de kleur van de vlakken: verlies ligt tussen stop en entry, winst tussen entry en doel.
-  richting: 'long' | 'short';
 }
 
 const HOOGTE = 72;
@@ -86,7 +84,7 @@ function effectiefBereik(bereik: Bereik | null, min: number, max: number): Berei
 // slepen beweegt (grepen, labels, vlakken) leest alleen shared values, nooit React-state: onder
 // Minder beweging past Reanimated een stijl die op gewone state leunt niet altijd opnieuw toe.
 export function NiveauBaan({
-  min, max, entry, live, stop, doel, stopBereik, doelBereik, stap, onStop, onDoel, formatPrijs, richting,
+  min, max, entry, live, stop, doel, stopBereik, doelBereik, stap, onStop, onDoel, formatPrijs,
 }: Props) {
   const { colors } = useTheme();
   const [breedte, setBreedte] = useState(0);
@@ -95,7 +93,6 @@ export function NiveauBaan({
   const minW = useSharedValue(min);
   const maxW = useSharedValue(max);
   const entryW = useSharedValue(entry);
-  const tekenW = useSharedValue(richting === 'short' ? -1 : 1);
   const stapW = useSharedValue(stap);
   // NaN = geen greep; de vlakken verdwijnen dan vanzelf.
   const stopW = useSharedValue(stop ?? NaN);
@@ -105,9 +102,8 @@ export function NiveauBaan({
     minW.value = min;
     maxW.value = max;
     entryW.value = entry;
-    tekenW.value = richting === 'short' ? -1 : 1;
     stapW.value = stap;
-  }, [min, max, entry, richting, stap, minW, maxW, entryW, tekenW, stapW]);
+  }, [min, max, entry, stap, minW, maxW, entryW, stapW]);
 
   function opLayout(e: LayoutChangeEvent) {
     const b = e.nativeEvent.layout.width;
@@ -124,7 +120,7 @@ export function NiveauBaan({
     const b = breedteW.value;
     const s = stopW.value;
     const e = entryW.value;
-    if (!(b > 0) || !isFinite(s) || (e - s) * tekenW.value <= 0) return { opacity: 0, transform: [{ translateX: 0 }, { scaleX: 0 }] };
+    if (!(b > 0) || !isFinite(s) || e - s <= 0) return { opacity: 0, transform: [{ translateX: 0 }, { scaleX: 0 }] };
     const xs = xVan(s, minW.value, maxW.value, b);
     const xe = xVan(e, minW.value, maxW.value, b);
     return { opacity: ZONE_DEKKING, transform: [{ translateX: Math.min(xs, xe) }, { scaleX: Math.abs(xe - xs) / ZONE_BASIS }] };
@@ -134,7 +130,7 @@ export function NiveauBaan({
     const b = breedteW.value;
     const d = doelW.value;
     const e = entryW.value;
-    if (!(b > 0) || !isFinite(d) || (d - e) * tekenW.value <= 0) return { opacity: 0, transform: [{ translateX: 0 }, { scaleX: 0 }] };
+    if (!(b > 0) || !isFinite(d) || d - e <= 0) return { opacity: 0, transform: [{ translateX: 0 }, { scaleX: 0 }] };
     const xd = xVan(d, minW.value, maxW.value, b);
     const xe = xVan(e, minW.value, maxW.value, b);
     return { opacity: ZONE_DEKKING, transform: [{ translateX: Math.min(xd, xe) }, { scaleX: Math.abs(xd - xe) / ZONE_BASIS }] };

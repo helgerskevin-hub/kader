@@ -12,7 +12,7 @@
 // keer langs.
 //
 // Draait ook in de achtergrondtaak, buiten de React-tree, dus geen hooks en geen context.
-import { PortfolioTrade, bronVan, tekenVan } from '../state/portfolioTypes';
+import { PortfolioTrade, bronVan } from '../state/portfolioTypes';
 import { bepaalEtoroSluitReden, niveauGeraakt } from '../state/sluitReden';
 import { GeplaatsteOrder, OPVRAAG_VENSTER_MS } from '../state/orderUitkomsten';
 import { OnbekendeOrder } from '../state/lopendeOrders';
@@ -86,12 +86,12 @@ function eigenVerkoop(
   );
 }
 
-// Resultaat in procenten van de inleg, richtinggevoelig. Liever eToro's eigen entry (de koers
+// Resultaat in procenten van de inleg. Liever eToro's eigen entry (de koers
 // waarop hij echt gevuld is) dan de lokale, die bij een oude handmatig bijgewerkte regel kan afwijken.
 function resultaatPct(lokaal: PortfolioTrade, gesloten: PortfolioTrade, exit: number): number | null {
   const entry = gesloten.entryPrijs > 0 ? gesloten.entryPrijs : lokaal.entryPrijs;
   if (!(entry > 0)) return null;
-  return tekenVan(lokaal) * (exit - entry) / entry * 100;
+  return (exit - entry) / entry * 100;
 }
 
 function bundel(meldingen: Melding[], meervoudTitel: string, meervoudStaart: string): { titel: string; tekst: string } {

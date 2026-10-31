@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated';
 import {
   X, ChevronLeft, Search, CircleX, Info,
   Activity, BadgeCheck, Bell, BellRing, ChartCandlestick, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
-  Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, TrendingDown, Users,
+  Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, Users,
   Wallet, Zap,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -22,7 +22,7 @@ import { LijstGroep } from './lijst/LijstGroep';
 import { LijstRij } from './lijst/LijstRij';
 import { InfoVisualisatie } from './informatie/InfoVisualisatie';
 import {
-  BRONNEN, GROEPEN, HOOFDSTUKKEN, SHORTS_HOOFDSTUK, type Hoofdstuk,
+  BRONNEN, GROEPEN, HOOFDSTUKKEN, type Hoofdstuk,
 } from '../informatie/hoofdstukken';
 
 interface Props {
@@ -33,14 +33,13 @@ interface Props {
 // Statische map van icoonnaam (uit hoofdstukken.ts) naar component; geen dynamische require.
 const ICONEN: Record<string, LucideIcon> = {
   Activity, BadgeCheck, Bell, BellRing, ChartCandlestick, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
-  Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, TrendingDown, Users,
+  Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, Users,
   Wallet, Zap,
 };
 
 const BRONNEN_ID = 'bronnen';
 
-// Shorts staat als laatste in de groep Handelen.
-const ALLE: Hoofdstuk[] = [...HOOFDSTUKKEN, SHORTS_HOOFDSTUK];
+const ALLE: Hoofdstuk[] = HOOFDSTUKKEN;
 
 export function AchtergrondScherm({ zichtbaar, onSluiten }: Props) {
   const { colors } = useTheme();

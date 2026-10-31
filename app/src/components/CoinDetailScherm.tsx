@@ -10,7 +10,7 @@ import { Candle } from '../engine/types';
 import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../engine/coinDetailData';
 import { haalData, haalIntraday } from '../engine/marketData';
 import type { IntradayId } from '../engine/grafiekBereik';
-import { infoVoor, genereerKoopadvies, genereerShortadvies } from '../engine/coinInfo';
+import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
@@ -21,7 +21,6 @@ import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { CoinLogo } from './CoinLogo';
 import { ScoreRing } from './ScoreRing';
-import { RichtingBadge } from './RichtingBadge';
 import { StopDoelBaan } from './StopDoelBaan';
 import { PilKnop } from './PilKnop';
 import { PrijsGrafiek } from './PrijsGrafiek';
@@ -108,7 +107,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   // weglaten liet de gebruiker in het ongewisse of Kader dit überhaupt kan.
   const [handelReden, setHandelReden] = useState('');
   const { magHandelen, omgeving } = usePortfolio();
-  const stopLimiet = useStopLossLimiet(data ? data.symbool : null, data?.richting ?? 'long');
+  const stopLimiet = useStopLossLimiet(data ? data.symbool : null);
 
   useEffect(() => {
     if (dataProp && !vorigeDataProp.current) binnenkomstGehad.current = false;
@@ -157,7 +156,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   // hij was.
   const kanTraden = !(data.context === 'kansen' && data.signaal !== 'KOOP');
   const getradeBron: GetradeBron | null = kanGetrade
-    ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0, richting: data.richting }
+    ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
     : null;
 
   // Wat er bij eToro werkelijk te zetten valt. Kaders stop ligt op een swing low en is voor de
@@ -178,62 +177,46 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
     data.takeProfit !== undefined ? { waarde: data.takeProfit, kleur: colors.winst } : null,
   ].filter((n): n is { waarde: number; kleur: string } => n !== null);
 
-  // Bij een short draait elk argument om: een dalende trend is dan een plus en niet een
-  // waarschuwing, en een hoge score juist een reden om het NIET te doen. Het koopadvies onder een
-  // short zetten zou precies het tegenovergestelde beweren van het signaal erboven.
   const advies = indicatoren
-    ? (data.richting === 'short'
-      ? genereerShortadvies({
-        score: data.score,
-        rsi: indicatoren.rsi,
-        trendOp: indicatoren.trendOp,
-        macdBullish: indicatoren.macdBullish,
-        volumeRatio: indicatoren.volumeRatio,
-      })
-      : genereerKoopadvies({
-        score: data.score,
-        rsi: indicatoren.rsi,
-        trendOp: indicatoren.trendOp,
-        macdBullish: indicatoren.macdBullish,
-        volumeRatio: indicatoren.volumeRatio,
-      }))
+    ? genereerKoopadvies({
+      score: data.score,
+      rsi: indicatoren.rsi,
+      trendOp: indicatoren.trendOp,
+      macdBullish: indicatoren.macdBullish,
+      volumeRatio: indicatoren.volumeRatio,
+    })
     : null;
   const adviesKleur = advies?.kleur === 'groen' ? colors.winst : advies?.kleur === 'rood' ? colors.verlies : colors.letOp;
 
   const isOpen = data.status === 'open';
   const heeftAantal = typeof data.aantalCoins === 'number' && data.aantalCoins > 0;
-  // +1 voor long, -1 voor short: zelfde truc als tekenVan() in portfolioTypes.ts, maar dit is geen
-  // PortfolioTrade meer, dus rechtstreeks op het richting-veld.
-  const teken = data.richting === 'short' ? -1 : 1;
-
   const resultaatUsd = data.context === 'portfolio' && isOpen && data.prijs !== undefined && heeftAantal
-    ? (data.prijs - (data.entryPrijs ?? 0)) * data.aantalCoins! * teken
+    ? (data.prijs - (data.entryPrijs ?? 0)) * data.aantalCoins!
     : null;
   const resultaatPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.entryPrijs
-    ? (data.prijs - data.entryPrijs) / data.entryPrijs * 100 * teken
+    ? (data.prijs - data.entryPrijs) / data.entryPrijs * 100
     : null;
   const resultaatKleur = resultaatUsd !== null ? (resultaatUsd >= 0 ? colors.winst : colors.verlies) : colors.tekstGedimd;
 
   const behaaldPct = data.context === 'portfolio' && !isOpen && data.exitPrijs !== undefined && data.entryPrijs
-    ? (data.exitPrijs - data.entryPrijs) / data.entryPrijs * 100 * teken
+    ? (data.exitPrijs - data.entryPrijs) / data.entryPrijs * 100
     : null;
   const behaaldUsd = data.context === 'portfolio' && !isOpen && data.exitPrijs !== undefined && heeftAantal
-    ? (data.exitPrijs - (data.entryPrijs ?? 0)) * data.aantalCoins! * teken
+    ? (data.exitPrijs - (data.entryPrijs ?? 0)) * data.aantalCoins!
     : null;
   const behaaldKleur = behaaldPct !== null ? (behaaldPct >= 0 ? colors.winst : colors.verlies) : colors.tekstGedimd;
 
-  // Bij long ligt de stop onder en het doel boven de prijs, bij short is dat omgekeerd. Het teken
-  // rekent beide kanten naar hetzelfde begrip: hoeveel procent zou je kwijt zijn als de stop raakt,
-  // en hoeveel procent staat er nog tussen de prijs en het doel.
+  // Hoeveel procent zou je kwijt zijn als de stop raakt, en hoeveel procent staat er nog tussen de
+  // prijs en het doel.
   const afstandStopPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.stopLoss !== undefined
-    ? (data.prijs - data.stopLoss) / data.prijs * 100 * teken
+    ? (data.prijs - data.stopLoss) / data.prijs * 100
     : null;
   const afstandDoelPct = data.context === 'portfolio' && isOpen && data.prijs !== undefined && data.takeProfit !== undefined
-    ? (data.takeProfit - data.prijs) / data.prijs * 100 * teken
+    ? (data.takeProfit - data.prijs) / data.prijs * 100
     : null;
 
   const portfolioAdvies = data.context === 'portfolio' && isOpen
-    ? bepaalAdvies(data.entryPrijs ?? 0, data.stopLoss ?? 0, data.takeProfit ?? 0, data.prijs, data.richting)
+    ? bepaalAdvies(data.entryPrijs ?? 0, data.stopLoss ?? 0, data.takeProfit ?? 0, data.prijs)
     : null;
   const portfolioAdviesKleur = portfolioAdvies?.kleur === 'winst' ? colors.winst
     : portfolioAdvies?.kleur === 'verlies' ? colors.verlies
@@ -241,8 +224,6 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
     : colors.tekstGedimd;
 
   const statusLabel = data.status === 'gewonnen' ? 'Gewonnen' : data.status === 'verloren' ? 'Verloren' : 'Open';
-
-  const isShort = data.richting === 'short';
 
   // Elke sectie is een kaart, zoals op Kansen en in Historie.
   const kaart = [styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }];
@@ -288,9 +269,6 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                 <View style={styles.headerTekst}>
                   <View style={styles.symboolRij}>
                     <Text style={[Type.titel, styles.symbool, { color: colors.tekstPrimair }]}>{data.symbool}</Text>
-                    {/* Alleen bij een short. Vrijwel alles is long, dus daar hoort geen label bij; bij een
-                        short moet je het meteen zien, want stop en doel liggen omgekeerd. */}
-                    {data.richting === 'short' && <RichtingBadge richting="short" />}
                   </View>
                   <Text style={[Type.caption, { color: colors.tekstGedimd }]} numberOfLines={1}>{data.naam}</Text>
                 </View>
@@ -391,7 +369,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                   <Animated.View entering={binnenkomst()} style={kaart}>
                     <View style={styles.kaartKop}>
                       <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
-                        {data.richting === 'short' ? 'Waarom short' : 'Waarom'}
+                        Waarom
                       </Text>
                       <View style={[styles.pil, { backgroundColor: adviesKleur + '1F' }]}>
                         <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
@@ -539,11 +517,11 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                   {kanTraden && (
                     <View style={styles.actieKnop}>
                       <PilKnop
-                        label={isShort ? 'Short via eToro' : 'Trade via eToro'}
+                        label="Trade via eToro"
                         icoon={ShoppingCart}
                         variant="cta"
                         onPress={openHandel}
-                        accessibilityLabel={`${data.symbool} ${isShort ? 'shorten' : 'kopen'} via eToro`}
+                        accessibilityLabel={`${data.symbool} kopen via eToro`}
                       />
                     </View>
                   )}
@@ -574,7 +552,6 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
               entry={data.entry}
               stop={data.stopLoss}
               doel={data.takeProfit}
-              richting={data.richting}
               onSluiten={() => setKoopOpen(false)}
               // Dit scherm ligt als full-screen Modal over de tabs heen, dus "Naar portfolio" moet hem
               // eerst weghalen voordat de tabwissel eronder te zien is. Niet terug de kaart in: die

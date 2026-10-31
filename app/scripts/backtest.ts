@@ -460,40 +460,11 @@ const jaren = [...new Set(alle.map(s => jaarVan(s.datum)))].sort();
 
 const gem = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
 
-// Gespiegelde niveaus voor een short: stop boven de recente swing high, doel eronder. Rekent
-// bewust NIET zelf: dit roept dezelfde stopAfstandStructuur aan die de app gebruikt. Hier stond
-// eerder een eigen kopie met een eigen `SWING = 10` naast SWING_PERIODE, en dan meet de backtest
-// op termijn iets anders dan de app draait.
-function shortNiveaus(candles: Candle[], i: number, atr: number, capAtr: number) {
-  const entry = candles[i].close;
-  const risico = stopAfstandStructuur(candles.slice(0, i + 1), entry, atr, capAtr, 'short');
-  return { entry, stop: entry + risico };
-}
-
-function simuleerShort(
-  candles: Candle[], i: number, entry: number, stop: number, doel: number, maxBars: number,
-): { r: number; bars: number } | null {
-  const risico = stop - entry;
-  if (risico <= 0) return null;
-  const eind = Math.min(i + maxBars, candles.length - 1);
-  if (eind <= i) return null;
-
-  for (let j = i + 1; j <= eind; j++) {
-    const c = candles[j];
-    if (c.open >= stop) return { r: (entry - c.open) / risico, bars: j - i };
-    if (c.open <= doel) return { r: (entry - c.open) / risico, bars: j - i };
-    // Weer conservatief: raakt de candle stop en doel allebei, dan nemen we het verlies.
-    if (c.high >= stop) return { r: (entry - stop) / risico, bars: j - i };
-    if (c.low <= doel) return { r: (entry - doel) / risico, bars: j - i };
-  }
-  return { r: (entry - candles[eind].close) / risico, bars: eind - i };
-}
-
 // Draait een instapregel als echte strategie: geen overlappende trades per coin, doel en
 // houdtijd instelbaar. Retourneert het resultaat van elke trade met zijn datum.
 function draai(
   kiest: (s: Signaal) => boolean,
-  opties: { doelAtr?: number; maxBars?: number; short?: boolean; shortCap?: number; minShortRR?: number; bron?: 'momentum' | 'omkeer' } = {},
+  opties: { doelAtr?: number; maxBars?: number; bron?: 'momentum' | 'omkeer' } = {},
 ): { r: number; datum: string }[] {
   const doelAtr = opties.doelAtr ?? 3.0;
   const maxBars = opties.maxBars ?? MAX_BARS;
@@ -512,19 +483,7 @@ function draai(
       const entry = bron === 'omkeer' ? s.entryOmkeer : s.entry;
       const stop = bron === 'omkeer' ? s.stopOmkeer : s.stop;
 
-      const u = opties.short
-        ? (() => {
-            const n = shortNiveaus(candles, s.i, s.atr, opties.shortCap ?? 3);
-            // Derde variant: stop-cap onaangeroerd laten (3x ATR) en in plaats daarvan de
-            // R/R-drempel toepassen die de app voor longs ook hanteert. Dat is een andere
-            // strategie dan de stop knijpen: hier vallen signalen af, daar verschuift de stop.
-            if (opties.minShortRR !== undefined) {
-              const rr = (n.entry - (n.entry - doelAtr * s.atr)) / (n.stop - n.entry);
-              if (!(rr >= opties.minShortRR - 1e-9)) return null;
-            }
-            return simuleerShort(candles, s.i, n.entry, n.stop, n.entry - doelAtr * s.atr, maxBars);
-          })()
-        : simuleer(candles, s.i, entry, stop, entry + doelAtr * s.atr, maxBars);
+      const u = simuleer(candles, s.i, entry, stop, entry + doelAtr * s.atr, maxBars);
 
       if (!u) continue;
       uit.push({ r: u.r, datum: s.datum });
@@ -606,27 +565,6 @@ for (const maxBars of [10, 20, 30]) {
     jaarRegel(`doel ${k.toFixed(1)}x ATR, ${maxBars} dagen`, draai(s => s.hc, { doelAtr: k, maxBars }));
   }
 }
-
-// --- meting F: shorts, alleen ter informatie --------------------------------------------
-//
-// Shorts staan voorlopig geparkeerd (te veel afhankelijkheden op eToro), maar met negen jaar
-// data is het wel het vastleggen waard of ze consistent werken in bearmarkten of dat 2025-26
-// toeval was.
-
-console.log('\n' + '='.repeat(72));
-console.log('METING F: shorts op de zwakste coins (geparkeerd, alleen ter informatie)');
-console.log('='.repeat(72));
-
-jaarKop('Short, doel 2x ATR, 20 dagen:');
-jaarRegel('score < 40 (cap 3x ATR, zoals oorspronkelijk gemeten)', draai(s => s.score < 40, { doelAtr: 2.0, maxBars: 20, short: true }));
-// Overwogen en afgevallen: de stop knijpen tot 1x ATR zodat de R/R per constructie boven
-// MIN_RISK_REWARD uitkomt. Houdt alle signalen maar verschuift de stop, en dat kostte precies het
-// jaar waar het om gaat (2025 van +0,13 naar +0,02). Blijft hier staan zodat de vergelijking
-// reproduceerbaar is en niemand het idee opnieuw hoeft te bedenken.
-jaarRegel('score < 40 (cap 1x ATR, overwogen en afgevallen)', draai(s => s.score < 40, { doelAtr: 2.0, maxBars: 20, short: true, shortCap: 1.0 }));
-jaarRegel(`score < 40 (cap 3x ATR + R/R-filter ${MIN_RISK_REWARD}, WAT DE APP DOET)`, draai(s => s.score < 40, { doelAtr: 2.0, maxBars: 20, short: true, minShortRR: MIN_RISK_REWARD }));
-jaarRegel('score < 40, BTC onder EMA200', draai(s => s.score < 40 && M(s).riskOn === false, { doelAtr: 2.0, maxBars: 20, short: true }));
-jaarRegel('score < 25, BTC onder EMA200', draai(s => s.score < 25 && M(s).riskOn === false, { doelAtr: 2.0, maxBars: 20, short: true }));
 
 // --- meting G: omkeerprofiel op poort-dichte dagen --------------------------------------
 //
@@ -1241,7 +1179,7 @@ function simuleerMeebewegen(
     doel = vers.takeProfit;
     verhogingen++;
     if (stopMee) {
-      const voorstel = voorstelTrailingStop(entry, koers, vers.atr, stop, 'long');
+      const voorstel = voorstelTrailingStop(entry, koers, vers.atr, stop);
       if (voorstel !== null && voorstel > stop) stop = voorstel;
     }
   }

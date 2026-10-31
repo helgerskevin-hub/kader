@@ -77,8 +77,6 @@ function OrderRegel({ order, magHandelen, bezig, doorgegeven, onAnnuleer }: {
   onAnnuleer: () => void;
 }) {
   const { colors } = useTheme();
-  const isShort = order.richting === 'short';
-  const richtingKleur = isShort ? colors.goud : colors.winst;
 
   const soortTekst = order.soort === 'limiet'
     ? (order.limietKoers !== null ? `Limiet op ${fmtPrijs(order.limietKoers, DOLLARS)}` : 'Limietorder')
@@ -98,7 +96,7 @@ function OrderRegel({ order, magHandelen, bezig, doorgegeven, onAnnuleer }: {
   const toonAnnuleren = magHandelen && order.orderId !== null && !doorgegeven;
 
   const accessibilityLabel = [
-    `${order.symbool}, ${isShort ? 'short' : 'koop'}`,
+    `${order.symbool}, koop`,
     order.bedragUsd !== null ? fmtBedrag(order.bedragUsd, DOLLARS) : null,
     soortTekst,
     niveauTekst,
@@ -115,8 +113,8 @@ function OrderRegel({ order, magHandelen, bezig, doorgegeven, onAnnuleer }: {
             <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]} numberOfLines={1}>
               {order.symbool}
             </Text>
-            <Text style={[Type.label, { color: richtingKleur }]}>
-              {isShort ? 'SHORT' : 'KOOP'}
+            <Text style={[Type.label, { color: colors.winst }]}>
+              KOOP
             </Text>
           </View>
           <Text style={[Type.caption, { color: colors.tekstGedimd }]} numberOfLines={1}>

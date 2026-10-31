@@ -1,7 +1,3 @@
-import type { Richting } from '../engine/types';
-
-export type { Richting };
-
 export interface PortfolioTrade {
   id: string;
   symbool: string;
@@ -36,11 +32,6 @@ export interface PortfolioTrade {
   // rekent statistieken.ts het bruto koersverschil uit. Zonder dit veld zou het totaalresultaat
   // altijd bruto zijn terwijl het trefferpercentage netto is, en die twee spreken elkaar tegen.
   resultaatUsd?: number;
-  // Long of short. Ontbreekt = 'long': alles wat vóór deze versie is opgeslagen is per definitie
-  // long, want de eToro-import sloeg shorts over en het formulier weigerde een stop boven de
-  // entry. Optioneel houden is bewust: laadLijst in storage/opslag.ts valideert geen velden, dus
-  // een verplicht veld zou tegen de typedefinitie in alsnog undefined kunnen zijn.
-  richting?: Richting;
   etoroPositionID?: number;
   // Nodig om deze positie via de API te kunnen sluiten; het sluit-endpoint wil naast het
   // positionID ook het instrumentID. Ontbreekt bij alles wat vóór de handelskoppeling is
@@ -63,12 +54,6 @@ export function bronVan(t: PortfolioTrade): 'etoro' | 'handmatig' {
   return t.bron === 'etoro' ? 'etoro' : 'handmatig';
 }
 
-// Zelfde verhaal als bronVan: ontbreekt de richting, dan is het een long. Gebruik deze helper
-// overal in plaats van `t.richting`, anders leest elke oude trade als undefined.
-export function richtingVan(t: PortfolioTrade): Richting {
-  return t.richting === 'short' ? 'short' : 'long';
-}
-
 // De stop waarop R gerekend wordt: de oorspronkelijke stop, en bij oudere trades zonder dat veld de
 // huidige stop, maar alleen zolang die nog aan de verliezende kant van de instap ligt. Staat hij op
 // of voorbij break-even, dan is er geen risico meer om R in uit te drukken en is null het eerlijke
@@ -76,11 +61,5 @@ export function richtingVan(t: PortfolioTrade): Richting {
 export function risicoStop(t: PortfolioTrade): number | null {
   const stop = t.initieleStop ?? t.stopLoss;
   if (!(stop > 0)) return null;
-  return tekenVan(t) * (t.entryPrijs - stop) > 0 ? stop : null;
-}
-
-// +1 voor een long, -1 voor een short. Hiermee wordt elke winst-, verlies- en R-berekening één
-// formule in plaats van twee takken: richting * (koers - entry) klopt beide kanten op.
-export function tekenVan(t: PortfolioTrade): 1 | -1 {
-  return richtingVan(t) === 'short' ? -1 : 1;
+  return t.entryPrijs - stop > 0 ? stop : null;
 }

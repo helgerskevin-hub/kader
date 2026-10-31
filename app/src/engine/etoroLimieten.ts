@@ -5,7 +5,6 @@
 // cachen in state/useStopLossLimiet.ts, zodat de rekenregels los te draaien zijn met de self-check
 // onderaan.
 import { fmtPrijs } from './format';
-import type { Richting } from './types';
 
 // Deze adviezen verschijnen alleen op de orderschermen (koop, verkoop-niveaus, trade toevoegen) en
 // die rekenen in dollars, omdat eToro dat doet. Dus hier expliciet dollars, ook als de gebruiker
@@ -31,11 +30,6 @@ export interface EtoroEligibility {
 
 export interface StopLossLimiet {
   symbool: string;
-  // Voor welke richting deze grenzen gelden. Gemeten (26 aug 2026, zie docs/etoro-direct-handelen-
-  // plan.md paragraaf 10): eToro geeft voor een short een MAXIMUM van 50% waar long 100% mag. Zonder
-  // dit veld zou een short tegen de long-grens getoetst worden en zou Kader een stop goedkeuren die
-  // eToro weigert.
-  richting: Richting;
   // false = eToro zet de stop zelf en laat 'm niet aanpassen.
   bewerkbaar: boolean;
   // Percentage van je inleg, of null als eToro geen grens meegaf.
@@ -44,7 +38,6 @@ export interface StopLossLimiet {
 }
 
 const isKoop = (richting?: string) => !richting || /buy|long/i.test(richting);
-const isVerkoop = (richting?: string) => !!richting && /sell|short/i.test(richting);
 
 // Alleen echte, positieve getallen tellen als grens. Een 0 of een null uit de API betekent
 // "geen grens", niet "stop op 0% van de entry".
@@ -52,25 +45,20 @@ const grens = (waarde: unknown): number | null =>
   typeof waarde === 'number' && isFinite(waarde) && waarde > 0 ? waarde : null;
 
 // eToro geeft per instrument meerdere leverageConfigs terug (per hefboom en per richting). Kader
-// rekent altijd zonder hefboom, dus we zoeken de config met hefboom x1 in de gevraagde richting. Dat is belangrijk voor de vergelijking verderop: bij x1 is het verliespercentage van je
+// koopt alleen en rekent altijd zonder hefboom, dus we zoeken de koop-config met hefboom x1. Dat is belangrijk voor de vergelijking verderop: bij x1 is het verliespercentage van je
 // inleg gelijk aan de koersdaling, bij x5 zou een stop van 2% onder de entry 10% van je inleg zijn.
-export function kiesLimiet(item: EtoroEligibility, richting: Richting = 'long'): StopLossLimiet | null {
+export function kiesLimiet(item: EtoroEligibility): StopLossLimiet | null {
   const symbool = (item.symbol ?? '').toUpperCase();
   const configs = item.leverageConfigs ?? [];
   if (!symbool || configs.length === 0) return null;
 
-  // Gemeten: shorten kan op hefboom x1, alleen met settlementType 'cfd' in plaats van 'real'. Dus
-  // ook hier blijft de eis hefboom x1 staan; Kader rekent nergens met hefboom. Valt de config voor
-  // de gevraagde richting weg, dan geven we null terug in plaats van terug te vallen op de andere
-  // richting: de grenzen verschillen (short max 50%, long max 100%) en een grens van de verkeerde
-  // richting is erger dan geen grens.
-  const wil = richting === 'short' ? isVerkoop : isKoop;
-  const config = configs.find(c => wil(c.direction) && c.leverageValues?.includes(1));
+  // Geen terugval op de verkoop-config: die heeft andere grenzen, en een verkeerde grens is erger
+  // dan geen grens.
+  const config = configs.find(c => isKoop(c.direction) && c.leverageValues?.includes(1));
   if (!config) return null;
 
   return {
     symbool,
-    richting,
     // Ontbreekt het veld, dan gaan we ervan uit dat je 'm mag zetten: liever geen waarschuwing dan
     // een onterechte.
     bewerkbaar: config.allowEditStopLoss !== false,
@@ -92,13 +80,12 @@ export type StopAdvies =
 // dat het tegelijk afkeurt. Zonder limiet (geen koppeling of een API-fout) zeggen we niets: een
 // verzonnen grens is erger dan geen grens.
 //
-// `referentie` is de huidige koers, alleen voor het wijzigen van de stop van een LOPENDE long. Bij
+// `referentie` is de huidige koers, alleen voor het wijzigen van de stop van een LOPENDE positie. Bij
 // het openen meet eToro de afstand tegen de aankoopprijs, bij het wijzigen vermoedelijk tegen de
 // koers. Meting in demo op 1 okt 2026 (BTC, open 84390.07, minimum 10%): een stop van 80170.57 via
 // PATCH werd stil verschoven naar 75992.53, precies 10% onder de koers van dat moment (84436.14)
 // en 9,95% onder de aankoopprijs. Sterke aanwijzing, geen hard bewijs, want de koers lag dicht bij
-// de aankoopprijs. Zie docs/etoro-direct-handelen-plan.md §12. Bij een short negeren we de
-// referentie volledig; daar is niets gemeten.
+// de aankoopprijs. Zie docs/etoro-direct-handelen-plan.md §12.
 export function bepaalStop(
   entry: number,
   stop: number,
@@ -115,36 +102,30 @@ export function bepaalStop(
     };
   }
 
-  // Bij een long hoort de stop onder de basis (de koers als die als referentie meekomt, anders de
-  // aankoopprijs), bij een short boven de entry. Staat hij aan de verkeerde kant, dan verzinnen we
-  // geen niveau: geen van eToro's grenzen is dan een zinnig antwoord (het minimum is ruis-krap, het
-  // maximum is het maximale verlies). Zeggen wat er mis is en de gebruiker zijn prijs laten nakijken.
-  const short = limiet.richting === 'short';
-  // Alleen een long met een bruikbare koers meet vanaf die koers; anders blijft alles op de entry.
-  const metKoers = !short && referentie !== undefined && isFinite(referentie) && referentie > 0;
+  // De stop hoort onder de basis (de koers als die als referentie meekomt, anders de aankoopprijs).
+  // Staat hij aan de verkeerde kant, dan verzinnen we geen niveau: geen van eToro's grenzen is dan
+  // een zinnig antwoord (het minimum is ruis-krap, het maximum is het maximale verlies). Zeggen wat
+  // er mis is en de gebruiker zijn prijs laten nakijken.
+  // Alleen met een bruikbare koers meten we vanaf die koers; anders blijft alles op de entry.
+  const metKoers = referentie !== undefined && isFinite(referentie) && referentie > 0;
   const basis = metKoers ? referentie : entry;
-  const kant = short ? 'boven' : 'onder';
-  const verkeerdeKant = short ? stop <= entry : stop >= basis;
-  if (verkeerdeKant) {
+  const kant = 'onder';
+  if (stop >= basis) {
     return {
       soort: 'waarschuwing',
-      uitleg: short
-        ? `Je stop ligt op of onder de prijs waarop je short gaat. Kijk die prijs na, bij een short hoort de stop erboven te liggen.`
-        : metKoers
-          ? `Je stop ligt op of boven de huidige koers. Een stop hoort eronder te liggen, anders sluit eToro je positie meteen.`
-          : `Je stop ligt op of boven de aankoopprijs. Kijk je aankoopprijs na, een stop hoort daaronder te liggen.`,
+      uitleg: metKoers
+        ? `Je stop ligt op of boven de huidige koers. Een stop hoort eronder te liggen, anders sluit eToro je positie meteen.`
+        : `Je stop ligt op of boven de aankoopprijs. Kijk je aankoopprijs na, een stop hoort daaronder te liggen.`,
     };
   }
 
   const naar = (grensPct: number, reden: string): StopAdvies => {
-    const nieuw = short ? entry * (1 + grensPct / 100) : basis * (1 - grensPct / 100);
+    const nieuw = basis * (1 - grensPct / 100);
     return { soort: 'aangepast', stop: nieuw, uitleg: `Stop aangepast naar ${fmtPrijs(nieuw, DOLLARS)}. ${reden}` };
   };
 
-  // Altijd een positieve afstand, ongeacht de richting, zodat de vergelijking met de grenzen
-  // dezelfde regel blijft.
-  const afstand = (short ? (stop - entry) / entry : (basis - stop) / basis) * 100;
-  const prijsNaam = short ? 'de prijs waarop je short gaat' : metKoers ? 'de huidige koers' : 'je aankoopprijs';
+  const afstand = ((basis - stop) / basis) * 100;
+  const prijsNaam = metKoers ? 'de huidige koers' : 'je aankoopprijs';
 
   if (limiet.minPct !== null && afstand < limiet.minPct) {
     return naar(limiet.minPct, `eToro accepteert voor ${limiet.symbool} minimaal ${pct(limiet.minPct)} ${kant} ${prijsNaam}, jouw stop lag ${pct(afstand)} er${kant}.`);
@@ -268,7 +249,7 @@ if (require.main === module) {
 
   // Een echte coinprijs in plaats van een ronde 100: de clamp landt een haartje binnen de grens.
   // Dat is de goede kant, eToro weigert alleen buiten de grens.
-  const echt = bepaalStop(3.3333, 3.2, { symbool: 'XRP', richting: 'long' as const, bewerkbaar: true, minPct: 9, maxPct: 50 });
+  const echt = bepaalStop(3.3333, 3.2, { symbool: 'XRP', bewerkbaar: true, minPct: 9, maxPct: 50 });
   console.assert(echt.soort === 'aangepast', `een stop van 4% moet naar het 9%-minimum bijgesteld worden, was ${echt.soort}`);
   if (echt.soort === 'aangepast') {
     const afstandNa = ((3.3333 - echt.stop) / 3.3333) * 100;
@@ -276,7 +257,7 @@ if (require.main === module) {
   }
 
   // Een band waarin minimum en maximum samenvallen: alles behalve exact die afstand wordt bijgesteld.
-  const strak = { symbool: 'ETH', richting: 'long' as const, bewerkbaar: true, minPct: 9, maxPct: 9 };
+  const strak = { symbool: 'ETH', bewerkbaar: true, minPct: 9, maxPct: 9 };
   console.assert(bepaalStop(100, 91, strak).soort === 'ok', 'precies op de enige toegestane afstand is goed');
   const strakTeDicht = bepaalStop(100, 95, strak);
   console.assert(strakTeDicht.soort === 'aangepast' && strakTeDicht.stop === 91, `een gelijke min en max laat maar één stop toe, was ${JSON.stringify(strakTeDicht)}`);
@@ -288,13 +269,12 @@ if (require.main === module) {
   console.assert(bepaalStop(100, NaN, limiet).soort === 'ok', 'een onbruikbare stop mag niet waarschuwen');
   console.assert(bepaalStop(100, -5, limiet).soort === 'ok', 'een negatieve stop mag niet waarschuwen');
 
-  const vast = bepaalStop(100, 90, { symbool: 'DOGE', richting: 'long' as const, bewerkbaar: false, minPct: 1, maxPct: 50 });
+  const vast = bepaalStop(100, 90, { symbool: 'DOGE', bewerkbaar: false, minPct: 1, maxPct: 50 });
   console.assert(vast.soort === 'vast' && vast.uitleg.includes('niet zelf instellen'), `een niet-bewerkbare stop moet vast zijn, was ${vast.soort}`);
 
-  // ---------- Short ----------
   // De configs hieronder zijn letterlijk wat eToro op 26 aug 2026 teruggaf voor BTC (zie
   // docs/etoro-direct-handelen-plan.md paragraaf 10): long real/x1 met max 100%, short cfd/x1 met
-  // max 50%. Het punt van deze test is dat kiesLimiet de JUISTE van de twee pakt.
+  // max 50%. Kader koopt alleen, dus kiesLimiet hoort de long-config te pakken.
   const gemeten: EtoroEligibility = {
     instrumentId: 100000, symbol: 'BTC',
     leverageConfigs: [
@@ -303,52 +283,14 @@ if (require.main === module) {
     ],
   };
   const lang = kiesLimiet(gemeten)!;
-  const kort = kiesLimiet(gemeten, 'short')!;
-  console.assert(lang.maxPct === 100 && lang.richting === 'long', `long moet de real-config pakken, was ${JSON.stringify(lang)}`);
-  console.assert(kort.maxPct === 50 && kort.richting === 'short', `short moet de cfd-config pakken, was ${JSON.stringify(kort)}`);
+  console.assert(lang.maxPct === 100, `long moet de real-config pakken, was ${JSON.stringify(lang)}`);
 
-  // Zonder config voor de gevraagde richting geen limiet, in plaats van terugvallen op de andere.
-  const alleenLong: EtoroEligibility = { symbol: 'BTC', leverageConfigs: [gemeten.leverageConfigs![0]] };
-  console.assert(kiesLimiet(alleenLong, 'short') === null,
-    'zonder short-config liever geen grens dan de long-grens, die is twee keer zo ruim');
-
-  // Een correcte short (stop BOVEN de entry) mag geen waarschuwing geven. Dit is precies wat er
-  // misging toen bepaalStop nog long-only was: elke goed ingestelde short werd afgekeurd en dat
-  // zette de bevestigknop in NiveausSheet uit.
-  console.assert(bepaalStop(100, 120, kort).soort === 'ok', `20% boven de entry valt binnen 10-50%, was ${bepaalStop(100, 120, kort).soort}`);
-  console.assert(bepaalStop(100, 80, kort).soort === 'waarschuwing', 'een stop ONDER de entry is bij een short fout');
-  console.assert(bepaalStop(100, 100, kort).soort === 'waarschuwing', 'een stop op de entry is ook bij een short fout');
-
-  // Clampen gebeurt naar boven in plaats van naar beneden.
-  const kortTeDicht = bepaalStop(100, 105, kort);
-  console.assert(kortTeDicht.soort === 'aangepast' && Math.abs(kortTeDicht.stop - 110) < 1e-9,
-    `5% is onder het minimum van 10%, moet naar 110, was ${JSON.stringify(kortTeDicht)}`);
-  const kortTeVer = bepaalStop(100, 200, kort);
-  console.assert(kortTeVer.soort === 'aangepast' && Math.abs(kortTeVer.stop - 150) < 1e-9,
-    `100% is boven het maximum van 50%, moet naar 150, was ${JSON.stringify(kortTeVer)}`);
-
-  // Belangrijker dan het ronde getal: de geclampte stop mag bij een short nooit BUITEN het maximum
-  // vallen, want dan weigert eToro precies de waarde die Kader zelf heeft voorgesteld. Met een
-  // niet-ronde prijs is dat een echte kans op afrondingsdrift, dus dat testen we expliciet.
-  const raar = bepaalStop(3.3333, 9.9, { symbool: 'XRP', richting: 'short' as const, bewerkbaar: true, minPct: 10, maxPct: 50 });
-  console.assert(raar.soort === 'aangepast', `een stop van 197% moet bijgesteld worden, was ${raar.soort}`);
-  if (raar.soort === 'aangepast') {
-    const afstandNa = ((raar.stop - 3.3333) / 3.3333) * 100;
-    console.assert(afstandNa <= 50 + 1e-9, `de geclampte short-stop mag niet boven het maximum uitkomen, was ${afstandNa}%`);
-    console.assert(afstandNa > 49.999, `en hij moet wel op de grens landen, was ${afstandNa}%`);
-  }
-  console.assert(kortTeVer.soort === 'aangepast' && kortTeVer.uitleg.includes('boven'),
-    'de uitleg moet bij een short over BOVEN de prijs gaan');
-
-  // Dezelfde stop van 60% is bij een long wel toegestaan en bij een short niet. Dat verschil is de
-  // hele reden dat kiesLimiet richting-bewust moest worden.
   console.assert(bepaalStop(100, 40, lang).soort === 'ok', '60% onder de entry mag bij een long, max is daar 100%');
-  console.assert(bepaalStop(100, 160, kort).soort === 'aangepast', '60% boven de entry mag NIET bij een short, max is daar 50%');
 
-  // ---------- referentie: de stop van een lopende long wijzigen ----------
+  // ---------- referentie: de stop van een lopende positie wijzigen ----------
   // eToro meet bij het wijzigen vanaf de huidige koers (meting 1 okt 2026). Entry 100, koers 120,
   // minimum 10%: alles tot 108 mag, ook boven de aankoopprijs. Zo zet je winst vast.
-  const wijzig = { symbool: 'BTC', richting: 'long' as const, bewerkbaar: true, minPct: 10, maxPct: 100 };
+  const wijzig = { symbool: 'BTC', bewerkbaar: true, minPct: 10, maxPct: 100 };
   console.assert(bepaalStop(100, 105, wijzig, 120).soort === 'ok', 'een stop boven de entry maar 12,5% onder de koers is ok');
   const winstTeDicht = bepaalStop(100, 112, wijzig, 120);
   console.assert(winstTeDicht.soort === 'aangepast' && Math.abs(winstTeDicht.stop - 108) < 1e-9,
@@ -374,14 +316,6 @@ if (require.main === module) {
     }
   }
 
-  // Een short negeert de referentie volledig.
-  for (const s of [80, 100, 105, 120, 160, 200]) {
-    for (const r of [90, 100, 130, NaN]) {
-      console.assert(JSON.stringify(bepaalStop(100, s, kort, r)) === JSON.stringify(bepaalStop(100, s, kort)),
-        `short met referentie ${r} moet gelijk zijn aan zonder, stop ${s}`);
-    }
-  }
-
   // Het gemeten geval: open 84390.07, koers 84436.14, gevraagd 80170.57, eToro zette 75992.53.
   const btcGemeten = bepaalStop(84390.07, 80170.57, wijzig, 84436.14);
   console.assert(btcGemeten.soort === 'aangepast' && Math.abs(btcGemeten.stop - 75992.53) < 0.01,
@@ -391,7 +325,7 @@ if (require.main === module) {
   // De hele reden dat deze functie bestaat: entry 100, Kaders stop op 97 (3%), doel op 109. Op
   // papier is dat R/R 3,0. Bij eToro mag de stop niet dichter dan 10%, dus de stop wordt 90 en de
   // werkelijke R/R is 0,9. Dat verschil hoorde de gebruiker te zien vóór hij de trade doet.
-  const btcLimiet = { symbool: 'BTC', richting: 'long' as const, bewerkbaar: true, minPct: 10, maxPct: 100 };
+  const btcLimiet = { symbool: 'BTC', bewerkbaar: true, minPct: 10, maxPct: 100 };
   const geklemd = etoroNiveaus(100, 97, 109, btcLimiet);
   console.assert(geklemd.aangepast, 'een stop van 3% moet bij een minimum van 10% aangepast worden');
   console.assert(Math.abs(geklemd.stop - 90) < 1e-9, `de stop moet naar 90, was ${geklemd.stop}`);
@@ -408,14 +342,8 @@ if (require.main === module) {
   console.assert(!geen.aangepast && geen.stop === 97 && geen.uitleg === '', 'zonder limiet blijft alles van Kader');
   console.assert(Math.abs(geen.rr - 3) < 1e-9, `zonder limiet is de R/R die van Kader, was ${geen.rr}`);
 
-  // Een short is gespiegeld: stop boven de entry, doel eronder, en de R/R blijft positief.
-  const shortLimiet = { symbool: 'BTC', richting: 'short' as const, bewerkbaar: true, minPct: 10, maxPct: 50 };
-  const kortNiveaus = etoroNiveaus(100, 103, 91, shortLimiet);
-  console.assert(Math.abs(kortNiveaus.stop - 110) < 1e-9, `een short-stop van 3% moet naar 110, was ${kortNiveaus.stop}`);
-  console.assert(Math.abs(kortNiveaus.rr - 0.9) < 1e-9, `short-R/R van 9 op 10 is 0,9, was ${kortNiveaus.rr}`);
-
   // Laat eToro de stop niet zetten, dan blijft het niveau van Kader staan, maar wel met de melding.
-  const vastNiveaus = etoroNiveaus(100, 97, 109, { symbool: 'DOGE', richting: 'long' as const, bewerkbaar: false, minPct: 10, maxPct: 100 });
+  const vastNiveaus = etoroNiveaus(100, 97, 109, { symbool: 'DOGE', bewerkbaar: false, minPct: 10, maxPct: 100 });
   console.assert(vastNiveaus.vast && vastNiveaus.stop === 97 && !vastNiveaus.aangepast,
     'een vaste stop verschuift niet, hij krijgt alleen een melding');
   console.assert(vastNiveaus.uitleg !== '', 'een vaste stop hoort uitleg te dragen');

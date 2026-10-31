@@ -18,7 +18,6 @@ import { OnbekendeOrder } from '../state/lopendeOrders';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { GeplaatsteOrder } from '../state/orderUitkomsten';
 import { useDialoog } from '../state/DialoogProvider';
-import { Richting } from '../state/portfolioTypes';
 import { useInstrumentId } from '../state/useInstrumentId';
 import { useNavigatie } from '../state/navigatie';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
@@ -28,7 +27,6 @@ import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
 import { BottomSheet } from './BottomSheet';
 import { OrderBevestigKnop, useGeluktMoment } from './OrderBevestigKnop';
-import { RichtingBadge } from './RichtingBadge';
 import { OrderKop } from './order/OrderKop';
 import { BedragInvoer } from './order/BedragInvoer';
 import { SnelKnoppen, SnelOptie } from './order/SnelKnoppen';
@@ -57,10 +55,6 @@ interface Props {
   entry: number;
   stop: number;
   doel: number;
-  // Ontbreekt = 'long', dezelfde afspraak als overal elders. Deze sheet plaatst een echte order, dus
-  // een short komt hier alleen aan als de aanroeper 'm expliciet meegeeft: het marktscherm geeft de
-  // richting van de Trade zelf door, die staat al goed op elke short die de engine oplevert.
-  richting?: Richting;
   // Staat deze sheet boven een full-screen scherm (het coin-detailscherm), dan moet dat scherm
   // eerst dicht voordat "Naar portfolio" ergens naartoe kan: een tabwissel eronder is niet te zien
   // zolang die Modal er nog overheen ligt. Schermen die zelf een tab zijn laten dit weg.
@@ -68,19 +62,18 @@ interface Props {
 }
 
 export function KooporderSheet({
-  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, richting = 'long', onVerlaatScherm,
+  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm,
 }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
   const { gaNaar } = useNavigatie();
-  const isShort = richting === 'short';
   const { omgeving, magHandelen, trades, verzoenNaOrder, noteerOnbekendeOrder, noteerGeplaatsteOrder } = usePortfolio();
   const instrumentStand = useInstrumentId(zichtbaar && !isAlleenBekijken(symbool) ? symbool : null);
   const instrumentId = instrumentStand.soort === 'gevonden' ? instrumentStand.id : null;
   // Zolang het zoeken loopt is er nog niets mis: dan hoort er geen rode melding te staan en is
   // bevestigen alleen tijdelijk uit.
   const instrumentBezig = instrumentStand.soort === 'bezig';
-  const stopLimiet = useStopLossLimiet(zichtbaar ? symbool : null, richting);
+  const stopLimiet = useStopLossLimiet(zichtbaar ? symbool : null);
   // Staat de app op euro's, dan blijft dit scherm in dollars maar tonen we wel wat je inleg in
   // euro's is. Anders moet je zelf gaan rekenen om te weten wat je uitgeeft.
   const { valuta, eurPerUsd } = useValuta();
@@ -156,7 +149,6 @@ export function KooporderSheet({
   const invoer: KooporderInvoer = {
     instrumentId: instrumentId ?? 0,
     bedragUsd: heeftBedrag ? bedragGetal : 0,
-    richting,
     stopLossRate,
     takeProfitRate: doel,
     // Sommige coins voert eToro in een andere eenheid (SHIB en PEPE per miljoen munten); de body
@@ -174,12 +166,8 @@ export function KooporderSheet({
   const niveauZin = niveaus.length > 0
     ? ` ${niveaus.join(', ').replace(/^./, t => t.toUpperCase())}.`
     : '';
-  // Bij een short verkoop je de coin om de positie te openen, zonder 'm te bezitten: "kopen" zou hier
-  // het tegenovergestelde beweren van wat er werkelijk gebeurt.
   const samenvatting = heeftBedrag
-    ? isShort
-      ? `Je opent een short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} tegen de marktprijs.${niveauZin}`
-      : `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}`
+    ? `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}`
     : '';
 
   // Wat er van je saldo vastzit in orders die nog wachten. Staat er niets in de wacht, dan komt er
@@ -254,7 +242,6 @@ export function KooporderSheet({
           // die kan net gewisseld zijn, en dan zou de sync de status bij het verkeerde account opvragen.
           omgeving: sleutels.omgeving ?? 'real',
           bedragUsd: bedragGetal,
-          richting,
           tijd: Date.now(),
         };
         noteerGeplaatsteOrder(geplaatst).catch(() => {});
@@ -264,10 +251,8 @@ export function KooporderSheet({
           toonDialoog({
             variant: 'gelukt',
             rondje: 'gelukt',
-            titel: isShort ? 'Short staat bij eToro' : 'Koop staat bij eToro',
-            tekst: isShort
-              ? `Je short van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`
-              : `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`,
+            titel: 'Koop staat bij eToro',
+            tekst: `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`,
             // De tekst wijst naar je portfolio, dus daar hoort ook een knop naartoe te gaan. Eerst het
             // scherm eronder sluiten als daarom gevraagd is, anders wisselt de tab onzichtbaar onder
             // een openstaande Modal.
@@ -359,7 +344,7 @@ export function KooporderSheet({
   // er geen bedrag bij de stop te noemen. De R/R hangt niet van het bedrag af, dus zonder geldig
   // bedrag rekenen we met 1 dollar zodat de R/R blijft staan, en blijven de tegels leeg.
   const planStop = advies.soort === 'vast' ? undefined : getoondeStop;
-  const plan = planInGeld({ bedrag: heeftBedrag ? bedragGetal : 1, entry, stop: planStop, doel, richting });
+  const plan = planInGeld({ bedrag: heeftBedrag ? bedragGetal : 1, entry, stop: planStop, doel });
 
   // Het bedrag in de samenvatting vet, zonder de zin zelf te veranderen.
   const bedragTekst = heeftBedrag ? fmtBedrag(bedragGetal, DOLLARS) : '';
@@ -370,25 +355,12 @@ export function KooporderSheet({
       <View style={stijlen.kop}>
         <OrderKop
           symbool={symbool}
-          titel={`${symbool} ${isShort ? 'shorten' : 'kopen'}`}
+          titel={`${symbool} kopen`}
           sub={`${naam} · ${fmtPrijs(entry, DOLLARS)}`}
           omgeving={omgeving}
           onSluiten={sluit}
         />
       </View>
-
-      {/* Het onderscheid met een gewone koop moet hier niet te missen zijn: bij een short liggen
-          stop en doel omgekeerd, en wie dit voor een koop aanziet verliest geld op precies het
-          moment dat de koers stijgt. */}
-      {isShort && (
-        <View style={[stijlen.richtingBanner, { backgroundColor: colors.goud + '1A', borderColor: colors.goud }]}>
-          <RichtingBadge richting="short" />
-          <Text style={[Type.caption, stijlen.richtingBannerTekst, { color: colors.goud }]}>
-            Je opent deze positie door te verkopen. Je verdient als de koers van {symbool} daalt,
-            en verliest als hij stijgt.
-          </Text>
-        </View>
-      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -458,9 +430,7 @@ export function KooporderSheet({
         ) : null}
 
         <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
-          {isShort
-            ? `De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs: bij een short verkoop je ${symbool} zonder het te bezitten, en verdien je zodra de koers daalt.`
-            : 'De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs, dus je koopt tegen de koers van dat moment.'}
+          {'De entry komt uit de analyse van Kader. De order gaat tegen de marktprijs, dus je koopt tegen de koers van dat moment.'}
         </Text>
 
         {instrumentBezig ? (
@@ -489,11 +459,9 @@ export function KooporderSheet({
 
         <OrderBevestigKnop
           label={omgeving === 'real'
-            ? (isShort ? 'Houd vast om te shorten' : 'Houd vast om te kopen')
-            : (isShort ? 'Shorten in demo' : 'Kopen in demo')}
-          echtWaarschuwing={isShort
-            ? 'Echt geld. Houd de knop vast om te shorten.'
-            : 'Echt geld. Houd de knop vast om te kopen.'}
+            ? 'Houd vast om te kopen'
+            : 'Kopen in demo'}
+          echtWaarschuwing="Echt geld. Houd de knop vast om te kopen."
           omgeving={omgeving}
           bezig={bezig}
           uitgeschakeld={!magBevestigen}
@@ -510,16 +478,6 @@ const stijlen = StyleSheet.create({
     maxHeight: '90%',
   },
   kop: { marginBottom: spacing.base },
-  richtingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: radii.veld,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  richtingBannerTekst: { flex: 1, lineHeight: 18 },
   inhoud: { gap: 14 },
   onderschrift: { alignItems: 'center', gap: spacing.xs },
   saldoRij: { flexDirection: 'row', alignItems: 'center', gap: 4 },

@@ -1,4 +1,4 @@
-import { PortfolioTrade, richtingVan, risicoStop } from '../state/portfolioTypes';
+import { PortfolioTrade, risicoStop } from '../state/portfolioTypes';
 import { voorstelTrailingStop, bepaalAfbouwAdvies } from '../state/afbouw';
 import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { haalData, haalLaatstePrijzen } from '../engine/marketData';
@@ -136,15 +136,9 @@ export async function loggeMeldingen(meldingen: Melding[], nu: number): Promise<
 async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   if (trade.stopLoss <= 0 || trade.takeProfit <= 0) return [];
 
-  const richting = richtingVan(trade);
-  const short = richting === 'short';
-
-  // Vormcontrole per richting, opvolger van de oude long-only test op takeProfit <= entryPrijs.
-  // Een long hoort stop < entry < doel te hebben, een short precies andersom. Klopt dat niet, dan
-  // is de trade niet te beoordelen en sturen we liever geen melding dan een verkeerde.
-  const stopGoed = short ? trade.stopLoss > trade.entryPrijs : trade.stopLoss < trade.entryPrijs;
-  const doelGoed = short ? trade.takeProfit < trade.entryPrijs : trade.takeProfit > trade.entryPrijs;
-  if (!stopGoed || !doelGoed) return [];
+  // Vormcontrole: stop < entry < doel. Klopt dat niet, dan is de trade niet te beoordelen en
+  // sturen we liever geen melding dan een verkeerde.
+  if (trade.stopLoss >= trade.entryPrijs || trade.takeProfit <= trade.entryPrijs) return [];
 
   const data = await haalData(trade.symbool);
   if (!data) return [];
@@ -160,8 +154,6 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   const n = histogram.length;
   if (n < 2) return [];
   const histogramStijgt = histogram[n - 1] > histogram[n - 2];
-  // Een long wil een stijgend histogram, een short precies het omgekeerde: een dalend histogram.
-  const histogramGunstig = short ? !histogramStijgt : histogramStijgt;
 
   const meldingen: Melding[] = [];
 
@@ -176,20 +168,18 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   //
   // Dit is alleen advies. Er gaat niets naar eToro: een tik op de melding opent het stop-venster
   // met het voorstel ingevuld, en pas de bevestigknop daar verzet de stop.
-  const teken = short ? -1 : 1;
-  const winstAfstand = teken * (koers - trade.entryPrijs);
+  const winstAfstand = koers - trade.entryPrijs;
   const basisStop = risicoStop(trade);
-  const risicoAfstand = basisStop === null ? 0 : teken * (trade.entryPrijs - basisStop);
+  const risicoAfstand = basisStop === null ? 0 : trade.entryPrijs - basisStop;
   const inWinst = winstAfstand > 0;
   const eenRWinst = risicoAfstand > 0 && winstAfstand >= risicoAfstand;
-  const momentumVlaktAf = !histogramGunstig;
+  const momentumVlaktAf = !histogramStijgt;
   if (inWinst && (eenRWinst || momentumVlaktAf)) {
     // Zelfde berekening als het afbouwadvies in het Portfolio-scherm, bewust uit één bron: een
     // melding die een ander niveau noemt dan het scherm kost het vertrouwen in allebei.
-    const voorstel = voorstelTrailingStop(trade.entryPrijs, koers, vers.atr, trade.stopLoss, richting);
+    const voorstel = voorstelTrailingStop(trade.entryPrijs, koers, vers.atr, trade.stopLoss);
     if (voorstel !== null) {
       const breakEven = Math.abs(voorstel - trade.entryPrijs) < 1e-9;
-      const werkwoord = short ? 'verlagen' : 'verhogen';
       const niveau = breakEven
         ? `${fmtPrijs(voorstel)}, je instapprijs (break-even)`
         : `${fmtPrijs(voorstel)}, dan staat de winst tot daar vast`;
@@ -207,8 +197,8 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
           : { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
         titel: eenRWinst ? `${trade.symbool}: zet je winst vast` : `${trade.symbool}: momentum vlakt af`,
         tekst: eenRWinst
-          ? `Je staat ${r}R in winst (koers ${fmtPrijs(koers)}). Overweeg je stop te ${werkwoord} van ${fmtPrijs(trade.stopLoss)} naar ${niveau}.${slot}`
-          : `Je staat in winst (koers ${fmtPrijs(koers)}), maar het momentum neemt af. Overweeg je stop te ${werkwoord} van ${fmtPrijs(trade.stopLoss)} naar ${niveau}.${slot}`,
+          ? `Je staat ${r}R in winst (koers ${fmtPrijs(koers)}). Overweeg je stop te verhogen van ${fmtPrijs(trade.stopLoss)} naar ${niveau}.${slot}`
+          : `Je staat in winst (koers ${fmtPrijs(koers)}), maar het momentum neemt af. Overweeg je stop te verhogen van ${fmtPrijs(trade.stopLoss)} naar ${niveau}.${slot}`,
       });
     }
   }
@@ -233,9 +223,8 @@ async function beoordeelMarkt(
   await bewaarTekst(SLEUTELS.laatsteSterkeKoopScan, String(nu));
 
   const { trades, alle, klimaat } = await analyseerMarkt({ topN: 10 });
-  // Alleen open LONGS onderdrukken een nieuw koopsignaal op diezelfde coin: een open short op een
-  // coin is geen reden om een legitiem koopsignaal daar te verzwijgen, die twee bijten elkaar niet.
-  const openSymbolen = new Set(open.filter(t => richtingVan(t) === 'long').map(t => t.symbool));
+  // Een open positie onderdrukt een nieuw koopsignaal op diezelfde coin.
+  const openSymbolen = new Set(open.map(t => t.symbool));
 
   const meldingen: Melding[] = trades
     .filter(t => t.highConviction && t.signaal === 'KOOP' && !openSymbolen.has(t.symbool))

@@ -3,7 +3,7 @@
 //
 // Bewust puur (geen React Native, geen AsyncStorage, geen netwerk), net als lopendeOrders.ts, zodat
 // de regels los te draaien zijn met de self-check onderaan.
-import { PortfolioTrade, richtingVan } from './portfolioTypes';
+import { PortfolioTrade } from './portfolioTypes';
 
 export type SluitReden = 'stop' | 'doel' | 'handmatig';
 
@@ -23,14 +23,12 @@ const SPELING = 0.01;
  */
 export function bepaalSluitReden(trade: PortfolioTrade, exitPrijs: number): SluitReden {
   if (!Number.isFinite(exitPrijs) || exitPrijs <= 0) return 'handmatig';
-  const short = richtingVan(trade) === 'short';
   const stop = trade.stopLoss > 0 ? trade.stopLoss : 0;
   const doel = trade.takeProfit > 0 ? trade.takeProfit : 0;
 
-  // Long: de stop ligt onder de entry, dus alles tot net boven de stop is "stop geraakt". Short
-  // precies gespiegeld: de stop ligt erboven.
-  const stopGeraakt = stop > 0 && (short ? exitPrijs >= stop * (1 - SPELING) : exitPrijs <= stop * (1 + SPELING));
-  const doelGeraakt = doel > 0 && (short ? exitPrijs <= doel * (1 + SPELING) : exitPrijs >= doel * (1 - SPELING));
+  // De stop ligt onder de entry, dus alles tot net boven de stop is "stop geraakt".
+  const stopGeraakt = stop > 0 && exitPrijs <= stop * (1 + SPELING);
+  const doelGeraakt = doel > 0 && exitPrijs >= doel * (1 - SPELING);
 
   if (stopGeraakt && doelGeraakt) {
     return Math.abs(exitPrijs - stop) <= Math.abs(exitPrijs - doel) ? 'stop' : 'doel';
@@ -48,8 +46,6 @@ export function bepaalSluitReden(trade: PortfolioTrade, exitPrijs: number): Slui
  * achterlopen (stop op eToro verschoven, niet in Kader). Staat er bij eToro niets (0) of past de
  * exit daar niet bij, dan de lokale niveaus: die zijn de niveaus die de gebruiker kent, en
  * bijvoorbeeld bij een oude historieregel zonder stopLossRate de enige die er zijn.
- *
- * De richting komt altijd van de lokale trade; de niveaus alleen van eToro.
  */
 export function bepaalEtoroSluitReden(lokaal: PortfolioTrade, uitEtoro: PortfolioTrade, exitPrijs: number): SluitReden {
   const volgensEtoro = bepaalSluitReden(
@@ -66,9 +62,8 @@ export function bepaalEtoroSluitReden(lokaal: PortfolioTrade, uitEtoro: Portfoli
  */
 export function niveauGeraakt(trade: PortfolioTrade, koers: number): 'stop' | 'doel' | null {
   if (!Number.isFinite(koers) || koers <= 0) return null;
-  const short = richtingVan(trade) === 'short';
-  if (trade.stopLoss > 0 && (short ? koers >= trade.stopLoss : koers <= trade.stopLoss)) return 'stop';
-  if (trade.takeProfit > 0 && (short ? koers <= trade.takeProfit : koers >= trade.takeProfit)) return 'doel';
+  if (trade.stopLoss > 0 && koers <= trade.stopLoss) return 'stop';
+  if (trade.takeProfit > 0 && koers >= trade.takeProfit) return 'doel';
   return null;
 }
 
@@ -87,7 +82,6 @@ if (require.main === module) {
     datum: '1 jan 2026', status: 'open', ...over,
   });
   const long = trade();
-  const short = trade({ richting: 'short', stopLoss: 110, takeProfit: 70 });
 
   // Long
   console.assert(bepaalSluitReden(long, 90) === 'stop', 'long: exact op de stop is stop');
@@ -98,13 +92,6 @@ if (require.main === module) {
   console.assert(bepaalSluitReden(long, 140) === 'doel', 'long: voorbij het doel is doel');
   console.assert(bepaalSluitReden(long, 110) === 'handmatig', 'long: tussen stop en doel is handmatig');
   console.assert(bepaalSluitReden(long, 91) === 'handmatig', 'long: net buiten de speling is handmatig');
-
-  // Short, gespiegeld
-  console.assert(bepaalSluitReden(short, 110) === 'stop', 'short: exact op de stop is stop');
-  console.assert(bepaalSluitReden(short, 120) === 'stop', 'short: slippage boven de stop is stop');
-  console.assert(bepaalSluitReden(short, 70) === 'doel', 'short: op het doel is doel');
-  console.assert(bepaalSluitReden(short, 60) === 'doel', 'short: onder het doel is doel');
-  console.assert(bepaalSluitReden(short, 95) === 'handmatig', 'short: ertussen is handmatig');
 
   // Niveau 0 telt niet
   console.assert(bepaalSluitReden(trade({ stopLoss: 0 }), 50) === 'handmatig', 'stop 0: een diepe exit is geen stop');
@@ -128,17 +115,12 @@ if (require.main === module) {
     'eToro geeft handmatig: terugval op het lokale doel');
   console.assert(bepaalEtoroSluitReden(lokaalOud, etoroVerschoven, 115) === 'handmatig',
     'past bij geen van beide: handmatig');
-  console.assert(bepaalEtoroSluitReden(short, trade({ stopLoss: 105, takeProfit: 80 }), 106) === 'stop',
-    'de richting komt van de lokale trade: short met eToro-stop 105, exit 106 is stop');
 
   // niveauGeraakt: exact, geen speling
   console.assert(niveauGeraakt(long, 90) === 'stop', 'long: op de stop is geraakt');
   console.assert(niveauGeraakt(long, 90.5) === null, 'long: net boven de stop is niet geraakt');
   console.assert(niveauGeraakt(long, 130) === 'doel', 'long: op het doel is geraakt');
   console.assert(niveauGeraakt(long, 129.9) === null, 'long: net onder het doel is niet geraakt');
-  console.assert(niveauGeraakt(short, 111) === 'stop', 'short: boven de stop is geraakt');
-  console.assert(niveauGeraakt(short, 69) === 'doel', 'short: onder het doel is geraakt');
-  console.assert(niveauGeraakt(short, 100) === null, 'short: ertussen is niets geraakt');
   console.assert(niveauGeraakt(trade({ stopLoss: 0 }), 1) === null, 'stop 0 wordt nooit geraakt');
   console.assert(niveauGeraakt(trade({ takeProfit: 0 }), 1000) === null, 'doel 0 wordt nooit geraakt');
 

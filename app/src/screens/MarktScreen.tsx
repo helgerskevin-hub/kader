@@ -31,7 +31,6 @@ import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
 import { BearModusKaart } from '../components/BearModusKaart';
 import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
-import { ShortSignalenKaart } from '../components/ShortSignalenKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { magDoorRsFilter } from '../engine/relatieveSterkte';
 import { haalFearGreed } from '../engine/marketData';
@@ -304,21 +303,6 @@ export function MarktScreen() {
               ) : (
                 <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))} />
               )}
-              {/* Short-signalen zijn de actionable tegenhanger van de bear-modus-kaart: die legt uit
-                  waarom er geen koopsignaal is, dit is wat er dan wél te doen valt. Leeg zolang het
-                  klimaat niet ongunstig is, want dan levert analyseerMarkt() hier niets voor aan. */}
-              {/* De kaarten hieronder schuiven op een veer mee als een kaart erboven zijn uitleg
-                  openklapt; de lijst eronder doet dat via itemLayoutAnimation. */}
-              <Animated.View layout={schuifOvergang(reduceMotion)}>
-                <ShortSignalenKaart
-                  signalen={state.shorts}
-                  limieten={stopLimieten}
-                  magHandelen={magHandelen}
-                  onGetrade={setGetradeteTrade}
-                  onKoop={magHandelen ? setKoopTrade : undefined}
-                  onOpenDetail={opOpenDetail}
-                />
-              </Animated.View>
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
                   al waar de kracht zit en zou deze lijst er een tweede rangschikking naast zetten. */}
@@ -412,7 +396,6 @@ export function MarktScreen() {
           entry={koopTrade.entry}
           stop={koopTrade.stopLoss}
           doel={koopTrade.takeProfit}
-          richting={koopTrade.richting}
           onSluiten={() => setKoopTrade(null)}
         />
       )}

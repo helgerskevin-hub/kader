@@ -7,7 +7,7 @@ import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving, EtoroFout
 import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { GeplaatsteOrder, heeftVerseLopendeOrder, isAfgerond, isMeldenswaard, kiesOmOpTeVragen, ruimOp, saldoOverOrders } from './orderUitkomsten';
-import { bronVan, richtingVan } from './portfolioTypes';
+import { bronVan } from './portfolioTypes';
 import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
 import { checkNiveausGeraakt, meldEtoroSluitingen } from '../notifications/sluitingen';
 
@@ -197,7 +197,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     laadLijst<PortfolioTrade>(SLEUTELS.portfolio).then(l => {
-      setTrades(l);
+      // Shorts zijn uit Kader gehaald en alles rekent nu als koop. Een eerder opgeslagen short
+      // (vooral gesloten shorts uit de eToro-historie) zou dan met omgekeerde winst en R meetellen,
+      // dus die vallen hier weg. Het veld bestaat niet meer in PortfolioTrade, vandaar de cast.
+      setTrades(l.filter(t => (t as { richting?: string }).richting !== 'short'));
       setGeladen(true);
     });
     laadTekst(SLEUTELS.laatsteSync, '').then(t => {
@@ -341,7 +344,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
             ...trade,
             id: resultaat[index].id,
             status: resultaat[index].status,
-            initieleStop: oud !== undefined && echtNiveau(oud, trade.entryPrijs, 'stop', richtingVan(trade)) > 0 ? oud : undefined,
+            initieleStop: oud !== undefined && echtNiveau(oud, trade.entryPrijs, 'stop') > 0 ? oud : undefined,
           };
         } else {
           // Eerste keer gezien: de stop van nu is de oorspronkelijke stop. Ook voor een order die
@@ -620,7 +623,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
         bijgewerkt: open.trades.length - toegevoegd,
         gesloten: afgesloten,
         // ponytail: alleen de overgeslagen open posities melden. De historie levert elk aandeel
-        // en elke short die je ooit sloot, en die lijst wil niemand in een Alert zien.
+        // dat je ooit sloot, en die lijst wil niemand in een Alert zien.
         overgeslagen: open.overgeslagen,
         fout: null,
       };

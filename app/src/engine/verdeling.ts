@@ -2,8 +2,8 @@
 // Pure rekenmodule zonder React, in dezelfde lijn als state/statistieken.ts.
 //
 // Let op het verschil met berekenPortfolioWaarde: die rekent je eigen vermogen uit (inleg plus
-// ongerealiseerd, richting-bewust). Hier gaat het om blootstelling, dus om de MARKTwaarde van een
-// positie: livePrijs * aantalCoins. Voor een short is dat de waarde van wat je moet terugleveren.
+// ongerealiseerd). Hier gaat het om blootstelling, dus om de MARKTwaarde van een
+// positie: livePrijs * aantalCoins.
 // Die telt hier gewoon als omvang mee, want de verdeling zegt waar je risico zit en niet of je
 // erop wint of verliest.
 
@@ -386,17 +386,6 @@ if (require.main === module) {
   console.assert(Math.abs(som - 1) < 1e-9, `de aandelen tellen op tot 1, waren ${som}`);
   console.assert(veel.segmenten[0].sleutel === 'A' && veel.segmenten[5].sleutel === 'F', 'de zes grootste houden hun eigen segment');
 
-  // ---------- Short ----------
-  // Marktwaarde telt als omvang. De koers is gehalveerd, dus deze short staat flink in de winst,
-  // maar de blootstelling is nog steeds 2 * 50 = 100 en niet de winst van 100.
-  const short = berekenVerdeling(
-    [{ ...open('s1', 'SOL', 2), richting: 'short' }, open('l1', 'BTC', 3)],
-    { SOL: 50, BTC: 100 },
-  );
-  console.assert(short.totaalUsd === 400, `100 short plus 300 long is 400, was ${short.totaalUsd}`);
-  const solSegment = short.segmenten.find(s => s.sleutel === 'SOL')!;
-  console.assert(solSegment.waardeUsd === 100, `short telt als marktwaarde 100, was ${solSegment.waardeUsd}`);
-  console.assert(solSegment.aandeel === 0.25, `short is een kwart van de omvang, was ${solSegment.aandeel}`);
 
   // ---------- Zonder aantal of zonder live prijs ----------
   const onvolledig = berekenVerdeling(

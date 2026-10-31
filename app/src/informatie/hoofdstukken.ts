@@ -385,26 +385,6 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
   },
 ];
 
-// Shorts blijft voorlopig een los hoofdstuk, met de tekst zoals die in AchtergrondScherm stond.
-// Het blijft staan tot Thom en Kevin besluiten wat er met shorts gebeurt; tot dan niet in
-// HOOFDSTUKKEN opnemen en niet herschrijven.
-export const SHORTS_HOOFDSTUK: Hoofdstuk = {
-  id: 'shorts',
-  groep: 'handelen',
-  titel: 'Shorts',
-  icoon: 'TrendingDown',
-  kort: 'Verdienen aan een dalende koers, en wanneer Kader dat toont.',
-  zie: 'Een short verdient geld als de koers daalt in plaats van stijgt. Je opent \'m door de coin te verkopen zonder \'m te bezitten en sluit \'m af door \'m terug te kopen; het verschil tussen die twee prijzen is je resultaat. De niveaus liggen daarom gespiegeld ten opzichte van een gewone trade: de stop-loss ligt boven de entry, het doel eronder.',
-  reken: 'Kader toont short-signalen alleen zolang het marktklimaat ONGUNSTIG is, en alleen voor coins met een score onder de 40: hoe zwakker het momentum, hoe sterker het short-signaal. Het doel ligt op 2 keer de ATR onder de entry, de stop op dezelfde swing-structuur als bij een gewone trade maar dan gespiegeld: net boven de recente weerstand. Ook hier geldt de minimale verhouding van 1:2 tussen risico en beloning, dus alleen coins die daaraan voldoen krijgen het signaal.',
-  doe: 'Zoals bij elk signaal in Kader: dit is een technische uitkomst van de analyse. Geen financieel advies. De koers op eToro kan afwijken, dus kijk daar voor je een order plaatst.',
-  detail: [
-    'Diezelfde score, dezelfde 0 tot 100, alleen omgekeerd gelezen',
-    'Gemeten over negen jaar Binance-historie leverden shorts op die drempel in alle vier de dalende jaren geld op (2018, 2022, 2025 en het lopende 2026) en verloren ze juist in de stijgende jaren. Daarom zit er een klimaatpoort voor: buiten een ongunstig klimaat toont Kader nooit een short',
-    'Bij eToro kan een crypto-short alleen als CFD, maar wel op dezelfde hefboom x1 als een gewone koop: Kader rekent nergens met hefboom, ook niet bij een short',
-    'eToro staat voor een short wel een krappere stop toe dan bij een koop (gemeten: maximaal 50% van je inleg tegen 100% bij een koop), en Kader toetst je stop tegen precies die grens voordat de order de deur uitgaat',
-  ],
-};
-
 const MIT_LICENTIE_WEB3ICONS = `MIT License
 
 Copyright (c) 2024 0xa3k5
@@ -461,7 +441,7 @@ export const BRONNEN: { titel: string; tekst: string; licentie?: string }[] = [
 
 // ponytail: self-check ipv testframework, run met `npx tsx src/informatie/hoofdstukken.ts`
 if (require.main === module) {
-  const alle = [...HOOFDSTUKKEN, SHORTS_HOOFDSTUK];
+  const alle = HOOFDSTUKKEN;
 
   console.assert(HOOFDSTUKKEN.length === 22, `er horen 22 hoofdstukken te zijn, was ${HOOFDSTUKKEN.length}`);
 

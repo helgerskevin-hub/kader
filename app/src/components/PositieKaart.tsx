@@ -13,7 +13,7 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { duur, vervaag } from '../theme/beweging';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { schuifOvergang, uitklapInGestaffeld, uitklapUit } from '../theme/lijstBeweging';
-import { PortfolioTrade, bronVan, richtingVan, tekenVan } from '../state/portfolioTypes';
+import { PortfolioTrade, bronVan } from '../state/portfolioTypes';
 import { bepaalAdvies } from '../state/advies';
 import { AfbouwAdvies } from '../state/afbouw';
 import { useValutaStand } from '../state/useValuta';
@@ -23,7 +23,6 @@ import { AnimatedGetal } from './AnimatedGetal';
 import { CoinLogo } from './CoinLogo';
 import { useDrukVeer } from './Drukbaar';
 import { PilKnop } from './PilKnop';
-import { RichtingBadge } from './RichtingBadge';
 import { StopDoelBaan } from './StopDoelBaan';
 import { UitklapPijl } from './UitklapPijl';
 
@@ -66,9 +65,7 @@ export const PositieKaart = memo(function PositieKaart({
   // detailscherm groeit uit deze kaart, ook als je het via de Details-knop opent.
   const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
 
-  const richting = richtingVan(trade);
-  const teken = tekenVan(trade);
-  const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs, richting);
+  const advies = bepaalAdvies(trade.entryPrijs, trade.stopLoss, trade.takeProfit, livePrijs);
 
   const adviesKleur = advies.kleur === 'winst' ? colors.winst
     : advies.kleur === 'verlies' ? colors.verlies
@@ -78,16 +75,15 @@ export const PositieKaart = memo(function PositieKaart({
 
   const heeftAantal = typeof trade.aantalCoins === 'number' && trade.aantalCoins > 0;
   const resultaatUsd = livePrijs !== undefined && heeftAantal
-    ? (livePrijs - trade.entryPrijs) * trade.aantalCoins! * teken
+    ? (livePrijs - trade.entryPrijs) * trade.aantalCoins!
     : null;
   const resultaatPct = livePrijs !== undefined
-    ? (livePrijs - trade.entryPrijs) / trade.entryPrijs * 100 * teken
+    ? (livePrijs - trade.entryPrijs) / trade.entryPrijs * 100
     : null;
   const resultaatKleur = resultaatPct !== null && resultaatPct < 0 ? colors.verlies : colors.winst;
 
   // Koerspuls: een nieuwe koers laat een vlak achter het resultaat heel even oplichten, groen als de
-  // koers voor deze positie de goede kant op bewoog en rood als niet. Via tekenVan, zodat een
-  // stijging bij een short rood oplicht. Alleen opacity, en via vervaag(), dus ook onder Minder
+  // koers steeg en rood als hij daalde. Alleen opacity, en via vervaag(), dus ook onder Minder
   // beweging: een korte fade is juist het alternatief voor beweging. Geen haptiek, dit gebeurt
   // vanzelf bij elke poll en is geen reactie op iets dat jij doet.
   const puls = useSharedValue(0);
@@ -97,7 +93,7 @@ export const PositieKaart = memo(function PositieKaart({
     const vorige = vorigePrijs.current;
     vorigePrijs.current = livePrijs;
     if (vorige === undefined || livePrijs === undefined || vorige === livePrijs) return;
-    pulsGunstig.value = (livePrijs - vorige) * teken > 0 ? 1 : 0;
+    pulsGunstig.value = livePrijs > vorige ? 1 : 0;
     // Never op de reeks zelf: met de standaard (System) slaat withSequence onder Minder beweging
     // de stappen over, ook al speelt vervaag() ze zelf wel af.
     puls.value = withSequence(
@@ -105,7 +101,7 @@ export const PositieKaart = memo(function PositieKaart({
       vervaag(PULS_OPACITY, duur.midden),
       vervaag(0, duur.lang),
     );
-    // Alleen een nieuwe koers start de puls; teken verandert niet zolang de trade dezelfde is.
+    // Alleen een nieuwe koers start de puls.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [livePrijs]);
 
@@ -119,7 +115,7 @@ export const PositieKaart = memo(function PositieKaart({
   const schuif = schuifOvergang(reduceMotion);
 
   const kaartLabel =
-    `${trade.symbool}${richting === 'short' ? ', short' : ''}, ${advies.kort}`
+    `${trade.symbool}, ${advies.kort}`
     + `${afbouw ? `, ${afbouw.kort}` : ''}`
     + `${resultaatPct !== null ? `, resultaat ${fmtPct(resultaatPct)}` : ''}`;
 
@@ -176,14 +172,10 @@ export const PositieKaart = memo(function PositieKaart({
           {/* Los logo, geen scorering: een positie heeft geen score. */}
           <CoinLogo symbool={trade.symbool} grootte={40} />
           <View style={styles.kopMidden}>
-            {/* Symbool en SHORT-label naast elkaar: zonder dat label zijn een long en een short op
-                dezelfde coin niet uit elkaar te houden, terwijl hun resultaat precies
-                tegenovergesteld is. */}
             <View style={styles.symboolRij}>
               <Text style={[Type.sectiekop, styles.symbool, { color: colors.tekstPrimair }]}>
                 {trade.symbool}
               </Text>
-              <RichtingBadge richting={richting} />
             </View>
             {/* Status en afbouw elk op een eigen regel en zonder afkappen: op 360 dp met een grote
                 systeemletter breekt een regel liever af dan dat er "Winst besch..." staat. */}
@@ -431,8 +423,6 @@ const styles = StyleSheet.create({
   boven: { padding: spacing.base },
   kop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   kopMidden: { flex: 1, minWidth: 0, gap: 2 },
-  // Wrap: bij een lang symbool met een grote systeemletter valt het SHORT-label liever onder het
-  // symbool dan over het resultaat heen.
   symboolRij: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   // Type.sectiekop is 16; het ontwerp zet het symbool op 17.
   symbool: { fontSize: 17 },

@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Shorts zijn uit Kader gehaald. Er staan geen short-signalen meer op Markt, het boek-icoon heeft geen hoofdstuk Shorts meer, en via eToro kun je alleen nog kopen. Je voert ook geen short meer zelf in. Staat er bij eToro toch een shortpositie of shortorder, dan slaat de import die over en zie je bij het importeren waarom. Shorts die al in Kader stonden, ook gesloten shorts in je historie, zijn verdwenen
+
 ## 0.2.4
 
 - De bear-modus-kaart op Markt heeft de nieuwe opmaak: een kop met icoon en "Actief"-label in plaats van de rode rand, en de punten waar Kader op let staan als rijen met een eigen icoon
