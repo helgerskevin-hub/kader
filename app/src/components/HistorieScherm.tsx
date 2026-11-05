@@ -8,7 +8,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Check, History, ShieldCheck, Trash2 } from 'lucide-react-native';
+import { X, Check, History, ShieldCheck, Trash2, Share2 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Fonts, Type } from '../theme/typography';
@@ -26,6 +26,7 @@ import { PERIODES, PeriodeId, periodeGrens } from '../state/periodeResultaat';
 import { useValutaStand } from '../state/useValuta';
 import { CoinLogo } from './CoinLogo';
 import { PodiumScherm } from './PodiumScherm';
+import { ExportSheet } from './ExportSheet';
 import { useDrukVeer } from './Drukbaar';
 import { SegmentKnop, type SegmentOptie } from './SegmentKnop';
 import { Sparkline } from './Sparkline';
@@ -86,6 +87,7 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
   const reduceMotion = useReduceMotion();
   const [periode, setPeriode] = useState<PeriodeId>('alles');
   const [uitkomst, setUitkomst] = useState<Uitkomst>('alles');
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Verwijderen gaat via vegen, met een paar seconden om het terug te draaien. Zolang die
   // seconden lopen is de trade hier alleen verborgen; pas daarna gaat hij echt uit het portfolio.
@@ -191,15 +193,26 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
               <History size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
               <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Historie</Text>
             </View>
-            <Pressable
-              onPress={() => sluit()}
-              style={styles.sluitKnop}
-              accessibilityRole="button"
-              accessibilityLabel="Sluiten"
-              hitSlop={8}
-            >
-              <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
-            </Pressable>
+            <View style={styles.headerRechts}>
+              <Pressable
+                onPress={() => setExportOpen(true)}
+                style={styles.sluitKnop}
+                accessibilityRole="button"
+                accessibilityLabel="Exporteren"
+                hitSlop={8}
+              >
+                <Share2 size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
+              </Pressable>
+              <Pressable
+                onPress={() => sluit()}
+                style={styles.sluitKnop}
+                accessibilityRole="button"
+                accessibilityLabel="Sluiten"
+                hitSlop={8}
+              >
+                <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
+              </Pressable>
+            </View>
           </View>
 
           {alleGesloten.length === 0 && !wachtend && !heeftGrafiek ? (
@@ -288,6 +301,8 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
               </Pressable>
             </Animated.View>
           )}
+
+          <ExportSheet zichtbaar={exportOpen} trades={trades} omgeving={omgeving} onSluiten={() => setExportOpen(false)} />
         </View>
       )}
     </PodiumScherm>
@@ -783,6 +798,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerLinks: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
+  headerRechts: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   leeg: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   scroll: { padding: spacing.base, gap: spacing.md },
