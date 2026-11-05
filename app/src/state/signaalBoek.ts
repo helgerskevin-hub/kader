@@ -79,7 +79,9 @@ export function werkSignalenBij(forceer = false): Promise<void> {
 }
 
 // Voor het scherm: de signalen, en opnieuw geladen zodra het boek verandert.
-export function useSignaalBoek(actief: boolean): { signalen: GelogdSignaal[] | null; bezig: boolean } {
+// `bijwerken` uit voor een plek die alleen leest (de rij op Markt): dan geen candles ophalen bij
+// elke keer dat het scherm verschijnt.
+export function useSignaalBoek(actief: boolean, bijwerken = true): { signalen: GelogdSignaal[] | null; bezig: boolean } {
   const [signalen, setSignalen] = useState<GelogdSignaal[] | null>(null);
   const [bezig, setBezig] = useState(false);
   const herlaad = useCallback(() => { laadSignalen().then(setSignalen); }, []);
@@ -88,10 +90,12 @@ export function useSignaalBoek(actief: boolean): { signalen: GelogdSignaal[] | n
     if (!actief) return;
     herlaad();
     luisteraars.add(herlaad);
-    setBezig(true);
-    werkSignalenBij(true).finally(() => setBezig(false));
+    if (bijwerken) {
+      setBezig(true);
+      werkSignalenBij(true).finally(() => setBezig(false));
+    }
     return () => { luisteraars.delete(herlaad); };
-  }, [actief, herlaad]);
+  }, [actief, bijwerken, herlaad]);
 
   return { signalen, bezig };
 }

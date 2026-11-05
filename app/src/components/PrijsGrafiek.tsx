@@ -59,6 +59,9 @@ interface Props {
   // Opmaak van de bedragen langs de as en in het scrublabel. Standaard een muntkoers; de
   // portfoliowaarde in Historie geeft fmtBedrag mee, want daar horen twee decimalen.
   formatWaarde?: (n: number) => string;
+  // Een tweede, gestippelde lijn op dezelfde schaal, even lang als `candles`. Voor de BTC-benchmark
+  // in Historie; alleen zinvol zonder periodeknoppen, want hij volgt de candles één op één.
+  vergelijk?: number[] | null;
 }
 
 const GEEN_NIVEAUS: Niveau[] = [];
@@ -105,7 +108,7 @@ function fmtDatumKort(tijd?: number, bereik?: BereikId): string {
   return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
 }
 
-export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs }: Props) {
+export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs, vergelijk }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -150,7 +153,13 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
   const geometrie = useMemo(() => {
     if (sluitkoersen.length < 2) return null;
     const niveauWaarden = niveaus.map(n => n.waarde);
-    const alleWaarden = [...sluitkoersen, ...niveauWaarden];
+    // De grafiek kan de reeks inkorten tot de laatste periode (reeksVoorBereik). Dan het staartstuk
+    // nemen en het laten beginnen op hetzelfde punt als de hoofdlijn, zodat je het verloop vergelijkt.
+    const staart = vergelijk && vergelijk.length >= sluitkoersen.length
+      ? vergelijk.slice(vergelijk.length - sluitkoersen.length)
+      : null;
+    const tweede = staart ? staart.map(v => v - staart[0] + sluitkoersen[0]) : null;
+    const alleWaarden = [...sluitkoersen, ...niveauWaarden, ...(tweede ?? [])];
     const min = Math.min(...alleWaarden);
     const max = Math.max(...alleWaarden);
     const bereik = max - min || 1;
@@ -169,12 +178,13 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
       xs: fractiesVoor(sluitkoersen.length),
       ys: sluitkoersen.map(yVoor),
       niveauYs: niveauWaarden.map(yVoor),
+      vergelijkYs: tweede ? tweede.map(yVoor) : null,
       hoogsteI,
       laagsteI,
       stijgend: sluitkoersen[sluitkoersen.length - 1] >= sluitkoersen[0],
     };
     // niveaus zit via niveauSleutel in de afhankelijkheden, zie hierboven.
-  }, [sluitkoersen, niveauSleutel, hoogte]);
+  }, [sluitkoersen, niveauSleutel, hoogte, vergelijk]);
 
   const lijnKleur = geometrie?.stijgend === false ? colors.verlies : colors.winst;
 
@@ -300,6 +310,17 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
     puls.value = withRepeat(withTiming(1, { duration: 2000, easing: curve.binnen }), -1, false);
     return () => cancelAnimation(puls);
   }, [reduceMotion, inBeeld]);
+
+  // De vergelijkingslijn staat stil (geen morph): op de JS-thread gebouwd, alleen opnieuw bij een
+  // nieuwe reeks of breedte. Hij tekent wel mee in met de hoofdlijn.
+  const vergelijkPad = useMemo(() => {
+    const ys = geometrie?.vergelijkYs;
+    if (!ys || !geometrie || breedte <= 0) return null;
+    const w = Math.max(breedte - RECHTS, 0);
+    const b = Skia.PathBuilder.Make();
+    ys.forEach((y, i) => (i === 0 ? b.moveTo(geometrie.xs[i] * w, y) : b.lineTo(geometrie.xs[i] * w, y)));
+    return b.detach();
+  }, [geometrie, breedte]);
 
   // ---------- Paden, op de UI-thread ----------
 
@@ -532,6 +553,11 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
                       reduceMotion={reduceMotion}
                     />
                   ))}
+                  {vergelijkPad && (
+                    <Path path={vergelijkPad} style="stroke" strokeWidth={1.5} strokeJoin="round" color={colors.tekstGedimd} start={0} end={teken}>
+                      <DashPathEffect intervals={[3, 4]} />
+                    </Path>
+                  )}
                   <Path
                     path={lijnPad}
                     style="stroke"

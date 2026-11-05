@@ -6,6 +6,8 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- Nieuw: Gemiste kansen. Signalen die hun doel haalden terwijl je binnen 3 dagen niet kocht, en eerlijk daarnaast de stops die je zo ontweek, in R en in geld bij je eigen risico. Te zien als groep in Signaalresultaat, en op Markt als compacte rij zodra er de afgelopen week iets bijkwam. Die rij opent een eigen scherm met de signalen
+- In de waardegrafiek van Historie staat nu een gestippelde lijn: hetzelfde geld op dezelfde dagen in BTC. Daaronder zie je of je over je gesloten trades in de gekozen periode beter of slechter deed dan BTC vasthouden
 - Nieuw bovenaan Markt: Eén ding vandaag. Eén kaart met het belangrijkste wat je vandaag kunt doen, waarbij je open posities voorgaan: winst nemen bij je doel, je stop optrekken als een positie ruim in winst staat, en pas daarna een sterk koopsignaal, als je binnen je risicoplafond zit en de rem niet loopt. Een tik opent de actie zelf. Met het kruisje veeg je de kaart weg tot morgen, tenzij er iets belangrijkers bijkomt
 - Nieuw op Portfolio: de kaart Open risico. Die laat zien wat je verliest als de stops van al je open posities tegelijk geraakt worden, als deel van je handelskapitaal, met een plafond van 5%. Een positie waarvan de stop al op of boven je instap staat telt als 0. In de kooporder zie je daarnaast wat je open risico wordt met deze order erbij, en boven de 5% kleurt dat oranje
 - Na 3 verliestrades op rij gaat er 24 uur een rem aan. Op Markt en Kansen staat dan een rustige kaart, en de kooporder vraagt eerst een extra tik voordat de koopknop verschijnt. Kopen blijft kunnen, en met twee tikken op Rem opheffen haal je de rem weg

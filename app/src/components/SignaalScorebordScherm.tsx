@@ -20,6 +20,11 @@ import { CoinLogo } from './CoinLogo';
 import { LijstGroep } from './lijst/LijstGroep';
 import { StatRij } from './lijst/StatRij';
 import { Disclaimer } from './Disclaimer';
+import { KOOP_VENSTER_DAGEN, bepaalGemisteKansen, geldBijRisico, vatGemistSamen } from '../engine/gemisteKansen';
+import { usePortfolio } from '../state/PortfolioProvider';
+import { useHandelskapitaal } from '../state/useHandelskapitaal';
+import { useRisicoPct } from '../state/useRisicoPct';
+import { useValuta } from '../state/useValuta';
 
 interface Props {
   zichtbaar: boolean;
@@ -31,7 +36,7 @@ interface Props {
 const MIN_VOOR_CONCLUSIE = 10;
 const RECENT_AANTAL = 20;
 
-function korteDatum(ms: number): string {
+export function korteDatum(ms: number): string {
   return new Date(ms).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }).replace('.', '');
 }
 
@@ -56,6 +61,12 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
     [signalen],
   );
   const lopend = useMemo(() => recent.filter(s => s.uitkomst === 'open'), [recent]);
+  const { trades } = usePortfolio();
+  const gemist = useMemo(() => (signalen ? vatGemistSamen(bepaalGemisteKansen(signalen, trades)) : null), [signalen, trades]);
+  const { kapitaal } = useHandelskapitaal();
+  const { pctGetal } = useRisicoPct();
+  const { eurPerUsd } = useValuta();
+  const geld = (r: number) => geldBijRisico(r, kapitaal, pctGetal, eurPerUsd);
 
   return (
     <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
@@ -166,7 +177,30 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                 </LijstGroep>
               </Animated.View>
 
-              <Animated.View entering={kaartLandt(4, reduceMotion)} layout={schuifOvergang(reduceMotion)}>
+              {gemist && gemist.gemist.aantal + gemist.ontweken.aantal > 0 && (
+                <Animated.View entering={kaartLandt(4, reduceMotion)}>
+                  <LijstGroep
+                    titel="Gemiste kansen"
+                    lijnInspringing={spacing.base}
+                    voetnoot={`Samen ${fmtR(gemist.nettoR, 1)}: zo veel had elk signaal dat je niet kocht blind volgen opgeleverd${geld(gemist.nettoR) ? `, bij jouw ${pctGetal}% risico ongeveer ${geld(gemist.nettoR)}` : ''}. Gemist telt pas als je binnen ${KOOP_VENSTER_DAGEN} dagen na het signaal niet kocht.`}
+                  >
+                    <StatRij
+                      label="Gemist"
+                      sub={`${gemist.gemist.aantal === 1 ? '1 doel' : `${gemist.gemist.aantal} doelen`} zonder dat je kocht${geld(gemist.gemist.r) ? ` · ${geld(gemist.gemist.r)}` : ''}`}
+                      waarde={gemist.gemist.r}
+                      format={r => fmtR(r, 1)}
+                    />
+                    <StatRij
+                      label="Ontweken"
+                      sub={`${gemist.ontweken.aantal === 1 ? '1 stop' : `${gemist.ontweken.aantal} stops`} die je niet kocht${geld(gemist.ontweken.r) ? ` · ${geld(gemist.ontweken.r)}` : ''}`}
+                      waarde={gemist.ontweken.r}
+                      format={r => fmtR(r, 1)}
+                    />
+                  </LijstGroep>
+                </Animated.View>
+              )}
+
+              <Animated.View entering={kaartLandt(5, reduceMotion)} layout={schuifOvergang(reduceMotion)}>
                 <LijstGroep
                   titel="Recente signalen"
                   lijnInspringing={62}
@@ -268,7 +302,7 @@ const UITKOMST_LABEL: Record<SignaalUitkomst, string> = {
   verlopen: 'Verlopen',
 };
 
-function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
+export function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const kleur = {

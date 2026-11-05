@@ -32,6 +32,8 @@ import { WatKopenNu } from '../components/WatKopenNu';
 import { BearModusKaart } from '../components/BearModusKaart';
 import { RemKaart } from '../components/RemKaart';
 import { EenDingKaart } from '../components/EenDingKaart';
+import { GemisteKansenRij } from '../components/GemisteKansenRij';
+import { GemisteKansenScherm } from '../components/GemisteKansenScherm';
 import { EenDing, kiesEenDing } from '../state/eenDing';
 import { useVerliesRem } from '../state/useVerliesRem';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
@@ -60,6 +62,7 @@ export function MarktScreen() {
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
   const [koopTrade, setKoopTrade] = useState<Trade | null>(null);
+  const [gemistOpen, setGemistOpen] = useState(false);
   const { openDetail, detailScherm } = useCoinDetail();
   // Geen schrijfrecht in de actieve omgeving betekent geen koopknop. De kaart is dan identiek
   // aan hoe hij altijd was.
@@ -327,6 +330,7 @@ export function MarktScreen() {
               {/* De rem na verliezen gaat boven alles: die zegt iets over jou, niet over de markt. */}
               <RemKaart />
               {eenDing && <EenDingKaart ding={eenDing} onActie={opEenDingActie} />}
+              <GemisteKansenRij onOpen={() => setGemistOpen(true)} />
               {!bearModus && state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
                 <RrWaarschuwing bekeken={state.bekeken} />
               )}
@@ -423,6 +427,7 @@ export function MarktScreen() {
         onSluiten={() => setGetradeteTrade(null)}
       />
 
+      <GemisteKansenScherm zichtbaar={gemistOpen} onSluiten={() => setGemistOpen(false)} />
       {koopTrade && (
         <KooporderSheet
           zichtbaar
