@@ -40,6 +40,8 @@ import { KapitaalSheet } from '../components/KapitaalSheet';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
 import { berekenOpenRisico } from '../state/openRisico';
 import { OpenRisicoKaart } from '../components/OpenRisicoKaart';
+import { SpreidingKaart } from '../components/SpreidingKaart';
+import { inOmgeving } from '../state/openRisico';
 import { useMarkt } from '../state/MarktProvider';
 import { useNavigatie } from '../state/navigatie';
 import { MeldingNotitie } from '../components/MeldingNotitie';
@@ -754,6 +756,8 @@ export function PortfolioScreen() {
   }
 
   const openTrades = trades.filter(t => t.status === 'open');
+  const openSymbolenSleutel = [...new Set(openTrades.filter(t => inOmgeving(t, omgeving)).map(t => t.symbool))].sort().join(',');
+  const openSymbolen = useMemo(() => (openSymbolenSleutel ? openSymbolenSleutel.split(',') : []), [openSymbolenSleutel]);
   const afgeslotenCount = trades.length - openTrades.length;
   // Alle zichtbare open posities, handmatige trades inbegrepen. Dit is wat er in de markt staat, dus
   // de blootstellingskaart leunt hierop.
@@ -910,6 +914,8 @@ export function PortfolioScreen() {
 
             {/* Rendert zichzelf niet zonder kapitaal of zonder open posities. */}
             <OpenRisicoKaart stand={berekenOpenRisico(trades, omgeving)} kapitaal={kapitaal} />
+            {/* Rendert zichzelf niet onder twee posities of zonder koersdata. */}
+            <SpreidingKaart symbolen={openSymbolen} />
 
             {/* Rendert zichzelf niet als er geen open posities zijn, dus geen voorwaarde nodig. */}
             <VerdelingKaart

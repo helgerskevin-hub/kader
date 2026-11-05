@@ -30,6 +30,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-11-05',
     punten: [
+      'Nieuw op Portfolio: de kaart Spreiding. Die laat zien hoeveel losse weddenschappen je open posities eigenlijk zijn, want crypto beweegt vaak samen met BTC. Per positie zie je hoe sterk hij met BTC meebeweegt, gemeten over de afgelopen 30 dagen. In de kooporder staat een regel als de coin sterk meebeweegt met posities die je al hebt',
       'Nieuw: Gemiste kansen. Signalen die hun doel haalden terwijl je binnen 3 dagen niet kocht, en eerlijk daarnaast de stops die je zo ontweek, in R en in geld bij je eigen risico. Te zien als groep in Signaalresultaat, en op Markt als compacte rij zodra er de afgelopen week iets bijkwam. Die rij opent een eigen scherm met de signalen',
       'In de waardegrafiek van Historie staat nu een gestippelde lijn: hetzelfde geld op dezelfde dagen in BTC. Daaronder zie je of je over je gesloten trades in de gekozen periode beter of slechter deed dan BTC vasthouden',
       'Nieuw bovenaan Markt: Eén ding vandaag. Eén kaart met het belangrijkste wat je vandaag kunt doen, waarbij je open posities voorgaan: winst nemen bij je doel, je stop optrekken als een positie ruim in winst staat, en pas daarna een sterk koopsignaal, als je binnen je risicoplafond zit en de rem niet loopt. Een tik opent de actie zelf. Met het kruisje veeg je de kaart weg tot morgen, tenzij er iets belangrijkers bijkomt',

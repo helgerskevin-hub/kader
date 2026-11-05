@@ -15,6 +15,8 @@ import { useRisicoPct } from '../state/useRisicoPct';
 import { RisicoRegel } from './order/RisicoRegel';
 import { OpenRisicoRegel } from './order/OpenRisicoRegel';
 import { SpreadRegel } from './order/SpreadRegel';
+import { SpreidingRegel } from './order/SpreidingRegel';
+import { inOmgeving } from '../state/openRisico';
 import { berekenOpenRisico } from '../state/openRisico';
 import { useSpread } from '../state/useSpread';
 import { nettoRR, spreadInR } from '../engine/spread';
@@ -393,6 +395,7 @@ export function KooporderSheet({
   const plan = planInGeld({ bedrag: heeftBedrag ? bedragGetal : 1, entry, stop: planStop, doel });
   const verliesBijStop = heeftBedrag && plan?.bijStop != null && plan.bijStop < 0 ? -plan.bijStop : null;
   const bestaandRisico = berekenOpenRisico(trades, omgeving).risicoUsd;
+  const bezit = [...new Set(trades.filter(t => t.status === 'open' && inOmgeving(t, omgeving)).map(t => t.symbool))];
   const spreadR = koers && planStop !== undefined ? spreadInR(koers, entry, planStop) : null;
   const rrNetto = koers && planStop !== undefined ? nettoRR(koers, entry, planStop, doel) : null;
 
@@ -474,6 +477,7 @@ export function KooporderSheet({
         />
 
         <OpenRisicoRegel kapitaal={kapitaal} bestaandUsd={bestaandRisico} ditUsd={verliesBijStop} />
+        <SpreidingRegel symbool={symbool} bezit={bezit} zichtbaar={zichtbaar} />
 
         <PlanInGeldKaart
           entry={entry}
