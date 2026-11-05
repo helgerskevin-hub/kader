@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import Constants from 'expo-constants';
-import { X, Link2, Bell, CalendarDays, FileText, ChevronRight } from 'lucide-react-native';
+import { X, Link2, Bell, CalendarDays, FileText, ChevronRight, LayoutGrid } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type, Fonts } from '../theme/typography';
@@ -29,6 +29,7 @@ import { zetMeldingen } from '../state/meldingSchakelaar';
 import { useRisicoPct, type RisicoPct } from '../state/useRisicoPct';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
 import { weekrapportAan, zetWeekrapport } from '../notifications/weekrapport';
+import { useWidgetBedragen } from '../state/useWidgetBedragen';
 import { fmtBedrag } from '../engine/format';
 
 interface Props {
@@ -111,6 +112,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { pct: risico, pctGetal: risicoGetal, kiesPct } = useRisicoPct();
   const { kapitaal } = useHandelskapitaal();
   const [bezigMeldingen, setBezigMeldingen] = useState(false);
+  const { bedragenAan, kiesBedragen } = useWidgetBedragen();
 
   // Hint onder de handelsomgeving na een losse tik op Echt. Alleen de dekking beweegt.
   const [hintGetoond, setHintGetoond] = useState(false);
@@ -381,6 +383,27 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                       trackColor={{ true: colors.tekstGedimd, false: colors.rand }}
                       thumbColor={meldingen && weekrapport ? colors.tekstPrimair : colors.verhoogd}
                       accessibilityLabel="Weekrapport"
+                    />
+                  }
+                />
+              </LijstGroep>
+
+              <LijstGroep
+                titel="Widget"
+                style={styles.groep}
+                voetnoot="Je startscherm zien ook anderen. Standaard toont de widget alleen R, dat zegt genoeg over hoe je plan loopt."
+              >
+                <LijstRij
+                  icoon={LayoutGrid}
+                  titel="Bedragen op de widget"
+                  sub="Naast R ook het resultaat in dollars"
+                  rechts={
+                    <Switch
+                      value={bedragenAan}
+                      onValueChange={kiesBedragen}
+                      trackColor={{ true: colors.tekstGedimd, false: colors.rand }}
+                      thumbColor={bedragenAan ? colors.tekstPrimair : colors.verhoogd}
+                      accessibilityLabel="Bedragen op de widget"
                     />
                   }
                 />

@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Tab } from '../components/BottomNav';
 import { MeldingDoel, leesDoel } from '../notifications/meldingDoel';
@@ -67,6 +68,17 @@ export function NavigatieProvider({ wisselTab, children }: {
     }
     if (volgende) gaNaar(volgende);
   }, [laatsteTik, gaNaar]);
+
+  // Een tik op de widget op het startscherm opent kader://portfolio (zie widget/widgetVerversen.ts).
+  // getInitialURL voor een koude start, het url-event als de app al draaide.
+  useEffect(() => {
+    const verwerk = (url: string | null) => {
+      if (url && url.startsWith('kader://portfolio')) gaNaar({ soort: 'portfolio' });
+    };
+    Linking.getInitialURL().then(verwerk).catch(() => {});
+    const sub = Linking.addEventListener('url', e => verwerk(e.url));
+    return () => sub.remove();
+  }, [gaNaar]);
 
   const waarde = useMemo<NavigatieWaarde>(() => ({ doel, gaNaar, wisDoel }), [doel, gaNaar, wisDoel]);
 

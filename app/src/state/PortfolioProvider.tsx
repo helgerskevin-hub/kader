@@ -10,6 +10,7 @@ import { GeplaatsteOrder, heeftVerseLopendeOrder, isAfgerond, isMeldenswaard, ki
 import { bronVan } from './portfolioTypes';
 import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
 import { checkNiveausGeraakt, meldEtoroSluitingen } from '../notifications/sluitingen';
+import { werkWidgetBij } from '../widget/widgetVerversen';
 
 export interface SyncResultaat {
   gekoppeld: boolean;                          // false = geen eToro-sleutels ingesteld
@@ -218,6 +219,16 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (geladen) bewaarLijst(SLEUTELS.portfolio, trades);
   }, [trades, geladen]);
+
+  // De widget op het startscherm volgt de app: bij het openen, bij elke wijziging in je portfolio en
+  // bij elke prijs-poll. Pas als de omgeving van schijf gelezen is (omgevingRef), anders schrijft de
+  // tussenstand 'demo' even een demo-widget weg. Na een seconde rust, want een sync wijzigt de lijst
+  // vaak een paar keer kort na elkaar. `trades` is hier de hele lijst; widgetStand filtert zelf.
+  useEffect(() => {
+    if (!geladen || omgevingRef.current === null) return;
+    const id = setTimeout(() => { werkWidgetBij(trades, livePrijzen, omgeving); }, 1000);
+    return () => clearTimeout(id);
+  }, [geladen, trades, livePrijzen, omgeving]);
 
   // Eén plek die "we zijn net bijgewerkt" vastlegt: tijdstip in state en op schijf, foutvlag uit.
   const markeerGesynct = useCallback(() => {

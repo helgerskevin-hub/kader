@@ -4,6 +4,7 @@ import { checkOpenTrades, checkPrijsalerts } from './tradeChecks';
 import { checkEtoroSluitingen, checkNiveausGeraakt } from './sluitingen';
 import { werkSignalenBij } from '../state/signaalBoek';
 import { checkWeekrapport } from './weekrapport';
+import { ververWidgetMetVerseKoersen } from '../widget/widgetVerversen';
 
 export const TRADE_CHECK_TAAK = 'kader-trade-check';
 
@@ -23,6 +24,13 @@ TaskManager.defineTask(TRADE_CHECK_TAAK, async () => {
       await checkPrijsalerts();
     } catch {
       // Volgende ronde opnieuw. Een alert blijft wachten tot hij geraakt is, dus er gaat niets verloren.
+    }
+    // De widget op het startscherm: goedkoop (één koers per open coin, en niets zonder widget) en
+    // los van de meldingen, dus ook vóór de zware checks en met een eigen vangnet.
+    try {
+      await ververWidgetMetVerseKoersen();
+    } catch {
+      // Volgende ronde opnieuw; de widget toont tot dan de vorige stand met zijn tijd.
     }
     // Sluitingen en geraakte niveaus ook elk apart: een eToro-storing mag de melding over een
     // handmatige stop niet tegenhouden, en andersom. Allebei vóór checkOpenTrades, want die is het
