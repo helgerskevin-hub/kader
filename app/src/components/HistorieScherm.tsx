@@ -20,6 +20,8 @@ import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijs
 import { fmtBedrag, fmtPct, fmtR, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { behaaldeRR, berekenStatistieken, resultaatVan } from '../state/statistieken';
+import { Benchmark, btcLijn, vergelijkMetBtc } from '../state/benchmark';
+import { useBtcKoersen } from '../state/useBtcKoersen';
 import { PERIODES, PeriodeId, periodeGrens } from '../state/periodeResultaat';
 import { useValutaStand } from '../state/useValuta';
 import { CoinLogo } from './CoinLogo';
@@ -156,6 +158,14 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
   }, [waardeReeks.punten, periode]);
   const heeftGrafiek = waardeReeks.punten.length >= 2;
 
+  // De BTC-benchmark: dezelfde inleg op dezelfde dagen in BTC. Zonder BTC-koersen niets.
+  const btc = useBtcKoersen(zichtbaar);
+  const btcVergelijk = useMemo(
+    () => (btc ? btcLijn(waardeInPeriode, trades, btc) : null),
+    [btc, waardeInPeriode, trades],
+  );
+  const benchmark = useMemo(() => (btc ? vergelijkMetBtc(inPeriode, btc) : null), [btc, inPeriode]);
+
   // Het Demo-label zegt alleen iets als er ook echte trades tussen staan. Staat alles in demo, dan
   // is het op elke rij hetzelfde woord en dus ruis.
   const toonDemo = useMemo(() => {
@@ -211,7 +221,7 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
             >
               <SegmentKnop opties={PERIODE_OPTIES} actief={periode} onKies={kiesPeriode} />
 
-              {heeftGrafiek && <WaardeKaart punten={waardeInPeriode} />}
+              {heeftGrafiek && <WaardeKaart punten={waardeInPeriode} vergelijk={btcVergelijk} benchmark={benchmark} periode={periode} />}
 
               {inPeriode.length === 0 ? (
                 <Text style={[Type.body, styles.periodeLeeg, { color: colors.tekstGedimd }]}>
@@ -288,8 +298,14 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
 
 // Je portfoliowaarde over de gekozen periode, met dezelfde grafiek als bij een coin: vinger erover
 // en je ziet de waarde op die dag.
-function WaardeKaart({ punten }: { punten: WaardePunt[] }) {
+function WaardeKaart({ punten, vergelijk, benchmark, periode }: {
+  punten: WaardePunt[];
+  vergelijk: number[] | null;
+  benchmark: Benchmark | null;
+  periode: PeriodeId;
+}) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
   const candles = useMemo<Candle[]>(
     () => punten.map(p => ({ open: p.waarde, high: p.waarde, low: p.waarde, close: p.waarde, volume: 0, tijd: p.tijd })),
     [punten],
@@ -321,7 +337,26 @@ function WaardeKaart({ punten }: { punten: WaardePunt[] }) {
           {fmtResultaatUsd(verschil)}{pct !== null ? ` (${fmtPct(pct)})` : ''} in deze periode
         </Text>
       </View>
-      <PrijsGrafiek candles={candles} toonPeriodes={false} hoogte={160} formatWaarde={fmtBedrag} />
+      <PrijsGrafiek candles={candles} toonPeriodes={false} hoogte={160} formatWaarde={fmtBedrag} vergelijk={vergelijk} />
+      {vergelijk && (
+        <Animated.View entering={uitklapIn(reduceMotion)} style={styles.legenda} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <View style={styles.legendaItem}>
+            <View style={[styles.legendaLijn, { backgroundColor: kleur }]} />
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Jij</Text>
+          </View>
+          <View style={styles.legendaItem}>
+            <View style={[styles.legendaStippel, { borderColor: colors.tekstGedimd }]} />
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Zelfde geld in BTC</Text>
+          </View>
+        </Animated.View>
+      )}
+      {benchmark && benchmark.aantal > 0 && (
+        <Animated.View entering={uitklapIn(reduceMotion)} style={[styles.benchmark, { backgroundColor: colors.verhoogd }]}>
+          <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 19 }]}>
+            {benchmarkZin(benchmark, periode, colors.winst, colors.verlies, colors.tekstPrimair)}
+          </Text>
+        </Animated.View>
+      )}
       {tot !== null && (
         <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
           Tot en met {new Date(tot).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} teruggerekend uit je trades, zonder stortingen en opnames. Daarna bewaart Kader elke dag je echte waarde.
@@ -550,6 +585,25 @@ function DisciplineKaart({ stand }: { stand: DisciplineStand }) {
   );
 }
 
+const PERIODE_WOORD: Record<PeriodeId, string> = {
+  dag: 'vandaag', '1M': 'deze maand', '3M': 'de afgelopen 3 maanden', '6M': 'het afgelopen half jaar', '1J': 'het afgelopen jaar', alles: 'in totaal',
+};
+
+// "Je deed $84.10 beter dan BTC vasthouden, over je 6 gesloten trades deze maand."
+function benchmarkZin(b: Benchmark, periode: PeriodeId, winst: string, verlies: string, neutraal: string): React.ReactNode {
+  const verschil = b.jouwUsd - b.btcUsd;
+  const beter = verschil >= 0;
+  const bedrag = fmtBedrag(Math.abs(verschil));
+  const trades = b.aantal === 1 ? 'je gesloten trade' : `je ${b.aantal} gesloten trades`;
+  return (
+    <>
+      Je deed <Text style={[styles.benchmarkGetal, { color: Math.abs(verschil) < 0.005 ? neutraal : beter ? winst : verlies }]}>{bedrag}</Text>{' '}
+      {beter ? 'beter' : 'slechter'} dan BTC vasthouden, over {trades} {PERIODE_WOORD[periode]}.
+      {b.overgeslagen > 0 ? ` ${b.overgeslagen === 1 ? '1 trade telt' : `${b.overgeslagen} trades tellen`} niet mee: te oud voor de BTC-koersen van Kader, of zonder openingstijd.` : ''}
+    </>
+  );
+}
+
 // ---------- Groeperen ----------
 
 function groepeerPerMaand(trades: PortfolioTrade[]): MaandGroep[] {
@@ -752,6 +806,12 @@ const styles = StyleSheet.create({
   discScore: { fontFamily: Fonts.monoMedium, fontSize: 34, lineHeight: 40, letterSpacing: -1 },
   discBalk: { height: 8, borderRadius: radii.pill, overflow: 'hidden' },
   discVul: { flex: 1, borderRadius: radii.pill, transformOrigin: 'left' },
+  legenda: { flexDirection: 'row', gap: spacing.base, alignItems: 'center' },
+  legendaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendaLijn: { width: 14, height: 2, borderRadius: 1 },
+  legendaStippel: { width: 14, borderTopWidth: 1.5, borderStyle: 'dashed' },
+  benchmark: { borderRadius: radii.knop, paddingHorizontal: spacing.md, paddingVertical: 10 },
+  benchmarkGetal: { fontFamily: Fonts.monoMedium },
   discTegelBlok: { borderRadius: radii.knop, paddingHorizontal: spacing.md, paddingVertical: 10 },
   discKosten: { fontFamily: Fonts.monoMedium },
   verhoudingBalk: { flexDirection: 'row', gap: 2, height: 4, borderRadius: 2, overflow: 'hidden' },
