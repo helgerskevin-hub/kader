@@ -124,6 +124,9 @@ export const SLEUTELS = {
   // Anker (sluittijd van de laatste verliestrade) van de rem die de gebruiker zelf ophief. Zie
   // state/verliesRem.ts.
   remOpgeheven: 'rem_opgeheven',
+  // Het "Eén ding vandaag"-advies dat vandaag is weggeveegd: { dag, sleutel, prio }. Zie
+  // state/eenDing.ts.
+  eenDingWeg: 'een_ding_weg',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
