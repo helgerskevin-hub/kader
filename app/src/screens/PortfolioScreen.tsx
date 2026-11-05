@@ -38,6 +38,8 @@ import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
 import { BlootstellingKaart } from '../components/BlootstellingKaart';
 import { KapitaalSheet } from '../components/KapitaalSheet';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
+import { berekenOpenRisico } from '../state/openRisico';
+import { OpenRisicoKaart } from '../components/OpenRisicoKaart';
 import { useMarkt } from '../state/MarktProvider';
 import { useNavigatie } from '../state/navigatie';
 import { MeldingNotitie } from '../components/MeldingNotitie';
@@ -905,6 +907,9 @@ export function PortfolioScreen() {
               onImporteren={importerenUitEtoro}
               onOpenHistorie={() => setHistorieOpen(true)}
             />
+
+            {/* Rendert zichzelf niet zonder kapitaal of zonder open posities. */}
+            <OpenRisicoKaart stand={berekenOpenRisico(trades, omgeving)} kapitaal={kapitaal} />
 
             {/* Rendert zichzelf niet als er geen open posities zijn, dus geen voorwaarde nodig. */}
             <VerdelingKaart

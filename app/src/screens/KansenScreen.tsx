@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, RefreshControl, AppState,
 } from 'react-native';
+import { RemKaart } from '../components/RemKaart';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { RefreshCw, Radar } from 'lucide-react-native';
@@ -270,6 +271,7 @@ export function KansenScreen() {
               </Animated.View>
             ) : (
               <Animated.View entering={uitklapIn(reduceMotion)}>
+                <RemKaart />
                 <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
                   Coins die dicht bij hun hoogste koers van 90 dagen staan.
                 </Text>

@@ -14,6 +14,8 @@ interface Props {
   bijStop: number | null;
   bijDoel: number | null;
   rr: number | null;
+  // R/R na de eToro-spread, naast de gewone R/R in de chip. Alleen met een live eToro-koers.
+  rrNetto?: number | null;
   // Staat in de STOP-tegel in plaats van het bedrag als eToro de stop zelf zet ("eToro kiest de stop").
   stopTekst?: string;
   titel?: string;
@@ -37,7 +39,7 @@ const fmtRRKomma = (rr: number) => `1 : ${rr.toFixed(1).replace('.', ',')}`;
 // Wat het plan in dollars betekent voor het bedrag dat je nu intikt: de baan met stop, entry en
 // doel, en twee tegels met wat je verliest of wint. Groen en rood staan alleen op de getallen.
 export function PlanInGeldKaart({
-  entry, stop, doel, live, bijStop, bijDoel, rr, stopTekst,
+  entry, stop, doel, live, bijStop, bijDoel, rr, rrNetto, stopTekst,
   titel = 'PLAN VAN KADER', doelLabel = 'BIJ DOEL',
 }: Props) {
   const { colors } = useTheme();
@@ -49,7 +51,7 @@ export function PlanInGeldKaart({
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{titel}</Text>
         {rr !== null && (
           <View style={[styles.chip, { backgroundColor: colors.kaart }]}>
-            <Text style={[styles.chipTekst, { color: colors.tekstGedimd }]}>R/R {fmtRRKomma(rr)}</Text>
+            <Text style={[styles.chipTekst, { color: colors.tekstGedimd }]}>R/R {fmtRRKomma(rr)}{typeof rrNetto === 'number' ? ` · na spread ${rrNetto.toFixed(1).replace('.', ',')}` : ''}</Text>
           </View>
         )}
       </View>

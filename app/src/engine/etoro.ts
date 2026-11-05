@@ -1020,6 +1020,13 @@ async function haalInstrumenten(ids: number[], sleutels: EtoroSleutels): Promise
   return kaart;
 }
 
+// Live bied- en laatkoers van één instrument, voor de spread in de kooporder (engine/spread.ts).
+// Valt onder dezelfde market-data-scope als de instrumentenlijst hierboven. Gooit bij een fout; de
+// aanroeper toont dan niets.
+export async function haalKoersRuw(instrumentId: number, sleutels: EtoroSleutels): Promise<unknown> {
+  return etoroFetch<unknown>(`/market-data/instruments/rates?instrumentIds=${instrumentId}`, sleutels);
+}
+
 // De crypto-instrumentTypeID staat niet vast gedocumenteerd; we vragen 'm live op zodat we niet
 // hoeven te gokken (en zodat het blijft werken als eToro de nummering ooit wijzigt).
 // ponytail: lukt de herkenning niet (onverwachte responsvorm), dan filteren we niet op type en

@@ -30,6 +30,7 @@ import { Laadbalk } from '../components/Laadbalk';
 import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
 import { BearModusKaart } from '../components/BearModusKaart';
+import { RemKaart } from '../components/RemKaart';
 import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { magDoorRsFilter } from '../engine/relatieveSterkte';
@@ -292,6 +293,8 @@ export function MarktScreen() {
               {/* Niet in bear-modus: dan staat er al een kaart die uitlegt waarom er geen koopsignaal
                   is, en is de klimaatpoort de zwaarwegende reden. Twee balken die allebei "vandaag
                   geen koopsignaal" zeggen, met de minst belangrijke bovenaan, begraven het punt. */}
+              {/* De rem na verliezen gaat boven alles: die zegt iets over jou, niet over de markt. */}
+              <RemKaart />
               {!bearModus && state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
                 <RrWaarschuwing bekeken={state.bekeken} />
               )}

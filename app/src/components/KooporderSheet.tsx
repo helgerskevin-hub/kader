@@ -5,13 +5,23 @@
 // bedrag niet in je saldo, dan is bevestigen simpelweg uitgeschakeld. En na een onbekende uitkomst
 // verschijnt er nergens een knop die het verzoek opnieuw verstuurt.
 import React, { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Wallet } from 'lucide-react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { Pause, Wallet } from 'lucide-react-native';
 import { fmtBedrag, fmtPrijs } from '../engine/format';
 import { deelVanSaldo, inlegVoorRisico, maxBedrag, planInGeld } from '../engine/planInGeld';
 import { laadHandelskapitaal } from '../state/useHandelskapitaal';
 import { useRisicoPct } from '../state/useRisicoPct';
 import { RisicoRegel } from './order/RisicoRegel';
+import { OpenRisicoRegel } from './order/OpenRisicoRegel';
+import { SpreadRegel } from './order/SpreadRegel';
+import { berekenOpenRisico } from '../state/openRisico';
+import { useSpread } from '../state/useSpread';
+import { nettoRR, spreadInR } from '../engine/spread';
+import { useVerliesRem } from '../state/useVerliesRem';
+import { REM_REEKS, remTotTekst } from '../state/verliesRem';
+import { useReduceMotion } from '../theme/useReduceMotion';
+import { uitklapIn, uitklapUit } from '../theme/lijstBeweging';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { bouwKooporderBody, guid, haalSaldoStand, KooporderInvoer, plaatsKooporder, SaldoStand } from '../engine/etoro';
 import { koersFactor } from '../engine/etoroSymbolen';
@@ -80,6 +90,12 @@ export function KooporderSheet({
   // Staat de app op euro's, dan blijft dit scherm in dollars maar tonen we wel wat je inleg in
   // euro's is. Anders moet je zelf gaan rekenen om te weten wat je uitgeeft.
   const { valuta, eurPerUsd } = useValuta();
+  const reduceMotion = useReduceMotion();
+  // Live bied- en laatkoers voor de spread. Null zonder koppeling of bij een fout.
+  const koers = useSpread(instrumentId, symbool, zichtbaar);
+  // De rem na verliezen: loopt hij, dan eerst een bewuste tik voordat de koopknop verschijnt.
+  const { rem } = useVerliesRem();
+  const [remDoor, setRemDoor] = useState(false);
 
   const [bedrag, setBedrag] = useState('');
   // Het handelskapitaal, bij elke opening vers gelezen: het kan op Portfolio net zijn ingevuld.
@@ -111,6 +127,7 @@ export function KooporderSheet({
     if (!zichtbaar) return;
     verzoekId.current = guid();
     setBedrag('');
+    setRemDoor(false);
     zelfGekozen.current = false;
     laadHandelskapitaal().then(setKapitaal).catch(() => setKapitaal(null));
     setFout('');
@@ -374,6 +391,10 @@ export function KooporderSheet({
   // bedrag rekenen we met 1 dollar zodat de R/R blijft staan, en blijven de tegels leeg.
   const planStop = advies.soort === 'vast' ? undefined : getoondeStop;
   const plan = planInGeld({ bedrag: heeftBedrag ? bedragGetal : 1, entry, stop: planStop, doel });
+  const verliesBijStop = heeftBedrag && plan?.bijStop != null && plan.bijStop < 0 ? -plan.bijStop : null;
+  const bestaandRisico = berekenOpenRisico(trades, omgeving).risicoUsd;
+  const spreadR = koers && planStop !== undefined ? spreadInR(koers, entry, planStop) : null;
+  const rrNetto = koers && planStop !== undefined ? nettoRR(koers, entry, planStop, doel) : null;
 
   // Het bedrag in de samenvatting vet, zonder de zin zelf te veranderen.
   const bedragTekst = heeftBedrag ? fmtBedrag(bedragGetal, DOLLARS) : '';
@@ -445,12 +466,14 @@ export function KooporderSheet({
         <RisicoRegel
           kapitaal={kapitaal}
           risicoPct={risicoPct}
-          verliesBijStop={heeftBedrag && plan?.bijStop != null && plan.bijStop < 0 ? -plan.bijStop : null}
+          verliesBijStop={verliesBijStop}
           onderMinimum={risicoInleg !== null && risicoInleg < MINIMUM_USD && heeftBedrag && Math.abs(bedragGetal - MINIMUM_USD) < 0.005 ? risicoInleg : null}
           minimum={MINIMUM_USD}
           eurPerUsd={eurPerUsd}
           heeftStop={planStop !== undefined}
         />
+
+        <OpenRisicoRegel kapitaal={kapitaal} bestaandUsd={bestaandRisico} ditUsd={verliesBijStop} />
 
         <PlanInGeldKaart
           entry={entry}
@@ -459,8 +482,11 @@ export function KooporderSheet({
           bijStop={heeftBedrag ? plan?.bijStop ?? null : null}
           bijDoel={heeftBedrag ? plan?.bijDoel ?? null : null}
           rr={plan?.rr ?? null}
+          rrNetto={rrNetto}
           stopTekst={advies.soort === 'vast' ? 'eToro kiest de stop' : undefined}
         />
+
+        <SpreadRegel spreadR={spreadR} />
 
         {advies.soort === 'vast' ? (
           <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
@@ -496,6 +522,27 @@ export function KooporderSheet({
           </Text>
         ) : null}
 
+        {rem && !remDoor ? (
+          <Animated.View entering={uitklapIn(reduceMotion)} exiting={uitklapUit()} style={[stijlen.rem, { backgroundColor: colors.kaart, borderColor: colors.rand }]}>
+            <View style={stijlen.remKop}>
+              <View style={[stijlen.remTegel, { backgroundColor: colors.verhoogd }]}>
+                <Pause size={17} color={colors.tekstGedimd} strokeWidth={1.75} />
+              </View>
+              <Text style={[Type.sectiekop, { color: colors.tekstPrimair, flex: 1 }]}>Je zit in een rem</Text>
+            </View>
+            <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 19 }]}>
+              Je laatste {REM_REEKS} trades sloten met verlies. Na zo'n reeks is de neiging groot om het snel terug te willen halen. De rem loopt tot {remTotTekst(rem.tot, Date.now())}.
+            </Text>
+            <Pressable
+              onPress={() => setRemDoor(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Ik wil toch kopen"
+              style={({ pressed }) => [stijlen.remKnop, { backgroundColor: colors.verhoogd, transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+            >
+              <Text style={[Type.body, { color: colors.cta, fontWeight: '600' }]}>Ik wil toch kopen</Text>
+            </Pressable>
+          </Animated.View>
+        ) : (
         <OrderBevestigKnop
           label={omgeving === 'real'
             ? 'Houd vast om te kopen'
@@ -507,6 +554,7 @@ export function KooporderSheet({
           onBevestig={bevestig}
           gelukt={gelukt}
         />
+        )}
       </ScrollView>
     </BottomSheet>
   );
@@ -529,4 +577,8 @@ const stijlen = StyleSheet.create({
   },
   samenvatting: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
   samenvattingBedrag: { fontWeight: '600' },
+  rem: { borderRadius: radii.kaart, borderWidth: StyleSheet.hairlineWidth, padding: spacing.base, gap: spacing.sm + 2 },
+  remKop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2 },
+  remTegel: { width: 30, height: 30, borderRadius: radii.veld, alignItems: 'center', justifyContent: 'center' },
+  remKnop: { minHeight: 52, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
 });
