@@ -31,6 +31,11 @@ import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
 import { BearModusKaart } from '../components/BearModusKaart';
 import { RemKaart } from '../components/RemKaart';
+import { EenDingKaart } from '../components/EenDingKaart';
+import { EenDing, kiesEenDing } from '../state/eenDing';
+import { useVerliesRem } from '../state/useVerliesRem';
+import { useHandelskapitaal } from '../state/useHandelskapitaal';
+import { alsPctVan, berekenOpenRisico, inOmgeving } from '../state/openRisico';
 import { RelatieveSterkteKaart } from '../components/RelatieveSterkteKaart';
 import { MarktFilters, MarktFilterState, STANDAARD_FILTERS, aantalActieveFilters } from '../components/MarktFilters';
 import { magDoorRsFilter } from '../engine/relatieveSterkte';
@@ -50,7 +55,7 @@ export function MarktScreen() {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const { state, startAnalyse } = useMarkt();
-  const { doel: navigatieDoel, wisDoel } = useNavigatie();
+  const { doel: navigatieDoel, wisDoel, gaNaar } = useNavigatie();
   const [meldingNotitie, setMeldingNotitie] = useState<string | null>(null);
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
@@ -58,7 +63,9 @@ export function MarktScreen() {
   const { openDetail, detailScherm } = useCoinDetail();
   // Geen schrijfrecht in de actieve omgeving betekent geen koopknop. De kaart is dan identiek
   // aan hoe hij altijd was.
-  const { magHandelen } = usePortfolio();
+  const { magHandelen, trades: portfolioTrades, livePrijzen, omgeving } = usePortfolio();
+  const { rem } = useVerliesRem();
+  const { kapitaal } = useHandelskapitaal();
   const [ververst, setVerverstState] = useState(false);
   const [fearGreed, setFearGreed] = useState<{ waarde: number; klasse: string } | null>(null);
   const [filter, setFilter] = useState<Filter>('alle');
@@ -176,6 +183,30 @@ export function MarktScreen() {
     .filter(t => magDoorRsFilter(marktFilters.rs, rsPerSymbool[t.symbool]));
 
   const bearModus = state.status === 'success' && state.klimaat?.klimaat === 'ongunstig';
+
+  // Eén ding vandaag: het belangrijkste over je open posities en de signalen van deze analyse.
+  const eenDing = useMemo<EenDing | null>(() => {
+    if (state.status !== 'success') return null;
+    const open = portfolioTrades.filter(t => t.status === 'open' && inOmgeving(t, omgeving));
+    return kiesEenDing({
+      open,
+      livePrijzen,
+      marktPerSymbool: Object.fromEntries(state.alle.map(t => [t.symbool, t])),
+      klimaat: state.klimaat?.klimaat ?? null,
+      signalen: state.alle,
+      remActief: rem !== null,
+      openRisicoPct: alsPctVan(berekenOpenRisico(portfolioTrades, omgeving).risicoUsd, kapitaal),
+    });
+  }, [state, portfolioTrades, livePrijzen, omgeving, rem, kapitaal]);
+
+  function opEenDingActie(d: EenDing) {
+    if (d.soort === 'signaal' && d.signaal) {
+      if (magHandelen) setKoopTrade(d.signaal);
+      else openDetail(vanTrade(d.signaal, rsPerSymbool[d.signaal.symbool]));
+      return;
+    }
+    if (d.tradeId && d.symbool) gaNaar({ soort: 'trade', tradeId: d.tradeId, symbool: d.symbool, voorstelStop: d.voorstelStop });
+  }
 
   // Kaarten die in hetzelfde blok binnenkwamen landen gestaffeld, in de volgorde waarin ze in de
   // lijst staan. Buiten het laden (een stille refresh, een filter dat weer openging) is dat
@@ -295,6 +326,7 @@ export function MarktScreen() {
                   geen koopsignaal" zeggen, met de minst belangrijke bovenaan, begraven het punt. */}
               {/* De rem na verliezen gaat boven alles: die zegt iets over jou, niet over de markt. */}
               <RemKaart />
+              {eenDing && <EenDingKaart ding={eenDing} onActie={opEenDingActie} />}
               {!bearModus && state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
                 <RrWaarschuwing bekeken={state.bekeken} />
               )}
