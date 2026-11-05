@@ -6,6 +6,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- Nieuw in Historie: exporteren. Het deel-icoon rechtsboven opent een sheet waar je een jaar kiest en je afgesloten trades als CSV of als PDF-jaaroverzicht deelt, met per trade open- en sluitdatum, instap, uitstap, bedrag, R en resultaat in dollars en euro's. Het overzicht toont ook de waarde van je open posities op 1 januari in euro's (box 3-peildatum). Alleen echt geld, demo-trades gaan nooit mee. Is de koers van een dag niet te vinden, dan staat er "koers onbekend" of blijft het veld leeg
 - Nieuw op Portfolio: de kaart Spreiding. Die laat zien hoeveel losse weddenschappen je open posities eigenlijk zijn, want crypto beweegt vaak samen met BTC. Per positie zie je hoe sterk hij met BTC meebeweegt, gemeten over de afgelopen 30 dagen. In de kooporder staat een regel als de coin sterk meebeweegt met posities die je al hebt
 - Nieuw: Gemiste kansen. Signalen die hun doel haalden terwijl je binnen 3 dagen niet kocht, en eerlijk daarnaast de stops die je zo ontweek, in R en in geld bij je eigen risico. Te zien als groep in Signaalresultaat, en op Markt als compacte rij zodra er de afgelopen week iets bijkwam. Die rij opent een eigen scherm met de signalen
 - In de waardegrafiek van Historie staat nu een gestippelde lijn: hetzelfde geld op dezelfde dagen in BTC. Daaronder zie je of je over je gesloten trades in de gekozen periode beter of slechter deed dan BTC vasthouden
