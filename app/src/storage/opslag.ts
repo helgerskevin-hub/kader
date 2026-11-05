@@ -121,6 +121,9 @@ export const SLEUTELS = {
   weekrapportAan: 'weekrapport_aan',
   // Week (maandag-datum) waarvan het weekrapport al verstuurd is, zodat het er per week één blijft.
   laatsteWeekrapport: 'laatste_weekrapport',
+  // Anker (sluittijd van de laatste verliestrade) van de rem die de gebruiker zelf ophief. Zie
+  // state/verliesRem.ts.
+  remOpgeheven: 'rem_opgeheven',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
