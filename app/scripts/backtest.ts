@@ -1286,6 +1286,131 @@ for (const [naam, set] of [['K1', kK1], ['K2', kK2]] as [string, KTrade[]][]) {
   console.log(`  ${naam} verslaat B in ${wint} van de ${geteld} jaren (jaren met >= 10 trades)`);
 }
 
+// --- meting L: uitstapsignaal bij omslaand momentum -------------------------------------
+//
+// De vraag (D5 in het plan): als je positie op het slot van een dag minstens +1 R in winst staat en
+// het momentum draait, is het dan beter om in te grijpen dan te wachten op doel of stop? Pas als
+// dat in de meeste jaren wint, bouwt Kader er een melding voor.
+//
+// Exact dezelfde instappen als meting B en K. De trigger draait op het slot van bar j met alleen
+// candles[0..j]; de actie geldt pas vanaf bar j+1, dus geen look-ahead. EMA20 en MACD rekenen we
+// één keer over de hele reeks per coin: beide zijn causale filters, dus waarde j hangt alleen af
+// van bars 0..j. R blijft gemeten tegen het oorspronkelijke risico.
+//
+// Drie triggers:
+//   T1  slot onder EMA20
+//   T2  slot onder EMA20 en MACD-histogram negatief
+//   T3  MACD-histogram kruist van >= 0 naar < 0
+// Twee acties:
+//   stop  stop naar de instap (wat de melding zou adviseren: "zet je stop op je instap")
+//   sluit verkopen op de open van de volgende dag
+
+console.log('\n\n' + '='.repeat(72));
+console.log('METING L: uitstapsignaal bij omslaand momentum (vanaf +1 R open winst)');
+console.log('='.repeat(72));
+
+type LTrade = { r: number; datum: string; gevuurd: boolean; exitReden: Simulatie['exitReden'] };
+type LTrigger = (j: number) => boolean;
+
+const L_MIN_WINST_R = 1;
+
+function simuleerUitstap(
+  candles: Candle[], i: number, entry: number, startStop: number, doel: number,
+  trigger: LTrigger, actie: 'stop' | 'sluit',
+): LTrade | null {
+  const risico = entry - startStop;
+  if (risico <= 0) return null;
+  const eind = Math.min(i + MAX_BARS, candles.length - 1);
+  if (eind <= i) return null;
+  let stop = startStop;
+  let gevuurd = false;
+  let sluitBijOpen = false;
+  const datum = datumVan(candles[i].tijd);
+  const klaar = (r: number, exitReden: Simulatie['exitReden']): LTrade => ({ r, datum, gevuurd, exitReden });
+
+  for (let j = i + 1; j <= eind; j++) {
+    const c = candles[j];
+    if (sluitBijOpen) return klaar((c.open - entry) / risico, 'tijd');
+    if (c.open <= stop) return klaar((c.open - entry) / risico, 'stop');
+    if (c.open >= doel) return klaar((c.open - entry) / risico, 'doel');
+    if (c.low <= stop) return klaar((stop - entry) / risico, 'stop');
+    if (c.high >= doel) return klaar((doel - entry) / risico, 'doel');
+    if (j === eind || gevuurd) continue;
+    if ((c.close - entry) / risico < L_MIN_WINST_R || !trigger(j)) continue;
+    gevuurd = true;
+    if (actie === 'sluit') sluitBijOpen = true;
+    else stop = Math.max(stop, entry);
+  }
+  return klaar((candles[eind].close - entry) / risico, 'tijd');
+}
+
+const lVarianten: { naam: string; trigger: (c: Candle[], e20: number[], h: number[]) => LTrigger; actie: 'stop' | 'sluit' }[] = [];
+const T1 = (c: Candle[], e20: number[]) => (j: number) => c[j].close < e20[j];
+const T2 = (c: Candle[], e20: number[], h: number[]) => (j: number) => c[j].close < e20[j] && h[j] < 0;
+const T3 = (_c: Candle[], _e: number[], h: number[]) => (j: number) => j > 0 && h[j - 1] >= 0 && h[j] < 0;
+for (const [tn, t] of [['T1 EMA20', T1], ['T2 EMA20+MACD', T2], ['T3 MACD-kruising', T3]] as const) {
+  for (const actie of ['stop', 'sluit'] as const) lVarianten.push({ naam: `${tn}, ${actie}`, trigger: t, actie });
+}
+
+const lB: LTrade[] = [];
+const lSets: LTrade[][] = lVarianten.map(() => []);
+for (const symbool of coins) {
+  const c = candlesVan(symbool);
+  const closes = c.map(x => x.close);
+  const e20 = ema(closes, 20);
+  const { histogram: h } = macd(closes);
+  let bezetTot = -1;
+  for (const s of signalenPerCoin[symbool] ?? []) {
+    if (s.i <= bezetTot || !(s.koop && s.rrOk)) continue;
+    const doel = s.entry + REWARD_MULTIPLIER * s.atr;
+    const b = simuleer(c, s.i, s.entry, s.stop, doel);
+    if (!b) continue;
+    bezetTot = s.i + b.bars;
+    const uit = lVarianten.map(v => simuleerUitstap(c, s.i, s.entry, s.stop, doel, v.trigger(c, e20, h), v.actie));
+    if (uit.some(u => u === null)) continue;
+    lB.push({ r: b.r, datum: s.datum, gevuurd: false, exitReden: b.exitReden });
+    uit.forEach((u, k) => {
+      lSets[k].push(u!);
+      if (!u!.gevuurd) console.assert(Math.abs(u!.r - b.r) < 1e-9, `L wijkt af van B zonder trigger: ${symbool} ${s.datum}`);
+    });
+  }
+}
+console.assert(lB.length === strategie.length, `Meting L-basis wijkt af van meting B: ${lB.length} tegen ${strategie.length}`);
+
+tabel('L-a totaal, instappen van meting B:', [['B wachten op doel/stop', lB], ...lVarianten.map((v, k) => [v.naam, lSets[k]] as [string, LTrade[]])]);
+
+console.log('\n  Hoe vaak vuurde de trigger (bij >= +1 R open winst):');
+lVarianten.forEach((v, k) => {
+  const n = lSets[k].filter(t => t.gevuurd).length;
+  console.log(`    ${v.naam.padEnd(26)} ${n} van ${lSets[k].length} trades (${((n / lSets[k].length) * 100).toFixed(1)}%)`);
+});
+
+lVarianten.forEach((v, k) => {
+  const idx = lSets[k].map((t, n) => (t.gevuurd ? n : -1)).filter(n => n >= 0);
+  if (idx.length === 0) return;
+  tabel(`L-b ${v.naam}, alleen trades waar hij vuurde (gepaard):`, [
+    ['B op die trades', idx.map(n => lB[n])], [v.naam, idx.map(n => lSets[k][n])],
+  ]);
+});
+
+jaarKop('L-c per jaar, instappen van meting B:');
+jaarRegel('B wachten op doel/stop', lB);
+lVarianten.forEach((v, k) => jaarRegel(v.naam, lSets[k]));
+
+// Beslisregel, dezelfde als bij meting K: alleen bouwen als een variant in de meeste jaren boven
+// B uitkomt en over het geheel ook.
+const lJaarB = perJaar(lB);
+lVarianten.forEach((v, k) => {
+  const jv = perJaar(lSets[k]);
+  let wint = 0, geteld = 0;
+  for (const j of jaren) {
+    if (jv[j] === null || lJaarB[j] === null) continue;
+    geteld++;
+    if (jv[j]! > lJaarB[j]!) wint++;
+  }
+  console.log(`  ${v.naam.padEnd(26)} verslaat B in ${wint} van de ${geteld} jaren, totaal ${stat(lSets[k]).gemR.toFixed(3)} tegen ${stat(lB).gemR.toFixed(3)}`);
+});
+
 // --- wegschrijven -----------------------------------------------------------------------
 
 mkdirSync(UIT, { recursive: true });
