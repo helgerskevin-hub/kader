@@ -112,6 +112,15 @@ export const SLEUTELS = {
   // Je totale portfoliowaarde per kalenderdag, per eToro-omgeving ({ real: [...], demo: [...] }).
   // Voor de waardegrafiek in Historie; zie state/portfolioWaarde.ts.
   waardeMomentopnames: 'waarde_momentopnames',
+  // Elk koopsignaal dat Kader gaf, met de uitkomst (doel, stop of verlopen) zodra die bekend is.
+  // Voor het scherm Signaalresultaat; zie engine/signaalLog.ts en state/signaalBoek.ts.
+  signaalBoek: 'signaal_boek',
+  // Risico per trade in procent van je handelskapitaal: '0.5', '1' of '2'. Zie state/useRisicoPct.ts.
+  risicoPct: 'risico_pct',
+  // Staat het weekrapport op zondag aan? 'aan' of 'uit', ontbreekt = aan.
+  weekrapportAan: 'weekrapport_aan',
+  // Week (maandag-datum) waarvan het weekrapport al verstuurd is, zodat het er per week één blijft.
+  laatsteWeekrapport: 'laatste_weekrapport',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

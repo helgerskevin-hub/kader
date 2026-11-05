@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Dimensions, Modal } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
-import { Bell, BookOpen, Settings } from 'lucide-react-native';
+import { Bell, BookOpen, ChartNoAxesColumn, Settings } from 'lucide-react-native';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useBeweging } from '../theme/useReduceMotion';
 import { useTheme } from '../theme/ThemeProvider';
@@ -22,13 +22,14 @@ interface Props {
   ongelezen: number;
   onMeldingen: () => void;
   onAchtergrond: () => void;
+  onSignaalresultaat: () => void;
   onInstellingen: () => void;
 }
 
 // Dropdown die onder het kebab-icoon in de header verschijnt, geankerd op de gemeten positie van
 // de knop (measureInWindow), zodat hij op elk device en met elke safe-area-inset op de juiste
 // plek uitklapt in plaats van op een hard-gecodeerde offset.
-export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldingen, onAchtergrond, onInstellingen }: Props) {
+export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldingen, onAchtergrond, onSignaalresultaat, onInstellingen }: Props) {
   const { colors } = useTheme();
   const { etoroGekoppeld, omgeving } = usePortfolio();
   const { naar, reduceMotion } = useBeweging();
@@ -105,6 +106,13 @@ export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldinge
             rand={colors.rand}
             tekstKleur={colors.tekstPrimair}
             onPress={() => uitvoeren(onMeldingen)}
+          />
+          <Rij
+            icoon={<ChartNoAxesColumn size={18} color={colors.tekstGedimd} strokeWidth={1.75} />}
+            label="Signaalresultaat"
+            rand={colors.rand}
+            tekstKleur={colors.tekstPrimair}
+            onPress={() => uitvoeren(onSignaalresultaat)}
           />
           <Rij
             icoon={<BookOpen size={18} color={colors.tekstGedimd} strokeWidth={1.75} />}

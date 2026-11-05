@@ -8,16 +8,16 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Check, History, Trash2 } from 'lucide-react-native';
+import { X, Check, History, ShieldCheck, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Fonts, Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
-import { duur, veer } from '../theme/beweging';
-import { useReduceMotion } from '../theme/useReduceMotion';
+import { duur, staggerVertraging, veer } from '../theme/beweging';
+import { useBeweging, useReduceMotion } from '../theme/useReduceMotion';
 import { haptiek, haptiekVanUI } from '../theme/haptiek';
-import { schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
-import { fmtBedrag, fmtPct, fmtRR, fmtResultaatUsd } from '../engine/format';
+import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
+import { fmtBedrag, fmtPct, fmtR, fmtRR, fmtResultaatUsd } from '../engine/format';
 import { PortfolioTrade } from '../state/portfolioTypes';
 import { behaaldeRR, berekenStatistieken, resultaatVan } from '../state/statistieken';
 import { PERIODES, PeriodeId, periodeGrens } from '../state/periodeResultaat';
@@ -30,6 +30,9 @@ import { Sparkline } from './Sparkline';
 import { LegeStaatBeeld } from './LegeStaatBeeld';
 import { PrijsGrafiek } from './PrijsGrafiek';
 import { useWaardeReeks } from '../state/useWaardeReeks';
+import { AFWIJKING_LABEL, MIN_TRADES_VOOR_SCORE, beoordeelTrade, berekenDiscipline, type Afwijking, type DisciplineStand } from '../state/discipline';
+import { AnimatedGetal } from './AnimatedGetal';
+import { useUitleg, UitlegKnop, UitlegTekst } from './UitlegKnop';
 import type { WaardePunt } from '../state/portfolioWaarde';
 import type { Candle } from '../engine/types';
 
@@ -140,6 +143,11 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
   }, [alleGesloten, periode]);
 
   const samenvatting = useMemo(() => berekenSamenvatting(inPeriode), [inPeriode]);
+  const discipline = useMemo(() => berekenDiscipline(inPeriode), [inPeriode]);
+  const afwijkingen = useMemo(
+    () => new Map(alleGesloten.map(t => [t.id, beoordeelTrade(t).afwijking])),
+    [alleGesloten],
+  );
 
   const waardeReeks = useWaardeReeks(trades, livePrijzen, waardeNu, omgeving, zichtbaar);
   const waardeInPeriode = useMemo(() => {
@@ -211,6 +219,7 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
                 </Text>
               ) : (
                 <>
+                  {discipline.beoordeeld > 0 && <DisciplineKaart stand={discipline} />}
                   <Samenvatting s={samenvatting} periode={periode} />
                   <SegmentKnop opties={UITKOMST_OPTIES} actief={uitkomst} onKies={kiesUitkomst} />
 
@@ -237,7 +246,7 @@ export function HistorieScherm({ zichtbaar, trades, livePrijzen, waardeNu, omgev
                           >
                             {i > 0 && <View style={[styles.scheiding, { backgroundColor: colors.rand }]} />}
                             <VeegRij onVerwijder={() => veegWeg(trade)}>
-                              <TradeRij trade={trade} toonDemo={toonDemo} onOpenDetail={() => onOpenDetail(trade)} onVerwijder={() => veegWeg(trade)} />
+                              <TradeRij trade={trade} toonDemo={toonDemo} afwijking={afwijkingen.get(trade.id) ?? null} onOpenDetail={() => onOpenDetail(trade)} onVerwijder={() => veegWeg(trade)} />
                             </VeegRij>
                           </Animated.View>
                         ))}
@@ -455,6 +464,92 @@ function Samenvatting({ s, periode }: { s: SamenvattingData; periode: PeriodeId 
   );
 }
 
+// ---------- Discipline ----------
+
+const DISCIPLINE_UITLEG =
+  'Het plan is de stop en het doel waarmee je een trade opende. Je volgt het plan als de trade op een van ' +
+  'die twee eindigt. Een stop optrekken om winst vast te zetten hoort daar ook bij. Een stop verlagen, ' +
+  'ruim onder je stop sluiten of eerder dichtdoen telt als afwijking. Wat eerder dichtdoen kostte rekent ' +
+  'Kader niet uit: niemand weet waar de koers daarna heen was gegaan.';
+
+function DisciplineKaart({ stand }: { stand: DisciplineStand }) {
+  const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const { naar } = useBeweging();
+  const { open, wissel, schuif } = useUitleg();
+
+  // Score en balk beginnen bij nul en lopen op zodra de kaart er staat. Bij een andere periode
+  // rollen ze vanaf de vorige stand naar de nieuwe, zodat je ziet welke kant het op gaat.
+  const [getoond, setGetoond] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setGetoond(stand.score ?? 0), staggerVertraging(1));
+    return () => clearTimeout(t);
+  }, [stand.score]);
+  const vul = useSharedValue(0);
+  useEffect(() => {
+    vul.value = naar((stand.score ?? 0) / 100, 'standaard');
+  }, [stand.score, naar, vul]);
+  const vulStijl = useAnimatedStyle(() => ({ transform: [{ scaleX: vul.value }] }));
+
+  const kosten = stand.kostenR;
+  const kostenKleur = kosten < -0.005 ? colors.verlies : colors.tekstPrimair;
+
+  return (
+    <Animated.View
+      entering={kaartLandt(0, reduceMotion)}
+      layout={schuif}
+      style={[styles.samenvatting, shadow.kaart, { backgroundColor: colors.kaart }]}
+    >
+      <View style={styles.discKop}>
+        <View style={[styles.discTegel, { backgroundColor: colors.primair + '1F' }]}>
+          <ShieldCheck size={17} color={colors.primair} strokeWidth={1.75} />
+        </View>
+        <Text style={[Type.sectiekop, { color: colors.tekstPrimair, flex: 1 }]}>Discipline</Text>
+        <UitlegKnop open={open} onWissel={wissel} onderwerp="discipline" />
+      </View>
+      <UitlegTekst open={open} tekst={DISCIPLINE_UITLEG} />
+
+      {stand.score === null ? (
+        <Text style={[Type.body, { color: colors.tekstGedimd, lineHeight: 22 }]}>
+          Na {MIN_TRADES_VOOR_SCORE} afgesloten trades in deze periode laat Kader zien hoe vaak je je plan volgde. Nu {stand.beoordeeld === 1 ? 'is het er 1' : `zijn het er ${stand.beoordeeld}`}.
+        </Text>
+      ) : (
+        <>
+          <View style={{ gap: spacing.sm }}>
+            <View style={styles.discScoreRij}>
+              <AnimatedGetal waarde={getoond} format={n => String(Math.round(n))} style={[styles.discScore, { color: colors.tekstPrimair }]} />
+              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>van 100</Text>
+            </View>
+            <View style={[styles.discBalk, { backgroundColor: colors.verhoogd }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <Animated.View style={[styles.discVul, { backgroundColor: colors.primair }, vulStijl]} />
+            </View>
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+              {stand.gevolgd} van je {stand.beoordeeld} trades volgden het plan.
+            </Text>
+          </View>
+
+          {stand.meestVoorkomend && (
+            <View style={{ gap: 2 }}>
+              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MEEST VOORKOMENDE AFWIJKING</Text>
+              <Text style={[Type.body, { color: colors.tekstPrimair }]}>
+                {AFWIJKING_LABEL[stand.meestVoorkomend.afwijking]}, {stand.meestVoorkomend.aantal === 1 ? '1 keer' : `${stand.meestVoorkomend.aantal} keer`}
+              </Text>
+            </View>
+          )}
+
+          {stand.stopAfwijkingen > 0 && (
+            <View style={[styles.discTegelBlok, { backgroundColor: colors.verhoogd }]}>
+              <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 19 }]}>
+                Een stop die niet hield kostte je <Text style={[styles.discKosten, { color: kostenKleur }]}>{fmtR(kosten, 1)}</Text> extra in deze periode, bij {stand.stopAfwijkingen === 1 ? '1 trade' : `${stand.stopAfwijkingen} trades`}. Met de stop op zijn plek was het verlies daar 1 R per trade geweest.
+              </Text>
+            </View>
+          )}
+        </>
+      )}
+    </Animated.View>
+  );
+}
+
 // ---------- Groeperen ----------
 
 function groepeerPerMaand(trades: PortfolioTrade[]): MaandGroep[] {
@@ -493,16 +588,14 @@ function looptijdTekst(t: PortfolioTrade): string {
   return `${t.datum}${t.slotDatum ? ` → ${t.slotDatum}` : ''}`;
 }
 
-function fmtR(r: number): string {
-  // Punt als decimaalteken, net als fmtPct ernaast.
-  return `${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(1)}R`;
-}
-
 // ---------- Rij ----------
 
-function TradeRij({ trade, toonDemo, onOpenDetail, onVerwijder }: {
+function TradeRij({ trade, toonDemo, afwijking, onOpenDetail, onVerwijder }: {
   trade: PortfolioTrade;
   toonDemo: boolean;
+  // Alleen gevuld als de trade van het plan afweek. Een trade die het plan volgde krijgt geen
+  // label: op elke rij "volgde plan" is ruis, net als het Demo-label.
+  afwijking: Afwijking | null;
   onOpenDetail: () => void;
   onVerwijder: () => void;
 }) {
@@ -522,7 +615,7 @@ function TradeRij({ trade, toonDemo, onOpenDetail, onVerwijder }: {
     ? (usd >= 0 ? colors.winst : colors.verlies)
     : gewonnen ? colors.winst : colors.verlies;
   const statusKleur = gewonnen ? colors.winst : colors.verlies;
-  const subregel = [behaaldPct !== null ? fmtPct(behaaldPct) : null, r !== null ? fmtR(r) : null]
+  const subregel = [behaaldPct !== null ? fmtPct(behaaldPct) : null, r !== null ? fmtR(r, 1) : null]
     .filter(Boolean).join(' · ');
 
   return (
@@ -533,7 +626,7 @@ function TradeRij({ trade, toonDemo, onOpenDetail, onVerwijder }: {
         onPressOut={druk.drukUit}
         style={styles.rij}
         accessibilityRole="button"
-        accessibilityLabel={`${trade.symbool}, ${gewonnen ? 'gewonnen' : 'verloren'}${usd !== null ? `, ${fmtResultaatUsd(usd)}` : ''}`}
+        accessibilityLabel={`${trade.symbool}, ${gewonnen ? 'gewonnen' : 'verloren'}${usd !== null ? `, ${fmtResultaatUsd(usd)}` : ''}${afwijking ? `, ${AFWIJKING_LABEL[afwijking].toLowerCase()}` : ''}`}
         accessibilityHint="Opent het detail"
         accessibilityActions={[{ name: 'verwijder', label: 'Verwijderen' }]}
         onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'verwijder') onVerwijder(); }}
@@ -548,6 +641,11 @@ function TradeRij({ trade, toonDemo, onOpenDetail, onVerwijder }: {
                 : <X size={11} color={statusKleur} strokeWidth={2.5} />}
               <Text style={[styles.statusTekst, { color: statusKleur }]}>{gewonnen ? 'Gewonnen' : 'Verloren'}</Text>
             </View>
+            {afwijking && (
+              <View style={[styles.demoPil, { borderColor: colors.rand }]}>
+                <Text style={[styles.statusTekst, { color: colors.tekstGedimd }]} numberOfLines={1}>{AFWIJKING_LABEL[afwijking]}</Text>
+              </View>
+            )}
             {toonDemo && trade.etoroOmgeving === 'demo' && (
               <View style={[styles.demoPil, { borderColor: colors.rand }]}>
                 <Text style={[styles.statusTekst, { color: colors.tekstGedimd }]}>Demo</Text>
@@ -648,6 +746,14 @@ const styles = StyleSheet.create({
   },
   stat: { flex: 1, gap: 4 },
   statWaarde: { fontFamily: Fonts.monoMedium, fontSize: 16 },
+  discKop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2 },
+  discTegel: { width: 30, height: 30, borderRadius: radii.veld, alignItems: 'center', justifyContent: 'center' },
+  discScoreRij: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  discScore: { fontFamily: Fonts.monoMedium, fontSize: 34, lineHeight: 40, letterSpacing: -1 },
+  discBalk: { height: 8, borderRadius: radii.pill, overflow: 'hidden' },
+  discVul: { flex: 1, borderRadius: radii.pill, transformOrigin: 'left' },
+  discTegelBlok: { borderRadius: radii.knop, paddingHorizontal: spacing.md, paddingVertical: 10 },
+  discKosten: { fontFamily: Fonts.monoMedium },
   verhoudingBalk: { flexDirection: 'row', gap: 2, height: 4, borderRadius: 2, overflow: 'hidden' },
   groep: { gap: spacing.xs + 2 },
   groepKop: {
