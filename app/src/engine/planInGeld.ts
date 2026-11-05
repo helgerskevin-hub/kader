@@ -186,8 +186,23 @@ export function deelVanSaldo(vrijSaldo: number, deel: number, kostenmarge: numbe
   return Math.min(Math.floor(vrijSaldo * deel * 100) / 100, maxBedrag(vrijSaldo, kostenmarge));
 }
 
+// Het bedrag waarbij je bij de stop precies `risicoPct` procent van je kapitaal verliest:
+// risico in dollars gedeeld door het verlies per ingelegde dollar. Afgerond naar beneden op centen,
+// zodat het risico nooit boven het gekozen percentage uitkomt. Null zonder kapitaal of zonder
+// stop onder de entry: dan valt er niets uit te rekenen en verzint Kader niets.
+export function inlegVoorRisico(kapitaal: number, risicoPct: number, entry: number, stop: number): number | null {
+  if (!geldig(kapitaal) || !geldig(risicoPct) || !geldig(entry) || !geldig(stop) || stop >= entry) return null;
+  const verliesPerDollar = (entry - stop) / entry;
+  return Math.floor(((kapitaal * risicoPct) / 100 / verliesPerDollar) * 100) / 100;
+}
+
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/planInGeld.ts`
 if (require.main === module) {
+  // $4200 kapitaal, 1% risico, stop 4% onder de entry: $42 risico / 0.04 = $1050 inleg.
+  console.assert(inlegVoorRisico(4200, 1, 100, 96) === 1050, `inleg 1050 verwacht, was ${inlegVoorRisico(4200, 1, 100, 96)}`);
+  console.assert(inlegVoorRisico(4200, 1, 100, 100) === null, 'stop op de entry: geen inleg');
+  console.assert(inlegVoorRisico(0, 1, 100, 96) === null, 'zonder kapitaal: geen inleg');
+
   const bijna = (a: number | null | undefined, b: number, eps = 1e-6) => a !== null && a !== undefined && Math.abs(a - b) < eps;
 
   // Long: $250 in SOL op 148.62, stop 139.10, doel 171.30 (de cijfers uit het ontwerp).

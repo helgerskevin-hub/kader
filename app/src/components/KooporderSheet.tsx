@@ -8,7 +8,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Wallet } from 'lucide-react-native';
 import { fmtBedrag, fmtPrijs } from '../engine/format';
-import { deelVanSaldo, maxBedrag, planInGeld } from '../engine/planInGeld';
+import { deelVanSaldo, inlegVoorRisico, maxBedrag, planInGeld } from '../engine/planInGeld';
+import { laadHandelskapitaal } from '../state/useHandelskapitaal';
+import { useRisicoPct } from '../state/useRisicoPct';
+import { RisicoRegel } from './order/RisicoRegel';
 import { bepaalStop, StopAdvies } from '../engine/etoroLimieten';
 import { bouwKooporderBody, guid, haalSaldoStand, KooporderInvoer, plaatsKooporder, SaldoStand } from '../engine/etoro';
 import { koersFactor } from '../engine/etoroSymbolen';
@@ -79,6 +82,11 @@ export function KooporderSheet({
   const { valuta, eurPerUsd } = useValuta();
 
   const [bedrag, setBedrag] = useState('');
+  // Het handelskapitaal, bij elke opening vers gelezen: het kan op Portfolio net zijn ingevuld.
+  const [kapitaal, setKapitaal] = useState<number | null>(null);
+  const { pct: risicoPct, pctGetal: risicoGetal } = useRisicoPct();
+  // Heeft de gebruiker zelf een bedrag getikt of gekozen? Dan vult Kader niets meer voor.
+  const zelfGekozen = useRef(false);
   const [saldo, setSaldo] = useState<SaldoStand | null>(null);
   const [saldoBezig, setSaldoBezig] = useState(true);
   // Wat er werkelijk te besteden is: eToro's `credit` min wat er vastzit in orders die nog niet
@@ -103,6 +111,8 @@ export function KooporderSheet({
     if (!zichtbaar) return;
     verzoekId.current = guid();
     setBedrag('');
+    zelfGekozen.current = false;
+    laadHandelskapitaal().then(setKapitaal).catch(() => setKapitaal(null));
     setFout('');
     setBezig(false);
     loopt.current = false;
@@ -317,13 +327,31 @@ export function KooporderSheet({
     }
   }
 
+  // Mijn risico: het bedrag waarbij je bij de stop je gekozen percentage van je kapitaal verliest,
+  // nooit meer dan Max en nooit onder het eToro-minimum. Zonder kapitaal of zonder eigen stop
+  // (eToro kiest hem) valt er niets te rekenen.
+  const risicoInleg = kapitaal !== null && advies.soort !== 'vast'
+    ? inlegVoorRisico(kapitaal, risicoGetal, entry, getoondeStop)
+    : null;
+  const risicoBedrag = risicoInleg === null ? null
+    : Math.max(MINIMUM_USD, vrijSaldo !== null ? Math.min(risicoInleg, maxBedrag(vrijSaldo, KOSTENMARGE)) : risicoInleg);
+
+  // Vul het bedrag één keer voor zodra het te berekenen is, maar nooit over iets heen dat je zelf
+  // koos of tikte.
+  useEffect(() => {
+    if (!zichtbaar || zelfGekozen.current || risicoBedrag === null) return;
+    setBedrag(String(Math.round(risicoBedrag * 100) / 100));
+  }, [zichtbaar, risicoBedrag]);
+
   // Zonder schrijfrecht hoort deze sheet niet open te kunnen. Komt hij er toch, dan gebeurt er
   // niets in plaats van een half formulier.
   if (!magHandelen) return null;
 
   // Snelknoppen: vaste bedragen altijd, 25% en Max alleen als het saldo bekend is. Een optie onder
-  // het eToro-minimum laten we weg, die zou meteen de rode melding opleveren.
+  // het eToro-minimum laten we weg, die zou meteen de rode melding opleveren. Mijn risico is de
+  // uitzondering: die gaat naar het minimum en de RisicoRegel zegt erbij wat dat betekent.
   const snelOpties: SnelOptie[] = [
+    ...(risicoBedrag !== null ? [{ id: 'risico', label: 'Mijn risico', waarde: risicoBedrag }] : []),
     { id: '50', label: '$50', waarde: 50 },
     { id: '100', label: '$100', waarde: 100 },
     { id: '250', label: '$250', waarde: 250 },
@@ -333,10 +361,11 @@ export function KooporderSheet({
           { id: 'max', label: 'Max', waarde: maxBedrag(vrijSaldo, KOSTENMARGE) },
         ]
       : []),
-  ].filter(o => o.waarde >= MINIMUM_USD);
+  ].filter(o => o.id === 'risico' || o.waarde >= MINIMUM_USD);
 
   function kiesSnel(waarde: number) {
     if (bezig) return;
+    zelfGekozen.current = true;
     setBedrag(String(Math.round(waarde * 100) / 100));
   }
 
@@ -371,7 +400,7 @@ export function KooporderSheet({
             te besteden is voordat hij begint te tikken en niet als voetnoot eronder. */}
         <BedragInvoer
           waarde={bedrag}
-          onWijzig={setBedrag}
+          onWijzig={tekst => { zelfGekozen.current = true; setBedrag(tekst); }}
           accessibilityLabel="Bedrag in dollars"
           bewerkbaar={!bezig}
           onderschrift={
@@ -411,6 +440,16 @@ export function KooporderSheet({
           actief={heeftBedrag ? bedragGetal : undefined}
           onKies={kiesSnel}
           accessibilityLabel="Snel bedrag"
+        />
+
+        <RisicoRegel
+          kapitaal={kapitaal}
+          risicoPct={risicoPct}
+          verliesBijStop={heeftBedrag && plan?.bijStop != null && plan.bijStop < 0 ? -plan.bijStop : null}
+          onderMinimum={risicoInleg !== null && risicoInleg < MINIMUM_USD && heeftBedrag && Math.abs(bedragGetal - MINIMUM_USD) < 0.005 ? risicoInleg : null}
+          minimum={MINIMUM_USD}
+          eurPerUsd={eurPerUsd}
+          heeftStop={planStop !== undefined}
         />
 
         <PlanInGeldKaart

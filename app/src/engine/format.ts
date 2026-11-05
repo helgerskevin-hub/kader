@@ -59,6 +59,12 @@ export function fmtRR(rr: number): string {
   return `1 : ${rr.toFixed(1)}`;
 }
 
+// Resultaat in R (veelvouden van je risico), met expliciet teken en een spatie voor de R: "+0.15 R".
+export function fmtR(r: number, decimalen = 2): string {
+  const afgerond = Number(r.toFixed(decimalen));
+  return `${afgerond >= 0 ? '+' : '−'}${Math.abs(afgerond).toFixed(decimalen)} R`;
+}
+
 // Score als geheel getal
 export function fmtScore(score: number): string {
   return Math.round(score).toString();
@@ -106,6 +112,9 @@ if (require.main === module) {
   console.assert(fmtResultaatUsd(-4.21) === '−$4.21', `verlies krijgt een minteken, was ${fmtResultaatUsd(-4.21)}`);
   console.assert(fmtResultaatUsd(0) === '+$0.00', 'nul telt als niet-negatief');
   console.assert(fmtPct(-16.8) === '−16.8%', 'percentage krijgt een minteken');
+  console.assert(fmtR(0.153) === '+0.15 R', `R krijgt twee decimalen en een spatie, was ${fmtR(0.153)}`);
+  console.assert(fmtR(-1) === '−1.00 R', `verlies in R krijgt een minteken, was ${fmtR(-1)}`);
+  console.assert(fmtR(-0.001) === '+0.00 R', `wat op nul afrondt is geen verlies, was ${fmtR(-0.001)}`);
 
   // Euro's: alleen als er ook echt een koers is opgehaald.
   zetValutaStand({ valuta: 'EUR' });

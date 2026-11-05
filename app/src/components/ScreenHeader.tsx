@@ -6,6 +6,7 @@ import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { InstellingenSheet } from './InstellingenSheet';
 import { AchtergrondScherm } from './AchtergrondScherm';
+import { SignaalScorebordScherm } from './SignaalScorebordScherm';
 import { MeldingenSheet } from './MeldingenSheet';
 import { SysteemMenu, MenuAnker } from './SysteemMenu';
 import { KaderLogo } from './KaderLogo';
@@ -34,6 +35,7 @@ export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props)
   const { gaNaar } = useNavigatie();
   const [instellingenOpen, setInstellingenOpen] = useState(false);
   const [uitlegOpen, setUitlegOpen] = useState(false);
+  const [signaalOpen, setSignaalOpen] = useState(false);
   const [meldingenOpen, setMeldingenOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [anker, setAnker] = useState<MenuAnker | null>(null);
@@ -122,10 +124,12 @@ export function ScreenHeader({ titel, meta, rechts, toonDemoPil = true }: Props)
         ongelezen={ongelezen}
         onMeldingen={openMeldingen}
         onAchtergrond={() => setUitlegOpen(true)}
+        onSignaalresultaat={() => setSignaalOpen(true)}
         onInstellingen={() => setInstellingenOpen(true)}
       />
       <InstellingenSheet zichtbaar={instellingenOpen} onSluiten={() => setInstellingenOpen(false)} />
       <AchtergrondScherm zichtbaar={uitlegOpen} onSluiten={() => setUitlegOpen(false)} />
+      <SignaalScorebordScherm zichtbaar={signaalOpen} onSluiten={() => setSignaalOpen(false)} />
       <MeldingenSheet
         zichtbaar={meldingenOpen}
         onSluiten={() => setMeldingenOpen(false)}

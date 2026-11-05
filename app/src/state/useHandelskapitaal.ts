@@ -8,6 +8,14 @@ import { laadTekst, bewaarTekst, verwijderSleutel, SLEUTELS } from '../storage/o
 // teruggeeft: dat is het vrij besteedbare bedrag van dat ene account, terwijl deze noemer over je
 // eigen plan gaat. Zonder ingevuld kapitaal toont het blootstellingsvak alleen de richtlijn en geen
 // percentage, want een verzonnen noemer maakt elk percentage waardeloos.
+// Los te lezen, voor schermen die het kapitaal alleen nodig hebben op het moment dat ze opengaan
+// (de kooporder) en niet de hele hook willen die alleen bij het mounten laadt.
+export async function laadHandelskapitaal(): Promise<number | null> {
+  const tekst = await laadTekst(SLEUTELS.handelskapitaal, '');
+  const waarde = Number(tekst);
+  return tekst !== '' && Number.isFinite(waarde) && waarde > 0 ? waarde : null;
+}
+
 export function useHandelskapitaal() {
   const [kapitaal, setKapitaal] = useState<number | null>(null);
   const [geladen, setGeladen] = useState(false);

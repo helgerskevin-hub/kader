@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import Constants from 'expo-constants';
-import { X, Link2, Bell, FileText, ChevronRight } from 'lucide-react-native';
+import { X, Link2, Bell, CalendarDays, FileText, ChevronRight } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type, Fonts } from '../theme/typography';
@@ -26,6 +26,10 @@ import { useValuta } from '../state/useValuta';
 import { Valuta } from '../engine/valuta';
 import { meldingenAan } from '../state/meldingVoorkeur';
 import { zetMeldingen } from '../state/meldingSchakelaar';
+import { useRisicoPct, type RisicoPct } from '../state/useRisicoPct';
+import { useHandelskapitaal } from '../state/useHandelskapitaal';
+import { weekrapportAan, zetWeekrapport } from '../notifications/weekrapport';
+import { fmtBedrag } from '../engine/format';
 
 interface Props {
   zichtbaar: boolean;
@@ -36,6 +40,12 @@ const THEMAS: SegmentOptie<ThemaModus>[] = [
   { id: 'systeem', label: 'Systeem', uitleg: 'Thema volgt het systeem' },
   { id: 'licht', label: 'Licht', uitleg: 'Licht thema' },
   { id: 'donker', label: 'Donker', uitleg: 'Donker thema' },
+];
+
+const RISICOS: SegmentOptie<RisicoPct>[] = [
+  { id: '0.5', label: '0.5%', uitleg: 'Een half procent risico per trade' },
+  { id: '1', label: '1%', uitleg: 'Een procent risico per trade' },
+  { id: '2', label: '2%', uitleg: 'Twee procent risico per trade' },
 ];
 
 const VALUTAS: SegmentOptie<Valuta>[] = [
@@ -97,6 +107,9 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const naDemoRef = useRef(false);
   const schermlezer = useSchermlezer();
   const [meldingen, setMeldingen] = useState(true);
+  const [weekrapport, setWeekrapport] = useState(true);
+  const { pct: risico, pctGetal: risicoGetal, kiesPct } = useRisicoPct();
+  const { kapitaal } = useHandelskapitaal();
   const [bezigMeldingen, setBezigMeldingen] = useState(false);
 
   // Hint onder de handelsomgeving na een losse tik op Echt. Alleen de dekking beweegt.
@@ -122,14 +135,20 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   }
 
   async function ververStatussen() {
-    const [status, aan] = await Promise.all([bepaalStatus(), meldingenAan()]);
+    const [status, aan, week] = await Promise.all([bepaalStatus(), meldingenAan(), weekrapportAan()]);
     setSleutelStatus(status);
     setMeldingen(aan);
+    setWeekrapport(week);
   }
 
   // De schakelaar doet meteen wat hij belooft: uit wist de geplande dagelijkse herinnering en
   // schrijft de achtergrondtaak uit. Mislukt dat, dan zetten we de knop terug in plaats van een
   // stand te tonen die niet klopt.
+  function kiesWeekrapport(aan: boolean) {
+    setWeekrapport(aan);
+    zetWeekrapport(aan).catch(() => setWeekrapport(!aan));
+  }
+
   async function kiesMeldingen(aan: boolean) {
     if (aan === meldingen || bezigMeldingen) return;
     setBezigMeldingen(true);
@@ -284,6 +303,22 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
               </LijstGroep>
 
               <LijstGroep
+                titel="Handelen"
+                style={styles.groep}
+                lijnInspringing={spacing.base}
+                voetnoot={
+                  kapitaal !== null
+                    ? `Op ${risico}% van ${fmtBedrag(kapitaal, { valuta: 'USD' })} verlies je bij een geraakte stop ${fmtBedrag((kapitaal * risicoGetal) / 100, { valuta: 'USD' })}. Met Mijn risico in de kooporder rekent Kader het bedrag daarbij uit.`
+                    : 'Wat je verliest als je stop geraakt wordt. Vul op Portfolio je handelskapitaal in, dan rekent de kooporder het bedrag daarbij uit.'
+                }
+              >
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Risico per trade</Text>
+                  <SegmentKnop opties={RISICOS} actief={risico} onKies={kiesPct} />
+                </View>
+              </LijstGroep>
+
+              <LijstGroep
                 titel="Weergave"
                 style={styles.groep}
                 lijnInspringing={spacing.base}
@@ -331,6 +366,21 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                       // Zonder thumbColor kleurt Android de knop in zijn eigen accent (groenblauw).
                       thumbColor={meldingen ? colors.tekstPrimair : colors.verhoogd}
                       accessibilityLabel="Meldingen"
+                    />
+                  }
+                />
+                <LijstRij
+                  icoon={CalendarDays}
+                  titel="Weekrapport"
+                  sub="Zondag vanaf 18:00, je week in R"
+                  rechts={
+                    <Switch
+                      value={meldingen && weekrapport}
+                      onValueChange={kiesWeekrapport}
+                      disabled={!meldingen}
+                      trackColor={{ true: colors.tekstGedimd, false: colors.rand }}
+                      thumbColor={meldingen && weekrapport ? colors.tekstPrimair : colors.verhoogd}
+                      accessibilityLabel="Weekrapport"
                     />
                   }
                 />

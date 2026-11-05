@@ -4,6 +4,7 @@ import { analyseerMarkt } from '../engine/analyzer';
 import { Marktklimaat } from '../engine/marktklimaat';
 import { RelatieveSterkte } from '../engine/relatieveSterkte';
 import { bijwerkenBearModus, BearModusStand } from './bearModus';
+import { registreerSignalen, werkSignalenBij } from './signaalBoek';
 
 type Progress = { current: number; total: number; symbool: string };
 
@@ -120,6 +121,9 @@ export function MarktProvider({ children }: { children: React.ReactNode }) {
         bearModus = null;
       }
       dispatch({ type: 'SUCCESS', trades, alle, klimaat, relatieveSterkte, bearModus, bekeken });
+      // Het signaalboek loopt na de dispatch en zonder await: de Markt hoeft daar niet op te
+      // wachten, en beide functies vangen hun eigen fouten.
+      registreerSignalen(alle).then(() => werkSignalenBij());
     } catch (e) {
       if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
     }

@@ -4,6 +4,13 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Nieuw in Instellingen: Risico per trade, 0.5%, 1% of 2% van je handelskapitaal. In de kooporder staat daarbij de knop Mijn risico: Kader rekent het bedrag uit waarbij je bij je stop precies dat deel verliest, en vult het voor als je zelf nog niets koos. Onder het bedrag zie je wat je bij je stop verliest, in dollars, als deel van je kapitaal en ongeveer in euro's. Kom je boven je gekozen risico uit, of valt Mijn risico onder het eToro-minimum, dan zegt Kader dat erbij
+- Elke zondag vanaf 18:00 een weekrapport: je resultaat van die week in R, bij hoeveel trades je je plan volgde, en hoe de signalen van Kader het deden. Een tik opent Portfolio. Uit te zetten in Instellingen onder Meldingen; een week zonder gesloten trades of signalen geeft geen melding
+- Historie heeft een kaart Discipline. Kader kijkt per afgesloten trade of je je aan het plan hield: eindigde de trade op de stop of het doel waarmee je hem opende? Je ziet een score van 0 tot 100, de afwijking die je het vaakst maakt, en wat een stop die niet hield je extra kostte in R. Een trade die afweek krijgt in de lijst een label, zoals Stop verlaagd of Eerder gesloten. Een stop optrekken om winst vast te zetten telt als het plan volgen
+- Nieuw scherm Signaalresultaat, in het menu rechtsboven. Kader houdt vanaf nu elk koopsignaal bij en kijkt daarna zelf of eerst het doel of de stop geraakt werd, of dat het signaal na 30 dagen verloopt. Je ziet het gemiddelde resultaat in R, hoe vaak een signaal raak was, de uitsplitsing per scoreband en per advies, en de backtest als ijkpunt ernaast. Het boek begint leeg: na een paar weken zie je of de signalen live doen wat de backtest belooft
+
 ## 0.2.5
 
 - Shorts zijn uit Kader gehaald. Er staan geen short-signalen meer op Markt, het boek-icoon heeft geen hoofdstuk Shorts meer, en via eToro kun je alleen nog kopen. Je voert ook geen short meer zelf in. Staat er bij eToro toch een shortpositie of shortorder, dan slaat de import die over en zie je bij het importeren waarom. Shorts die al in Kader stonden, ook gesloten shorts in je historie, zijn verdwenen

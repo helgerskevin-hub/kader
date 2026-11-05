@@ -2,6 +2,8 @@ import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 import { checkOpenTrades, checkPrijsalerts } from './tradeChecks';
 import { checkEtoroSluitingen, checkNiveausGeraakt } from './sluitingen';
+import { werkSignalenBij } from '../state/signaalBoek';
+import { checkWeekrapport } from './weekrapport';
 
 export const TRADE_CHECK_TAAK = 'kader-trade-check';
 
@@ -35,6 +37,15 @@ TaskManager.defineTask(TRADE_CHECK_TAAK, async () => {
       await checkNiveausGeraakt();
     } catch {
       // Volgende ronde opnieuw.
+    }
+    // Het signaalboek remt zichzelf (een paar keer per dag) en vangt zijn eigen fouten.
+    await werkSignalenBij();
+    // Na het signaalboek, zodat het rapport de laatste uitkomsten meeneemt. Eigen vangnet: een
+    // mislukt rapport mag de trade-check niet tegenhouden.
+    try {
+      await checkWeekrapport();
+    } catch {
+      // Volgende ronde opnieuw; het rapport is pas verstuurd als de weeksleutel is opgeslagen.
     }
     await checkOpenTrades();
     return BackgroundTask.BackgroundTaskResult.Success;
