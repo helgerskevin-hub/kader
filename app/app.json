@@ -2,6 +2,7 @@
   "expo": {
     "name": "Kader",
     "slug": "kader",
+    "scheme": "kader",
     "version": "0.2.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -43,7 +44,30 @@
       ],
       "expo-background-task",
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "react-native-android-widget",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/ibm-plex-sans/400Regular/IBMPlexSans_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/ibm-plex-sans/600SemiBold/IBMPlexSans_600SemiBold.ttf",
+            "./node_modules/@expo-google-fonts/ibm-plex-mono/500Medium/IBMPlexMono_500Medium.ttf"
+          ],
+          "widgets": [
+            {
+              "name": "KaderPortfolio",
+              "label": "Kader",
+              "description": "Je open resultaat in R, en welke positie dicht bij stop of doel staat.",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ]
   }
 }

@@ -127,6 +127,11 @@ export const SLEUTELS = {
   // Het "Eén ding vandaag"-advies dat vandaag is weggeveegd: { dag, sleutel, prio }. Zie
   // state/eenDing.ts.
   eenDingWeg: 'een_ding_weg',
+  // Wat de Android-widget toont: de laatst berekende WidgetStand. De widget tekent alleen wat hier
+  // staat; de app en de achtergrondtaak rekenen het uit. Zie state/widgetStand.ts.
+  widgetStand: 'widget_stand',
+  // Toont de widget naast R ook dollars? 'aan' of 'uit', ontbreekt = uit. Zie state/useWidgetBedragen.ts.
+  widgetBedragen: 'widget_bedragen',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {
