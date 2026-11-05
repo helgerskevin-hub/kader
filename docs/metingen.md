@@ -176,3 +176,50 @@ kan blijven staan: hij kost niets en de trades waar hij vuurt doen het met opvol
 minuten. Een koers die binnen een dag door de laatste 10% naar het doel schiet, raakt in de backtest
 meteen het doel zonder dat de regel kans krijgt. In het echt vuurt de melding dus vaker dan 1,6%. Om
 dat te meten is intraday-data nodig; zonder die data is dit de ondergrens van het effect.
+
+## Meting L: uitstapsignaal bij omslaand momentum (5 nov 2026)
+
+De vraag (D5 in het plan): staat je positie op het slot van een dag minstens +1 R in winst en draait
+het momentum, levert ingrijpen dan meer op dan wachten op doel of stop? Pas als dat in de meeste
+jaren wint, krijgt Kader er een melding voor. Gemeten op exact dezelfde 3170 instappen als meting B
+en K. De trigger draait op het slot met alleen de candles tot dan; de actie geldt vanaf de volgende
+dag. Eén keer per trade.
+
+Drie triggers, elk met twee acties:
+
+- **T1**: slot onder EMA20.
+- **T2**: slot onder EMA20 en MACD-histogram negatief.
+- **T3**: MACD-histogram kruist van positief naar negatief.
+- **stop**: stop naar de instap. **sluit**: verkopen op de open van de volgende dag.
+
+| variant | n | treffer% | gem R | totaal R | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | wint jaren |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| B wachten | 3170 | 32,1 | +0,083 | 264 | -0,34 | 0,07 | 0,59 | 0,41 | -0,33 | 0,30 | -0,01 | -0,24 | -0,14 | |
+| T1 stop | 3170 | 32,0 | +0,084 | 267 | -0,32 | 0,08 | 0,59 | 0,41 | -0,33 | 0,30 | -0,01 | -0,24 | -0,14 | 4 van 9 |
+| T1 sluit | 3170 | 32,3 | +0,082 | 260 | -0,29 | 0,08 | 0,56 | 0,39 | -0,33 | 0,31 | -0,00 | -0,24 | -0,15 | 5 van 9 |
+| T2 stop | 3170 | 32,0 | +0,084 | 265 | -0,34 | 0,08 | 0,59 | 0,41 | -0,33 | 0,30 | -0,01 | -0,24 | -0,14 | 2 van 9 |
+| T2 sluit | 3170 | 32,2 | +0,081 | 256 | -0,34 | 0,08 | 0,56 | 0,39 | -0,33 | 0,31 | -0,01 | -0,24 | -0,15 | 4 van 9 |
+| T3 stop | 3170 | 31,8 | +0,084 | 266 | -0,32 | 0,05 | 0,57 | 0,40 | -0,32 | 0,31 | -0,01 | -0,24 | -0,14 | 6 van 9 |
+| T3 sluit | 3170 | 32,8 | +0,085 | 269 | -0,31 | 0,08 | 0,55 | 0,39 | -0,30 | 0,32 | -0,00 | -0,24 | -0,13 | 6 van 9 |
+
+**De trigger vuurt bijna nooit.** T1 in 18 trades (0,6%), T2 in 16 (0,5%), T3 in 59 (1,9%). Een
+swingtrade die +1 R staat loopt meestal door naar het doel of zakt terug, zonder dat het dagslot
+eerst onder de EMA20 komt.
+
+**Op de trades waar hij vuurt:** T3 sluit haalt +1,31 R tegen +1,23 R voor wachten (59 trades, samen
++5 R in negen jaar). T1 en T2 sluit doen het juist slechter dan wachten (+1,31 tegen +1,50 en +1,33
+tegen +1,81): die trades liepen daarna vaak alsnog naar het doel. Stop naar instap scheelt overal
+weinig, want de mediaan valt terug naar 0 R terwijl het gemiddelde nauwelijks stijgt.
+
+**Conclusie: geen uitstapmelding bouwen.** Alleen T3 wint formeel in 6 van de 9 jaren, maar met een
+verschil van +0,002 R per trade en jaarverschillen van 0,01 tot 0,03 R. Dat valt in dezelfde ruis
+als meting K. T3 wint ook juist in de bearjaren (2018, 2022, 2026) en verliest in 2020 en 2021, dus
+het is eerder "minder lang blijven zitten in een slechte markt" dan een bruikbaar uitstapmoment. Een
+melding die over alle coins samen een keer of zes per jaar komt en per keer ongeveer +0,08 R oplevert, rechtvaardigt
+geen extra melding. Daarmee vervalt ook de actie "winst nemen bij omslaand momentum" in de
+"Eén ding vandaag"-kaart (D9). "Winst nemen vlak bij het doel" kan daar wel blijven.
+
+**Kanttekening:** net als bij meting K toetst de backtest één keer per dag op het slot, terwijl de
+app elke 5 tot 15 minuten kijkt. EMA20 en MACD zijn hier over de hele reeks per coin berekend in
+plaats van over het venster van 200 candles van de app; beide zijn causaal, dus dat geeft geen
+look-ahead, alleen een verwaarloosbaar ander startpunt.
