@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.3.0
 
 - Nieuw: het scherm Nieuw in Kader. Na een update loop je in een paar veegbare stappen langs wat er nieuw is, met per onderdeel waar je het vindt. Het vervangt de oude melding en opent één keer per versie. Opnieuw bekijken kan altijd via Instellingen, Wijzigingen, Bekijk de rondleiding
 - Nieuw: een Kader-widget voor je startscherm. Klein toont hij het open resultaat van je posities in R, breder ook de drie posities die het dichtst bij hun stop of doel staan. In Demo staat er klein Demo bij. Een tik opent Portfolio. De widget ververst als je Kader gebruikt, en daarbuiten ongeveer elk half uur. Bedragen in dollars staan er alleen op als je dat in Instellingen onder Widget aanzet

@@ -40,8 +40,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
-    datum: '2026-11-05',
+    versie: '0.3.0',
+    datum: '2026-11-06',
     nieuweFeatures: [
       {
         icoon: 'risico',
