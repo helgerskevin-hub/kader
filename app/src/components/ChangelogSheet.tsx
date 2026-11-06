@@ -16,6 +16,8 @@ interface Props {
   onSluiten: () => void;
   // Toont alleen de nieuwste versie, voor de "nieuw in deze versie"-melding bij opstarten
   alleenNieuwste?: boolean;
+  // Opent de rondleiding Nieuw in Kader. Alleen een knop als de nieuwste versie pagina's heeft.
+  onRondleiding?: () => void;
 }
 
 // Tussen twee releases staat er "Nog niet uitgebracht" in plaats van een nummer, en daar hoort geen
@@ -48,7 +50,7 @@ const VEL_DEEL_VAN_SCHERM = 0.8;
 const RUIMTE_OM_DE_LIJST = 120;
 const LIJST_MINIMUM = 160;
 
-export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) {
+export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste, onRondleiding }: Props) {
   const { colors } = useTheme();
   const { height: schermHoogte } = useWindowDimensions();
   const lijstHoogte = Math.max(LIJST_MINIMUM, schermHoogte * VEL_DEEL_VAN_SCHERM - RUIMTE_OM_DE_LIJST);
@@ -80,6 +82,12 @@ export function ChangelogSheet({ zichtbaar, onSluiten, alleenNieuwste }: Props) 
               <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
             </Pressable>
           </View>
+
+          {onRondleiding && (CHANGELOG[0]?.nieuweFeatures?.length ?? 0) > 0 && (
+            <View style={styles.rondleiding}>
+              <PilKnop label="Bekijk de rondleiding" icoon={Sparkles} variant="tweede" onPress={onRondleiding} haptiek="tik" />
+            </View>
+          )}
 
           <ScrollView showsVerticalScrollIndicator style={{ maxHeight: lijstHoogte }}>
             {CHANGELOG.map(entry => {
@@ -189,6 +197,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.base,
   },
+  rondleiding: { marginBottom: spacing.base },
   sluitKnop: { minHeight: 44, minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   groep: { marginBottom: spacing.base },
   versieKop: { marginBottom: spacing.sm, paddingHorizontal: spacing.base },

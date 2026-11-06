@@ -16,6 +16,8 @@ import { LijstRij } from './lijst/LijstRij';
 import { SegmentKnop, SegmentOptie } from './SegmentKnop';
 import { Disclaimer } from './Disclaimer';
 import { ChangelogSheet } from './ChangelogSheet';
+import { NieuwInKaderScherm } from './NieuwInKaderScherm';
+import { CHANGELOG } from '../changelog';
 import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
 import { heeftSleutels } from '../state/etoroSleutels';
 import { usePortfolio } from '../state/PortfolioProvider';
@@ -99,6 +101,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   // Meteen ophalen zodra de koppeling is opgeslagen, niet pas bij de volgende app-start.
   const { omgeving, setOmgeving } = usePortfolio();
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [rondleidingOpen, setRondleidingOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [sleutelStatus, setSleutelStatus] = useState<SleutelStatus>('Niet ingesteld');
   const [bezigWisselen, setBezigWisselen] = useState(false);
@@ -429,7 +432,20 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
       </PodiumScherm>
 
       {/* Eigen Modals, dus ze liggen boven het scherm; dat blijft eronder gewoon staan. */}
-      <ChangelogSheet zichtbaar={changelogOpen} onSluiten={() => setChangelogOpen(false)} />
+      <ChangelogSheet
+        zichtbaar={changelogOpen}
+        onSluiten={() => setChangelogOpen(false)}
+        onRondleiding={() => {
+          // Eerst de sheet laten wegschuiven, dan pas het scherm: geen twee Modals tegelijk in beweging.
+          setChangelogOpen(false);
+          setTimeout(() => setRondleidingOpen(true), 280);
+        }}
+      />
+      <NieuwInKaderScherm
+        zichtbaar={rondleidingOpen}
+        onSluiten={() => setRondleidingOpen(false)}
+        features={CHANGELOG[0]?.nieuweFeatures ?? []}
+      />
       <EtoroKoppelingWizard
         zichtbaar={wizardOpen}
         onSluiten={() => setWizardOpen(false)}

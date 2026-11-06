@@ -45,6 +45,7 @@ import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { DialoogProvider } from './src/state/DialoogProvider';
 import { NavigatieProvider } from './src/state/navigatie';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
+import { NieuwInKaderScherm } from './src/components/NieuwInKaderScherm';
 import { WelkomFeest } from './src/components/WelkomFeest';
 import { EtoroPromptSheet } from './src/components/EtoroPromptSheet';
 import { EtoroKoppelingWizard } from './src/components/EtoroKoppelingWizard';
@@ -171,6 +172,10 @@ function AppInhoud() {
   const [onboardingGeladen, setOnboardingGeladen] = useState(false);
   const [actieveTab, setActieveTab] = useState<Tab>('markt');
   const [nieuwInVersie, setNieuwInVersie] = useState(false);
+  const nieuweFeatures = CHANGELOG[0]?.nieuweFeatures ?? [];
+  const [rondleidingOpen, setRondleidingOpen] = useState(false);
+  // Een verse installatie hoeft de nieuwigheden van deze versie niet te zien: alles is dan nieuw.
+  const verseInstallatie = useRef(false);
   const [welkomOpen, setWelkomOpen] = useState(false);
   const [etoroPromptOpen, setEtoroPromptOpen] = useState(false);
   const [etoroSetupOpen, setEtoroSetupOpen] = useState(false);
@@ -408,14 +413,27 @@ function AppInhoud() {
     laadTekst(SLEUTELS.changelogVersie, '').then(gezien => {
       const nieuwste = nieuwsteVersie();
       if (gezien === nieuwste) return;
+      if (verseInstallatie.current) {
+        bewaarTekst(SLEUTELS.changelogVersie, nieuwste);
+        verwijsNaarEtoroIndienNodig();
+        return;
+      }
       // Mijlpaal-release: eerst het feestelijke welkomscherm, daarna pas de release-notes.
       if (CHANGELOG[0]?.feest) setWelkomOpen(true);
-      else setNieuwInVersie(true);
+      else toonNieuws();
     });
   }, [onboardingGeladen, onboardingKlaar]);
 
+  // De rondleiding Nieuw in Kader als de nieuwste versie pagina's heeft, anders de oude melding.
+  // Nooit allebei.
+  function toonNieuws() {
+    if (nieuweFeatures.length > 0) setRondleidingOpen(true);
+    else setNieuwInVersie(true);
+  }
+
   function sluitNieuwInVersie() {
     setNieuwInVersie(false);
+    setRondleidingOpen(false);
     bewaarTekst(SLEUTELS.changelogVersie, nieuwsteVersie());
     verwijsNaarEtoroIndienNodig();
   }
@@ -439,6 +457,7 @@ function AppInhoud() {
     return (
       <OnboardingScreen
         onKlaar={() => {
+          verseInstallatie.current = true;
           setOnboardingKlaar(true);
           bewaarVlag(SLEUTELS.onboarding, true);
           stelDagelijkseMeldingIn();
@@ -492,9 +511,10 @@ function AppInhoud() {
       <StatusBar style={donkerActief ? 'light' : 'dark'} />
       <WelkomFeest
         zichtbaar={welkomOpen}
-        onVerder={() => { setWelkomOpen(false); setNieuwInVersie(true); }}
+        onVerder={() => { setWelkomOpen(false); toonNieuws(); }}
       />
       <ChangelogSheet zichtbaar={nieuwInVersie} onSluiten={sluitNieuwInVersie} alleenNieuwste />
+      <NieuwInKaderScherm zichtbaar={rondleidingOpen} onSluiten={sluitNieuwInVersie} features={nieuweFeatures} />
       <EtoroPromptSheet
         zichtbaar={etoroPromptOpen}
         onLater={() => setEtoroPromptOpen(false)}
