@@ -1,6 +1,14 @@
 // Bron voor het in-app wijzigingenscherm en de "nieuw in deze versie"-melding.
 // Handmatig gelijk houden met CHANGELOG.md in de projectmap. Nieuwste eerst.
 
+export interface NieuweFeature {
+  icoon: 'risico' | 'doel' | 'kansen' | 'benchmark' | 'spreiding' | 'export' | 'widget';
+  kleur: 'cta' | 'primair' | 'letOp' | 'winst' | 'goud';
+  titel: string;
+  tekst: string;
+  plek: string;
+}
+
 export interface ChangelogEntry {
   versie: string;
   datum: string;
@@ -16,6 +24,11 @@ export interface ChangelogEntry {
     titel: string;
     tekst: string;
   }[];
+  // Pagina's voor het scherm "Nieuw in Kader" (components/NieuwInKaderScherm): per nieuwe feature
+  // een icoon, titel, uitleg en de plek waar je het vindt. Heeft de nieuwste versie dit veld, dan
+  // opent dat scherm bij het eerste opstarten in plaats van de "nieuw in deze versie"-melding.
+  // Icoon en kleur zijn sleutels, zodat dit bestand vrij blijft van UI-imports.
+  nieuweFeatures?: NieuweFeature[];
   // Ingekorte lijst voor het scherm Wijzigingen in de app: een paar korte punten per onderdeel.
   // `punten` blijft de volledige lijst (gelijk aan CHANGELOG.md) en wordt in de app alleen getoond
   // als er geen groepen zijn.
@@ -29,7 +42,59 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     versie: 'Nog niet uitgebracht',
     datum: '2026-11-05',
+    nieuweFeatures: [
+      {
+        icoon: 'risico',
+        kleur: 'letOp',
+        titel: 'Je risico in beeld',
+        tekst: 'Kader toont wat je verliest als al je stops tegelijk geraakt worden, zet na drie verliestrades een rem aan en rekent de spread door in R.',
+        plek: 'Portfolio en de kooporder',
+      },
+      {
+        icoon: 'doel',
+        kleur: 'cta',
+        titel: 'Eén ding vandaag',
+        tekst: 'Eén kaart met het belangrijkste dat je nu kunt doen: winst nemen, je stop optrekken of een sterk koopsignaal. Open posities gaan voor.',
+        plek: 'Bovenaan Markt',
+      },
+      {
+        icoon: 'kansen',
+        kleur: 'primair',
+        titel: 'Gemiste kansen',
+        tekst: 'Signalen die hun doel haalden terwijl je niet kocht, en eerlijk daarnaast de stops die je zo ontweek.',
+        plek: 'Markt en Signaalresultaat',
+      },
+      {
+        icoon: 'benchmark',
+        kleur: 'cta',
+        titel: 'Jij tegen BTC',
+        tekst: 'Een gestippelde lijn laat zien wat hetzelfde geld op dezelfde dagen in BTC had gedaan. Zo weet je of je beter deed dan vasthouden.',
+        plek: 'Waardegrafiek in Historie',
+      },
+      {
+        icoon: 'spreiding',
+        kleur: 'primair',
+        titel: 'Spreiding',
+        tekst: 'Hoeveel losse weddenschappen zijn je open posities echt? Per positie zie je hoe sterk hij met BTC meebeweegt.',
+        plek: 'Portfolio en de kooporder',
+      },
+      {
+        icoon: 'export',
+        kleur: 'cta',
+        titel: 'Exporteren',
+        tekst: 'Deel je afgesloten trades per jaar als CSV, of als PDF-jaaroverzicht met de waarde van je open posities op 1 januari.',
+        plek: 'Deel-icoon rechtsboven in Historie',
+      },
+      {
+        icoon: 'widget',
+        kleur: 'cta',
+        titel: 'Widget voor je startscherm',
+        tekst: 'Het open resultaat van je posities in R, in één oogopslag. Breder zie je ook de posities die het dichtst bij hun stop of doel staan.',
+        plek: 'Houd je startscherm lang ingedrukt',
+      },
+    ],
     punten: [
+'Nieuw: het scherm Nieuw in Kader. Na een update loop je in een paar veegbare stappen langs wat er nieuw is, met per onderdeel waar je het vindt. Het vervangt de oude melding en opent één keer per versie. Opnieuw bekijken kan altijd via Instellingen, Wijzigingen, Bekijk de rondleiding',
       'Nieuw: een Kader-widget voor je startscherm. Klein toont hij het open resultaat van je posities in R, breder ook de drie posities die het dichtst bij hun stop of doel staan. In Demo staat er klein Demo bij. Een tik opent Portfolio. De widget ververst als je Kader gebruikt, en daarbuiten ongeveer elk half uur. Bedragen in dollars staan er alleen op als je dat in Instellingen onder Widget aanzet',
       'Nieuw in Historie: exporteren. Het deel-icoon rechtsboven opent een sheet waar je een jaar kiest en je afgesloten trades als CSV of als PDF-jaaroverzicht deelt, met per trade open- en sluitdatum, instap, uitstap, bedrag, R en resultaat in dollars en euro\'s. Het overzicht toont ook de waarde van je open posities op 1 januari in euro\'s (box 3-peildatum). Alleen echt geld, demo-trades gaan nooit mee. Is de koers van een dag niet te vinden, dan staat er "koers onbekend" of blijft het veld leeg',
       'Nieuw op Portfolio: de kaart Spreiding. Die laat zien hoeveel losse weddenschappen je open posities eigenlijk zijn, want crypto beweegt vaak samen met BTC. Per positie zie je hoe sterk hij met BTC meebeweegt, gemeten over de afgelopen 30 dagen. In de kooporder staat een regel als de coin sterk meebeweegt met posities die je al hebt',
