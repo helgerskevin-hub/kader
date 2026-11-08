@@ -142,6 +142,16 @@ export function analysePortfolio(portfolio: Record<string, number>): PortfolioAn
   };
 }
 
+// Aanbevolen Copy Stop Loss in procent, op basis van het oordeel en de grootste daling. Los
+// geëxporteerd zodat de Copy-tab (engine/copyTrading.ts) dezelfde regel gebruikt als de handmatige
+// beoordeling, en er geen twee adviezen naast elkaar ontstaan.
+export function copyStopLossAdvies(oordeel: 'GROEN' | 'GEEL' | 'ROOD', maxDrawdown: number): number {
+  const dd = maxDrawdown;
+  if (oordeel === 'GROEN') return Math.min(40, Math.max(20, Math.round(dd * 1.2 / 5) * 5));
+  if (oordeel === 'GEEL') return Math.min(30, Math.max(15, Math.round(dd * 1.0 / 5) * 5));
+  return Math.min(20, Math.max(10, Math.round(dd * 0.6 / 5) * 5));
+}
+
 export function beoordeelTrader(trader: TraderInput): TraderAudit {
   const cons = analyseConsistentie(trader.maandrendementen ?? []);
   const risico = analyseRisico(trader.maandrendementen ?? [], trader.maxDrawdown ?? 0, trader.jaarrendement, trader.riskScore ?? 4);
@@ -155,11 +165,7 @@ export function beoordeelTrader(trader: TraderInput): TraderAudit {
   else if (totaal >= 50) { oordeel = 'GEEL'; kleur = 'yellow'; }
   else { oordeel = 'ROOD'; kleur = 'red'; }
 
-  const dd = risico.maxDrawdown;
-  let csl: number;
-  if (oordeel === 'GROEN') csl = Math.min(40, Math.max(20, Math.round(dd * 1.2 / 5) * 5));
-  else if (oordeel === 'GEEL') csl = Math.min(30, Math.max(15, Math.round(dd * 1.0 / 5) * 5));
-  else csl = Math.min(20, Math.max(10, Math.round(dd * 0.6 / 5) * 5));
+  const csl = copyStopLossAdvies(oordeel, risico.maxDrawdown);
 
   return { naam: trader.naam ?? 'Onbekend', consistentie: cons, risico, portfolio: port, totaalscore: totaal, oordeel, kleur, csl };
 }

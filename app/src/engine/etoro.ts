@@ -118,7 +118,7 @@ export interface EtoroPortfolioRespons {
   };
 }
 
-interface EtoroInstrument {
+export interface EtoroInstrument {
   instrumentID: number;
   symbolFull?: string;
   ticker?: string;
@@ -169,6 +169,13 @@ const DEMO_PADEN: ReadonlyArray<readonly [string, string]> = [
   // Gemeten: PATCH /api/v2/trading/demo/positions/{id} geeft 202 en verzet de stop echt.
   // De drie andere plaatsingen van het /demo/-segment gaven allemaal RouteNotFound.
   ['/trading/positions/', '/trading/demo/positions/'],
+  // Copy trading (de CopyTrader van eToro zelf). Uit de docs, nog niet gemeten: in demo komt /demo/
+  // direct achter /trading/copy, ook voor eligibility, close en het opvragen van de uitkomst.
+  ['/trading/copy', '/trading/copy/demo'],
+  // Openbare gegevens over andere gebruikers: ranglijst, rendement, live portfolio. Niet
+  // accountgebonden, dus in demo hetzelfde pad.
+  ['/user-info/', '/user-info/'],
+  ['/portfolios/', '/portfolios/'],
 ];
 
 // Alleen het pad zelf vergelijken; de querystring blijft ongemoeid achter het pad hangen.
@@ -235,7 +242,7 @@ export function duidOrderStatus(status: number): 'ok' | 'fout' | 'onbekend' {
   return 'onbekend';
 }
 
-async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: FetchOpties = {}): Promise<T> {
+export async function etoroFetch<T>(pad: string, sleutels: EtoroSleutels, opties: FetchOpties = {}): Promise<T> {
   const { versie = 'v1', body, methode, verzoekId, schrijft = false } = opties;
   const werkelijkPad = (sleutels.omgeving ?? 'real') === 'demo' ? demoPad(pad) : pad;
 
@@ -577,7 +584,8 @@ export function duidFout(e: unknown, verzoekId: string): OrderUitkomst {
 // component; deze guard geldt voor de hele app, ook als er twee sheets tegelijk open zouden staan.
 let orderLoopt = false;
 
-async function voerOrderUit(
+// Geëxporteerd voor de copy-acties in etoroTraders.ts: die vallen onder hetzelfde slot.
+export async function voerOrderUit(
   verzoekId: string,
   actie: () => Promise<{ orderId?: number; token?: string } | undefined>,
 ): Promise<OrderUitkomst> {
@@ -1007,7 +1015,7 @@ export async function haalStopLossLimieten(
   return kaart;
 }
 
-async function haalInstrumenten(ids: number[], sleutels: EtoroSleutels): Promise<Map<number, EtoroInstrument>> {
+export async function haalInstrumenten(ids: number[], sleutels: EtoroSleutels): Promise<Map<number, EtoroInstrument>> {
   const kaart = new Map<number, EtoroInstrument>();
   if (ids.length === 0) return kaart;
   // De respons komt terug onder instrumentDisplayDatas (geverifieerd tegen de echte API-respons).
@@ -1031,7 +1039,7 @@ export async function haalKoersRuw(instrumentId: number, sleutels: EtoroSleutels
 // hoeven te gokken (en zodat het blijft werken als eToro de nummering ooit wijzigt).
 // ponytail: lukt de herkenning niet (onverwachte responsvorm), dan filteren we niet op type en
 // nemen we liever een aandeel te veel mee dan een crypto te missen.
-async function haalCryptoTypeIds(sleutels: EtoroSleutels): Promise<Set<number> | null> {
+export async function haalCryptoTypeIds(sleutels: EtoroSleutels): Promise<Set<number> | null> {
   try {
     const data = await etoroFetch<unknown>('/market-data/instrument-types', sleutels);
     const lijst = Array.isArray(data) ? data : Array.isArray((data as any)?.instrumentTypes) ? (data as any).instrumentTypes : null;
@@ -1051,7 +1059,7 @@ async function haalCryptoTypeIds(sleutels: EtoroSleutels): Promise<Set<number> |
   }
 }
 
-function symboolVan(instrument: EtoroInstrument | undefined): string {
+export function symboolVan(instrument: EtoroInstrument | undefined): string {
   const ruw = instrument?.ticker ?? instrument?.symbolFull ?? '';
   return ruw.replace(/\/.*$/, '').toUpperCase(); // "BTC/USD" -> "BTC"
 }
@@ -1800,6 +1808,15 @@ if (require.main === module) {
     'de orderstatus heeft een eigen demo-pad, en de querystring blijft erachter staan');
   console.assert(demoPad('/trading/info/orders:lookup?referenceId=abc') === '/trading/info/demo/orders:lookup?referenceId=abc',
     'ook opzoeken op verzoek-id gaat naar demo');
+  // Copy trading: in demo komt /demo/ direct achter /trading/copy (uit de docs).
+  console.assert(demoPad('/trading/copy') === '/trading/copy/demo', 'een copy starten gaat in demo naar /trading/copy/demo');
+  console.assert(demoPad('/trading/copy/eligibility') === '/trading/copy/demo/eligibility', 'de copy-precheck heeft een demo-pad');
+  console.assert(demoPad('/trading/copy/close') === '/trading/copy/demo/close', 'een copy stoppen heeft een demo-pad');
+  console.assert(demoPad('/trading/copy/kader-abc') === '/trading/copy/demo/kader-abc', 'de uitkomst opvragen heeft een demo-pad');
+  console.assert(demoPad('/user-info/people/jan/portfolio/live') === '/user-info/people/jan/portfolio/live',
+    'andermans live portfolio is niet accountgebonden');
+  console.assert(demoPad('/portfolios/rankings?period=OneYearAgo') === '/portfolios/rankings?period=OneYearAgo',
+    'de ranglijst is niet accountgebonden');
   console.assert(isDefinitieveStatus(7) === true && isDefinitieveStatus(3) === true, 'geannuleerd en uitgevoerd zijn definitief');
   console.assert(isDefinitieveStatus(11) === false && isDefinitieveStatus(1) === false, 'wachten op de markt en ontvangen zijn niet definitief');
   console.assert(statusInGewoneTaal(11) === 'wacht tot de markt opent', 'status 11 in gewone taal');

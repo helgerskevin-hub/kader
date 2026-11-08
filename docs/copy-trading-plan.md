@@ -267,6 +267,21 @@ dat Kader iets hoeft te doen. Dat is nul tikken per trade.
 - Uitleg in de sheet: "eToro kopieert vanaf nu alle trades van cryptojan, ook die buiten crypto. Je
   stopt het kopiëren in eToro of hier."
 
+### Extra regels, omdat eToro dan alles kopieert
+
+Bij "Kopieer alles" neemt eToro ook shorts en hefboom van de trader over. Een short kan meer
+verliezen dan de inzet van die ene positie, en hefboom versnelt elk verlies. Daarom:
+
+1. **Alleen voor rustige traders.** De knop is alleen actief als de trader een lage gemiddelde
+   hefboom heeft (hooguit 2x) en weinig shorts (hooguit 20% van zijn open posities). Gemeten op zijn
+   live portfolio op het moment dat je de sheet opent. Anders staat er in plaats van de knop: "Deze
+   trader gebruikt veel hefboom of shorts. Kopieer zijn trades liever een voor een."
+2. **Copy Stop Loss verplicht.** Het veld kan niet leeg en niet op 0. Standaard staat het op het
+   advies van de auditor. De gebruiker mag het krapper zetten, niet ruimer dan 50%.
+
+Uitleg in de sheet, onder het bedrag: "Bij een short of hefboom kan een positie meer verliezen dan
+de inzet. De Copy Stop Loss stopt de hele copy als die grens wordt geraakt."
+
 Dit staat in fase 3 omdat de endpoints nog gemeten moeten worden.
 
 ## 5. Meldingen

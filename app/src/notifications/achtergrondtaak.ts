@@ -4,6 +4,7 @@ import { checkOpenTrades, checkPrijsalerts } from './tradeChecks';
 import { checkEtoroSluitingen, checkNiveausGeraakt } from './sluitingen';
 import { werkSignalenBij } from '../state/signaalBoek';
 import { checkWeekrapport } from './weekrapport';
+import { checkFavorieteTraders } from './traderChecks';
 import { ververWidgetMetVerseKoersen } from '../widget/widgetVerversen';
 
 export const TRADE_CHECK_TAAK = 'kader-trade-check';
@@ -45,6 +46,13 @@ TaskManager.defineTask(TRADE_CHECK_TAAK, async () => {
       await checkNiveausGeraakt();
     } catch {
       // Volgende ronde opnieuw.
+    }
+    // Nieuwe trades van favoriete beleggers (Copy-tab). Tijdgevoelig, dus vóór de zware checks, en
+    // met een eigen vangnet. Deze check leest en meldt alleen; hij plaatst nooit een order.
+    try {
+      await checkFavorieteTraders();
+    } catch {
+      // Volgende ronde opnieuw. Wat de trader opende staat dan nog steeds open en is dan nog nieuw.
     }
     // Het signaalboek remt zichzelf (een paar keer per dag) en vangt zijn eigen fouten.
     await werkSignalenBij();

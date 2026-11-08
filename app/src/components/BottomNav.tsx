@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Activity, Zap, Wallet, Users } from 'lucide-react-native';
+import { Activity, Zap, Wallet, Copy } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { radii, spacing } from '../theme/tokens';
@@ -17,7 +17,7 @@ import { veer } from '../theme/beweging';
 import { haptiekVanUI } from '../theme/haptiek';
 import { useReduceMotion } from '../theme/useReduceMotion';
 
-export type Tab = 'markt' | 'kansen' | 'portfolio' | 'traders';
+export type Tab = 'markt' | 'kansen' | 'portfolio' | 'copy';
 
 interface TabItem {
   id: Tab;
@@ -29,7 +29,7 @@ const TABS: TabItem[] = [
   { id: 'markt', label: 'Markt', Icon: Activity },
   { id: 'kansen', label: 'Kansen', Icon: Zap },
   { id: 'portfolio', label: 'Portfolio', Icon: Wallet },
-  { id: 'traders', label: 'Traders', Icon: Users },
+  { id: 'copy', label: 'Copy', Icon: Copy },
 ];
 
 // De volgorde van links naar rechts, ook de volgorde van de pagina's waartussen je swipet.

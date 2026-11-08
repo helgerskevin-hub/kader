@@ -18,7 +18,10 @@ export type MeldingDoel =
   // Gaat over je posities als geheel, niet over één trade.
   | { soort: 'portfolio' }
   // Gaat over de markt als geheel, zoals een omslag van het klimaat.
-  | { soort: 'markt' };
+  | { soort: 'markt' }
+  // Een trade van een favoriete belegger in de Copy-tab. `sleutel` is "username:positionId" van de
+  // feedregel; een tik opent de koopsheet voor die trade als hij nog te kopiëren is.
+  | { soort: 'copy'; sleutel?: string };
 
 function tekst(waarde: unknown): string | null {
   return typeof waarde === 'string' && waarde.length > 0 ? waarde : null;
@@ -48,5 +51,9 @@ export function leesDoel(ruw: unknown): MeldingDoel | null {
   }
   if (soort === 'portfolio') return { soort: 'portfolio' };
   if (soort === 'markt') return { soort: 'markt' };
+  if (soort === 'copy') {
+    const sleutel = tekst((ruw as { sleutel?: unknown }).sleutel);
+    return sleutel ? { soort: 'copy', sleutel } : { soort: 'copy' };
+  }
   return null;
 }

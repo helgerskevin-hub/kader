@@ -74,10 +74,17 @@ interface Props {
   // eerst dicht voordat "Naar portfolio" ergens naartoe kan: een tabwissel eronder is niet te zien
   // zolang die Modal er nog overheen ligt. Schermen die zelf een tab zijn laten dit weg.
   onVerlaatScherm?: () => void;
+  // Vult het bedrag voor bij het openen, zoals het vaste copybedrag uit de Copy-tab. De gebruiker
+  // kan het nog wijzigen; Kader vult daarna niets meer voor.
+  startBedrag?: number;
+  // Na een order die eToro aannam. Voor de Copy-tab, die onthoudt welke trade je kopieerde.
+  onGelukt?: (info: { verzoekId: string; omgeving: 'real' | 'demo' }) => void;
+  // Eigen titel voor de bevestigingsdialoog, bijvoorbeeld "Kopie staat bij eToro".
+  geluktTitel?: string;
 }
 
 export function KooporderSheet({
-  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm,
+  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm, startBedrag, onGelukt, geluktTitel,
 }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
@@ -128,9 +135,10 @@ export function KooporderSheet({
   useEffect(() => {
     if (!zichtbaar) return;
     verzoekId.current = guid();
-    setBedrag('');
+    const voor = typeof startBedrag === 'number' && Number.isFinite(startBedrag) && startBedrag > 0 ? startBedrag : null;
+    setBedrag(voor === null ? '' : String(Math.round(voor * 100) / 100));
     setRemDoor(false);
-    zelfGekozen.current = false;
+    zelfGekozen.current = voor !== null;
     laadHandelskapitaal().then(setKapitaal).catch(() => setKapitaal(null));
     setFout('');
     setBezig(false);
@@ -274,13 +282,14 @@ export function KooporderSheet({
           tijd: Date.now(),
         };
         noteerGeplaatsteOrder(geplaatst).catch(() => {});
+        onGelukt?.({ verzoekId: verzoekId.current, omgeving: sleutels.omgeving ?? 'real' });
         // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
         vier(() => {
           onSluiten();
           toonDialoog({
             variant: 'gelukt',
             rondje: 'gelukt',
-            titel: 'Koop staat bij eToro',
+            titel: geluktTitel ?? 'Koop staat bij eToro',
             tekst: `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`,
             // De tekst wijst naar je portfolio, dus daar hoort ook een knop naartoe te gaan. Eerst het
             // scherm eronder sluiten als daarom gevraagd is, anders wisselt de tab onzichtbaar onder

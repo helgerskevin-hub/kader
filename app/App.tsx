@@ -29,7 +29,7 @@ import { Tab, BottomNav, TAB_VOLGORDE, type TabPagerStand } from './src/componen
 import { MarktScreen } from './src/screens/MarktScreen';
 import { KansenScreen } from './src/screens/KansenScreen';
 import { PortfolioScreen } from './src/screens/PortfolioScreen';
-import { TradersScreen } from './src/screens/TradersScreen';
+import { CopyScreen } from './src/screens/CopyScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { laadVlag, bewaarVlag, laadTekst, bewaarTekst, SLEUTELS } from './src/storage/opslag';
 import { haalOmgeving, heeftEnigeSleutel } from './src/state/etoroSleutels';
@@ -43,6 +43,7 @@ import { KansenProvider } from './src/state/KansenProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
 import { PortfolioProvider } from './src/state/PortfolioProvider';
 import { DialoogProvider } from './src/state/DialoogProvider';
+import { CopyProvider } from './src/state/CopyProvider';
 import { NavigatieProvider } from './src/state/navigatie';
 import { ChangelogSheet } from './src/components/ChangelogSheet';
 import { NieuwInKaderScherm } from './src/components/NieuwInKaderScherm';
@@ -60,7 +61,7 @@ import { TabZichtbaarContext } from './src/state/tabZichtbaar';
 const MarktScherm = React.memo(MarktScreen);
 const KansenScherm = React.memo(KansenScreen);
 const PortfolioScherm = React.memo(PortfolioScreen);
-const TradersScherm = React.memo(TradersScreen);
+const CopyScherm = React.memo(CopyScreen);
 
 const LAATSTE = TAB_VOLGORDE.length - 1;
 
@@ -500,7 +501,7 @@ function AppInhoud() {
                 {tab === 'markt' && <MarktScherm />}
                 {tab === 'kansen' && <KansenScherm />}
                 {tab === 'portfolio' && <PortfolioScherm />}
-                {tab === 'traders' && <TradersScherm />}
+                {tab === 'copy' && <CopyScherm />}
               </FoutGrens>
             </TabPagina>
           );
@@ -556,7 +557,10 @@ export default function App() {
               <PortfolioProvider>
                 {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
                 <DialoogProvider>
-                  <AppInhoud />
+                  {/* Binnen PortfolioProvider: de Copy-tab koppelt kopieën aan je eToro-posities. */}
+                  <CopyProvider>
+                    <AppInhoud />
+                  </CopyProvider>
                 </DialoogProvider>
               </PortfolioProvider>
             </KansenProvider>
