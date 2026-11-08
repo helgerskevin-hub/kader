@@ -64,6 +64,10 @@ const CopyContext = createContext<CopyWaarde | null>(null);
 // De Copy-tab zelf vraagt elke minuut zolang hij in beeld is.
 const VOORGROND_POLL_MS = 5 * 60 * 1000;
 
+// Eén keer per app-sessie opgevraagd: de crypto-instrumenttypes veranderen niet. undefined = nog
+// niet gevraagd, null = gevraagd maar niet te herkennen.
+let cryptoKlassen: Set<number> | null | undefined;
+
 export function CopyProvider({ children }: { children: React.ReactNode }) {
   const { trades, etoroGekoppeld, omgeving } = usePortfolio();
   const [favorieten, setFavorieten] = useState<FavorieteTrader[]>([]);
@@ -118,8 +122,17 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   // ---------- Ranglijst ----------
 
   const beoordeel = useCallback(async (rijen: RanglijstRij[]): Promise<TraderMetScore[]> => {
-    const sleutels = await actieveSleutels();
-    const klassen = sleutels ? await haalCryptoTypeIds(sleutels) : null;
+    if (cryptoKlassen === undefined) {
+      const sleutels = await actieveSleutels();
+      cryptoKlassen = sleutels ? await haalCryptoTypeIds(sleutels) : null;
+    }
+    // eToro's instrumenttypes en de assetclass in de ranglijst zijn nog niet tegen elkaar gemeten.
+    // Valt geen enkele regel onder de crypto-klasse, dan is de nummering kennelijk een andere, en
+    // dan liever niet op klasse filteren dan een lege lijst tonen.
+    let klassen = cryptoKlassen;
+    if (klassen && !rijen.some(r => typeof r.topTradedAssetClassId === 'number' && klassen!.has(r.topTradedAssetClassId))) {
+      klassen = null;
+    }
     // De instrumentId's van Kaders eigen coins, uit wat de app al weet.
     const kaart = await zaaiSymboolKaart(await laadSymboolKaart());
     const crypto = new Set(Object.entries(kaart).filter(([, s]) => s !== null).map(([id]) => Number(id)));

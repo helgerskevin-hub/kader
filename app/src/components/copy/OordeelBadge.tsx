@@ -24,4 +24,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
+  score: {
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 36,
+    alignItems: 'center',
+  },
 });
+
+// De Kader-score als neutraal getal naast het oordeel. Bewust niet de gekleurde ScoreBadge van de
+// coins: die kleurt vanaf 40 amber, terwijl een trader onder de 50 al VERMIJD is. Het oordeel
+// draagt de kleur, het getal niet.
+export function ScorePil({ score }: { score: number }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.score, { borderColor: colors.rand, backgroundColor: colors.verhoogd }]}>
+      <Text style={[Type.label, { color: colors.tekstPrimair, fontSize: 12 }]}>{Math.round(score)}</Text>
+    </View>
+  );
+}

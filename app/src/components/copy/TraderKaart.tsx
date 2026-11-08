@@ -8,10 +8,9 @@ import { Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
 import { fmtPct } from '../../engine/format';
 import { Drukbaar } from '../Drukbaar';
-import { ScoreBadge } from '../ScoreBadge';
 import type { BronStijl } from '../../state/bronRect';
 import { TraderAvatar } from './TraderAvatar';
-import { OordeelBadge } from './OordeelBadge';
+import { OordeelBadge, ScorePil } from './OordeelBadge';
 import { SterKnop } from './SterKnop';
 import type { TraderMetScore } from '../../state/CopyProvider';
 
@@ -48,7 +47,7 @@ export const TraderKaart = React.memo(function TraderKaart({ trader, favoriet, o
         <View style={styles.naam}>
           <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]} numberOfLines={1}>{rij.username}</Text>
           <View style={styles.badges}>
-            <ScoreBadge score={beoordeling.score} />
+            <ScorePil score={beoordeling.score} />
             <OordeelBadge oordeel={beoordeling.oordeel} />
           </View>
         </View>

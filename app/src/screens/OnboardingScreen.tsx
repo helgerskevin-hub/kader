@@ -46,7 +46,7 @@ const STAPPEN: Stap[] = [
   {
     Icon: Users as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Traders\nkopiëren',
-    body: 'Op Copy zie je de beste crypto-traders van eToro met een Kader-score. Tik op de ster en Kader meldt hun nieuwe trades. Kopiëren doe je met één druk, altijd met een stop-loss en zonder hefboom.',
+    body: 'Op Copy zie je de beste crypto-traders van eToro met een Kader-score. Tik op de ster en Kader meldt hun nieuwe trades. Vanuit die melding kopieer je met één druk, altijd met een stop-loss en zonder hefboom.',
   },
   {
     Icon: Shield as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,

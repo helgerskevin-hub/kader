@@ -28,7 +28,7 @@ import { useNavigatie } from '../state/navigatie';
 import { useTabZichtbaar } from '../state/tabZichtbaar';
 import { beoordeelCopyTrade, CopyStand } from '../engine/copyTrading';
 import { koersFactor } from '../engine/etoroSymbolen';
-import type { FeedItem } from '../state/copyOpslag';
+import { laadFeed, type FeedItem } from '../state/copyOpslag';
 
 type Segment = 'feed' | 'ontdek' | 'mijn';
 type Filter = 'alles' | 'laag-risico' | 'copiers';
@@ -109,8 +109,11 @@ export function CopyScreen() {
     wisDoel();
     if (!sleutel) return;
     setUitgelicht(sleutel);
-    const item = copy.feed.find(i => i.sleutel === sleutel);
-    if (item && !item.gekopieerd && magHandelen) kopieer.start(item).catch(() => {});
+    // Bij een koude start vanuit de melding kan de Feed nog niet in de context staan; dan van schijf.
+    (async () => {
+      const item = copy.feed.find(i => i.sleutel === sleutel) ?? (await laadFeed()).find(i => i.sleutel === sleutel);
+      if (item && !item.gekopieerd && magHandelen) await kopieer.start(item);
+    })().catch(() => {});
     const wekker = setTimeout(() => setUitgelicht(null), 4000);
     return () => clearTimeout(wekker);
     // kopieer.start is per render nieuw; alleen op een nieuw doel reageren.

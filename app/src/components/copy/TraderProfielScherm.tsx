@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { X } from 'lucide-react-native';
 import { PodiumScherm } from '../PodiumScherm';
-import { ScoreBadge } from '../ScoreBadge';
 import { Disclaimer } from '../Disclaimer';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
@@ -20,7 +19,7 @@ import { useCopy, TraderMetScore } from '../../state/CopyProvider';
 import { usePortfolio } from '../../state/PortfolioProvider';
 import { bewaarSymboolKaart, FeedItem, laadSymboolKaart, zaaiSymboolKaart } from '../../state/copyOpslag';
 import { TraderAvatar } from './TraderAvatar';
-import { OordeelBadge } from './OordeelBadge';
+import { OordeelBadge, ScorePil } from './OordeelBadge';
 import { SterKnop } from './SterKnop';
 import { CopyTradeKaart } from './CopyTradeKaart';
 import { AllesKopierenSheet } from './AllesKopierenSheet';
@@ -159,7 +158,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
           <View style={styles.oordeelRij}>
-            <ScoreBadge score={beoordeling.score} />
+            <ScorePil score={beoordeling.score} />
             <OordeelBadge oordeel={beoordeling.oordeel} />
             <Text style={[Type.caption, styles.flex, { color: colors.tekstGedimd }]}>Kader-score</Text>
           </View>
