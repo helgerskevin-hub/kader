@@ -2,7 +2,7 @@
 // Handmatig gelijk houden met CHANGELOG.md in de projectmap. Nieuwste eerst.
 
 export interface NieuweFeature {
-  icoon: 'risico' | 'doel' | 'kansen' | 'benchmark' | 'spreiding' | 'export' | 'widget';
+  icoon: 'risico' | 'doel' | 'kansen' | 'benchmark' | 'spreiding' | 'export' | 'widget' | 'copy' | 'melding';
   kleur: 'cta' | 'primair' | 'letOp' | 'winst' | 'goud';
   titel: string;
   tekst: string;
@@ -42,6 +42,29 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     versie: 'Nog niet uitgebracht',
     datum: '2026-11-08',
+    nieuweFeatures: [
+      {
+        icoon: 'copy',
+        kleur: 'primair',
+        titel: 'Kopieer de beste crypto-traders',
+        tekst: 'De tab Copy vervangt Traders. Onder Ontdek staan de crypto-traders van eToro met een Kader-score en het oordeel KOPIEER, VOLG of VERMIJD.',
+        plek: 'Copy, onder Ontdek',
+      },
+      {
+        icoon: 'melding',
+        kleur: 'cta',
+        titel: 'Een melding bij elke nieuwe trade',
+        tekst: 'Geef een trader een ster en Kader meldt zijn nieuwe crypto-trades. Een tik opent de kooporder, al ingevuld met je copybedrag, stop en doel.',
+        plek: 'Copy, onder Feed',
+      },
+      {
+        icoon: 'risico',
+        kleur: 'letOp',
+        titel: 'Veilig kopiëren',
+        tekst: 'Altijd long, zonder hefboom en met een stop. Staat de koers al meer dan 2% verder dan bij de trader, dan kopieert Kader niet meer.',
+        plek: 'De kooporder vanuit Copy',
+      },
+    ],
     punten: [
       'Nieuw: de tab Copy vervangt Traders. Onder Ontdek staan de beste crypto-traders van eToro met een Kader-score en het oordeel KOPIEER, VOLG of VERMIJD. Met de ster maak je een trader favoriet, en Kader meldt dan zijn nieuwe crypto-trades: elke minuut als Copy open staat, anders ongeveer elk kwartier. Een tik op de melding opent de kooporder al ingevuld met je copybedrag en de stop en het doel van de trader, of die van Kader als hij er zelf geen zette. Altijd zonder hefboom en alleen long. Staat de koers al meer dan 2% verder, dan zegt Kader dat je te laat bent. Mijn copies laat zien wat je kopieerde en meldt het als een trader uit een positie stapt die jij ook hebt. Bij rustige traders kun je ook alles kopiëren via eToro\'s eigen CopyTrader. De handmatige beoordeling staat onder Ontdek',
     ],
