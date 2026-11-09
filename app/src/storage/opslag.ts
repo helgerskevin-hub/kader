@@ -132,6 +132,26 @@ export const SLEUTELS = {
   widgetStand: 'widget_stand',
   // Toont de widget naast R ook dollars? 'aan' of 'uit', ontbreekt = uit. Zie state/useWidgetBedragen.ts.
   widgetBedragen: 'widget_bedragen',
+  // ---------- Copy-tab (zie docs/copy-trading-plan.md) ----------
+  // Favoriete eToro-beleggers: [{ username, cid }]. cid is nodig voor "Kopieer alles via eToro".
+  favorieteTraders: 'favoriete_traders',
+  // Per belegger de positionId's die Kader al kent: { [username]: number[] }. Een id die hier niet
+  // in staat is een nieuwe trade. Gedeeld door de voorgrond-check en de achtergrondtaak.
+  traderPosities: 'trader_posities',
+  // De Feed: trades van favorieten die Kader zag, nieuwste eerst, max 50.
+  traderFeed: 'trader_feed',
+  // Welke eigen positie uit welke trade van welke belegger komt, voor Mijn copies en de
+  // uitstapmelding.
+  copyHerkomst: 'copy_herkomst',
+  // Copybedrag, meldingen aan/uit, stille uren.
+  copyInstellingen: 'copy_instellingen',
+  // De laatst opgehaalde ranglijst met tijdstip. Hooguit eens per zes uur vernieuwd.
+  ranglijstCache: 'ranglijst_cache',
+  // eToro-instrumentId -> Kader-symbool, of null voor alles buiten de 57 coins. Zonder TTL, net als
+  // etoroInstrumentIds: die koppeling verandert niet.
+  instrumentSymbolen: 'instrument_symbolen',
+  // Gestarte "Kopieer alles via eToro"-copies, met referentie, Copy Stop Loss en uitkomst.
+  allesCopies: 'alles_copies',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

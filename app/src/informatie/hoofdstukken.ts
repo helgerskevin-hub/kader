@@ -374,7 +374,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     titel: 'Het trader-oordeel',
     icoon: 'Users',
     kort: 'Hoe Kader een eToro-trader beoordeelt.',
-    zie: 'Op Traders beoordeelt Kader een eToro-trader met groen, geel of rood, en een voorstel voor je Copy Stop Loss.',
+    zie: 'Op Copy, onder Ontdek, krijgt elke eToro-trader een Kader-score met KOPIEER, VOLG of VERMIJD, en een voorstel voor je Copy Stop Loss. Staat een trader er niet bij, dan beoordeel je hem handmatig.',
     reken: 'Het oordeel weegt drie deelscores: consistentie (35%), risicobeheer (40%) en spreiding (25%). Vanaf 70 punten is het groen, vanaf 50 geel, daaronder rood.',
     doe: 'De Copy Stop Loss volgt uit de grootste daling die de trader eerder had, afgerond op 5%. Die stel je bij eToro in als je de trader kopieert.',
     detail: [

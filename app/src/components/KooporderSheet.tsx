@@ -74,10 +74,25 @@ interface Props {
   // eerst dicht voordat "Naar portfolio" ergens naartoe kan: een tabwissel eronder is niet te zien
   // zolang die Modal er nog overheen ligt. Schermen die zelf een tab zijn laten dit weg.
   onVerlaatScherm?: () => void;
+  // Vult het bedrag voor bij het openen, zoals het vaste copybedrag uit de Copy-tab. De gebruiker
+  // kan het nog wijzigen; Kader vult daarna niets meer voor.
+  startBedrag?: number;
+  // Na een order die eToro aannam. Voor de Copy-tab, die onthoudt welke trade je kopieerde.
+  onGelukt?: (info: { verzoekId: string; omgeving: 'real' | 'demo' }) => void;
+  // Na een order waarvan de uitkomst onbekend is: misschien staat hij bij eToro. De Copy-tab
+  // behandelt hem als gekopieerd, zodat de Kopieer-knop niet uitnodigt tot een tweede order.
+  onOnzeker?: (info: { verzoekId: string; omgeving: 'real' | 'demo' }) => void;
+  // Laatste controle vlak voor het versturen, na de bevestiging. Geeft een foutmelding terug om de
+  // order tegen te houden, of null om door te gaan. De Copy-tab kijkt hier opnieuw of de koers niet
+  // te ver is weggelopen terwijl de sheet openstond.
+  controleerVoorVersturen?: () => Promise<string | null>;
+  // Eigen titel voor de bevestigingsdialoog, bijvoorbeeld "Kopie staat bij eToro".
+  geluktTitel?: string;
 }
 
 export function KooporderSheet({
-  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm,
+  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm, startBedrag, onGelukt, onOnzeker,
+  controleerVoorVersturen, geluktTitel,
 }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
@@ -128,9 +143,10 @@ export function KooporderSheet({
   useEffect(() => {
     if (!zichtbaar) return;
     verzoekId.current = guid();
-    setBedrag('');
+    const voor = typeof startBedrag === 'number' && Number.isFinite(startBedrag) && startBedrag > 0 ? startBedrag : null;
+    setBedrag(voor === null ? '' : String(Math.round(voor * 100) / 100));
     setRemDoor(false);
-    zelfGekozen.current = false;
+    zelfGekozen.current = voor !== null;
     laadHandelskapitaal().then(setKapitaal).catch(() => setKapitaal(null));
     setFout('');
     setBezig(false);
@@ -255,6 +271,16 @@ export function KooporderSheet({
         return;
       }
 
+      if (controleerVoorVersturen) {
+        const bezwaar = await controleerVoorVersturen();
+        if (bezwaar) {
+          setFout(bezwaar);
+          setBezig(false);
+          loopt.current = false;
+          return;
+        }
+      }
+
       const uitkomst = await plaatsKooporder(invoer, sleutels, verzoekId.current);
 
       if (uitkomst.soort === 'ok') {
@@ -274,13 +300,14 @@ export function KooporderSheet({
           tijd: Date.now(),
         };
         noteerGeplaatsteOrder(geplaatst).catch(() => {});
+        onGelukt?.({ verzoekId: verzoekId.current, omgeving: sleutels.omgeving ?? 'real' });
         // Eerst het vinkje in de knop, dan pas sluiten en bevestigen.
         vier(() => {
           onSluiten();
           toonDialoog({
             variant: 'gelukt',
             rondje: 'gelukt',
-            titel: 'Koop staat bij eToro',
+            titel: geluktTitel ?? 'Koop staat bij eToro',
             tekst: `Je koop van ${fmtBedrag(bedragGetal, DOLLARS)} in ${symbool} is doorgegeven. Hij verschijnt in je portfolio zodra eToro de order heeft gevuld. Wacht hij nog, dan zie je hem in Portfolio onder Wachtende orders.`,
             // De tekst wijst naar je portfolio, dus daar hoort ook een knop naartoe te gaan. Eerst het
             // scherm eronder sluiten als daarom gevraagd is, anders wisselt de tab onzichtbaar onder
@@ -325,6 +352,7 @@ export function KooporderSheet({
         // Wegschrijven mislukte. De melding hieronder klopt hoe dan ook, en opnieuw versturen is
         // ook nu geen optie.
       }
+      onOnzeker?.({ verzoekId: verzoekId.current, omgeving: sleutels.omgeving ?? 'real' });
       setBezig(false);
       loopt.current = false;
       onSluiten();

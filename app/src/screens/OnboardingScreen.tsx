@@ -45,8 +45,8 @@ const STAPPEN: Stap[] = [
   },
   {
     Icon: Users as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
-    titel: 'eToro-trader\nbeoordelen',
-    body: 'Kopieer je een Popular Investor? Vul zijn statistieken in op het Traders-tabblad en krijg een GROEN/GEEL/ROOD oordeel met een aanbevolen Copy Stop Loss percentage.',
+    titel: 'Traders\nkopiëren',
+    body: 'Op Copy zie je de beste crypto-traders van eToro met een Kader-score. Tik op de ster en Kader meldt hun nieuwe trades. Vanuit die melding kopieer je met één druk, altijd met een stop-loss en zonder hefboom.',
   },
   {
     Icon: Shield as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,

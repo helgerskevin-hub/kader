@@ -453,7 +453,9 @@ const traderFormStyles = StyleSheet.create({
 });
 
 // ---------- Scherm ----------
-export function TradersScreen() {
+// Sinds de Copy-tab is dit de handmatige beoordeling: voor een belegger die niet in Kaders
+// ranglijst staat. Hij opent full-screen vanuit Ontdek; onSluiten geeft hem een sluitknop.
+export function TradersScreen({ onSluiten }: { onSluiten?: () => void } = {}) {
   const { colors } = useTheme();
   const [traders, setTraders] = useState<OpgeslagenTrader[]>([]);
   const [geladen, setGeladen] = useState(false);
@@ -482,8 +484,9 @@ export function TradersScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[tradersStyles.root, { backgroundColor: colors.achtergrond }]}>
       <ScreenHeader
-        titel="eToro-traders"
+        titel={onSluiten ? 'Handmatig beoordelen' : 'eToro-traders'}
         rechts={
+          <View style={tradersStyles.kopKnoppen}>
           <Pressable
             style={[tradersStyles.toevoegenKnop, { backgroundColor: colors.cta }]}
             onPress={() => setFormulierZichtbaar(true)}
@@ -493,6 +496,18 @@ export function TradersScreen() {
             <Plus size={16} color="white" strokeWidth={2} />
             <Text style={[Type.caption, { color: 'white', fontWeight: '600' }]}>Voeg toe</Text>
           </Pressable>
+          {onSluiten && (
+            <Pressable
+              onPress={onSluiten}
+              style={tradersStyles.sluitKnop}
+              accessibilityRole="button"
+              accessibilityLabel="Sluiten"
+              hitSlop={8}
+            >
+              <X size={22} color={colors.tekstGedimd} strokeWidth={1.75} />
+            </Pressable>
+          )}
+          </View>
         }
       />
 
@@ -568,6 +583,8 @@ export function TradersScreen() {
 
 const tradersStyles = StyleSheet.create({
   root: { flex: 1 },
+  kopKnoppen: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  sluitKnop: { minHeight: 44, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
   toevoegenKnop: {
     flexDirection: 'row',
     alignItems: 'center',

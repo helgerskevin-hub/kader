@@ -20,6 +20,8 @@ export function tabVoorDoel(doel: MeldingDoel): Tab {
     case 'coin':
     case 'markt':
       return 'markt';
+    case 'copy':
+      return 'copy';
   }
 }
 

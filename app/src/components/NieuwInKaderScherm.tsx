@@ -13,8 +13,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import {
+  Bell,
   ChartPie,
   ChartSpline,
+  Copy,
   Eye,
   Share,
   ShieldCheck,
@@ -51,11 +53,13 @@ const ICONEN: Record<NieuweFeature['icoon'], LucideIcon> = {
   spreiding: ChartPie,
   export: Share,
   widget: Smartphone,
+  copy: Copy,
+  melding: Bell,
 };
 
 // Waar het icoon vandaan komt, zodat elke feature een eigen beweging heeft: het schild klikt vast,
 // het doel draait in zijn plek, het oog gaat open, de lijn schuift van links, de taart draait,
-// het deelicoon stijgt op en de widget kantelt recht.
+// het deelicoon stijgt op, de widget kantelt recht, de kopie schuift op zijn plek en de bel slingert.
 interface Start {
   schaal: number;
   rot: number; // graden
@@ -71,6 +75,8 @@ const START: Record<NieuweFeature['icoon'], Start> = {
   spreiding: { schaal: 0.6, rot: 140, x: 0, y: 0 },
   export: { schaal: 0.8, rot: 0, x: 0, y: 30 },
   widget: { schaal: 0.55, rot: 12, x: 0, y: 10 },
+  copy: { schaal: 0.6, rot: 0, x: 18, y: -18 },
+  melding: { schaal: 0.7, rot: -24, x: 0, y: 0 },
 };
 
 const TEGEL = 112;

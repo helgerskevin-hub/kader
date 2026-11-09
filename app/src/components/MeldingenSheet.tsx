@@ -36,6 +36,7 @@ function bestemming(doel: MeldingDoel): string {
     case 'coin': return `Naar ${doel.symbool} op de Markt`;
     case 'portfolio': return 'Naar Portfolio';
     case 'markt': return 'Naar de Markt';
+    case 'copy': return 'Naar Copy';
   }
 }
 
