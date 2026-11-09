@@ -79,12 +79,20 @@ interface Props {
   startBedrag?: number;
   // Na een order die eToro aannam. Voor de Copy-tab, die onthoudt welke trade je kopieerde.
   onGelukt?: (info: { verzoekId: string; omgeving: 'real' | 'demo' }) => void;
+  // Na een order waarvan de uitkomst onbekend is: misschien staat hij bij eToro. De Copy-tab
+  // behandelt hem als gekopieerd, zodat de Kopieer-knop niet uitnodigt tot een tweede order.
+  onOnzeker?: (info: { verzoekId: string; omgeving: 'real' | 'demo' }) => void;
+  // Laatste controle vlak voor het versturen, na de bevestiging. Geeft een foutmelding terug om de
+  // order tegen te houden, of null om door te gaan. De Copy-tab kijkt hier opnieuw of de koers niet
+  // te ver is weggelopen terwijl de sheet openstond.
+  controleerVoorVersturen?: () => Promise<string | null>;
   // Eigen titel voor de bevestigingsdialoog, bijvoorbeeld "Kopie staat bij eToro".
   geluktTitel?: string;
 }
 
 export function KooporderSheet({
-  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm, startBedrag, onGelukt, geluktTitel,
+  zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm, startBedrag, onGelukt, onOnzeker,
+  controleerVoorVersturen, geluktTitel,
 }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
@@ -263,6 +271,16 @@ export function KooporderSheet({
         return;
       }
 
+      if (controleerVoorVersturen) {
+        const bezwaar = await controleerVoorVersturen();
+        if (bezwaar) {
+          setFout(bezwaar);
+          setBezig(false);
+          loopt.current = false;
+          return;
+        }
+      }
+
       const uitkomst = await plaatsKooporder(invoer, sleutels, verzoekId.current);
 
       if (uitkomst.soort === 'ok') {
@@ -334,6 +352,7 @@ export function KooporderSheet({
         // Wegschrijven mislukte. De melding hieronder klopt hoe dan ook, en opnieuw versturen is
         // ook nu geen optie.
       }
+      onOnzeker?.({ verzoekId: verzoekId.current, omgeving: sleutels.omgeving ?? 'real' });
       setBezig(false);
       loopt.current = false;
       onSluiten();

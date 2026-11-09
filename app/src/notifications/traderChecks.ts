@@ -140,6 +140,21 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
       volgendeBekend[fav.username] = posities.map(p => p.positionId);
     }
 
+    // Wie geen favoriet meer is, verliest zijn bekende posities. Wordt hij later weer favoriet, dan
+    // geldt het als een eerste keer (stil vastleggen) en komen niet al zijn tussentijdse trades
+    // als nieuw binnen.
+    for (const naam of Object.keys(volgendeBekend)) {
+      if (!favorieten.some(f => f.username === naam)) delete volgendeBekend[naam];
+    }
+
+    // Tijdens het ophalen kan de gebruiker een trade gekopieerd hebben (markeerGekopieerd). Die
+    // markering staat alleen in de verse opslag; zonder dit overschrijft de oude lezing hem en komt
+    // de Kopieer-knop terug.
+    for (const vers of await laadFeed()) {
+      const item = feedPerSleutel.get(vers.sleutel);
+      if (vers.gekopieerd && item && !item.gekopieerd) feedPerSleutel.set(vers.sleutel, { ...item, gekopieerd: true });
+    }
+
     // Eerst vastleggen wat bekend is, dan pas melden: een tweede ronde (de achtergrondtaak naast de
     // voorgrond) ziet deze trades dan niet nog eens als nieuw.
     await Promise.all([
@@ -199,7 +214,9 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
     // 07:00 alsnog binnen, terwijl de positie dan al lang anders kan staan.
     if (echteUitstappen.length > 0) {
       const gezien = new Set(echteUitstappen.map(u => u.herkomst.verzoekId));
-      await bewaarHerkomst(herkomst.map(h => (gezien.has(h.verzoekId) ? { ...h, uitstapGemeld: true } : h)));
+      // Vers lezen: een kopie die tijdens deze ronde startte staat niet in `herkomst` van daarnet.
+      const vers = await laadHerkomst();
+      await bewaarHerkomst(vers.map(h => (gezien.has(h.verzoekId) ? { ...h, uitstapGemeld: true } : h)));
     }
 
     return { nieuw: nieuweTrades.length, gesloten, gemeld };

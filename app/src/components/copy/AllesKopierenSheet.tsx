@@ -107,7 +107,12 @@ export function AllesKopierenSheet({ zichtbaar, onSluiten, username, cid, advies
     loopt.current = true;
     setFout('');
     setBezig(true);
-    const sleutels = await actieveSleutels();
+    let sleutels: Awaited<ReturnType<typeof actieveSleutels>> = null;
+    try {
+      sleutels = await actieveSleutels();
+    } catch {
+      sleutels = null;
+    }
     if (!sleutels || (sleutels.omgeving ?? 'real') !== omgeving) {
       setFout(sleutels ? 'Je omgeving is net gewisseld. Sluit dit venster en open het opnieuw.' : 'Er staat geen eToro-sleutel klaar.');
       setBezig(false);
@@ -128,7 +133,11 @@ export function AllesKopierenSheet({ zichtbaar, onSluiten, username, cid, advies
       status: 'onderweg',
     };
     // Eerst vastleggen, dan versturen: een app-kill midden in het verzoek laat zo een spoor na.
-    await bewaarAllesCopies([...(await laadAllesCopies()), record]).catch(() => {});
+    try {
+      await bewaarAllesCopies([...(await laadAllesCopies()), record]);
+    } catch {
+      // Zonder spoor gaat het verzoek toch: het blijft één verzoek, en Mijn copies leest eToro zelf.
+    }
 
     const uitkomst = await startCopy(cid, bedragGetal, referentie, sleutels, verzoekId.current);
     if (uitkomst.soort === 'fout') {
@@ -188,8 +197,12 @@ export function AllesKopierenSheet({ zichtbaar, onSluiten, username, cid, advies
   }
 
   async function werkBij(referentie: string, wijziging: Partial<AllesCopy>) {
-    const lijst = await laadAllesCopies();
-    await bewaarAllesCopies(lijst.map(c => (c.referentie === referentie ? { ...c, ...wijziging } : c))).catch(() => {});
+    try {
+      const lijst = await laadAllesCopies();
+      await bewaarAllesCopies(lijst.map(c => (c.referentie === referentie ? { ...c, ...wijziging } : c)));
+    } catch {
+      // Alleen het lokale spoor mist dan; de uitkomst bij eToro verandert er niet door.
+    }
   }
 
   return (

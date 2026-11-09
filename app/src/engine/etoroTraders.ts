@@ -176,7 +176,12 @@ export async function haalCopyUitkomst(referentie: string, sleutels: EtoroSleute
       { versie: 'v2' },
     );
     if (data?.isSuccess === true) return { soort: 'gelukt', mirrorId: typeof data.mirrorID === 'number' ? data.mirrorID : null };
-    return { soort: 'mislukt', reden: data?.failReason ?? 'eToro gaf geen reden.' };
+    // Alleen een expliciet nee telt als mislukt. Een leeg of onbekend antwoord is nog geen eindstand:
+    // als mislukt tonen zou de knop vrijgeven voor een tweede copy, terwijl de eerste misschien loopt.
+    if (data?.isSuccess === false || (typeof data?.failReason === 'string' && data.failReason.length > 0)) {
+      return { soort: 'mislukt', reden: data?.failReason || 'eToro gaf geen reden.' };
+    }
+    return { soort: 'nog-bezig' };
   } catch (e) {
     if ((e as { status?: number })?.status === 404) return { soort: 'nog-bezig' };
     throw e;

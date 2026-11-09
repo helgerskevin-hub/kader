@@ -156,13 +156,22 @@ export function beoordeelRij(rij: RanglijstRij): TraderBeoordeling {
 
 // Alleen de posities die de trader zelf opende. Een positie die hij van iemand anders kopieert is
 // niet zijn beslissing.
-export function directePosities(portfolio: TraderLivePortfolio | null | undefined): TraderPositie[] {
+// Alle bruikbare posities, ook wat de belegger zelf via zijn eigen copies heeft. eToro's CopyTrader
+// kopieert die mee, dus de toets voor Kopieer alles moet ze ook zien.
+export function allePosities(portfolio: TraderLivePortfolio | null | undefined): TraderPositie[] {
   const lijst = Array.isArray(portfolio?.positions) ? portfolio!.positions! : [];
   return lijst.filter(p =>
     p && typeof p.positionId === 'number' && p.positionId > 0
     && typeof p.instrumentId === 'number'
-    && typeof p.openRate === 'number' && p.openRate > 0
-    && !(typeof p.parentPositionId === 'number' && p.parentPositionId > 0)
+    && typeof p.openRate === 'number' && p.openRate > 0,
+  );
+}
+
+// Alleen wat de belegger zelf opende, zonder zijn eigen copies: dat zijn de trades die Kader los
+// kopieert en meldt.
+export function directePosities(portfolio: TraderLivePortfolio | null | undefined): TraderPositie[] {
+  return allePosities(portfolio).filter(p =>
+    !(typeof p.parentPositionId === 'number' && p.parentPositionId > 0)
     && !(typeof p.socialTradeId === 'number' && p.socialTradeId > 0),
   );
 }

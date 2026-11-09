@@ -12,7 +12,7 @@ import { useModalKopruimte } from '../../theme/useModalKopruimte';
 import { fmtPct } from '../../engine/format';
 import { koersFactor } from '../../engine/etoroSymbolen';
 import { haalLaatstePrijzen } from '../../engine/marketData';
-import { beoordeelCopyTrade, directePosities, TraderPositie } from '../../engine/copyTrading';
+import { allePosities, beoordeelCopyTrade, directePosities, TraderPositie } from '../../engine/copyTrading';
 import { haalLivePortfolio, haalMaandRendementen, MaandRendement, vulSymbolenAan } from '../../engine/etoroTraders';
 import { actieveSleutels } from '../../state/etoroSleutels';
 import { useCopy, TraderMetScore } from '../../state/CopyProvider';
@@ -32,6 +32,8 @@ interface Props {
 
 interface Geladen {
   posities: TraderPositie[];
+  // Ook de posities uit zijn eigen copies, alleen voor de toets van Kopieer alles.
+  allePosities: TraderPositie[];
   symbolen: Record<string, string | null>;
   maanden: MaandRendement[];
   koersen: Record<string, number>;
@@ -76,7 +78,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
         }
         const munten = [...new Set(posities.map(p => symbolen[String(p.instrumentId)]).filter((s): s is string => !!s))];
         const koersen = munten.length > 0 ? await haalLaatstePrijzen(munten).catch(() => ({})) : {};
-        if (actief) setData({ posities, symbolen, maanden, koersen });
+        if (actief) setData({ posities, allePosities: allePosities(portfolio), symbolen, maanden, koersen });
       } catch (e) {
         if (actief) setFout(e instanceof Error ? e.message : 'Kader kan dit profiel nu niet laden.');
       }
@@ -257,7 +259,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
         username={rij.username}
         cid={rij.cid}
         adviesCsl={beoordeling.csl}
-        posities={data?.posities ?? []}
+        posities={data?.allePosities ?? []}
       />
     </View>
   );

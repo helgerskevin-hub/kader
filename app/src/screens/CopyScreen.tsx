@@ -158,7 +158,8 @@ export function CopyScreen() {
     <LegeStaat
       icoon={<CopyIcoon size={26} color={colors.tekstGedimd} strokeWidth={1.5} />}
       titel="Koppel eToro"
-      tekst="Kader haalt de ranglijst en de trades van beleggers uit eToro. Koppel je eToro-account via het tandwiel rechtsboven."
+      tekst="Kader haalt de ranglijst en de trades van beleggers uit eToro. Koppel je eToro-account via de drie puntjes rechtsboven, bij Instellingen. Een trader beoordelen kan ook zonder koppeling."
+      knop={{ label: 'Beoordeel handmatig', onDruk: () => setHandmatigOpen(true) }}
     />
   );
 

@@ -24,7 +24,10 @@ interface Open {
 }
 
 export function useKopieerFlow(onVerlaatScherm?: () => void) {
-  const { instellingen, noteerKopie } = useCopy();
+  const { instellingen, noteerKopie, feed } = useCopy();
+  // De nieuwste Feed, zodat de laatste controle ziet of de trader intussen uitstapte.
+  const feedRef = useRef(feed);
+  feedRef.current = feed;
   const { toonDialoog } = useDialoog();
   const [open, setOpen] = useState<Open | null>(null);
   const [zichtbaar, setZichtbaar] = useState(false);
@@ -48,25 +51,10 @@ export function useKopieerFlow(onVerlaatScherm?: () => void) {
         return;
       }
 
-      const positie: TraderPositie = {
-        positionId: item.positionId,
-        instrumentId: item.instrumentId,
-        openRate: item.openRate / factor,
-        isBuy: item.isBuy,
-        stopLossRate: item.stopLossRate ?? undefined,
-        takeProfitRate: item.takeProfitRate ?? undefined,
-      };
-      const traderStop = item.stopLossRate ? item.stopLossRate / factor : null;
-      const stand = beoordeelCopyTrade({ positie, symbool, koers, stop: traderStop, gesloten: item.gesloten });
-      if (stand.soort === 'te-laat') {
-        melding('Te laat', `De koers staat ${fmtPct(stand.verschuivingPct)} ten opzichte van de instap van ${item.username}. Kader kopieert deze trade niet meer.`);
-        return;
-      }
-      if (stand.soort !== 'kopieerbaar') {
-        melding('Niet te kopiëren', stand.soort === 'onder-stop'
-          ? 'De koers staat al onder de stop van de trader.'
-          : stand.soort === 'gesloten' ? `${item.username} heeft deze positie al gesloten.`
-          : 'Deze trade kan Kader niet kopiëren.');
+      const positie = naarPositie(item, factor);
+      const bezwaar = bezwaarTegen(item, positie, symbool, koers);
+      if (bezwaar) {
+        melding(bezwaar.titel, bezwaar.tekst);
         return;
       }
 
@@ -104,9 +92,60 @@ export function useKopieerFlow(onVerlaatScherm?: () => void) {
       startBedrag={instellingen.bedragUsd}
       geluktTitel={`Kopie van ${open.item.username} staat bij eToro`}
       onGelukt={({ verzoekId, omgeving }) => { noteerKopie(open.item, verzoekId, omgeving).catch(() => {}); }}
+      onOnzeker={({ verzoekId, omgeving }) => { noteerKopie(open.item, verzoekId, omgeving).catch(() => {}); }}
+      controleerVoorVersturen={() => controleerOpnieuw(open.item, feedRef.current)}
       onVerlaatScherm={onVerlaatScherm}
     />
   ) : null;
 
   return { start, sheet, bezigSleutel };
+}
+
+function naarPositie(item: FeedItem, factor: number): TraderPositie {
+  return {
+    positionId: item.positionId,
+    instrumentId: item.instrumentId,
+    openRate: item.openRate / factor,
+    isBuy: item.isBuy,
+    stopLossRate: item.stopLossRate ?? undefined,
+    takeProfitRate: item.takeProfitRate ?? undefined,
+  };
+}
+
+// Waarom deze trade nu niet (meer) te kopiëren is, of null als het kan.
+function bezwaarTegen(item: FeedItem, positie: TraderPositie, symbool: string, koers: number): { titel: string; tekst: string } | null {
+  const factor = koersFactor(symbool);
+  const traderStop = item.stopLossRate ? item.stopLossRate / factor : null;
+  const stand = beoordeelCopyTrade({ positie, symbool, koers, stop: traderStop, gesloten: item.gesloten });
+  if (stand.soort === 'kopieerbaar') return null;
+  if (stand.soort === 'te-laat') {
+    return {
+      titel: 'Te laat',
+      tekst: `De koers staat ${fmtPct(stand.verschuivingPct)} ten opzichte van de instap van ${item.username}. Kader kopieert deze trade niet meer.`,
+    };
+  }
+  return {
+    titel: 'Niet te kopiëren',
+    tekst: stand.soort === 'onder-stop'
+      ? 'De koers staat al onder de stop van de trader.'
+      : stand.soort === 'gesloten' ? `${item.username} heeft deze positie al gesloten.`
+      : 'Deze trade kan Kader niet kopiëren.',
+  };
+}
+
+// Vlak voor het versturen nog een keer: de sheet kan minuten openstaan terwijl de koers wegloopt of
+// de trader uitstapt. Zonder verse koers gaat er niets de deur uit; liever geen kopie dan een te late.
+async function controleerOpnieuw(item: FeedItem, feed: FeedItem[]): Promise<string | null> {
+  const symbool = item.symbool;
+  if (!symbool) return 'Deze trade kan Kader niet kopiëren.';
+  const actueel = feed.find(i => i.sleutel === item.sleutel) ?? item;
+  let koers: number | null = null;
+  try {
+    koers = await haalLaatstePrijs(symbool);
+  } catch {
+    koers = null;
+  }
+  if (koers === null) return `Kader kan de koers van ${symbool} nu niet controleren. Probeer het zo opnieuw.`;
+  const bezwaar = bezwaarTegen(actueel, naarPositie(actueel, koersFactor(symbool)), symbool, koers);
+  return bezwaar ? bezwaar.tekst : null;
 }

@@ -4,7 +4,11 @@ import { COIN_INFO } from './coinInfo';
 import { EtoroEligibility, StopLossLimiet, kiesLimiet } from './etoroLimieten';
 import { naarEtoroSymbool, vanEtoroSymbool, koersFactor } from './etoroSymbolen';
 
-const BASIS_URL = 'https://public-api.etoro.com/api';
+// Alleen in een dev-build mag een nep-server (scripts/etoro-mock-server.ts) de plek van eToro
+// innemen, via EXPO_PUBLIC_ETORO_MOCK_URL. Een release-build heeft __DEV__ op false en praat dus
+// altijd met eToro zelf, wat er ook in de omgeving staat.
+const MOCK_URL = typeof __DEV__ !== 'undefined' && __DEV__ ? process.env.EXPO_PUBLIC_ETORO_MOCK_URL : undefined;
+const BASIS_URL = MOCK_URL || 'https://public-api.etoro.com/api';
 // Lezen mag kort falen; een schrijfactie krijgt langer de tijd, want afbreken lost daar niets op
 // (zie EtoroFout.afgebroken) en een order die net onderweg is wil je niet zelf onbeslist maken.
 const LEES_TIMEOUT = 15_000;

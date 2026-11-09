@@ -1,4 +1,4 @@
-// Speelt checkFavorieteTraders na met nagebootste opslag, meldingen en eToro-antwoorden. Geen
+// Speelt checkFavorieteTraders na (acht rondes) met nagebootste opslag, meldingen en eToro-antwoorden. Geen
 // testframework, net als de self-checks elders. Draaien vanuit app/: npx tsx scripts/test-traderChecks.ts
 const Module = require('module');
 const path = require('path');
@@ -7,6 +7,8 @@ const APP = path.join(__dirname, '../src');
 const opslag = new Map<string, string>();
 const meldingen: { titel: string; tekst: string; data?: unknown }[] = [];
 let scenario: Record<string, { positions: any[] }> = {};
+// Draait midden in het ophalen, om een gelijktijdige schrijfactie van de gebruiker na te bootsen.
+let tijdensOphalen: (() => void) | null = null;
 
 const nep: Record<string, any> = {
   '@react-native-async-storage/async-storage': {
@@ -36,6 +38,7 @@ const nepPaden: Record<string, any> = {
   [path.join(APP, 'state/meldingVoorkeur')]: { meldingenAan: async () => true },
   [path.join(APP, 'engine/etoroTraders')]: {
     haalLivePortfolio: async (naam: string) => {
+      if (tijdensOphalen) { const f = tijdensOphalen; tijdensOphalen = null; f(); }
       if (!scenario[naam]) throw new Error('onbereikbaar');
       return scenario[naam];
     },
@@ -134,6 +137,32 @@ const check = (ok: boolean, tekst: string) => { if (!ok) { missers++; console.er
   u = await checkFavorieteTraders();
   check(u.nieuw === 1 && meldingen.length === 3, 'meldingen uit: wel in de feed, geen melding');
   void uur;
+
+  // Ronde 7: je kopieert positie 10 terwijl de check nog bezig is met ophalen. De markering moet
+  // blijven staan, anders komt de Kopieer-knop terug.
+  tijdensOphalen = () => {
+    const f = lees(SLEUTELS.traderFeed);
+    zet(SLEUTELS.traderFeed, f.map((i: any) => (i.sleutel === 'jan:10' ? { ...i, gekopieerd: true } : i)));
+  };
+  await checkFavorieteTraders();
+  feed = lees(SLEUTELS.traderFeed);
+  check(feed.find((i: any) => i.sleutel === 'jan:10')?.gekopieerd === true, 'kopie tijdens de check blijft gemarkeerd');
+
+  // Ronde 8: jan is geen favoriet meer, opent intussen drie trades, en wordt weer favoriet.
+  // Dat telt als een eerste kennismaking: geen melding voor wat hij tussendoor deed.
+  zet(SLEUTELS.copyInstellingen, { bedragUsd: 50, meldingen: true, stilleUren: false, ingesteld: true });
+  zet(SLEUTELS.favorieteTraders, [{ username: 'piet', cid: 2 }]);
+  await checkFavorieteTraders();
+  check(lees(SLEUTELS.traderPosities).jan === undefined, 'oud-favoriet jan is vergeten');
+  scenario.jan.positions.push(
+    { positionId: 11, instrumentId: 100000, openRate: 62000, isBuy: true, openTimestamp: oud },
+    { positionId: 12, instrumentId: 100001, openRate: 3100, isBuy: true, openTimestamp: oud },
+    { positionId: 13, instrumentId: 100000, openRate: 62500, isBuy: true, openTimestamp: oud },
+  );
+  zet(SLEUTELS.favorieteTraders, [{ username: 'jan', cid: 1 }]);
+  const voor = meldingen.length;
+  u = await checkFavorieteTraders();
+  check(u.nieuw === 0 && meldingen.length === voor, `terug als favoriet: geen stortvloed (nieuw ${u.nieuw})`);
 
   if (missers > 0) { console.error(`\n${missers} controle(s) mislukt`); process.exit(1); }
   console.log('\ntraderChecks-test geslaagd');
