@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.4.0
 
 - Nieuw: de tab Copy vervangt Traders. Onder Ontdek staan de beste crypto-traders van eToro met een Kader-score en het oordeel KOPIEER, VOLG of VERMIJD. Met de ster maak je een trader favoriet, en Kader meldt dan zijn nieuwe crypto-trades: elke minuut als Copy open staat, anders ongeveer elk kwartier. Een tik op de melding opent de kooporder al ingevuld met je copybedrag en de stop en het doel van de trader, of die van Kader als hij er zelf geen zette. Altijd zonder hefboom en alleen long. Staat de koers al meer dan 2% verder, dan zegt Kader dat je te laat bent. Mijn copies laat zien wat je kopieerde en meldt het als een trader uit een positie stapt die jij ook hebt. Bij rustige traders kun je ook alles kopiëren via eToro's eigen CopyTrader. De handmatige beoordeling staat onder Ontdek
 
