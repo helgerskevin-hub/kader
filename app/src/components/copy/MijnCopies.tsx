@@ -2,7 +2,7 @@
 // gegroepeerd met open en gesloten resultaat, en wat eToro voor je kopieert via "Kopieer alles"
 // (CopyTrader-relaties). Een open copy is dezelfde kaart als op Portfolio, met Verkopen en SL/TP;
 // er gaat pas iets naar eToro na de bevestigknop in die sheets.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AlertTriangle, Copy as CopyIcoon, LogOut, Square } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -19,7 +19,7 @@ import { useCopy } from '../../state/CopyProvider';
 import { useNavigatie } from '../../state/navigatie';
 import { isEtoroBestuurbaar } from '../../state/etoroBestuurbaar';
 import { AllesCopy, laadAllesCopies } from '../../state/copyOpslag';
-import { CopyRegel, groepeerCopies, TraderGroep } from '../../state/mijnCopies';
+import { CopyRegel, groepeerCopies, TraderGroep, versteTrade } from '../../state/mijnCopies';
 import { useCopyPlafond } from '../../state/useCopyPlafond';
 import type { PortfolioTrade } from '../../state/portfolioTypes';
 import { CoinLogo } from '../CoinLogo';
@@ -53,16 +53,28 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
   const [alles, setAlles] = useState<AllesCopy[]>([]);
   const [stoppen, setStoppen] = useState<{ mirrorId: number; username: string } | null>(null);
 
+  // Elke lading krijgt een nummer. Wissel je tijdens het ophalen van demo naar echt (of andersom),
+  // dan komt het antwoord van de oude omgeving niet meer op het scherm: anders stond er een
+  // CopyTrader-relatie uit de ene omgeving met een Stop copy-knop die de sleutels van de andere stuurt.
+  const lading = useRef(0);
   const laad = useCallback(async () => {
-    setAlles(await laadAllesCopies());
+    const nummer = ++lading.current;
+    const huidig = () => nummer === lading.current;
+    const lijst = await laadAllesCopies();
+    if (huidig()) setAlles(lijst);
     const sleutels = await actieveSleutels();
+    if (!huidig()) return;
     if (!sleutels) { setMirrors([]); return; }
     try {
-      setMirrors(leesMirrors(await haalEtoroPortfolio(sleutels)));
+      const gelezen = leesMirrors(await haalEtoroPortfolio(sleutels));
+      if (huidig()) setMirrors(gelezen);
     } catch {
-      setMirrors(null);
+      if (huidig()) setMirrors(null);
     }
   }, []);
+
+  // Bij een andere omgeving eerst leeg, zodat de relaties van de vorige er niet blijven staan.
+  useEffect(() => { setMirrors(null); }, [omgeving]);
 
   useEffect(() => {
     if (inBeeld) laad().catch(() => {});
@@ -72,7 +84,6 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
     () => groepeerCopies({ trades, herkomst, livePrijzen, omgeving, feed, factorVan: koersFactor }),
     [trades, herkomst, livePrijzen, omgeving, feed],
   );
-  const aantalOpen = groepen.reduce((n, g) => n + g.open.length, 0);
 
   // Stabiel, zodat de memo op PositieKaart bij elke koers-poll blijft werken.
   const naarPortfolio = useCallback(
@@ -108,7 +119,6 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
     <View>
       <PlafondKaart
         copiesUsd={copiesUsd}
-        aantal={aantalOpen + relaties.length}
         nuPct={plafond?.nuPct ?? null}
         maxPct={maxPct}
         grensUsd={plafond?.grensUsd ?? null}
@@ -200,7 +210,7 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
       {verkoopTrade && (
         <VerkoopOrderSheet
           zichtbaar
-          trade={trades.find(t => t.id === verkoopTrade.id && t.status === 'open') ?? verkoopTrade}
+          trade={versteTrade(trades, verkoopTrade)}
           huidigePrijs={livePrijzen[verkoopTrade.symbool]}
           onSluiten={() => setVerkoopTrade(null)}
         />
@@ -208,7 +218,7 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
       {niveausTrade && (
         <NiveausSheet
           zichtbaar
-          trade={trades.find(t => t.id === niveausTrade.id) ?? niveausTrade}
+          trade={versteTrade(trades, niveausTrade)}
           huidigePrijs={livePrijzen[niveausTrade.symbool]}
           onSluiten={() => setNiveausTrade(null)}
         />
@@ -220,8 +230,8 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
 
 // Hoeveel er in copies zit en hoe dat zich verhoudt tot je eigen grens. Zonder kapitaal geen
 // percentage en geen balk: een verhouding op een verzonnen noemer zegt niets.
-function PlafondKaart({ copiesUsd, aantal, nuPct, maxPct, grensUsd }: {
-  copiesUsd: number; aantal: number; nuPct: number | null; maxPct: number; grensUsd: number | null;
+function PlafondKaart({ copiesUsd, nuPct, maxPct, grensUsd }: {
+  copiesUsd: number; nuPct: number | null; maxPct: number; grensUsd: number | null;
 }) {
   const { colors } = useTheme();
   const boven = nuPct !== null && nuPct > maxPct + 0.05;
@@ -230,8 +240,7 @@ function PlafondKaart({ copiesUsd, aantal, nuPct, maxPct, grensUsd }: {
     <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
       <Text style={[Type.overline, { color: colors.tekstGedimd }]}>IN COPIES</Text>
       <View style={styles.samenvatting}>
-        <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtBedrag(copiesUsd)}</Text>
-        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{aantal} open</Text>
+        <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtBedrag(copiesUsd, DOLLARS)}</Text>
       </View>
       {nuPct !== null && grensUsd !== null ? (
         <>
@@ -244,8 +253,8 @@ function PlafondKaart({ copiesUsd, aantal, nuPct, maxPct, grensUsd }: {
           </View>
           <Text style={[Type.caption, { color: boven ? colors.letOp : colors.tekstGedimd, lineHeight: 18 }]}>
             {boven
-              ? `LET OP · ${pctKaal(nuPct)} van je kapitaal, boven je grens van ${maxPct}% (${fmtBedrag(grensUsd)}).`
-              : `${pctKaal(nuPct)} van je kapitaal. Je grens is ${maxPct}%, ${fmtBedrag(grensUsd)}.`}
+              ? `LET OP · ${pctKaal(nuPct)} van je kapitaal, boven je grens van ${maxPct}% (${fmtBedrag(grensUsd, DOLLARS)}).`
+              : `${pctKaal(nuPct)} van je kapitaal. Je grens is ${maxPct}%, ${fmtBedrag(grensUsd, DOLLARS)}.`}
           </Text>
         </>
       ) : (
@@ -294,8 +303,8 @@ function GroepBlok({ groep, livePrijzen, kanVerkopen, verkoopOok, onVerkoop, onN
       </View>
       <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
         <CijferRij>
-          <Cijfer label="OPEN" waarde={open ?? (groep.open.length > 0 ? 'Laden' : 'Geen')} kleur={kleur(groep.openUsd ?? groep.openPct)} />
-          <Cijfer label="GESLOTEN" waarde={dicht ?? 'Geen'} kleur={kleur(groep.geslotenUsd ?? groep.geslotenPct)} />
+          <Cijfer label="OPEN" waarde={open ?? (groep.open.length > 0 ? 'Onbekend' : 'Geen')} kleur={kleur(groep.openUsd ?? groep.openPct)} />
+          <Cijfer label="GESLOTEN" waarde={dicht ?? (groep.gesloten.length > 0 ? 'Onbekend' : 'Geen')} kleur={kleur(groep.geslotenUsd ?? groep.geslotenPct)} />
         </CijferRij>
       </View>
 

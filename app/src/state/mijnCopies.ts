@@ -60,16 +60,26 @@ function regel(trade: PortfolioTrade, h: CopyHerkomst, livePrijs: number | undef
   return { trade, herkomst: h, usd, pct, traderEntry, verschilPct };
 }
 
-// Som in dollars, en als procent van de inleg van de regels waar beide bekend zijn. Mist bij een
-// regel het bedrag, dan telt die niet mee in het procent: liever een smaller getal dan een verzonnen.
+// Som in dollars, en als procent van de inleg. Mist bij één regel het resultaat of de inleg, dan
+// geen totaal: een som over een deel van je copies leest als het geheel, en dat is verzonnen.
 function totaal(regels: readonly CopyRegel[]): { usd: number | null; pct: number | null } {
-  const metUsd = regels.filter(r => r.usd !== null);
-  if (metUsd.length === 0) return { usd: null, pct: null };
-  const usd = metUsd.reduce((s, r) => s + (r.usd as number), 0);
-  const metInleg = metUsd.filter(r => isGetal(r.trade.bedragUsd) && (r.trade.bedragUsd as number) > 0);
-  const inleg = metInleg.reduce((s, r) => s + (r.trade.bedragUsd as number), 0);
-  const pct = inleg > 0 ? (metInleg.reduce((s, r) => s + (r.usd as number), 0) / inleg) * 100 : null;
-  return { usd, pct };
+  if (regels.length === 0 || regels.some(r => r.usd === null)) return { usd: null, pct: null };
+  const usd = regels.reduce((s, r) => s + (r.usd as number), 0);
+  const inlegBekend = regels.every(r => isGetal(r.trade.bedragUsd) && (r.trade.bedragUsd as number) > 0);
+  const inleg = regels.reduce((s, r) => s + (r.trade.bedragUsd ?? 0), 0);
+  return { usd, pct: inlegBekend && inleg > 0 ? (usd / inleg) * 100 : null };
+}
+
+// De trade zoals hij nu in de portfolio staat, voor een sheet die op een getikte trade opende. Ook
+// als hij intussen gesloten is: dan ziet de verkoopsheet dat en houdt hij de knop dicht. Een
+// gesloten trade kan in de historie een ander id hebben, dus ook op positie en omgeving zoeken.
+export function versteTrade(trades: readonly PortfolioTrade[], gekozen: PortfolioTrade): PortfolioTrade {
+  const omg = gekozen.etoroOmgeving ?? 'real';
+  return trades.find(t => t.id === gekozen.id)
+    ?? (isGetal(gekozen.etoroPositionID)
+      ? trades.find(t => t.etoroPositionID === gekozen.etoroPositionID && (t.etoroOmgeving ?? 'real') === omg)
+      : undefined)
+    ?? gekozen;
 }
 
 export function groepeerCopies(invoer: {
@@ -159,6 +169,14 @@ if (typeof require !== 'undefined' && require.main === module) {
   check(piet.geslotenUsd === null && bijna(piet.gesloten[0].pct, -10), 'zonder aantal en netProfit: geen dollars, wel koers-%');
   check(groepeerCopies({ trades, herkomst, livePrijzen: {}, omgeving: 'demo', feed: [], factorVan: () => 1 })[0].openUsd === null,
     'zonder koers geen open resultaat');
+  const twee = groepeerCopies({
+    trades: [...trades, { ...basis, id: 'f', symbool: 'XRP', status: 'open', entryPrijs: 1, aantalCoins: 10, bedragUsd: 10, etoroPositionID: 4 }],
+    herkomst: [...herkomst, h(4, 'Jan', 'XRP')], livePrijzen: { BTC: 110 }, omgeving: 'demo', feed, factorVan: () => 10,
+  })[0];
+  check(twee.open.length === 2 && twee.openUsd === null && twee.openPct === null, 'een open copy zonder koers: geen deeltotaal');
+  const dicht = { ...trades[0], id: 'hist', status: 'verloren' as const };
+  check(versteTrade([dicht], trades[0]).status === 'verloren', 'verse trade: gesloten onder een ander id gevonden');
+  check(versteTrade([{ ...trades[0], etoroOmgeving: 'real', id: 'x' }], trades[0]) === trades[0], 'andere omgeving telt niet');
 
   check(copyPlafond({ copiesUsd: 100, kapitaal: null, maxPct: 25 }) === null, 'zonder kapitaal geen plafond');
   const p = copyPlafond({ copiesUsd: 200, kapitaal: 1000, maxPct: 25, extraUsd: 50 });

@@ -8,13 +8,13 @@ import { useCopy } from '../../state/CopyProvider';
 import { isEtoroBestuurbaar } from '../../state/etoroBestuurbaar';
 import type { FeedItem } from '../../state/copyOpslag';
 import type { PortfolioTrade } from '../../state/portfolioTypes';
+import { versteTrade } from '../../state/mijnCopies';
 
 export function useVerkoopOok() {
   const { trades, livePrijzen, omgeving, magHandelen } = usePortfolio();
   const { herkomst } = useCopy();
-  // De trade zoals hij was toen je tikte. De sheet krijgt de verse versie zolang de sync hem nog
-  // heeft (een bijgewerkt aantal of niveau na een sync), en houdt de oude alleen vast als hij net
-  // verdween, bijvoorbeeld tijdens het vinkje na een geslaagde verkoop.
+  // De trade zoals hij was toen je tikte. De sheet krijgt altijd de verse versie (ook als hij
+  // intussen dicht is, dan blokkeert de sheet), en de oude alleen als de sync hem helemaal kwijt is.
   const [gekozen, setGekozen] = useState<PortfolioTrade | null>(null);
 
   // Jouw open, via eToro te verkopen positie per eToro-positie-id.
@@ -35,9 +35,7 @@ export function useVerkoopOok() {
     return h ? verkoopbaar.get(h.etoroPositionID as number) ?? null : null;
   }, [herkomst, verkoopbaar, omgeving]);
 
-  const trade = gekozen
-    ? trades.find(t => t.id === gekozen.id && t.status === 'open') ?? gekozen
-    : null;
+  const trade = gekozen ? versteTrade(trades, gekozen) : null;
 
   const sheet = trade ? (
     <VerkoopOrderSheet
