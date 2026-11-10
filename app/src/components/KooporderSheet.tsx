@@ -253,7 +253,8 @@ export function KooporderSheet({
     // Vastleggen vóór het versturen: welke posities stonden er al open? Zonder die lijst zou een
     // positie die je al had een onbevestigde order ten onrechte oplossen.
     const bekendePosities = trades
-      .filter(t => t.bron === 'etoro' && t.status === 'open' && t.etoroPositionID !== undefined)
+      .filter(t => t.bron === 'etoro' && t.status === 'open' && t.etoroPositionID !== undefined
+        && (t.etoroOmgeving ?? 'real') === omgeving)
       .map(t => t.etoroPositionID as number);
 
     setFout('');
