@@ -3,6 +3,7 @@
 //
 // Lezen gaat via engine/etoroTraders.ts en notifications/traderChecks.ts. Hier wordt nooit een
 // order geplaatst: kopiëren loopt via de bestaande KooporderSheet, met zijn eigen bevestiging.
+import { koersFactor } from '../engine/etoroSymbolen';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { actieveSleutels } from './etoroSleutels';
@@ -350,6 +351,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
       symbool: item.symbool,
       omgeving: omg,
       tijd: Date.now(),
+      bronOpenRate: item.openRate > 0 ? item.openRate / koersFactor(item.symbool) : undefined,
     });
     await markeerGekopieerd(item.sleutel);
     setHerkomst(await laadHerkomst());

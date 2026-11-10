@@ -2,7 +2,7 @@
 // docs/copy-trading-plan.md. Elke kernactie is één tik: de ster, en Kopieer. Kopiëren opent de
 // bestaande koopsheet, vooringevuld, waarin de bevestigknop de enige handeling is.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Copy as CopyIcoon, SlidersHorizontal, Users } from 'lucide-react-native';
@@ -143,6 +143,12 @@ export function CopyScreen() {
     if (copy.feedStand === 'fout' || copy.ranglijstStand === 'fout') setFoutTijd(new Date());
   }, [copy.feedStand, copy.ranglijstStand]);
   const kopieer = useKopieerFlow();
+  const startKopie = kopieer.start;
+  const { tradeVoor, open: openVerkoopOok } = verkoopOok;
+  const verkoopOokVoor = useCallback((item: FeedItem) => {
+    const t = tradeVoor(item);
+    if (t) openVerkoopOok(t);
+  }, [tradeVoor, openVerkoopOok]);
 
   // Openen op de Feed als er favorieten zijn, anders op Ontdek. Eén keer, zodra dat bekend is.
   useEffect(() => {
@@ -203,11 +209,11 @@ export function CopyScreen() {
     // Bij een koude start vanuit de melding kan de Feed nog niet in de context staan; dan van schijf.
     (async () => {
       const item = copy.feed.find(i => i.sleutel === sleutel) ?? (await laadFeed()).find(i => i.sleutel === sleutel);
-      if (item && !item.gekopieerd && magHandelen) await kopieer.start(item);
+      if (item && !item.gekopieerd && magHandelen) kopieer.start(item);
     })().catch(() => {});
     const wekker = setTimeout(() => setUitgelicht(null), 4000);
     return () => clearTimeout(wekker);
-    // kopieer.start is per render nieuw; alleen op een nieuw doel reageren.
+    // Alleen op een nieuw doel reageren, niet op een nieuwe Feed of handelstatus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doel]);
 
@@ -382,8 +388,8 @@ export function CopyScreen() {
               magHandelen={magHandelen}
               bezig={kopieer.bezigSleutel === item.sleutel}
               uitgelicht={uitgelicht === item.sleutel}
-              onKopieer={() => { kopieer.start(item).catch(() => {}); }}
-              onVerkoopOok={teVerkopen ? () => verkoopOok.open(teVerkopen) : undefined}
+              onKopieer={startKopie}
+              onVerkoopOok={teVerkopen ? verkoopOokVoor : undefined}
               kaderCheck={item.symbool ? kaderChecks[item.symbool] : undefined}
             />
             </Animated.View>
@@ -537,13 +543,12 @@ export function CopyScreen() {
           : segment === 'feed' ? renderFeed()
           : segment === 'ontdek' ? renderOntdek()
           : (
-            <FlatList
-              data={[]}
-              renderItem={null}
-              contentContainerStyle={styles.lijst}
-              ListHeaderComponent={<MijnCopies inBeeld={inBeeld && segment === 'mijn'} />}
-              ListFooterComponent={<Disclaimer />}
-            />
+            // Een ScrollView en geen FlatList-kop: de positiekaarten hebben een layout-animatie, en
+            // die crasht in een ListHeaderComponent (Fabric).
+            <ScrollView contentContainerStyle={styles.lijst}>
+              <MijnCopies inBeeld={inBeeld && segment === 'mijn'} />
+              <Disclaimer />
+            </ScrollView>
           )}
       </View>
 

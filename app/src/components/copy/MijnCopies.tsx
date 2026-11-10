@@ -1,23 +1,33 @@
-// Mijn copies: wat je via Kader kopieerde (gewone eToro-posities met een herkomst) en wat eToro voor
-// je kopieert via "Kopieer alles" (CopyTrader-relaties). Verkopen gaat via Portfolio, waar de
-// bestaande verkoopsheet zit; stoppen van een hele copy kan hier.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// Mijn copies: wat je via Kader kopieerde (gewone eToro-posities met een herkomst), per trader
+// gegroepeerd met open en gesloten resultaat, en wat eToro voor je kopieert via "Kopieer alles"
+// (CopyTrader-relaties). Een open copy is dezelfde kaart als op Portfolio, met Verkopen en SL/TP;
+// er gaat pas iets naar eToro na de bevestigknop in die sheets.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { AlertTriangle, ChevronRight, Copy as CopyIcoon, LogOut, Square } from 'lucide-react-native';
+import { AlertTriangle, Copy as CopyIcoon, LogOut, Square } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
-import { fmtBedrag, fmtPct } from '../../engine/format';
+import { fmtBedrag, fmtPct, fmtPrijs, fmtResultaatUsd } from '../../engine/format';
 import { haalEtoroPortfolio } from '../../engine/etoro';
 import { EigenMirror, leesMirrors } from '../../engine/etoroTraders';
+import { koersFactor } from '../../engine/etoroSymbolen';
+import { vanPortfolioTrade } from '../../engine/coinDetailData';
 import { actieveSleutels } from '../../state/etoroSleutels';
 import { usePortfolio } from '../../state/PortfolioProvider';
 import { useCopy } from '../../state/CopyProvider';
 import { useNavigatie } from '../../state/navigatie';
+import { isEtoroBestuurbaar } from '../../state/etoroBestuurbaar';
 import { AllesCopy, laadAllesCopies } from '../../state/copyOpslag';
+import { CopyRegel, groepeerCopies, TraderGroep, versteTrade } from '../../state/mijnCopies';
+import { useCopyPlafond } from '../../state/useCopyPlafond';
+import type { PortfolioTrade } from '../../state/portfolioTypes';
 import { CoinLogo } from '../CoinLogo';
-import { Drukbaar } from '../Drukbaar';
+import { useCoinDetail } from '../CoinDetailScherm';
 import { PilKnop } from '../PilKnop';
+import { PositieKaart } from '../PositieKaart';
+import { VerkoopOrderSheet } from '../VerkoopOrderSheet';
+import { NiveausSheet } from '../NiveausSheet';
 import { LegeStaatBeeld, Opkomst } from '../LegeStaatBeeld';
 import { StopCopySheet } from './StopCopySheet';
 import { Cijfer, CijferRij } from './Cijfer';
@@ -25,52 +35,65 @@ import { TraderAvatar } from './TraderAvatar';
 import { useVerkoopOok } from './useVerkoopOok';
 
 const DOLLARS = { valuta: 'USD' } as const;
+// Per trader de laatste paar gesloten copies; de rest staat in de historie op Portfolio.
+const MAX_GESLOTEN = 5;
+const pctKaal = (p: number) => `${Math.abs(p).toFixed(1)}%`;
 
 export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
   const { colors } = useTheme();
-  const { trades, livePrijzen, omgeving, etoroGekoppeld } = usePortfolio();
-  const { herkomst } = useCopy();
+  const { trades, livePrijzen, omgeving, etoroGekoppeld, magHandelen, verwijderTrade } = usePortfolio();
+  const { herkomst, feed } = useCopy();
   const { gaNaar } = useNavigatie();
   const verkoopOok = useVerkoopOok();
+  const { copiesUsd, plafond, maxPct } = useCopyPlafond();
+  const { openDetail, detailScherm } = useCoinDetail();
+  const [verkoopTrade, setVerkoopTrade] = useState<PortfolioTrade | null>(null);
+  const [niveausTrade, setNiveausTrade] = useState<PortfolioTrade | null>(null);
   const [mirrors, setMirrors] = useState<EigenMirror[] | null>(null);
   const [alles, setAlles] = useState<AllesCopy[]>([]);
   const [stoppen, setStoppen] = useState<{ mirrorId: number; username: string } | null>(null);
 
+  // Elke lading krijgt een nummer. Wissel je tijdens het ophalen van demo naar echt (of andersom),
+  // dan komt het antwoord van de oude omgeving niet meer op het scherm: anders stond er een
+  // CopyTrader-relatie uit de ene omgeving met een Stop copy-knop die de sleutels van de andere stuurt.
+  const lading = useRef(0);
   const laad = useCallback(async () => {
-    setAlles(await laadAllesCopies());
+    const nummer = ++lading.current;
+    const huidig = () => nummer === lading.current;
+    const lijst = await laadAllesCopies();
+    if (huidig()) setAlles(lijst);
     const sleutels = await actieveSleutels();
+    if (!huidig()) return;
     if (!sleutels) { setMirrors([]); return; }
     try {
-      setMirrors(leesMirrors(await haalEtoroPortfolio(sleutels)));
+      const gelezen = leesMirrors(await haalEtoroPortfolio(sleutels));
+      if (huidig()) setMirrors(gelezen);
     } catch {
-      setMirrors(null);
+      if (huidig()) setMirrors(null);
     }
   }, []);
+
+  // Bij een andere omgeving eerst leeg, zodat de relaties van de vorige er niet blijven staan.
+  useEffect(() => { setMirrors(null); }, [omgeving]);
 
   useEffect(() => {
     if (inBeeld) laad().catch(() => {});
   }, [inBeeld, omgeving, laad]);
 
-  // Jouw open posities die uit een kopie komen.
-  const kopieen = useMemo(() => {
-    const perPositie = new Map(herkomst.filter(h => typeof h.etoroPositionID === 'number' && h.omgeving === omgeving).map(h => [h.etoroPositionID as number, h]));
-    return trades
-      .filter(t => t.status === 'open' && typeof t.etoroPositionID === 'number' && perPositie.has(t.etoroPositionID))
-      .map(t => {
-        const h = perPositie.get(t.etoroPositionID as number)!;
-        const koers = livePrijzen[t.symbool];
-        const pct = typeof koers === 'number' && t.entryPrijs > 0 ? ((koers - t.entryPrijs) / t.entryPrijs) * 100 : null;
-        return { trade: t, herkomst: h, pct };
-      });
-  }, [trades, herkomst, livePrijzen, omgeving]);
+  const groepen = useMemo(
+    () => groepeerCopies({ trades, herkomst, livePrijzen, omgeving, feed, factorVan: koersFactor }),
+    [trades, herkomst, livePrijzen, omgeving, feed],
+  );
 
-  const totaal = useMemo(() => {
-    const metPct = kopieen.filter(k => k.pct !== null);
-    if (metPct.length === 0) return null;
-    const gewicht = (k: typeof kopieen[number]) => (k.trade.bedragUsd && k.trade.bedragUsd > 0 ? k.trade.bedragUsd : 1);
-    const som = metPct.reduce((s, k) => s + gewicht(k), 0);
-    return metPct.reduce((s, k) => s + (k.pct as number) * gewicht(k), 0) / som;
-  }, [kopieen]);
+  // Stabiel, zodat de memo op PositieKaart bij elke koers-poll blijft werken.
+  const naarPortfolio = useCallback(
+    (t: PortfolioTrade) => gaNaar({ soort: 'trade', tradeId: t.id, symbool: t.symbool }),
+    [gaNaar],
+  );
+  const opOpenDetail = useCallback(
+    (t: PortfolioTrade) => openDetail(vanPortfolioTrade(t, livePrijzen[t.symbool])),
+    [openDetail, livePrijzen],
+  );
 
   // Per CopyTrader-relatie: wat Kader vroeg, en wat eToro nu als Copy Stop Loss heeft.
   const relaties = useMemo(() => {
@@ -90,21 +113,16 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
     return <Text style={[Type.body, styles.leeg, { color: colors.tekstGedimd }]}>Koppel eToro om je copies te zien.</Text>;
   }
 
-  const niets = kopieen.length === 0 && relaties.length === 0 && onderweg.length === 0;
+  const niets = groepen.length === 0 && relaties.length === 0 && onderweg.length === 0;
 
   return (
     <View>
-      <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
-        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>OPEN COPIES</Text>
-        <View style={styles.samenvatting}>
-          <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{kopieen.length + relaties.length}</Text>
-          {totaal !== null && (
-            <Text style={[Type.prijs, { color: totaal >= 0 ? colors.winst : colors.verlies }]}>
-              {fmtPct(totaal)} open resultaat
-            </Text>
-          )}
-        </View>
-      </View>
+      <PlafondKaart
+        copiesUsd={copiesUsd}
+        nuPct={plafond?.nuPct ?? null}
+        maxPct={maxPct}
+        grensUsd={plafond?.grensUsd ?? null}
+      />
 
       {niets && (
         <View style={styles.leegStaat}>
@@ -124,42 +142,19 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
         </View>
       )}
 
-      {kopieen.length > 0 && <Text style={[Type.overline, styles.sectie, { color: colors.tekstGedimd }]}>PER TRADE</Text>}
-      {kopieen.map(({ trade, herkomst: h, pct }) => (
-        <Drukbaar
-          key={trade.id}
-          onPress={() => gaNaar({ soort: 'trade', tradeId: trade.id, symbool: trade.symbool })}
-          style={[styles.rij, shadow.kaart, { backgroundColor: colors.kaart }]}
-          accessibilityRole="button"
-          accessibilityLabel={`${trade.symbool}, gekopieerd van ${h.username}${pct !== null ? `, ${fmtPct(pct)}` : ''}. Open in Portfolio.`}
-        >
-          <CoinLogo symbool={trade.symbool} grootte={36} />
-          <View style={styles.flex}>
-            <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Gekopieerd van {h.username}</Text>
-            {h.uitstapGemeld && (
-              <View style={styles.letOp}>
-                <AlertTriangle size={14} color={colors.letOp} strokeWidth={1.75} />
-                <Text style={[Type.caption, { color: colors.letOp }]}>LET OP · {h.username} is uitgestapt</Text>
-              </View>
-            )}
-            {h.uitstapGemeld && verkoopOok.verkoopbaar.has(trade.etoroPositionID as number) && (
-              <View style={styles.verkoopOok}>
-                <PilKnop
-                  label="Verkoop ook"
-                  icoon={LogOut}
-                  variant="tweede"
-                  onPress={() => { const t = verkoopOok.verkoopbaar.get(trade.etoroPositionID as number); if (t) verkoopOok.open(t); }}
-                  accessibilityLabel={`Verkoop ook je ${trade.symbool}, ${h.username} stapte uit. Je bevestigt in het volgende scherm.`}
-                />
-              </View>
-            )}
-          </View>
-          {pct !== null && (
-            <Text style={[Type.prijs, { color: pct >= 0 ? colors.winst : colors.verlies }]}>{fmtPct(pct)}</Text>
-          )}
-          <ChevronRight size={18} color={colors.tekstGedimd} strokeWidth={1.75} />
-        </Drukbaar>
+      {groepen.map(groep => (
+        <GroepBlok
+          key={groep.username}
+          groep={groep}
+          livePrijzen={livePrijzen}
+          kanVerkopen={t => magHandelen && isEtoroBestuurbaar(t, omgeving)}
+          verkoopOok={verkoopOok}
+          onVerkoop={setVerkoopTrade}
+          onNiveaus={setNiveausTrade}
+          onPortfolio={naarPortfolio}
+          onVerwijder={verwijderTrade}
+          onOpenDetail={opOpenDetail}
+        />
       ))}
 
       {(relaties.length > 0 || onderweg.length > 0) && (
@@ -212,6 +207,198 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
 
       <StopCopySheet doel={stoppen} onSluiten={() => setStoppen(null)} onGestopt={() => { laad().catch(() => {}); }} />
       {verkoopOok.sheet}
+      {verkoopTrade && (
+        <VerkoopOrderSheet
+          zichtbaar
+          trade={versteTrade(trades, verkoopTrade)}
+          huidigePrijs={livePrijzen[verkoopTrade.symbool]}
+          onSluiten={() => setVerkoopTrade(null)}
+        />
+      )}
+      {niveausTrade && (
+        <NiveausSheet
+          zichtbaar
+          trade={versteTrade(trades, niveausTrade)}
+          huidigePrijs={livePrijzen[niveausTrade.symbool]}
+          onSluiten={() => setNiveausTrade(null)}
+        />
+      )}
+      {detailScherm}
+    </View>
+  );
+}
+
+// Hoeveel er in copies zit en hoe dat zich verhoudt tot je eigen grens. Zonder kapitaal geen
+// percentage en geen balk: een verhouding op een verzonnen noemer zegt niets.
+function PlafondKaart({ copiesUsd, nuPct, maxPct, grensUsd }: {
+  copiesUsd: number; nuPct: number | null; maxPct: number; grensUsd: number | null;
+}) {
+  const { colors } = useTheme();
+  const boven = nuPct !== null && nuPct > maxPct + 0.05;
+  const vulling = nuPct !== null ? Math.min(1, nuPct / maxPct) : 0;
+  return (
+    <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
+      <Text style={[Type.overline, { color: colors.tekstGedimd }]}>IN COPIES</Text>
+      <View style={styles.samenvatting}>
+        <Text style={[Type.prijsGroot, { color: colors.tekstPrimair }]}>{fmtBedrag(copiesUsd, DOLLARS)}</Text>
+      </View>
+      {nuPct !== null && grensUsd !== null ? (
+        <>
+          <View
+            style={[styles.balk, { backgroundColor: colors.verhoogd }]}
+            accessible
+            accessibilityLabel={`${pctKaal(nuPct)} van je kapitaal in copies, je grens is ${maxPct} procent`}
+          >
+            <View style={[styles.balkVulling, { width: `${vulling * 100}%`, backgroundColor: boven ? colors.letOp : colors.cta }]} />
+          </View>
+          <Text style={[Type.caption, { color: boven ? colors.letOp : colors.tekstGedimd, lineHeight: 18 }]}>
+            {boven
+              ? `LET OP · ${pctKaal(nuPct)} van je kapitaal, boven je grens van ${maxPct}% (${fmtBedrag(grensUsd, DOLLARS)}).`
+              : `${pctKaal(nuPct)} van je kapitaal. Je grens is ${maxPct}%, ${fmtBedrag(grensUsd, DOLLARS)}.`}
+          </Text>
+        </>
+      ) : (
+        <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
+          Zonder handelskapitaal kan Kader je grens van {maxPct}% niet uitrekenen. Vul het in op Portfolio.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function resultaatTekst(usd: number | null, pct: number | null): string | null {
+  if (usd === null && pct === null) return null;
+  if (usd === null) return fmtPct(pct as number);
+  return pct === null ? fmtResultaatUsd(usd) : `${fmtResultaatUsd(usd)} (${fmtPct(pct)})`;
+}
+
+interface GroepProps {
+  groep: TraderGroep;
+  livePrijzen: Record<string, number>;
+  kanVerkopen: (t: PortfolioTrade) => boolean;
+  verkoopOok: ReturnType<typeof useVerkoopOok>;
+  onVerkoop: (t: PortfolioTrade) => void;
+  onNiveaus: (t: PortfolioTrade) => void;
+  onPortfolio: (t: PortfolioTrade) => void;
+  onVerwijder: (id: string) => void;
+  onOpenDetail: (t: PortfolioTrade) => void;
+}
+
+function GroepBlok({ groep, livePrijzen, kanVerkopen, verkoopOok, onVerkoop, onNiveaus, onPortfolio, onVerwijder, onOpenDetail }: GroepProps) {
+  const { colors } = useTheme();
+  const open = resultaatTekst(groep.openUsd, groep.openPct);
+  const dicht = resultaatTekst(groep.geslotenUsd, groep.geslotenPct);
+  const kleur = (x: number | null) => (x === null ? colors.tekstPrimair : x < 0 ? colors.verlies : colors.winst);
+  const getoond = groep.gesloten.slice(0, MAX_GESLOTEN);
+  return (
+    <View style={styles.groep}>
+      <View style={styles.groepKop}>
+        <TraderAvatar username={groep.username} grootte={36} />
+        <View style={styles.flex}>
+          <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{groep.username}</Text>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+            {groep.open.length} open · {groep.gesloten.length} gesloten
+          </Text>
+        </View>
+      </View>
+      <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
+        <CijferRij>
+          <Cijfer label="OPEN" waarde={open ?? (groep.open.length > 0 ? 'Onbekend' : 'Geen')} kleur={kleur(groep.openUsd ?? groep.openPct)} />
+          <Cijfer label="GESLOTEN" waarde={dicht ?? (groep.gesloten.length > 0 ? 'Onbekend' : 'Geen')} kleur={kleur(groep.geslotenUsd ?? groep.geslotenPct)} />
+        </CijferRij>
+      </View>
+
+      {groep.open.map(r => {
+        const mag = kanVerkopen(r.trade);
+        return (
+          <PositieKaart
+            key={r.trade.id}
+            trade={r.trade}
+            livePrijs={livePrijzen[r.trade.symbool]}
+            copyVan={r.herkomst.username}
+            extra={<CopyExtra regel={r} verkoopOok={verkoopOok} />}
+            onOpenDetail={onOpenDetail}
+            // Gewonnen, Verloren en Aanpassen staan er alleen als Kader de positie niet bij eToro kan
+            // besturen. Die horen bij de administratie op Portfolio, dus daarheen.
+            onVraagSluiten={onPortfolio}
+            onBewerk={onPortfolio}
+            onVerwijder={onVerwijder}
+            onVerkoop={mag ? onVerkoop : undefined}
+            onNiveaus={mag ? onNiveaus : undefined}
+          />
+        );
+      })}
+
+      {getoond.length > 0 && (
+        <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>GESLOTEN</Text>
+          {getoond.map(r => <GeslotenRij key={r.trade.id} regel={r} />)}
+          {groep.gesloten.length > getoond.length && (
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+              En {groep.gesloten.length - getoond.length} eerder. Alles staat in de historie op Portfolio.
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Jouw instap tegenover die van de trader, en de LET OP als hij uitstapte.
+function CopyExtra({ regel, verkoopOok }: { regel: CopyRegel; verkoopOok: ReturnType<typeof useVerkoopOok> }) {
+  const { colors } = useTheme();
+  const { trade, herkomst: h, verschilPct, traderEntry } = regel;
+  const verkoopbaar = typeof trade.etoroPositionID === 'number' ? verkoopOok.verkoopbaar.get(trade.etoroPositionID) : undefined;
+  return (
+    <>
+      {verschilPct !== null && traderEntry !== null && (
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+          {Math.abs(verschilPct) < 0.05
+            ? `Zelfde instap als ${h.username}`
+            : `Instap ${pctKaal(Math.abs(verschilPct))} ${verschilPct > 0 ? 'boven' : 'onder'} ${h.username} (${fmtPrijs(traderEntry)})`}
+        </Text>
+      )}
+      {h.uitstapGemeld && (
+        <View style={styles.letOp}>
+          <AlertTriangle size={14} color={colors.letOp} strokeWidth={1.75} />
+          <Text style={[Type.caption, styles.flexTekst, { color: colors.letOp }]}>LET OP · {h.username} is uitgestapt</Text>
+        </View>
+      )}
+      {h.uitstapGemeld && verkoopbaar && (
+        <View style={styles.verkoopOok}>
+          <PilKnop
+            label="Verkoop ook"
+            icoon={LogOut}
+            variant="tweede"
+            onPress={() => verkoopOok.open(verkoopbaar)}
+            accessibilityLabel={`Verkoop ook je ${trade.symbool}, ${h.username} stapte uit. Je bevestigt in het volgende scherm.`}
+          />
+        </View>
+      )}
+    </>
+  );
+}
+
+function GeslotenRij({ regel }: { regel: CopyRegel }) {
+  const { colors } = useTheme();
+  const { trade, usd, pct, verschilPct } = regel;
+  const tekst = resultaatTekst(usd, pct);
+  const getal = usd ?? pct;
+  return (
+    <View style={styles.geslotenRij} accessible accessibilityLabel={`${trade.symbool}, gesloten ${trade.slotDatum ?? ''}${tekst ? `, ${tekst}` : ''}`}>
+      <CoinLogo symbool={trade.symbool} grootte={28} />
+      <View style={styles.flex}>
+        <Text style={[Type.body, { color: colors.tekstPrimair }]}>{trade.symbool}</Text>
+        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>
+          {trade.slotDatum ? `Dicht ${trade.slotDatum}` : 'Gesloten'}
+          {verschilPct !== null && Math.abs(verschilPct) >= 0.05
+            ? ` · instap ${pctKaal(Math.abs(verschilPct))} ${verschilPct > 0 ? 'boven' : 'onder'} de trader`
+            : ''}
+        </Text>
+      </View>
+      <Text style={[Type.prijs, { color: getal === null ? colors.tekstGedimd : getal < 0 ? colors.verlies : colors.winst }]}>
+        {tekst ?? 'Onbekend'}
+      </Text>
     </View>
   );
 }
@@ -226,6 +413,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   samenvatting: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
+  balk: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  balkVulling: { height: 6, borderRadius: 3 },
+  groep: { marginTop: spacing.sm },
+  groepKop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.base, marginBottom: spacing.sm },
+  geslotenRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
+  flexTekst: { flex: 1 },
   sectie: { marginHorizontal: spacing.base, marginTop: spacing.sm, marginBottom: spacing.sm },
   leeg: { marginHorizontal: spacing.base, marginVertical: spacing.lg, lineHeight: 22, textAlign: 'center' },
   rij: {

@@ -9,6 +9,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, spacing } from '../../theme/tokens';
 import { MINIMUM_COPY_USD, type CopyInstellingen } from '../../state/copyOpslag';
+import { MAX_COPIES_OPTIES, STANDAARD_MAX_COPIES_PCT } from '../../state/mijnCopies';
 
 export const SNEL = [25, 50, 100, 250];
 const MINIMUM_USD = MINIMUM_COPY_USD;
@@ -25,12 +26,14 @@ export function CopyInstellingenSheet({ zichtbaar, huidig, onOpslaan, onSluiten 
   const [bedrag, setBedrag] = useState('');
   const [meldingen, setMeldingen] = useState(true);
   const [stilleUren, setStilleUren] = useState(true);
+  const [maxPct, setMaxPct] = useState<number>(STANDAARD_MAX_COPIES_PCT);
 
   useEffect(() => {
     if (!zichtbaar) return;
     setBedrag(String(huidig.bedragUsd));
     setMeldingen(huidig.meldingen);
     setStilleUren(huidig.stilleUren);
+    setMaxPct(huidig.maxCopiesPct);
   }, [zichtbaar, huidig]);
 
   const getal = Math.round(Number(bedrag.replace(',', '.')) * 100) / 100;
@@ -38,7 +41,7 @@ export function CopyInstellingenSheet({ zichtbaar, huidig, onOpslaan, onSluiten 
 
   const opslaan = () => {
     if (!geldig) return;
-    onOpslaan({ bedragUsd: getal, meldingen, stilleUren, ingesteld: true });
+    onOpslaan({ bedragUsd: getal, meldingen, stilleUren, ingesteld: true, maxCopiesPct: maxPct });
     onSluiten();
   };
 
@@ -98,6 +101,31 @@ export function CopyInstellingenSheet({ zichtbaar, huidig, onOpslaan, onSluiten 
           {geldig
             ? 'In dollars, want eToro rekent in dollars af. Je kunt het per kopie nog aanpassen.'
             : `Het minimum bij eToro is $${MINIMUM_USD}.`}
+        </Text>
+
+        <View style={[styles.lijn, { backgroundColor: colors.rand }]} />
+
+        <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>Hoeveel van je kapitaal mag in copies?</Text>
+        <View style={styles.snelRij}>
+          {MAX_COPIES_OPTIES.map(p => {
+            const actief = maxPct === p;
+            return (
+              <Drukbaar
+                key={p}
+                haptiek="tik"
+                onPress={() => setMaxPct(p)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: actief }}
+                accessibilityLabel={`Hooguit ${p} procent van je handelskapitaal in copies`}
+                style={[styles.snel, { backgroundColor: actief ? colors.cta : colors.verhoogd }]}
+              >
+                <Text style={[Type.prijs, { color: actief ? '#FFFFFF' : colors.tekstPrimair }]}>{p}%</Text>
+              </Drukbaar>
+            );
+          })}
+        </View>
+        <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
+          Gaat een nieuwe kopie daarboven, dan zegt de koopsheet het. Kopen kan nog steeds.
         </Text>
 
         <View style={[styles.lijn, { backgroundColor: colors.rand }]} />

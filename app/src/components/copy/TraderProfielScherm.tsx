@@ -301,7 +301,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
               magHandelen={magHandelen}
               bezig={kopieer.bezigSleutel === item.sleutel}
               metTrader={false}
-              onKopieer={() => kopieer.start(item)}
+              onKopieer={kopieer.start}
             />
           );
         })}

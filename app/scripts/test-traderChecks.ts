@@ -181,6 +181,25 @@ const check = (ok: boolean, tekst: string) => { if (!ok) { missers++; console.er
   u = await checkFavorieteTraders();
   check(u.nieuw === 1 && meldingen.length === voorStil, 'bel uit: wel in de feed, geen melding');
 
+  // Ronde 10: jij kopieerde positie 14 (jouw 888). De Feed is die regel al kwijt. Dan geeft eToro
+  // een lege portfolio terug: de eerste keer kan dat een hapering zijn, dus nog niets sluiten.
+  zet(SLEUTELS.copyHerkomst, [{ verzoekId: 'v2', username: 'jan', bronPositieId: 14, symbool: 'BTC', omgeving: 'demo', tijd: Date.now(), etoroPositionID: 888 }]);
+  zet(SLEUTELS.portfolio, [{ id: 't2', symbool: 'BTC', status: 'open', etoroPositionID: 888, etoroOmgeving: 'demo', entryPrijs: 63000 }]);
+  zet(SLEUTELS.traderFeed, lees(SLEUTELS.traderFeed).filter((i: any) => i.sleutel !== 'jan:14'));
+  const bekendVoor = (lees(SLEUTELS.traderPosities).jan ?? []).length;
+  scenario.jan.positions = [];
+  const voorLeeg = meldingen.length;
+  u = await checkFavorieteTraders();
+  check(u.gesloten === 0 && meldingen.length === voorLeeg, 'eerste lege portfolio: nog niets gesloten, geen melding');
+  check(bekendVoor > 0 && (lees(SLEUTELS.traderPosities).jan ?? []).length === bekendVoor, 'bekende posities blijven staan');
+  // Een paar minuten later nog steeds leeg: nu telt het, ook zonder Feed-regel.
+  const leeg = lees(SLEUTELS.traderLeegGezien);
+  zet(SLEUTELS.traderLeegGezien, { jan: leeg.jan - 4 * 60 * 1000 });
+  u = await checkFavorieteTraders();
+  check(meldingen.length === voorLeeg + 1 && meldingen[voorLeeg].titel === 'jan is uit BTC gestapt',
+    `tweede lege ronde: uitstap gemeld zonder Feed-regel (${meldingen[voorLeeg]?.titel})`);
+  check((lees(SLEUTELS.traderPosities).jan ?? []).length === 0, 'daarna zijn de posities weg');
+
   if (missers > 0) { console.error(`\n${missers} controle(s) mislukt`); process.exit(1); }
   console.log('\ntraderChecks-test geslaagd');
 })().catch(e => { console.error(e); process.exit(1); });

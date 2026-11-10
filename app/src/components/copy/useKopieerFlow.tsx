@@ -4,11 +4,12 @@
 //
 // Vlak voor het openen kijkt Kader opnieuw: verse koers, de koersverschuivingscheck en de niveaus.
 // Een trade die op de kaart nog kopieerbaar leek maar intussen is weggelopen, opent dus niet.
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { KooporderSheet } from '../KooporderSheet';
 import { useCopy } from '../../state/CopyProvider';
 import { useDialoog } from '../../state/DialoogProvider';
 import { haalKaderNiveaus } from '../../state/kaderNiveaus';
+import { useCopyPlafond } from '../../state/useCopyPlafond';
 import type { FeedItem } from '../../state/copyOpslag';
 import { beoordeelCopyTrade, copyNiveaus, TraderPositie } from '../../engine/copyTrading';
 import { haalLaatstePrijs } from '../../engine/marketData';
@@ -29,6 +30,7 @@ export function useKopieerFlow(onVerlaatScherm?: () => void) {
   const feedRef = useRef(feed);
   feedRef.current = feed;
   const { toonDialoog } = useDialoog();
+  const { waarschuwing } = useCopyPlafond();
   const [open, setOpen] = useState<Open | null>(null);
   const [zichtbaar, setZichtbaar] = useState(false);
   const [bezigSleutel, setBezigSleutel] = useState<string | null>(null);
@@ -95,11 +97,18 @@ export function useKopieerFlow(onVerlaatScherm?: () => void) {
       onGelukt={({ verzoekId, omgeving }) => { noteerKopie(open.item, verzoekId, omgeving).catch(() => {}); }}
       onOnzeker={({ verzoekId, omgeving }) => { noteerKopie(open.item, verzoekId, omgeving).catch(() => {}); }}
       controleerVoorVersturen={() => controleerOpnieuw(open.item, feedRef.current)}
+      waarschuwing={waarschuwing}
       onVerlaatScherm={onVerlaatScherm}
     />
   ) : null;
 
-  return { start, sheet, bezigSleutel };
+  // Stabiel: start zelf is elke render nieuw (hij leest de verse context), maar de kaarten in de
+  // lijst zijn gememood en moeten bij een koers-poll niet allemaal opnieuw tekenen.
+  const startRef = useRef(start);
+  startRef.current = start;
+  const startStabiel = useCallback((item: FeedItem) => { startRef.current(item).catch(() => {}); }, []);
+
+  return { start: startStabiel, sheet, bezigSleutel };
 }
 
 function naarPositie(item: FeedItem, factor: number): TraderPositie {

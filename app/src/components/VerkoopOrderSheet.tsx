@@ -71,7 +71,10 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
     trade.bron !== 'etoro' ? 'Deze trade heb je zelf ingevoerd, hij staat niet als positie bij eToro. Sluit hem af met Gewonnen of Verloren.'
       : positionId === undefined || instrumentId === undefined ? 'Kader mist de eToro-gegevens van deze positie. Ververs je portfolio, dan vult de sync ze aan.'
         : tradeOmgeving !== omgeving ? `Deze positie staat in je ${tradeOmgeving === 'demo' ? 'demo' : 'echte'}-account en je staat nu op ${omgeving === 'demo' ? 'demo' : 'echt'}. Schakel om om hem te kunnen verkopen.`
-          : '';
+          // Gesloten terwijl de sheet openstond (stop of doel geraakt bij eToro): niets meer te
+          // verkopen. Behalve na onze eigen geslaagde verkoop, dan staat het vinkje er nog even.
+          : trade.status !== 'open' && !gelukt ? 'Deze positie is inmiddels gesloten bij eToro. Er valt niets meer te verkopen.'
+            : '';
   const mag = blokkade === '';
 
   // Alle eToro-posities die nu open staan in deze omgeving. Zonder die lijst zou een positie die je
