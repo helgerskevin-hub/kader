@@ -21,6 +21,7 @@ import { haalRanglijst, haalRanglijstVoor } from '../engine/etoroTraders';
 import { haalCryptoTypeIds } from '../engine/etoro';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { checkFavorieteTraders } from '../notifications/traderChecks';
+import { positieSleutel } from './positieSleutel';
 
 export interface TraderMetScore {
   rij: RanglijstRij;
@@ -310,7 +311,8 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   // verschijnt, is die kopie. Elke positie hoort bij hooguit één herkomst.
   useEffect(() => {
     if (herkomst.length === 0) return;
-    const gekoppeld = new Set(herkomst.map(h => h.etoroPositionID).filter((x): x is number => typeof x === 'number'));
+    // Op omgeving + positionID: demo en echt nummeren los.
+    const gekoppeld = new Set(herkomst.filter(h => typeof h.etoroPositionID === 'number').map(h => `${h.omgeving}:${h.etoroPositionID}`));
     let gewijzigd = false;
     const volgende = herkomst.map(h => {
       if (typeof h.etoroPositionID === 'number') return h;
@@ -318,10 +320,10 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
         .filter(t => t.bron === 'etoro' && t.status === 'open' && typeof t.etoroPositionID === 'number')
         .filter(t => t.symbool === h.symbool && (t.etoroOmgeving ?? 'real') === h.omgeving)
         .filter(t => typeof t.openTijd === 'number' && t.openTijd >= h.tijd - 2 * 60 * 1000)
-        .filter(t => !gekoppeld.has(t.etoroPositionID as number))
+        .filter(t => !gekoppeld.has(positieSleutel(t)!))
         .sort((a, b) => (a.openTijd ?? 0) - (b.openTijd ?? 0))[0];
       if (!kandidaat) return h;
-      gekoppeld.add(kandidaat.etoroPositionID as number);
+      gekoppeld.add(positieSleutel(kandidaat)!);
       gewijzigd = true;
       return { ...h, etoroPositionID: kandidaat.etoroPositionID };
     });
