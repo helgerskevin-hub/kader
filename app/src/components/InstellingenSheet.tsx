@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import Constants from 'expo-constants';
-import { X, Link2, Bell, CalendarDays, FileText, ChevronRight, LayoutGrid } from 'lucide-react-native';
+import { X, Link2, Bell, CalendarDays, FileText, ChevronRight, LayoutGrid, SlidersHorizontal } from 'lucide-react-native';
 import { useTheme, ThemaModus } from '../theme/ThemeProvider';
 import { useModalKopruimte } from '../theme/useModalKopruimte';
 import { Type, Fonts } from '../theme/typography';
@@ -31,13 +31,35 @@ import { zetMeldingen } from '../state/meldingSchakelaar';
 import { useRisicoPct, type RisicoPct } from '../state/useRisicoPct';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
 import { weekrapportAan, zetWeekrapport } from '../notifications/weekrapport';
-import { useWidgetBedragen } from '../state/useWidgetBedragen';
+import { useWidgetWeergave, type WidgetHoofdgetal, type WidgetIndeling } from '../state/widgetWeergave';
+import type { WidgetVolgorde } from '../state/widgetStand';
+import { tekenWidgets } from '../widget/widgetVerversen';
 import { fmtBedrag } from '../engine/format';
 
 interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
 }
+
+const WIDGET_INDELINGEN: SegmentOptie<WidgetIndeling>[] = [
+  { id: 'resultaat', label: 'Resultaat' },
+  { id: 'vermogen', label: 'Vermogen' },
+];
+const WIDGET_HOOFDGETALLEN: SegmentOptie<WidgetHoofdgetal>[] = [
+  { id: 'pct', label: '%', uitleg: 'Procenten' },
+  { id: 'usd', label: '$', uitleg: 'Dollars' },
+  { id: 'r', label: 'R' },
+];
+const WIDGET_VOLGORDES: SegmentOptie<WidgetVolgorde>[] = [
+  { id: 'urgent', label: 'Urgent', uitleg: 'Dichtst bij stop of doel' },
+  { id: 'grootste', label: 'Grootste' },
+  { id: 'uitersten', label: 'Uitersten', uitleg: 'Beste en slechtste' },
+];
+const WIDGET_AANTALLEN: SegmentOptie<'2' | '3' | '4'>[] = [
+  { id: '2', label: '2' },
+  { id: '3', label: '3' },
+  { id: '4', label: '4' },
+];
 
 const THEMAS: SegmentOptie<ThemaModus>[] = [
   { id: 'systeem', label: 'Systeem', uitleg: 'Thema volgt het systeem' },
@@ -115,7 +137,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { pct: risico, pctGetal: risicoGetal, kiesPct } = useRisicoPct();
   const { kapitaal } = useHandelskapitaal();
   const [bezigMeldingen, setBezigMeldingen] = useState(false);
-  const { bedragenAan, kiesBedragen } = useWidgetBedragen();
+  const { weergave: widget, kies: kiesWidget } = useWidgetWeergave(tekenWidgets);
 
   // Hint onder de handelsomgeving na een losse tik op Echt. Alleen de dekking beweegt.
   const [hintGetoond, setHintGetoond] = useState(false);
@@ -394,22 +416,57 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
               <LijstGroep
                 titel="Widget"
                 style={styles.groep}
-                voetnoot="Je startscherm zien ook anderen. Standaard toont de widget alleen R, dat zegt genoeg over hoe je plan loopt."
+                lijnInspringing={spacing.base}
+                voetnoot="Je startscherm zien ook anderen, dus dollars staan er alleen op als je dat hier kiest. De widget ververst als je Kader gebruikt en daarbuiten ongeveer elk kwartier; Android bepaalt het precieze moment."
               >
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Indeling</Text>
+                  <SegmentKnop opties={WIDGET_INDELINGEN} actief={widget.indeling} onKies={id => kiesWidget({ indeling: id })} />
+                </View>
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Hoofdgetal</Text>
+                  <SegmentKnop opties={WIDGET_HOOFDGETALLEN} actief={widget.hoofdgetal} onKies={id => kiesWidget({ hoofdgetal: id })} />
+                </View>
                 <LijstRij
                   icoon={LayoutGrid}
-                  titel="Bedragen op de widget"
-                  sub="Naast R ook het resultaat in dollars"
+                  titel="Bedragen in dollars"
+                  sub="Resultaat en vermogen in dollars"
                   rechts={
                     <Switch
-                      value={bedragenAan}
-                      onValueChange={kiesBedragen}
+                      value={widget.bedragen}
+                      onValueChange={aan => kiesWidget({ bedragen: aan })}
                       trackColor={{ true: colors.tekstGedimd, false: colors.rand }}
-                      thumbColor={bedragenAan ? colors.tekstPrimair : colors.verhoogd}
-                      accessibilityLabel="Bedragen op de widget"
+                      thumbColor={widget.bedragen ? colors.tekstPrimair : colors.verhoogd}
+                      accessibilityLabel="Bedragen in dollars op de widget"
                     />
                   }
                 />
+                <LijstRij
+                  icoon={SlidersHorizontal}
+                  titel="Balken naar stop en doel"
+                  sub="Op de brede widget, per positie"
+                  rechts={
+                    <Switch
+                      value={widget.balken}
+                      onValueChange={aan => kiesWidget({ balken: aan })}
+                      trackColor={{ true: colors.tekstGedimd, false: colors.rand }}
+                      thumbColor={widget.balken ? colors.tekstPrimair : colors.verhoogd}
+                      accessibilityLabel="Balken naar stop en doel op de widget"
+                    />
+                  }
+                />
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Welke posities</Text>
+                  <SegmentKnop opties={WIDGET_VOLGORDES} actief={widget.volgorde} onKies={id => kiesWidget({ volgorde: id })} />
+                </View>
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Aantal posities</Text>
+                  <SegmentKnop
+                    opties={WIDGET_AANTALLEN}
+                    actief={String(widget.aantal) as '2' | '3' | '4'}
+                    onKies={id => kiesWidget({ aantal: Number(id) as 2 | 3 | 4 })}
+                  />
+                </View>
               </LijstGroep>
 
               <LijstGroep titel="Over Kader" style={styles.groep}>

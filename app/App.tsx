@@ -35,6 +35,7 @@ import { laadVlag, bewaarVlag, laadTekst, bewaarTekst, SLEUTELS } from './src/st
 import { haalOmgeving, heeftEnigeSleutel } from './src/state/etoroSleutels';
 import { stelDagelijkseMeldingIn } from './src/notifications/meldingen';
 import { meldingenAan } from './src/state/meldingVoorkeur';
+import { heeftWidgets } from './src/widget/widgetVerversen';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
 import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
@@ -401,10 +402,14 @@ function AppInhoud() {
       // Alleen als de gebruiker meldingen aan heeft staan. Zonder deze controle zou elke app-start
       // de dagelijkse herinnering opnieuw inplannen en de achtergrondtaak weer registreren, en dan
       // is de knop in Instellingen tot de volgende start uit en daarna weer aan.
-      if (klaar) meldingenAan().then(aan => {
-        if (!aan) return;
-        stelDagelijkseMeldingIn();
-        registreerAchtergrondtaak();
+      // Met meldingen uit maar een widget op het startscherm draait de taak alleen voor de widget.
+      if (klaar) meldingenAan().then(async aan => {
+        if (aan) {
+          stelDagelijkseMeldingIn();
+          registreerAchtergrondtaak();
+        } else if (await heeftWidgets()) {
+          registreerAchtergrondtaak();
+        }
       });
     });
   }, []);

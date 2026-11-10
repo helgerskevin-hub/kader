@@ -133,8 +133,10 @@ export const SLEUTELS = {
   // Wat de Android-widget toont: de laatst berekende WidgetStand. De widget tekent alleen wat hier
   // staat; de app en de achtergrondtaak rekenen het uit. Zie state/widgetStand.ts.
   widgetStand: 'widget_stand',
-  // Toont de widget naast R ook dollars? 'aan' of 'uit', ontbreekt = uit. Zie state/useWidgetBedragen.ts.
+  // Toont de widget naast R ook dollars? 'aan' of 'uit', ontbreekt = uit. Zie state/widgetWeergave.ts.
   widgetBedragen: 'widget_bedragen',
+  // Indeling, hoofdgetal, balken, volgorde en aantal posities op de widget. Zie state/widgetWeergave.ts.
+  widgetWeergave: 'widget_weergave',
   // ---------- Copy-tab (zie docs/copy-trading-plan.md) ----------
   // Favoriete eToro-beleggers: [{ username, cid }]. cid is nodig voor "Kopieer alles via eToro".
   favorieteTraders: 'favoriete_traders',

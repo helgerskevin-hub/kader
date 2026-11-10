@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- De widget is vernieuwd. Hij toont je open resultaat nu standaard in procenten, met de dollars eronder als je die aanzet, en op de brede widget per positie een balk van stop naar doel met een stip op de koers. In Instellingen, onder Widget, kies je de indeling (Resultaat of Vermogen), het hoofdgetal (%, $ of R), de balken, welke posities erop staan (dichtst bij stop of doel, grootste, of beste en slechtste) en hoeveel. Rechtsboven staat hoe laat de cijfers zijn; zijn ze ouder dan twee uur, dan is de tijd oranje. De widget ververst nu ook op de achtergrond als je meldingen uit staan
+
 ## 0.4.1
 
 - Demo en Echt worden bij het ophalen uit eToro nu strikt uit elkaar gehouden. Had een demo-positie toevallig hetzelfde nummer als een echte, dan kon de ene de andere in je portfolio overschrijven. Dat kan niet meer, en ook de koppeling van copies en de afhandeling van een verkooporder kijken nu naar de omgeving

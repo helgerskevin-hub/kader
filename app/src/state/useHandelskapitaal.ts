@@ -13,26 +13,8 @@ import { AutoKapitaal, AutoKapitaalPerOmgeving, laadAutoKapitaal, luisterNaarAut
 // saldo meestuurde, geldt het getal dat de gebruiker zelf invulde. Is dat er ook niet, dan null:
 // een verzonnen noemer maakt elk percentage waardeloos.
 
-async function laadHandmatig(): Promise<number | null> {
-  const tekst = await laadTekst(SLEUTELS.handelskapitaal, '');
-  const waarde = Number(tekst);
-  return tekst !== '' && Number.isFinite(waarde) && waarde > 0 ? waarde : null;
-}
-
-const bruikbaar = (auto: AutoKapitaal | undefined): auto is AutoKapitaal => !!auto && auto.totaalUsd > 0;
-
-// Los te lezen, voor schermen die het kapitaal alleen nodig hebben op het moment dat ze opengaan
-// (de kooporder) en niet de hele hook willen.
-export async function laadHandelskapitaal(): Promise<number | null> {
-  const [gekoppeld, omgeving, auto] = await Promise.all([
-    heeftEnigeSleutel().catch(() => false),
-    haalOmgeving().catch(() => 'demo' as const),
-    laadAutoKapitaal(),
-  ]);
-  const vanEtoro = auto[omgeving];
-  if (gekoppeld && bruikbaar(vanEtoro)) return vanEtoro.totaalUsd;
-  return laadHandmatig();
-}
+export { laadHandelskapitaal } from './handelskapitaal';
+import { bruikbaar, laadHandmatig } from './handelskapitaal';
 
 export function useHandelskapitaal() {
   const { etoroGekoppeld, omgeving } = usePortfolio();

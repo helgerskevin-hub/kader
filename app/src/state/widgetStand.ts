@@ -9,8 +9,11 @@ import { behaaldeRR, resultaatVan } from './statistieken';
 import { drempelBijnaOpDoel } from './advies';
 import { inOmgeving } from './openRisico';
 
-// Zoveel posities passen er op de brede widget (4x2).
-export const MAX_WIDGET_POSITIES = 3;
+// Zoveel posities passen er hoogstens op de brede widget (4x2); de gebruiker kiest 2, 3 of 4.
+export const MAX_WIDGET_POSITIES = 4;
+// Zoveel worden er bewaard, zodat de widget bij een andere volgorde zelf kan kiezen zonder opnieuw
+// te rekenen.
+const MAX_BEWAARD = 12;
 
 // Het laatste deel van de weg dat als "dicht bij" telt. Gelijk aan drempelBijnaOpDoel (de laatste
 // 10% tussen instap en doel), zodat de widget hetzelfde zegt als Portfolio en Eén ding vandaag.
@@ -24,7 +27,15 @@ export interface WidgetPositie {
   r: number | null;
   // Open resultaat in dollars. Null zonder aantal coins.
   usd: number | null;
+  // Koersverschil met de instap in procenten. Altijd bekend als er een koers is.
+  pct: number;
+  // Ingelegd bedrag (instap maal aantal). Null zonder aantal coins.
+  inleg: number | null;
+  // Waar de koers staat tussen stop (0) en doel (1), begrensd. Null zonder stop of doel.
+  baan: number | null;
   nabij: WidgetNabij;
+  // Hoe urgent: het deel van de weg naar stop of doel dat nog over is. Kleiner is urgenter.
+  rest: number;
 }
 
 export interface WidgetStand {
@@ -36,7 +47,12 @@ export interface WidgetStand {
   // Som over de posities met een koers en een R. Null als er geen enkele meetelt.
   totaalR: number | null;
   totaalUsd: number | null;
-  // Met een koers, de meest urgente eerst, hoogstens MAX_WIDGET_POSITIES.
+  // Open resultaat als deel van wat erin zit: totaalUsd gedeeld door de inleg van dezelfde
+  // posities. Null zonder posities met een aantal coins.
+  totaalPct: number | null;
+  // Het handelskapitaal (vermogen) van deze omgeving, of null als Kader het niet weet.
+  vermogen: number | null;
+  // Met een koers, de meest urgente eerst. De widget kiest er zelf uit (kiesPosities).
   posities: WidgetPositie[];
   // Epoch ms van de berekening.
   tijd: number;
@@ -79,16 +95,45 @@ function nabijVan(t: PortfolioTrade, koers: number): WidgetNabij {
   return null;
 }
 
+// Waar de koers staat op de weg van de huidige stop naar het doel, als deel van 0 tot 1.
+function baanVan(t: PortfolioTrade, koers: number): number | null {
+  if (!(t.stopLoss > 0) || !(t.takeProfit > t.stopLoss)) return null;
+  return Math.min(1, Math.max(0, (koers - t.stopLoss) / (t.takeProfit - t.stopLoss)));
+}
+
+export type WidgetVolgorde = 'urgent' | 'grootste' | 'uitersten';
+
+// Welke posities de brede widget toont. Urgent: dichtst bij stop of doel (zo bewaard). Grootste:
+// meeste inleg eerst. Uitersten: om en om de beste en de slechtste.
+export function kiesPosities(posities: WidgetPositie[], volgorde: WidgetVolgorde, aantal: number): WidgetPositie[] {
+  if (volgorde === 'grootste') {
+    return [...posities].sort((a, b) => (b.inleg ?? -1) - (a.inleg ?? -1)).slice(0, aantal);
+  }
+  if (volgorde === 'uitersten') {
+    const opPct = [...posities].sort((a, b) => b.pct - a.pct);
+    const uit: WidgetPositie[] = [];
+    while (uit.length < aantal && opPct.length > 0) {
+      uit.push(uit.length % 2 === 0 ? opPct.shift()! : opPct.pop()!);
+    }
+    // Beste bovenaan, slechtste onderaan.
+    return uit.sort((a, b) => b.pct - a.pct);
+  }
+  return posities.slice(0, aantal);
+}
+
 export function berekenWidgetStand(
   trades: PortfolioTrade[],
   livePrijzen: Record<string, number>,
   omgeving: 'real' | 'demo',
   tijd: number,
+  vermogen: number | null = null,
 ): WidgetStand {
   const open = trades.filter(t => t.status === 'open' && hoortBijWidget(t, omgeving));
   let totaalR: number | null = null;
   let totaalUsd: number | null = null;
-  const metKoers: (WidgetPositie & { rest: number })[] = [];
+  let usdMetInleg = 0;
+  let inlegTotaal = 0;
+  const metKoers: WidgetPositie[] = [];
 
   for (const t of open) {
     const koers = livePrijzen[t.symbool];
@@ -100,12 +145,36 @@ export function berekenWidgetStand(
     const usd = resultaatVan(nu);
     if (r !== null) totaalR = (totaalR ?? 0) + r;
     if (usd !== null) totaalUsd = (totaalUsd ?? 0) + usd;
-    metKoers.push({ symbool: t.symbool, r, usd, nabij: nabijVan(t, koers), rest: restVanWeg(t, koers) });
+    const inleg = typeof t.aantalCoins === 'number' && t.aantalCoins > 0 && t.entryPrijs > 0
+      ? t.entryPrijs * t.aantalCoins : null;
+    if (inleg !== null && usd !== null) {
+      inlegTotaal += inleg;
+      usdMetInleg += usd;
+    }
+    metKoers.push({
+      symbool: t.symbool,
+      r,
+      usd,
+      pct: t.entryPrijs > 0 ? (koers - t.entryPrijs) / t.entryPrijs * 100 : 0,
+      inleg,
+      baan: baanVan(t, koers),
+      nabij: nabijVan(t, koers),
+      rest: restVanWeg(t, koers),
+    });
   }
 
   metKoers.sort((a, b) => a.rest - b.rest);
-  const posities = metKoers.slice(0, MAX_WIDGET_POSITIES).map(({ rest: _rest, ...p }) => p);
-  return { omgeving, aantalOpen: open.length, metKoers: metKoers.length, totaalR, totaalUsd, posities, tijd };
+  return {
+    omgeving,
+    aantalOpen: open.length,
+    metKoers: metKoers.length,
+    totaalR,
+    totaalUsd,
+    totaalPct: inlegTotaal > 0 ? usdMetInleg / inlegTotaal * 100 : null,
+    vermogen: vermogen !== null && vermogen > 0 ? vermogen : null,
+    posities: metKoers.slice(0, MAX_BEWAARD),
+    tijd,
+  };
 }
 
 if (typeof require !== 'undefined' && require.main === module) {
@@ -137,8 +206,16 @@ if (typeof require !== 'undefined' && require.main === module) {
   console.assert(bijna(s.totaalR, 3.1), `totaal R 3.1, kreeg ${s.totaalR}`);
   // 10 + 29 - 9.5 + 3; AVAX heeft geen aantal.
   console.assert(bijna(s.totaalUsd, 32.5), `totaal $ 32.5, kreeg ${s.totaalUsd}`);
-  console.assert(s.posities.length === MAX_WIDGET_POSITIES, 'hoogstens drie posities');
-  console.assert(s.posities.map(p => p.symbool).join() === 'ETH,SOL,ADA', `urgentste eerst, kreeg ${s.posities.map(p => p.symbool).join()}`);
+  console.assert(s.posities.length === 5, 'alle vijf met koers bewaard');
+  console.assert(kiesPosities(s.posities, 'urgent', 3).length === 3, 'drie gekozen');
+  // Inleg: BTC 200, ETH 100, SOL 100, ADA 100 (AVAX zonder aantal). Resultaat 32.5 over 500.
+  console.assert(bijna(s.totaalPct, 6.5), `totaal % 6.5, kreeg ${s.totaalPct}`);
+  console.assert(kiesPosities(s.posities, 'grootste', 1)[0].symbool === 'BTC', 'grootste is BTC');
+  const uitersten = kiesPosities(s.posities, 'uitersten', 2).map(p => p.symbool).join();
+  console.assert(uitersten === 'ETH,SOL', `uitersten ETH en SOL, kreeg ${uitersten}`);
+  // ETH 129 tussen stop 90 en doel 130: 39/40.
+  console.assert(bijna(s.posities[0].baan, 0.975), `baan ETH 0.975, kreeg ${s.posities[0].baan}`);
+  console.assert(kiesPosities(s.posities, 'urgent', 3).map(p => p.symbool).join() === 'ETH,SOL,ADA', `urgentste eerst, kreeg ${s.posities.map(p => p.symbool).join()}`);
   console.assert(s.posities[0].nabij === 'doel' && s.posities[1].nabij === 'stop', 'doel en stop herkend');
   console.assert(s.posities[2].nabij === 'stop', 'stop op instap: 103 ligt in het eerste tiende van 100 naar 140');
   console.assert(bijna(s.posities[2].r, 0.15), 'R tegen de oorspronkelijke stop');
