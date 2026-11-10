@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { X } from 'lucide-react-native';
 import { BottomSheet } from '../BottomSheet';
+import { Drukbaar } from '../Drukbaar';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, spacing } from '../../theme/tokens';
@@ -67,15 +68,16 @@ export function CopyInstellingenSheet({ zichtbaar, huidig, onOpslaan, onSluiten 
           {SNEL.map(w => {
             const actief = getal === w;
             return (
-              <Pressable
+              <Drukbaar
                 key={w}
+                haptiek="tik"
                 onPress={() => setBedrag(String(w))}
                 accessibilityRole="button"
                 accessibilityState={{ selected: actief }}
                 style={[styles.snel, { backgroundColor: actief ? colors.cta : colors.verhoogd }]}
               >
                 <Text style={[Type.prijs, { color: actief ? '#FFFFFF' : colors.tekstPrimair }]}>${w}</Text>
-              </Pressable>
+              </Drukbaar>
             );
           })}
         </View>
@@ -117,14 +119,14 @@ export function CopyInstellingenSheet({ zichtbaar, huidig, onOpslaan, onSluiten 
           dan gaat Kaders eigen stop mee.
         </Text>
 
-        <Pressable
+        <Drukbaar
           onPress={opslaan}
           disabled={!geldig}
           accessibilityRole="button"
           style={[styles.knop, { backgroundColor: geldig ? colors.cta : colors.verhoogd }]}
         >
           <Text style={[Type.body, { color: geldig ? '#FFFFFF' : colors.tekstGedimd, fontWeight: '600' }]}>Opslaan</Text>
-        </Pressable>
+        </Drukbaar>
       </ScrollView>
     </BottomSheet>
   );

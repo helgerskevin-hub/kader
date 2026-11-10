@@ -3,7 +3,7 @@
 // bestaande verkoopsheet zit; stoppen van een hele copy kan hier.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { AlertTriangle, ChevronRight } from 'lucide-react-native';
+import { AlertTriangle, ChevronRight, Copy as CopyIcoon, Square } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
@@ -17,7 +17,10 @@ import { useNavigatie } from '../../state/navigatie';
 import { AllesCopy, laadAllesCopies } from '../../state/copyOpslag';
 import { CoinLogo } from '../CoinLogo';
 import { Drukbaar } from '../Drukbaar';
+import { PilKnop } from '../PilKnop';
+import { LegeStaatBeeld, Opkomst } from '../LegeStaatBeeld';
 import { StopCopySheet } from './StopCopySheet';
+import { Cijfer, CijferRij } from './Cijfer';
 import { TraderAvatar } from './TraderAvatar';
 
 const DOLLARS = { valuta: 'USD' } as const;
@@ -102,9 +105,21 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
       </View>
 
       {niets && (
-        <Text style={[Type.body, styles.leeg, { color: colors.tekstGedimd }]}>
-          Nog niets gekopieerd. Kopieer een trade in de Feed, of start in een profiel "Kopieer alles via eToro".
-        </Text>
+        <View style={styles.leegStaat}>
+          <Opkomst volgorde={0}>
+            <LegeStaatBeeld>
+              <CopyIcoon size={26} color={colors.tekstGedimd} strokeWidth={1.5} />
+            </LegeStaatBeeld>
+          </Opkomst>
+          <Opkomst volgorde={1}>
+            <Text style={[Type.titel, styles.midden, { color: colors.tekstPrimair, marginTop: spacing.base }]}>Nog niets gekopieerd</Text>
+          </Opkomst>
+          <Opkomst volgorde={2}>
+            <Text style={[Type.body, styles.midden, { color: colors.tekstGedimd, marginTop: spacing.sm, lineHeight: 24 }]}>
+              Kopieer een trade in de Feed, of start in een profiel Kopieer alles via eToro. Je copies verschijnen dan hier.
+            </Text>
+          </Opkomst>
+        </View>
       )}
 
       {kopieen.length > 0 && <Text style={[Type.overline, styles.sectie, { color: colors.tekstGedimd }]}>PER TRADE</Text>}
@@ -143,12 +158,14 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
             <TraderAvatar username={mirror.parentUsername} grootte={36} />
             <View style={styles.flex}>
               <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>{mirror.parentUsername}</Text>
-              <Text style={[Type.label, { color: colors.tekstGedimd, fontSize: 12 }]}>
-                Ingelegd {fmtBedrag(mirror.inlegUsd, DOLLARS)} · {mirror.aantalPosities} posities
-                {mirror.cslPct !== null ? ` · Copy Stop Loss ${Math.round(mirror.cslPct)}%` : ''}
-              </Text>
+              <Text style={[Type.caption, { color: colors.tekstGedimd }]}>eToro kopieert al zijn trades</Text>
             </View>
           </View>
+          <CijferRij>
+            <Cijfer label="INGELEGD" waarde={fmtBedrag(mirror.inlegUsd, DOLLARS)} />
+            <Cijfer label="POSITIES" waarde={String(mirror.aantalPosities)} />
+            <Cijfer label="COPY STOP LOSS" waarde={mirror.cslPct !== null ? `${Math.round(mirror.cslPct)}%` : 'niet gezet'} />
+          </CijferRij>
           {ruimer && gevraagd && (
             <View style={styles.letOp}>
               <AlertTriangle size={14} color={colors.letOp} strokeWidth={1.75} />
@@ -157,14 +174,16 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
               </Text>
             </View>
           )}
-          <Drukbaar
-            onPress={() => setStoppen({ mirrorId: mirror.mirrorId, username: mirror.parentUsername })}
-            style={[styles.stopKnop, { borderColor: colors.rand }]}
-            accessibilityRole="button"
-            accessibilityLabel={`Stop de copy van ${mirror.parentUsername}`}
-          >
-            <Text style={[Type.body, { color: colors.verlies, fontWeight: '600' }]}>Stop copy</Text>
-          </Drukbaar>
+          <View style={styles.knopRij}>
+            <PilKnop
+              label="Stop copy"
+              icoon={Square}
+              variant="tweede"
+              tekstKleur={colors.verlies}
+              onPress={() => setStoppen({ mirrorId: mirror.mirrorId, username: mirror.parentUsername })}
+              accessibilityLabel={`Stop de copy van ${mirror.parentUsername}`}
+            />
+          </View>
         </View>
       ))}
       {onderweg.map(a => (
@@ -206,11 +225,7 @@ const styles = StyleSheet.create({
   },
   rijBinnen: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   letOp: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
-  stopKnop: {
-    minHeight: 44,
-    borderRadius: radii.knop,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  knopRij: { flexDirection: 'row', justifyContent: 'flex-end' },
+  leegStaat: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
+  midden: { textAlign: 'center' },
 });

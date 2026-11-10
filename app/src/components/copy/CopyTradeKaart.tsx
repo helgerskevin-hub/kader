@@ -1,13 +1,17 @@
-// Kaart in de Feed: één trade van een favoriete belegger. Bovenaan wie en wanneer, dan de coin, de
-// niveaus als stop-doel-baan, hoeveel de koers sindsdien bewoog, en de knop. Of de knop actief is
-// beslist beoordeelCopyTrade in engine/copyTrading.ts; deze kaart toont alleen de uitkomst, met de
-// reden erbij als kopiëren niet (meer) kan.
-import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { AlertTriangle, CheckCircle, Copy as CopyIcoon } from 'lucide-react-native';
+// Kaart in de Feed: één trade van een favoriete belegger, in de kaartfamilie van Markt en Kansen.
+// Compact staat erop welke coin, van wie, hoeveel de koers sinds de trader bewoog, de stop-doel-baan
+// en de status. Kan je kopiëren, dan staat de knop er direct onder; een tik op de kaart klapt de
+// details en de reden uit. Of kopiëren kan beslist beoordeelCopyTrade in engine/copyTrading.ts;
+// deze kaart toont alleen de uitkomst, altijd met een label en nooit met kleur alleen.
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { AlertTriangle, CheckCircle, Copy as CopyIcoon, Eye, Info } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
+import { useReduceMotion } from '../../theme/useReduceMotion';
+import { schuifOvergang, uitklapInGestaffeld, uitklapUit } from '../../theme/lijstBeweging';
 import { fmtBedrag, fmtPct, fmtPrijs } from '../../engine/format';
 import { koersFactor } from '../../engine/etoroSymbolen';
 import { COIN_INFO } from '../../engine/coinInfo';
@@ -15,8 +19,11 @@ import type { CopyStand } from '../../engine/copyTrading';
 import type { FeedItem } from '../../state/copyOpslag';
 import { CoinLogo } from '../CoinLogo';
 import { StopDoelBaan } from '../StopDoelBaan';
-import { Drukbaar } from '../Drukbaar';
+import { useDrukVeer } from '../Drukbaar';
+import { PilKnop } from '../PilKnop';
+import { UitklapPijl } from '../UitklapPijl';
 import { TraderAvatar } from './TraderAvatar';
+import { Cijfer, CijferRij } from './Cijfer';
 
 const DOLLARS = { valuta: 'USD' } as const;
 
@@ -30,6 +37,44 @@ export function tijdGeleden(ms: number, nu = Date.now()): string {
   return dag === 1 ? '1 dag' : `${dag} dagen`;
 }
 
+// Onder de 0,05% is er niets bewogen. Zonder dit stond er "−0.0%", wat een daling suggereert.
+function verschuivingTekst(pct: number): string {
+  return Math.abs(pct) < 0.05 ? '0.0%' : fmtPct(pct);
+}
+
+type Toon = 'goed' | 'letOp' | 'neutraal';
+
+interface Status {
+  label: string;
+  toon: Toon;
+  // De volledige reden, in de uitklap. Null als er niets uit te leggen valt.
+  reden: string | null;
+}
+
+function bepaalStatus(item: FeedItem, stand: CopyStand, magHandelen: boolean): Status {
+  if (item.gekopieerd) return { label: 'Gekopieerd', toon: 'goed', reden: null };
+  switch (stand.soort) {
+    case 'te-laat':
+      return {
+        label: 'Te laat',
+        toon: 'letOp',
+        reden: `De koers staat ${fmtPct(stand.verschuivingPct)} ten opzichte van de instap van ${item.username}. Kader kopieert pas tot 2% verschil, zodat je niet duurder instapt dan het plan van de trader.`,
+      };
+    case 'onder-stop':
+      return { label: 'Onder stop', toon: 'letOp', reden: 'De koers staat al onder de stop van de trader. Instappen zou meteen je stop raken.' };
+    case 'gesloten':
+      return { label: 'Gesloten', toon: 'neutraal', reden: `${item.username} heeft deze positie gesloten.` };
+    case 'short':
+      return { label: 'Short', toon: 'neutraal', reden: 'Kader kopieert alleen long: je portfolio en de meldingen rekenen met long-posities.' };
+    case 'buiten-kader':
+      return { label: 'Buiten Kader', toon: 'neutraal', reden: 'Deze coin hoort niet bij de 57 die Kader volgt, dus Kader heeft er geen stop en doel voor.' };
+    case 'kopieerbaar':
+      return magHandelen
+        ? { label: 'Kopieerbaar', toon: 'goed', reden: null }
+        : { label: 'Alleen meekijken', toon: 'neutraal', reden: 'Koppel eToro met schrijfrecht om vanuit Kader te kopiëren.' };
+  }
+}
+
 interface Props {
   item: FeedItem;
   stand: CopyStand;
@@ -40,13 +85,21 @@ interface Props {
   bezig: boolean;
   // Kort oplichten, als je via een melding binnenkomt.
   uitgelicht?: boolean;
+  // Plek in de lijst, voor de staffeling van de baan.
+  volgorde?: number;
+  // Uit in het profiel van de trader zelf: daar staat zijn naam al bovenaan.
+  metTrader?: boolean;
   onKopieer: () => void;
 }
 
 export const CopyTradeKaart = React.memo(function CopyTradeKaart({
-  item, stand, koers, bedragUsd, magHandelen, bezig, uitgelicht = false, onKopieer,
+  item, stand, koers, bedragUsd, magHandelen, bezig, uitgelicht = false, volgorde = 0, metTrader = true, onKopieer,
 }: Props) {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
+  const [uitgeklapt, setUitgeklapt] = useState(false);
+  const druk = useDrukVeer();
+
   const factor = item.symbool ? koersFactor(item.symbool) : 1;
   const entry = item.openRate / factor;
   const stop = item.stopLossRate ? item.stopLossRate / factor : 0;
@@ -54,123 +107,179 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
   const heeftBaan = stop > 0 && doel > 0 && stop < entry && doel > entry;
   const symbool = item.symbool ?? '?';
   const naam = item.symbool ? COIN_INFO[item.symbool]?.naam ?? item.symbool : 'Onbekende coin';
-  const kopieerbaar = stand.soort === 'kopieerbaar' && !item.gekopieerd;
+  const status = bepaalStatus(item, stand, magHandelen);
+  const kanKopieren = stand.soort === 'kopieerbaar' && !item.gekopieerd && magHandelen;
+  const tijd = tijdGeleden(item.openTijd ?? item.gezien);
 
-  // De adviesrand uit de huisstijl: groen als je kunt kopiëren, amber als je te laat bent, anders
-  // neutraal. Altijd met een tekstregel ernaast, nooit kleur alleen.
-  const rand = item.gekopieerd ? colors.rand
-    : kopieerbaar ? colors.winst
-    : stand.soort === 'te-laat' || stand.soort === 'onder-stop' ? colors.letOp
-    : colors.rand;
+  const verschuiving = (stand.soort === 'kopieerbaar' || stand.soort === 'te-laat') ? stand.verschuivingPct : null;
+  const toonKleur = (t: Toon) => (t === 'goed' ? colors.winst : t === 'letOp' ? colors.letOp : colors.tekstGedimd);
+  const StatusIcoon = item.gekopieerd ? CheckCircle
+    : status.toon === 'letOp' ? AlertTriangle
+    : status.label === 'Alleen meekijken' ? Eye
+    : status.toon === 'goed' ? CopyIcoon
+    : Info;
 
-  let reden: string | null = null;
-  if (!item.gekopieerd) {
-    if (stand.soort === 'te-laat') reden = `Te laat: de koers staat ${fmtPct(stand.verschuivingPct)} ten opzichte van de trader.`;
-    else if (stand.soort === 'onder-stop') reden = 'De koers staat al onder de stop van de trader.';
-    else if (stand.soort === 'gesloten') reden = `${item.username} heeft deze positie gesloten.`;
-    else if (stand.soort === 'short') reden = 'Short, Kader kopieert alleen long.';
-    else if (stand.soort === 'buiten-kader') reden = 'Deze coin hoort niet bij de 57 die Kader volgt.';
-    else if (!magHandelen) reden = 'Koppel eToro met schrijfrecht om te kopiëren.';
-  }
-
-  const verschuiving = stand.soort === 'kopieerbaar' && stand.verschuivingPct !== null
-    ? `Nu ${fmtPrijs(koers ?? entry)} · ${fmtPct(stand.verschuivingPct)} sinds de trader`
-    : koers !== null ? `Nu ${fmtPrijs(koers)}` : null;
-
-  const label = `${item.username} ${item.isBuy ? 'kocht' : 'shortte'} ${symbool} op ${fmtPrijs(entry)}, ${tijdGeleden(item.openTijd ?? item.gezien)} geleden.`;
+  const kaartLabel = `${symbool}, ${item.isBuy ? 'long' : 'short'} van ${item.username}, ${tijd} geleden`
+    + `${verschuiving !== null ? `, ${verschuivingTekst(verschuiving)} sinds de trader` : ''}, ${status.label}`;
 
   return (
-    <View
+    <Animated.View
+      ref={druk.ref}
+      layout={schuifOvergang(reduceMotion)}
       style={[
-        styles.kaart, shadow.kaart,
-        { backgroundColor: colors.kaart, borderLeftColor: rand },
-        uitgelicht && { borderColor: colors.cta, borderWidth: 1.5, borderLeftWidth: 4 },
+        styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }, druk.stijl,
+        uitgelicht && { borderColor: colors.cta, borderWidth: 1.5 },
       ]}
-      accessible={false}
     >
-      <View style={styles.kop} accessible accessibilityLabel={label}>
-        <TraderAvatar username={item.username} grootte={24} />
-        <Text style={[Type.sectiekop, styles.flex, { color: colors.tekstPrimair }]} numberOfLines={1}>{item.username}</Text>
-        <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{tijdGeleden(item.openTijd ?? item.gezien)}</Text>
-      </View>
-
-      <View style={styles.coin}>
-        <CoinLogo symbool={symbool} grootte={32} />
-        <Text style={[Type.body, styles.flex, { color: colors.tekstPrimair }]} numberOfLines={1}>{naam}</Text>
-        <View style={[styles.pil, { backgroundColor: colors.verhoogd }]}>
-          <Text style={[Type.overline, { color: colors.tekstPrimair }]}>{item.isBuy ? 'LONG' : 'SHORT'}</Text>
+      <Pressable
+        onPress={() => setUitgeklapt(v => !v)}
+        onPressIn={druk.drukIn}
+        onPressOut={druk.drukUit}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: uitgeklapt }}
+        accessibilityLabel={kaartLabel}
+        accessibilityHint={uitgeklapt ? 'Tik om in te klappen' : 'Tik voor details'}
+        style={styles.boven}
+      >
+        <View style={styles.kop}>
+          <CoinLogo symbool={symbool} grootte={40} />
+          <View style={styles.kopMidden}>
+            <View style={styles.symboolRij}>
+              <Text style={[Type.sectiekop, styles.symbool, { color: colors.tekstPrimair }]}>{symbool}</Text>
+              <View style={[styles.pil, { backgroundColor: colors.verhoogd }]}>
+                <Text style={[Type.overline, styles.pilTekst, { color: colors.tekstPrimair }]}>{item.isBuy ? 'LONG' : 'SHORT'}</Text>
+              </View>
+            </View>
+            <View style={styles.vanRij}>
+              {metTrader && <TraderAvatar username={item.username} grootte={18} />}
+              <Text style={[Type.caption, styles.flex, { color: colors.tekstGedimd }]} numberOfLines={1}>
+                {metTrader ? `${item.username} · ${tijd}` : `${naam} · ${tijd === 'net' ? 'net geopend' : `${tijd} geleden`}`}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.kopRechts}>
+            {verschuiving !== null ? (
+              <>
+                <Text style={[Type.prijs, styles.verschuiving, { color: stand.soort === 'te-laat' ? colors.letOp : colors.tekstPrimair }]}>
+                  {verschuivingTekst(verschuiving)}
+                </Text>
+                <Text style={[Type.caption, { color: colors.tekstGedimd }]}>sinds trader</Text>
+              </>
+            ) : (
+              <Text style={[Type.prijs, styles.verschuiving, { color: colors.tekstPrimair }]}>
+                {fmtPrijs(koers ?? entry)}
+              </Text>
+            )}
+          </View>
         </View>
-      </View>
 
-      {heeftBaan ? (
-        <View style={styles.baan}>
-          <StopDoelBaan stop={stop} entry={entry} doel={doel} live={koers ?? undefined} labels accessible={false} />
+        {heeftBaan && (
+          <View style={styles.baan}>
+            <StopDoelBaan stop={stop} entry={entry} doel={doel} live={koers ?? undefined} labels accessible={false} volgorde={volgorde} />
+          </View>
+        )}
+
+        <View style={styles.voet}>
+          <View style={[styles.status, { backgroundColor: toonKleur(status.toon) + '1A' }]}>
+            <StatusIcoon size={13} color={toonKleur(status.toon)} strokeWidth={2} />
+            <Text style={[Type.overline, styles.pilTekst, { color: toonKleur(status.toon) }]}>{status.label.toUpperCase()}</Text>
+          </View>
+          {item.leverage > 1 && (
+            <View style={[styles.pil, { backgroundColor: colors.verhoogd }]}>
+              <Text style={[Type.prijs, styles.pilTekst, { color: colors.tekstGedimd }]}>trader {item.leverage}x</Text>
+            </View>
+          )}
+          <View style={[styles.pijlRondje, { backgroundColor: colors.verhoogd }]}>
+            <UitklapPijl open={uitgeklapt} size={14} color={colors.tekstGedimd} strokeWidth={2} veerNaam="stevig" />
+          </View>
         </View>
-      ) : (
-        <Text style={[Type.prijs, styles.regel, { color: colors.tekstPrimair }]}>
-          Instap {fmtPrijs(entry)}{stop > 0 ? ` · stop ${fmtPrijs(stop)}` : ''}{doel > 0 ? ` · doel ${fmtPrijs(doel)}` : ''}
-        </Text>
+      </Pressable>
+
+      {kanKopieren && (
+        <View style={styles.actie}>
+          <PilKnop
+            label={bezig ? 'Even kijken' : `Kopieer voor ${fmtBedrag(bedragUsd, DOLLARS)}`}
+            icoon={CopyIcoon}
+            variant="cta"
+            onPress={() => { if (!bezig) onKopieer(); }}
+            accessibilityLabel={`Kopieer ${symbool} van ${item.username} voor ${fmtBedrag(bedragUsd, DOLLARS)}`}
+          />
+        </View>
       )}
 
-      {verschuiving && (
-        <Text style={[Type.label, styles.regel, { color: colors.tekstGedimd, fontSize: 12 }]}>{verschuiving}</Text>
+      {uitgeklapt && (
+        <Animated.View exiting={uitklapUit()} style={[styles.uitklap, { borderTopColor: colors.rand }]}>
+          {status.reden && (
+            <Animated.View entering={uitklapInGestaffeld(0, reduceMotion)} style={styles.redenRij}>
+              <StatusIcoon size={15} color={toonKleur(status.toon)} strokeWidth={1.75} />
+              <Text style={[Type.caption, styles.flex, styles.regelHoogte, { color: colors.tekstPrimair }]}>{status.reden}</Text>
+            </Animated.View>
+          )}
+          <Animated.View entering={uitklapInGestaffeld(1, reduceMotion)}>
+            <CijferRij>
+              <Cijfer label="INSTAP TRADER" waarde={fmtPrijs(entry)} />
+              <Cijfer label="NU" waarde={koers !== null ? fmtPrijs(koers) : 'onbekend'} />
+              <Cijfer label="JIJ" waarde={`${fmtBedrag(bedragUsd, DOLLARS)} · 1x`} />
+            </CijferRij>
+          </Animated.View>
+          <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)}>
+            <Text style={[Type.caption, styles.regelHoogte, { color: colors.tekstGedimd }]}>
+              {stop > 0
+                ? 'Je kopieert zonder hefboom, met de stop en het doel van de trader.'
+                : 'De trader zette geen stop. Kader zet zijn eigen stop eronder: zonder stop kopieert Kader niet.'}
+            </Text>
+          </Animated.View>
+        </Animated.View>
       )}
-      <Text style={[Type.label, styles.regel, { color: colors.tekstGedimd, fontSize: 12 }]}>
-        Jij: {fmtBedrag(bedragUsd, DOLLARS)} · hefboom 1x{item.leverage > 1 ? ` (trader ${item.leverage}x)` : ''}
-      </Text>
-
-      {item.gekopieerd ? (
-        <View style={styles.status}>
-          <CheckCircle size={16} color={colors.winst} strokeWidth={1.75} />
-          <Text style={[Type.caption, { color: colors.tekstPrimair }]}>Gekopieerd</Text>
-        </View>
-      ) : reden ? (
-        <View style={styles.status}>
-          <AlertTriangle size={16} color={rand === colors.letOp ? colors.letOp : colors.tekstGedimd} strokeWidth={1.75} />
-          <Text style={[Type.caption, styles.flex, { color: colors.tekstGedimd }]}>{reden}</Text>
-        </View>
-      ) : (
-        <Drukbaar
-          onPress={onKopieer}
-          disabled={bezig}
-          haptiek="tik"
-          style={[styles.knop, { backgroundColor: colors.cta }]}
-          accessibilityRole="button"
-          accessibilityLabel={`Kopieer ${symbool} van ${item.username} voor ${fmtBedrag(bedragUsd, DOLLARS)}`}
-        >
-          {bezig
-            ? <ActivityIndicator color="#FFFFFF" />
-            : <CopyIcoon size={18} color="#FFFFFF" strokeWidth={1.75} />}
-          <Text style={[Type.body, styles.knopTekst]}>Kopieer voor {fmtBedrag(bedragUsd, DOLLARS)}</Text>
-        </Drukbaar>
-      )}
-    </View>
+    </Animated.View>
   );
 });
 
 const styles = StyleSheet.create({
   kaart: {
     borderRadius: radii.kaart,
-    padding: spacing.base,
     marginHorizontal: spacing.base,
     marginBottom: spacing.md,
-    borderLeftWidth: 4,
+    // Knipt de blokken die bij het dichtklappen nog uitfaden af op de rand van de krimpende kaart.
+    overflow: 'hidden',
   },
-  kop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  boven: { padding: spacing.base },
+  kop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  kopMidden: { flex: 1, minWidth: 0, gap: 4 },
+  symboolRij: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  symbool: { fontSize: 17 },
+  vanRij: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   flex: { flex: 1 },
-  coin: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
-  pil: { borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  kopRechts: { alignItems: 'flex-end', gap: 2, flexShrink: 1, maxWidth: '45%' },
+  verschuiving: { fontSize: 17, lineHeight: 22 },
+  pil: { paddingVertical: 3, paddingHorizontal: spacing.sm, borderRadius: radii.pill },
+  pilTekst: { fontSize: 11.5, lineHeight: 14 },
   baan: { marginTop: spacing.md },
-  regel: { marginTop: spacing.sm },
-  status: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md, minHeight: 44 },
-  knop: {
-    marginTop: spacing.md,
-    minHeight: 48,
-    borderRadius: radii.knop,
+  voet: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+  status: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
   },
-  knopTekst: { color: '#FFFFFF', fontWeight: '600' },
+  pijlRondje: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 'auto',
+  },
+  actie: { paddingHorizontal: spacing.base, paddingBottom: spacing.base, marginTop: -spacing.xs },
+  uitklap: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.base,
+    paddingTop: spacing.base,
+    gap: spacing.md,
+  },
+  redenRij: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  regelHoogte: { lineHeight: 18 },
 });

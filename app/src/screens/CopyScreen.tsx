@@ -2,7 +2,8 @@
 // docs/copy-trading-plan.md. Elke kernactie is één tik: de ster, en Kopieer. Kopiëren opent de
 // bestaande koopsheet, vooringevuld, waarin de bevestigknop de enige handeling is.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Copy as CopyIcoon, SlidersHorizontal, Users } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
@@ -14,6 +15,10 @@ import { SkeletonKaart } from '../components/SkeletonKaart';
 import { Disclaimer } from '../components/Disclaimer';
 import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
 import { Drukbaar } from '../components/Drukbaar';
+import { OfflineMelding } from '../components/OfflineMelding';
+import { useReduceMotion } from '../theme/useReduceMotion';
+import { kaartLandt, schuifOvergang, uitklapUit } from '../theme/lijstBeweging';
+import { haptiek } from '../theme/haptiek';
 import { PodiumScherm } from '../components/PodiumScherm';
 import { CopyTradeKaart } from '../components/copy/CopyTradeKaart';
 import { TraderKaart } from '../components/copy/TraderKaart';
@@ -74,6 +79,12 @@ export function CopyScreen() {
   const [handmatigOpen, setHandmatigOpen] = useState(false);
   const [uitgelicht, setUitgelicht] = useState<string | null>(null);
   const [vernieuwt, setVernieuwt] = useState(false);
+  const reduceMotion = useReduceMotion();
+  // Wanneer Kader zag dat eToro niet te bereiken was, voor "Laatste poging" in de foutmelding.
+  const [foutTijd, setFoutTijd] = useState<Date>(() => new Date());
+  useEffect(() => {
+    if (copy.feedStand === 'fout' || copy.ranglijstStand === 'fout') setFoutTijd(new Date());
+  }, [copy.feedStand, copy.ranglijstStand]);
   const kopieer = useKopieerFlow();
 
   // Openen op de Feed als er favorieten zijn, anders op Ontdek. Eén keer, zodra dat bekend is.
@@ -126,6 +137,7 @@ export function CopyScreen() {
   }, [doel]);
 
   const vernieuw = useCallback(async () => {
+    haptiek('vastklikken');
     setVernieuwt(true);
     try {
       if (segment === 'ontdek') await copy.verversRanglijst(true);
@@ -148,15 +160,16 @@ export function CopyScreen() {
   );
 
   const instellingenKnop = (
-    <Pressable
+    <Drukbaar
       onPress={() => setInstellingenOpen(true)}
+      schaal={0.9}
       style={styles.kopKnop}
       accessibilityRole="button"
       accessibilityLabel="Copy-instellingen"
       hitSlop={8}
     >
       <SlidersHorizontal size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
-    </Pressable>
+    </Drukbaar>
   );
 
   const geenKoppeling = (
@@ -183,29 +196,34 @@ export function CopyScreen() {
     if (copy.feedStand === 'laden' && feed.length === 0) return <Skeletons aantal={3} />;
     if (copy.feedStand === 'fout' && feed.length === 0) {
       return (
-        <LegeStaat
+        <OfflineMelding
           titel="Kader kan eToro nu niet bereiken"
-          tekst="Controleer je verbinding en probeer het opnieuw."
-          knop={{ label: 'Opnieuw', onDruk: () => { copy.verversFeed().catch(() => {}); } }}
+          beschrijving="De trades van je favorieten komen van eToro. Controleer je verbinding."
+          melding="Ophalen mislukt"
+          lastAttempt={foutTijd}
+          onRetry={() => { copy.verversFeed().catch(() => {}); }}
         />
       );
     }
     return (
-      <FlatList
+      <Animated.FlatList
         data={feed}
         keyExtractor={i => i.sleutel}
+        itemLayoutAnimation={schuifOvergang(reduceMotion)}
         contentContainerStyle={styles.lijst}
-        refreshControl={<RefreshControl refreshing={vernieuwt} onRefresh={vernieuw} tintColor={colors.tekstGedimd} />}
+        refreshControl={<RefreshControl refreshing={vernieuwt} onRefresh={vernieuw} tintColor={colors.cta} colors={[colors.cta]} />}
         ListEmptyComponent={
           <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>
             Nog geen nieuwe trades van je favorieten. Kader kijkt elke minuut zolang deze tab open is, en
             ongeveer elk kwartier als de app dicht is.
           </Text>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const { stand, koers } = standVan(item, copy.koersen);
           return (
+            <Animated.View entering={kaartLandt(index, reduceMotion)} exiting={uitklapUit()}>
             <CopyTradeKaart
+              volgorde={index}
               item={item}
               stand={stand}
               koers={koers}
@@ -215,6 +233,7 @@ export function CopyScreen() {
               uitgelicht={uitgelicht === item.sleutel}
               onKopieer={() => { kopieer.start(item).catch(() => {}); }}
             />
+            </Animated.View>
           );
         }}
         ListFooterComponent={<Disclaimer />}
@@ -227,10 +246,12 @@ export function CopyScreen() {
     if ((copy.ranglijstStand === 'laden' || copy.ranglijstStand === 'leeg') && traders.length === 0) return <Skeletons aantal={5} />;
     if (copy.ranglijstStand === 'fout' && traders.length === 0) {
       return (
-        <LegeStaat
+        <OfflineMelding
           titel="Kader kan eToro nu niet bereiken"
-          tekst={copy.ranglijstFout ?? 'Probeer het opnieuw.'}
-          knop={{ label: 'Opnieuw', onDruk: () => { copy.verversRanglijst(true).catch(() => {}); } }}
+          beschrijving="De ranglijst van traders komt van eToro. Controleer je verbinding."
+          melding={copy.ranglijstFout ?? 'Ophalen mislukt'}
+          lastAttempt={foutTijd}
+          onRetry={() => { copy.verversRanglijst(true).catch(() => {}); }}
         />
       );
     }
@@ -238,11 +259,12 @@ export function CopyScreen() {
       ? new Date(copy.ranglijstTijd).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
       : null;
     return (
-      <FlatList
+      <Animated.FlatList
         data={traders}
         keyExtractor={t => t.rij.username}
+        itemLayoutAnimation={schuifOvergang(reduceMotion)}
         contentContainerStyle={styles.lijst}
-        refreshControl={<RefreshControl refreshing={vernieuwt} onRefresh={vernieuw} tintColor={colors.tekstGedimd} />}
+        refreshControl={<RefreshControl refreshing={vernieuwt} onRefresh={vernieuw} tintColor={colors.cta} colors={[colors.cta]} />}
         ListHeaderComponent={
           <View>
             <View style={styles.filters}>
@@ -275,24 +297,27 @@ export function CopyScreen() {
         ListEmptyComponent={
           <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>Geen traders gevonden met dit filter.</Text>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
+          <Animated.View entering={kaartLandt(index, reduceMotion)} exiting={uitklapUit()}>
           <TraderKaart
+            volgorde={index}
             trader={item}
             favoriet={copy.isFavoriet(item.rij.username)}
             onWisselFavoriet={() => copy.wisselFavoriet({ username: item.rij.username, cid: item.rij.cid })}
             onOpen={() => setProfiel(item)}
             bron={{ kleur: colors.kaart, radius: radii.kaart }}
           />
+          </Animated.View>
         )}
         ListFooterComponent={
           <View>
-            <Pressable
+            <Drukbaar
               onPress={() => setHandmatigOpen(true)}
               accessibilityRole="button"
               style={styles.handmatig}
             >
               <Text style={[Type.body, { color: colors.cta }]}>Trader niet gevonden? Beoordeel handmatig</Text>
-            </Pressable>
+            </Drukbaar>
             <Disclaimer />
           </View>
         }
@@ -340,7 +365,9 @@ export function CopyScreen() {
 function Skeletons({ aantal }: { aantal: number }) {
   return (
     <View style={styles.lijst}>
-      {Array.from({ length: aantal }, (_, i) => <SkeletonKaart key={i} />)}
+      {Array.from({ length: aantal }, (_, i) => (
+        <Animated.View key={i} exiting={uitklapUit()}><SkeletonKaart /></Animated.View>
+      ))}
     </View>
   );
 }
@@ -367,9 +394,9 @@ function LegeStaat({ icoon, titel, tekst, knop }: {
       </Opkomst>
       {knop && (
         <Opkomst volgorde={3}>
-          <Pressable onPress={knop.onDruk} accessibilityRole="button" style={[styles.leegKnop, { backgroundColor: colors.cta }]}>
+          <Drukbaar onPress={knop.onDruk} haptiek="tik" accessibilityRole="button" style={[styles.leegKnop, { backgroundColor: colors.cta }]}>
             <Text style={[Type.body, { color: '#FFFFFF', fontWeight: '600' }]}>{knop.label}</Text>
-          </Pressable>
+          </Drukbaar>
         </Opkomst>
       )}
     </View>
