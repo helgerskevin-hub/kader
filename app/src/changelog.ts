@@ -40,8 +40,38 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.4.1',
     datum: '2026-11-10',
+    nieuweFeatures: [
+      {
+        icoon: 'spreiding',
+        kleur: 'primair',
+        titel: 'Je kapitaal komt nu uit eToro',
+        tekst: 'Met een koppeling vult Kader je handelskapitaal zelf in, apart voor Demo en Echt. Op Portfolio zie je hoeveel in je eigen trades zit en hoeveel in copies.',
+        plek: 'Portfolio, bovenaan',
+      },
+      {
+        icoon: 'ontdek',
+        kleur: 'cta',
+        titel: 'Traders zoeken en vergelijken',
+        tekst: 'Zoek een trader op naam, sorteer op score, rendement of daling en filter op Laag risico. Het profiel toont zijn rendement tegen BTC en waar zijn geld in zit.',
+        plek: 'Copy, onder Ontdek',
+      },
+      {
+        icoon: 'ster',
+        kleur: 'goud',
+        titel: 'Je favorieten bovenaan de Feed',
+        tekst: 'Tik op een favoriet om alleen zijn trades te zien. Met de bel in zijn profiel zet je de meldingen van één trader uit. Kader houdt bij hoe zijn trades uitpakken.',
+        plek: 'Copy, onder Feed',
+      },
+      {
+        icoon: 'copy',
+        kleur: 'letOp',
+        titel: 'Mijn copies per trader',
+        tekst: 'Je copies staan per trader, met resultaat en je instap naast die van de trader. Verkopen kan meteen. Kies hoeveel van je kapitaal hooguit in copies mag.',
+        plek: 'Copy, onder Mijn copies',
+      },
+    ],
     punten: [
       'Demo en Echt worden bij het ophalen uit eToro nu strikt uit elkaar gehouden. Had een demo-positie toevallig hetzelfde nummer als een echte, dan kon de ene de andere in je portfolio overschrijven. Dat kan niet meer, en ook de koppeling van copies en de afhandeling van een verkooporder kijken nu naar de omgeving',
       'Mijn copies is opnieuw opgezet. Je copies staan per trader, met wat open staat en wat al dicht is, in dollars en procenten. Een open copy is dezelfde kaart als op Portfolio, dus je kunt hem daar meteen verkopen of je stop en doel aanpassen; er gaat pas iets naar eToro als jij bevestigt. Per copy zie je hoeveel hoger of lager jij instapte dan de trader. In de Copy-instellingen kies je hoeveel van je handelskapitaal hooguit in copies mag, standaard 25%. Mijn copies laat zien waar je staat, en gaat een nieuwe kopie erboven, dan zegt de koopsheet het. Kopen blijft gewoon mogelijk. Een lege portfolio bij eToro leidt niet meer meteen tot uitstapmeldingen: Kader wacht een ronde om een hapering uit te sluiten',
