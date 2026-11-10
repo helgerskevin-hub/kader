@@ -95,7 +95,9 @@ function waarden(
   return { hoofd: opties[sleutel]!, bij: bij.length > 0 ? bij.join(' · ') : null };
 }
 
-function Kop({ stand, kleuren, nu }: { stand: WidgetStand | null; kleuren: ColorTokens; nu: number }) {
+// De tijd staat rechtsboven op de brede widget; op de smalle past hij daar niet naast Demo en staat
+// hij in de onderregel.
+function Kop({ stand, kleuren, nu, metTijd }: { stand: WidgetStand | null; kleuren: ColorTokens; nu: number; metTijd: boolean }) {
   const oud = stand !== null && nu - stand.tijd > OUD_NA_MS;
   return (
     <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', alignItems: 'center' }}>
@@ -114,7 +116,7 @@ function Kop({ stand, kleuren, nu }: { stand: WidgetStand | null; kleuren: Color
         </FlexWidget>
       )}
       <FlexWidget style={{ flex: 1 }} />
-      {stand !== null && (
+      {stand !== null && metTijd && (
         <TextWidget
           text={tijdTekst(stand.tijd, nu)}
           maxLines={1}
@@ -186,22 +188,25 @@ function Onderregel({ tekst, kleur }: { tekst: string; kleur: HexColor }) {
   return <TextWidget text={tekst} maxLines={2} style={{ fontSize: 11, fontFamily: SANS, color: kleur, marginTop: spacing.xs }} />;
 }
 
+const STIP = 8;
+
 // De baan van stop naar doel met een stip op de koers. Twee stukken spoor om een stip heen, want
-// een widget kent geen absolute positie.
-function Baan({ baan, kleur, kleuren }: { baan: number; kleur: HexColor; kleuren: ColorTokens }) {
-  const links = Math.max(0.001, baan);
-  const rechts = Math.max(0.001, 1 - baan);
-  const spoor = { height: 4, backgroundColor: hex(kleuren.verhoogd) } as const;
+// een widget kent geen absolute positie, en met een breedte in dp: een flex-verhouding negeert de
+// widget.
+function Baan({ baan, breedte, kleur, kleuren }: { baan: number; breedte: number; kleur: HexColor; kleuren: ColorTokens }) {
+  const spoorBreedte = Math.max(0, breedte - STIP);
+  const links = Math.round(spoorBreedte * baan);
+  const spoor = { height: 4, backgroundColor: hex(kleuren.rand), borderRadius: 2 } as const;
   return (
-    <FlexWidget style={{ width: 'match_parent', height: 8, flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-      <FlexWidget style={{ ...spoor, flex: links, borderRadius: 2 }} />
-      <FlexWidget style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: kleur }} />
-      <FlexWidget style={{ ...spoor, flex: rechts, borderRadius: 2 }} />
+    <FlexWidget style={{ width: breedte, height: STIP, flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+      {links > 0 && <FlexWidget style={{ ...spoor, width: links }} />}
+      <FlexWidget style={{ width: STIP, height: STIP, borderRadius: STIP / 2, backgroundColor: kleur }} />
+      {spoorBreedte - links > 0 && <FlexWidget style={{ ...spoor, width: spoorBreedte - links }} />}
     </FlexWidget>
   );
 }
 
-function PositieRij({ p, weergave, kleuren }: { p: WidgetPositie; weergave: WidgetWeergave; kleuren: ColorTokens }) {
+function PositieRij({ p, weergave, kleuren, baanBreedte }: { p: WidgetPositie; weergave: WidgetWeergave; kleuren: ColorTokens; baanBreedte: number }) {
   const { hoofd, bij } = waarden(getal(p.pct), p.usd, p.r, weergave);
   const kleur = hoofd.getal !== null ? teken(hoofd.getal, kleuren) : hex(kleuren.tekstGedimd);
   const label = nabijTekst(p);
@@ -218,7 +223,7 @@ function PositieRij({ p, weergave, kleuren }: { p: WidgetPositie; weergave: Widg
           )}
         </FlexWidget>
         {baan !== null
-          ? <Baan baan={baan} kleur={p.nabij === 'stop' ? hex(kleuren.verlies) : kleur} kleuren={kleuren} />
+          ? <Baan baan={baan} breedte={baanBreedte} kleur={p.nabij === 'stop' ? hex(kleuren.verlies) : kleur} kleuren={kleuren} />
           : <TextWidget text="geen stop of doel" style={{ fontSize: 10, fontFamily: SANS, color: hex(kleuren.tekstGedimd) }} />}
       </FlexWidget>
     );
@@ -245,11 +250,15 @@ function PositieRij({ p, weergave, kleuren }: { p: WidgetPositie; weergave: Widg
   );
 }
 
-function Posities({ posities, weergave, kleuren }: { posities: WidgetPositie[]; weergave: WidgetWeergave; kleuren: ColorTokens }) {
+function Posities({ posities, weergave, kleuren, breedte }: { posities: WidgetPositie[]; weergave: WidgetWeergave; kleuren: ColorTokens; breedte: number }) {
+  // Een vaste breedte voor de rechterkolom (de helft van wat binnen de rand en de marge overblijft),
+  // zodat de balk precies past: binnenrand en scheidingslijn gaan eraf, plus twee dp speling.
+  const kolom = Math.floor((breedte - 3 * spacing.base) / 2);
+  const baanBreedte = Math.max(40, kolom - spacing.base - 1 - 2);
   return (
     <FlexWidget
       style={{
-        flex: 1,
+        width: kolom,
         height: 'match_parent',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -260,7 +269,7 @@ function Posities({ posities, weergave, kleuren }: { posities: WidgetPositie[]; 
         flexGap: weergave.balken ? 6 : spacing.sm,
       }}
     >
-      {posities.map(p => <PositieRij key={p.symbool} p={p} weergave={weergave} kleuren={kleuren} />)}
+      {posities.map(p => <PositieRij key={p.symbool} p={p} weergave={weergave} kleuren={kleuren} baanBreedte={baanBreedte} />)}
       {weergave.balken && posities.length < 4 && (
         <FlexWidget style={{ width: 'match_parent', flexDirection: 'row' }}>
           <TextWidget text="stop" style={{ fontSize: 10, fontFamily: SANS, color: hex(kleuren.tekstGedimd) }} />
@@ -286,7 +295,7 @@ function Vermogen({ stand, vermogen, kleuren, breed, posities }: {
     pct !== null ? fmtPct(pct) : null,
   ].filter((x): x is string => x !== null);
   const kleur = teken(stand.totaalUsd ?? pct, kleuren);
-  const bedrag = `$${Math.round(vermogen).toLocaleString('nl-NL')}`;
+  const bedrag = `$${Math.round(vermogen).toLocaleString('en-US')}`;
   if (!breed) {
     return (
       <FlexWidget style={{ flexDirection: 'column' }}>
@@ -295,7 +304,7 @@ function Vermogen({ stand, vermogen, kleuren, breed, posities }: {
         {delen.length > 0 && (
           <TextWidget text={delen.join(' · ')} maxLines={1} style={{ fontSize: 13, fontFamily: MONO, color: kleur, marginTop: spacing.xs }} />
         )}
-        <TextWidget text="open resultaat" style={{ fontSize: 11, fontFamily: SANS, color: hex(kleuren.tekstGedimd) }} />
+        <TextWidget text={`open resultaat · ${tijdTekst(stand.tijd, Date.now())}`} maxLines={1} style={{ fontSize: 11, fontFamily: SANS, color: hex(kleuren.tekstGedimd) }} />
       </FlexWidget>
     );
   }
@@ -363,10 +372,14 @@ export function KaderWidget({ stand, weergave, breedte, kleuren, nu, uri }: Prop
       const onder = !breed && urgent
         ? <Onderregel tekst={`${urgent.symbool} ${nabijTekst(urgent)}`} kleur={hex(urgent.nabij === 'stop' ? kleuren.letOp : kleuren.tekstPrimair)} />
         : <Onderregel tekst={telling} kleur={hex(kleuren.tekstGedimd)} />;
+      const tijd = !breed
+        ? <TextWidget text={tijdTekst(stand.tijd, nu)} maxLines={1} style={{ fontSize: 11, fontFamily: SANS, color: hex(nu - stand.tijd > OUD_NA_MS ? kleuren.letOp : kleuren.tekstGedimd) }} />
+        : null;
       inhoud = (
         <FlexWidget style={{ flexDirection: 'column' }}>
           <Resultaat stand={stand} weergave={weergave} kleuren={kleuren} groot={28} />
           {onder}
+          {tijd}
         </FlexWidget>
       );
     }
@@ -374,7 +387,7 @@ export function KaderWidget({ stand, weergave, breedte, kleuren, nu, uri }: Prop
 
   const links = (
     <FlexWidget style={{ flex: 1, height: 'match_parent', flexDirection: 'column' }}>
-      <Kop stand={stand} kleuren={kleuren} nu={nu} />
+      <Kop stand={stand} kleuren={kleuren} nu={nu} metTijd={breed} />
       <FlexWidget style={{ flex: 1 }} />
       {inhoud}
     </FlexWidget>
@@ -395,7 +408,7 @@ export function KaderWidget({ stand, weergave, breedte, kleuren, nu, uri }: Prop
       }}
     >
       {links}
-      {breed && !volleBreedte && posities.length > 0 && <Posities posities={posities} weergave={weergave} kleuren={kleuren} />}
+      {breed && !volleBreedte && posities.length > 0 && <Posities posities={posities} weergave={weergave} kleuren={kleuren} breedte={breedte} />}
     </FlexWidget>
   );
 }
