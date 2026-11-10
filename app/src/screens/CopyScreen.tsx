@@ -25,6 +25,10 @@ import { TraderKaart } from '../components/copy/TraderKaart';
 import { TraderProfielScherm } from '../components/copy/TraderProfielScherm';
 import { CopyInstellingenSheet } from '../components/copy/CopyInstellingenSheet';
 import { VolgStatus } from '../components/copy/VolgStatus';
+import { FavorietenRij } from '../components/copy/FavorietenRij';
+import { useVerkoopOok } from '../components/copy/useVerkoopOok';
+import { useKaderChecks } from '../state/useKaderChecks';
+import { useDialoog } from '../state/DialoogProvider';
 import { NieuwInKaderScherm } from '../components/NieuwInKaderScherm';
 import { EtoroKoppelingWizard } from '../components/EtoroKoppelingWizard';
 import { UitlegKnop, UitlegTekst, useUitleg } from '../components/UitlegKnop';
@@ -123,6 +127,10 @@ export function CopyScreen() {
   const [introOpen, setIntroOpen] = useState(false);
   const [introGezien, setIntroGezien] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  // De Feed gefilterd op één favoriet (tik op zijn avatar), of null voor alles.
+  const [feedTrader, setFeedTrader] = useState<string | null>(null);
+  const verkoopOok = useVerkoopOok();
+  const { toonDialoog } = useDialoog();
   const hoeGekozen = useUitleg();
   const [uitgelicht, setUitgelicht] = useState<string | null>(null);
   const [vernieuwt, setVernieuwt] = useState(false);
@@ -219,10 +227,38 @@ export function CopyScreen() {
     return lijst;
   }, [copy.traders, filter]);
 
+  // Een filter op iemand die geen favoriet meer is, vervalt vanzelf.
+  const filterTrader = feedTrader && copy.favorieten.some(f => f.username.toLowerCase() === feedTrader.toLowerCase())
+    ? feedTrader : null;
   const feed = useMemo(
-    () => [...copy.feed].sort((a, b) => (b.openTijd ?? b.gezien) - (a.openTijd ?? a.gezien)),
-    [copy.feed],
+    () => copy.feed
+      .filter(i => !filterTrader || i.username.toLowerCase() === filterTrader.toLowerCase())
+      .sort((a, b) => (b.openTijd ?? b.gezien) - (a.openTijd ?? a.gezien)),
+    [copy.feed, filterTrader],
   );
+  const kaderChecks = useKaderChecks(useMemo(
+    () => copy.feed.filter(i => i.symbool && i.isBuy && !i.gesloten).map(i => i.symbool as string),
+    [copy.feed],
+  ));
+  const avatars = useMemo(() => {
+    const kaart: Record<string, string | undefined> = {};
+    for (const t of copy.traders) kaart[t.rij.username.toLowerCase()] = t.rij.avatarUrl;
+    return kaart;
+  }, [copy.traders]);
+  const openProfielVan = useCallback((username: string) => {
+    const t = copy.traders.find(x => x.rij.username.toLowerCase() === username.toLowerCase());
+    if (t) { setProfiel(t); return; }
+    // Het profiel leunt op de ranglijst (score, cijfers). Staat hij daar niet (meer) in, zeg dat dan.
+    haptiek('waarschuwing');
+    toonDialoog({
+      variant: 'informatie',
+      titel: `Geen profiel van ${username}`,
+      tekst: copy.traders.length === 0
+        ? 'De ranglijst is nog niet geladen. Probeer het zo nog eens.'
+        : `${username} staat niet meer in de ranglijst van crypto-traders, dus Kader heeft geen actuele score. Zijn trades komen wel gewoon in je Feed.`,
+      knoppen: [{ label: 'Oké' }],
+    });
+  }, [copy.traders, toonDialoog]);
 
   const instellingenKnop = (
     <Drukbaar
@@ -278,14 +314,29 @@ export function CopyScreen() {
         itemLayoutAnimation={schuifOvergang(reduceMotion)}
         contentContainerStyle={styles.lijst}
         refreshControl={<RefreshControl refreshing={vernieuwt} onRefresh={vernieuw} tintColor={colors.cta} colors={[colors.cta]} />}
-        ListHeaderComponent={<VolgStatus laatstGekeken={copy.laatstGekeken} />}
+        ListHeaderComponent={
+          <View>
+            <FavorietenRij
+              favorieten={copy.favorieten}
+              avatars={avatars}
+              gekozen={filterTrader}
+              onKies={setFeedTrader}
+              onProfiel={openProfielVan}
+              onNaarOntdek={() => setSegment('ontdek')}
+            />
+            <VolgStatus laatstGekeken={copy.laatstGekeken} />
+          </View>
+        }
         ListEmptyComponent={
           <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>
-            Nog geen nieuwe trades van je favorieten. Zodra er een opent, staat hij hier.
+            {filterTrader
+              ? `Nog geen trades van ${filterTrader} in je Feed. Tik nog een keer op zijn avatar voor alle trades.`
+              : 'Nog geen nieuwe trades van je favorieten. Zodra er een opent, staat hij hier.'}
           </Text>
         }
         renderItem={({ item, index }) => {
           const { stand, koers } = standVan(item, copy.koersen);
+          const teVerkopen = verkoopOok.tradeVoor(item);
           return (
             <Animated.View entering={kaartLandt(index, reduceMotion)} exiting={uitklapUit()}>
             <CopyTradeKaart
@@ -298,6 +349,8 @@ export function CopyScreen() {
               bezig={kopieer.bezigSleutel === item.sleutel}
               uitgelicht={uitgelicht === item.sleutel}
               onKopieer={() => { kopieer.start(item).catch(() => {}); }}
+              onVerkoopOok={teVerkopen ? () => verkoopOok.open(teVerkopen) : undefined}
+              kaderCheck={item.symbool ? kaderChecks[item.symbool] : undefined}
             />
             </Animated.View>
           );
@@ -443,6 +496,7 @@ export function CopyScreen() {
         {sluit => <TradersScreen onSluiten={() => sluit()} />}
       </PodiumScherm>
       {kopieer.sheet}
+      {verkoopOok.sheet}
     </SafeAreaView>
   );
 }

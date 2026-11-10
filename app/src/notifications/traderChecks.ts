@@ -180,8 +180,12 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
       && await meldingenAan();
 
     const meldingen: Melding[] = [];
+    // Per trader kun je de meldingen over nieuwe trades uitzetten; de Feed vult dan wel gewoon.
+    // Een uitstap uit een trade die jij ook hebt meldt Kader altijd: daar staat jouw geld.
+    // Vers gelezen: de bel kan tijdens deze ronde omgezet zijn.
+    const stil = new Set((await laadFavorieten()).filter(f => f.meldingen === false).map(f => f.username.toLowerCase()));
     // Alleen wat je ook echt kunt kopiëren: long, in een Kader-coin, en nog open.
-    for (const item of nieuweTrades.filter(i => i.isBuy && i.symbool && !i.gesloten)) {
+    for (const item of nieuweTrades.filter(i => i.isBuy && i.symbool && !i.gesloten && !stil.has(i.username.toLowerCase()))) {
       const instap = fmtPrijs(kaderKoers(item, item.openRate));
       const stop = item.stopLossRate ? ` · stop ${fmtPrijs(kaderKoers(item, item.stopLossRate))}` : '';
       const doel = item.takeProfitRate ? ` · doel ${fmtPrijs(kaderKoers(item, item.takeProfitRate))}` : '';
@@ -193,11 +197,19 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
       });
     }
     for (const u of echteUitstappen) {
+      const jouwTrade = eigen.find(t => t.status === 'open' && t.etoroPositionID === u.herkomst.etoroPositionID
+        && (t.etoroOmgeving ?? 'real') === u.herkomst.omgeving);
       meldingen.push({
         sleutel: `uitstap:${u.item.sleutel}`,
-        doel: { soort: 'copy' },
+        // Opent de verkoopsheet voor jouw positie; verkopen gebeurt pas na de bevestigknop daar.
+        doel: jouwTrade
+          ? {
+            soort: 'trade', tradeId: jouwTrade.id, symbool: jouwTrade.symbool, verkoop: true,
+            etoroPositionID: u.herkomst.etoroPositionID as number, omgeving: u.herkomst.omgeving,
+          }
+          : { soort: 'copy', segment: 'mijn' },
         titel: `${u.item.username} is uit ${u.item.symbool ?? 'een positie'} gestapt`,
-        tekst: 'Jij hebt deze trade ook. Tik om je positie te bekijken.',
+        tekst: 'Jij hebt deze trade ook. Tik om je verkoop klaar te zetten, jij bevestigt.',
       });
     }
 
@@ -205,8 +217,11 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
     if (mogen && meldingen.length > 0) {
       const titel = meldingen.length === 1 ? meldingen[0].titel : bundelTitel(meldingen);
       const tekst = meldingen.length === 1 ? meldingen[0].tekst : 'Open Copy voor de details.';
-      // Eén melding: tikken opent de trade direct als het er één is, anders de Feed.
-      const doel = meldingen.length === 1 ? meldingen[0].doel : { soort: 'copy' as const };
+      // Eén melding: tikken opent de trade direct als het er één is. Meerdere: Mijn copies als er
+      // een uitstap bij zit (daar staat Verkoop ook), anders de Feed.
+      const doel = meldingen.length === 1 ? meldingen[0].doel
+        : echteUitstappen.length > 0 ? { soort: 'copy' as const, segment: 'mijn' as const }
+        : { soort: 'copy' as const };
       if (await stuurTradeMelding(titel, tekst, doel)) {
         gemeld = meldingen.length;
         await loggeMeldingen(meldingen, nu);
