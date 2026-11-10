@@ -18,6 +18,10 @@ interface Props {
   nietGewaardeerd: number;
   klimaat: Klimaat;
   kapitaalUsd: number | null;
+  // Het kapitaal komt uit eToro: dan valt er niets in te vullen of aan te passen, en staat er
+  // wanneer het voor het laatst is opgehaald.
+  kapitaalAutomatisch?: boolean;
+  kapitaalBijgewerkt?: number | null;
   onKapitaalWijzigen: () => void;
 }
 
@@ -32,7 +36,7 @@ const UITLEG = 'Het plafond is een risicorichtlijn, geen uitkomst van de backtes
 // Hoeveel van je kapitaal er in de markt staat, afgezet tegen wat bij dit klimaat past. Zonder
 // ingevuld kapitaal blijft dit de richtlijn plus het bedrag; er komt dan bewust geen percentage uit,
 // want een verzonnen noemer maakt elk percentage waardeloos.
-export function BlootstellingKaart({ inMarktUsd, nietGewaardeerd, klimaat, kapitaalUsd, onKapitaalWijzigen }: Props) {
+export function BlootstellingKaart({ inMarktUsd, nietGewaardeerd, klimaat, kapitaalUsd, kapitaalAutomatisch = false, kapitaalBijgewerkt = null, onKapitaalWijzigen }: Props) {
   useValutaStand();
 
   const { colors } = useTheme();
@@ -96,6 +100,12 @@ export function BlootstellingKaart({ inMarktUsd, nietGewaardeerd, klimaat, kapit
         </Text>
       )}
 
+      {kapitaalAutomatisch ? (
+        <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 18 }]}>
+          Je kapitaal komt automatisch uit eToro: alles op je account, ook copies en open resultaat
+          {kapitaalBijgewerkt ? `. Bijgewerkt ${bijgewerktTekst(kapitaalBijgewerkt)}.` : '.'}
+        </Text>
+      ) : (
       <Pressable
         onPress={onKapitaalWijzigen}
         accessibilityRole="button"
@@ -106,10 +116,20 @@ export function BlootstellingKaart({ inMarktUsd, nietGewaardeerd, klimaat, kapit
           {kapitaalUsd === null ? 'Handelskapitaal invullen' : 'Kapitaal aanpassen'}
         </Text>
       </Pressable>
+      )}
 
       <UitlegTekst open={open} tekst={UITLEG} />
     </Animated.View>
   );
+}
+
+// "om 14:32" als het vandaag was, anders met de datum erbij: een kapitaal van dagen terug mag niet
+// vers lijken als de sync al een tijd mislukt.
+function bijgewerktTekst(tijd: number): string {
+  const d = new Date(tijd);
+  const uur = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return `om ${uur}`;
+  return `op ${d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' })} om ${uur}`;
 }
 
 // De balk toont de blootstelling op een schaal van 0 tot 100% van je kapitaal, met een streep op de

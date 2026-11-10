@@ -113,6 +113,9 @@ export interface EtoroPortfolioRespons {
     credit?: number;
     unrealizedPnL?: number;
     positions?: EtoroPositie[];
+    // CopyTrader-relaties. Ruw gelaten: de velden zijn niet gemeten, zie berekenHandelskapitaal en
+    // leesMirrors in etoroTraders.ts.
+    mirrors?: unknown[];
     orders?: EtoroWachtendeOrder[];
     stockOrders?: EtoroWachtendeOrder[];
     ordersForOpen?: EtoroWachtendeOrder[];
@@ -503,6 +506,77 @@ export function bepaalSaldoStand(portfolio: EtoroPortfolioRespons): SaldoStand {
 // orders er al af.
 export async function haalSaldoStand(sleutels: EtoroSleutels): Promise<SaldoStand> {
   return bepaalSaldoStand(await haalEtoroPortfolio(sleutels));
+}
+
+// ---------- Handelskapitaal ----------
+
+// Wat er in totaal op je eToro-account staat, uit dezelfde portfolio-respons als het saldo. Kader
+// gebruikt dit als handelskapitaal, zodat de gebruiker het niet meer zelf hoeft in te vullen.
+//
+// totaal = credit + geïnvesteerd in eigen posities + ingelegd in copies + ongerealiseerd resultaat.
+// `credit` bevat het geld in wachtende orders al (zie EtoroWachtendeOrder), dus dat telt niet nog
+// een keer. Alle posities tellen mee, ook aandelen: het is je kapitaal, niet alleen je crypto.
+//
+// Niet gemeten tegen een echte respons: of unrealizedPnL de copies meetelt, en of `amount` het
+// geïnvesteerde bedrag is. Uitkomst hoort in docs/metingen.md. Tot dan: mirror-posities staan bij
+// eToro onder mirrors[], niet onder positions[], dus dubbel tellen kan niet.
+export interface HandelskapitaalStand {
+  totaalUsd: number;
+  // clientPortfolio.credit: vrij saldo plus wat er in wachtende orders vastzit.
+  vrijUsd: number;
+  // Geïnvesteerd in je eigen open posities, op kostprijs.
+  inPositiesUsd: number;
+  // In CopyTrader-relaties: hun vrije deel plus hun posities, op kostprijs.
+  inCopiesUsd: number;
+  // eToro's ongerealiseerde resultaat over alles, of null als eToro het niet meestuurde.
+  ongerealiseerdUsd: number | null;
+}
+
+const eindigGetal = (waarde: unknown): number | null =>
+  typeof waarde === 'number' && isFinite(waarde) ? waarde : null;
+
+function positieInleg(p: { amount?: unknown; initialAmountInDollars?: unknown; units?: unknown; openRate?: unknown }): number {
+  const bedrag = positiefGetal(p.amount) ?? positiefGetal(p.initialAmountInDollars);
+  if (bedrag !== null) return bedrag;
+  const units = positiefGetal(p.units);
+  const koers = positiefGetal(p.openRate);
+  return units !== null && koers !== null ? units * koers : 0;
+}
+
+function mirrorInleg(ruw: unknown): number {
+  if (!ruw || typeof ruw !== 'object') return 0;
+  const m = ruw as Record<string, unknown>;
+  const posities = Array.isArray(m.positions) ? (m.positions as Record<string, unknown>[]) : [];
+  const vrij = eindigGetal(m.availableAmount);
+  if (vrij !== null) {
+    return Math.max(0, vrij) + posities.reduce((som, p) => som + (p && typeof p === 'object' ? positieInleg(p) : 0), 0);
+  }
+  // Zonder availableAmount: wat er netto in is gestopt. Mist het rendement van de copy, maar is
+  // geen verzonnen getal.
+  const inleg = (eindigGetal(m.initialInvestment) ?? 0) + (eindigGetal(m.depositSummary) ?? 0) - (eindigGetal(m.withdrawalSummary) ?? 0);
+  return Math.max(0, inleg);
+}
+
+// null zonder credit: een kapitaal zonder het vrije deel zou te laag zijn, en elk percentage
+// erop (blootstelling, risico per trade, plafond voor copies) te hoog. Dan valt Kader terug op wat
+// de gebruiker zelf invulde.
+export function berekenHandelskapitaal(portfolio: EtoroPortfolioRespons): HandelskapitaalStand | null {
+  const cp = portfolio.clientPortfolio;
+  const credit = eindigGetal(cp?.credit);
+  if (credit === null) return null;
+  const vrijUsd = Math.max(0, credit);
+  const inPositiesUsd = (cp?.positions ?? []).reduce((som, p) => som + (p && typeof p === 'object' ? positieInleg(p) : 0), 0);
+  const inCopiesUsd = (Array.isArray(cp?.mirrors) ? cp!.mirrors : []).reduce((som: number, m) => som + mirrorInleg(m), 0);
+  const ongerealiseerdUsd = eindigGetal(cp?.unrealizedPnL);
+  const totaalUsd = Math.max(0, vrijUsd + inPositiesUsd + inCopiesUsd + (ongerealiseerdUsd ?? 0));
+  const rond = (x: number) => Math.round(x * 100) / 100;
+  return {
+    totaalUsd: rond(totaalUsd),
+    vrijUsd: rond(vrijUsd),
+    inPositiesUsd: rond(inPositiesUsd),
+    inCopiesUsd: rond(inCopiesUsd),
+    ongerealiseerdUsd: ongerealiseerdUsd === null ? null : rond(ongerealiseerdUsd),
+  };
 }
 
 // ---------- Wachtende orders ----------
@@ -1296,6 +1370,8 @@ export interface EtoroSyncResultaat {
   // Diezelfde orders een voor een, nieuwste eerst. Ook orders op aandelen en andere niet-crypto:
   // het geld dat daarin vastzit is net zo goed weg uit het besteedbare saldo.
   wachtendeOrderLijst: WachtendeOrder[];
+  // Het totaal op je account als handelskapitaal, of null als eToro geen credit meestuurde.
+  kapitaal: HandelskapitaalStand | null;
 }
 
 // Een order zonder tijd achteraan: die is niet te plaatsen, en bovenaan zou hij doen alsof hij net
@@ -1385,6 +1461,7 @@ export async function importeerEtoroAlles(sleutels: EtoroSleutels): Promise<Etor
     gereserveerdUsd: saldo.gereserveerdUsd,
     wachtendeOrders: saldo.wachtendeOrders,
     wachtendeOrderLijst: bouwWachtendeOrders(orders, instrumentKaart, cryptoTypeIds, omgeving),
+    kapitaal: berekenHandelskapitaal(portfolio),
   };
 }
 
@@ -1838,6 +1915,31 @@ if (require.main === module) {
     console.assert(lang.transaction === 'buy', `long moet buy sturen, was ${lang.transaction}`);
     console.assert(!('settlementType' in lang), 'long laat settlementType weg, precies zoals in fase 1 gemeten');
     console.assert(lang.leverage === 1, 'Kader rekent nergens met hefboom');
+  }
+
+  // Handelskapitaal uit de portfolio-respons.
+  {
+    console.assert(berekenHandelskapitaal({ clientPortfolio: { positions: [] } }) === null,
+      'zonder credit geen kapitaal: liever de handmatige waarde dan een te laag totaal');
+    const k = berekenHandelskapitaal({ clientPortfolio: {
+      credit: 1000,
+      unrealizedPnL: -50,
+      positions: [
+        { positionID: 1, instrumentID: 100000, isBuy: true, amount: 400, units: 0.01, openRate: 40000, openDateTime: '' },
+        // Zonder amount: initialAmountInDollars.
+        { positionID: 2, instrumentID: 1001, isBuy: true, initialAmountInDollars: 100, units: 1, openRate: 100, openDateTime: '' },
+      ],
+      mirrors: [
+        { availableAmount: 20, positions: [{ amount: 180 }] },
+        // Zonder availableAmount: de netto inleg.
+        { initialInvestment: 300, depositSummary: 50, withdrawalSummary: 100 },
+      ],
+    } })!;
+    console.assert(k.vrijUsd === 1000 && k.inPositiesUsd === 500, `vrij en posities, was ${k.vrijUsd}/${k.inPositiesUsd}`);
+    console.assert(k.inCopiesUsd === 450, `copies 200 + 250, was ${k.inCopiesUsd}`);
+    console.assert(k.totaalUsd === 1900, `1000 + 500 + 450 - 50, was ${k.totaalUsd}`);
+    const negatief = berekenHandelskapitaal({ clientPortfolio: { credit: -10 } })!;
+    console.assert(negatief.totaalUsd === 0 && negatief.vrijUsd === 0, 'een negatief credit wordt geen negatief kapitaal');
   }
 
   // Helemaal onderaan: stond eerder halverwege, en de controles daarna telden dan niet mee.

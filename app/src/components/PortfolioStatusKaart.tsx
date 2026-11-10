@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, type LayoutChangeEvent } from 'react-native';
-import { RefreshCw, CloudDownload, Check, History, Info } from 'lucide-react-native';
+import { RefreshCw, CloudDownload, Check, History, Info, ChevronRight } from 'lucide-react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -93,12 +93,17 @@ interface Props {
   onVerversen: () => void;
   onImporteren: () => void;
   onOpenHistorie: () => void;
+  // Welk deel van je posities via copies loopt (zie state/kapitaalVerdeling.ts). Het CopyTrader-
+  // deel staat niet in `waarde` en telt daarom hier bij "in posities" op, zoals eToro het ook
+  // meetelt in je vermogen. null of 0 = geen copies, dan blijft de kaart zoals hij was.
+  copies?: { copiesUsd: number; copyTraderUsd: number } | null;
+  onOpenCopies?: () => void;
 }
 
 export function PortfolioStatusKaart({
   waarde, trades, livePrijzen, vrijSaldoUsd, gereserveerdUsd, wachtendeOrders, etoroGekoppeld,
   syncing, laatsteSync, syncFout, etoroFout, etoroBezig, afgesloten,
-  onVerversen, onImporteren, onOpenHistorie,
+  onVerversen, onImporteren, onOpenHistorie, copies = null, onOpenCopies,
 }: Props) {
   const { colors } = useTheme();
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
@@ -200,7 +205,11 @@ export function PortfolioStatusKaart({
     : gereserveerdUsd !== null && gereserveerdUsd > 0
       ? `${fmtBedrag(gereserveerdUsd)} staat vast in ${wachtendeOrders} wachtende ${orderWoord} bij eToro en telt niet mee als beschikbaar.`
       : `Er ${wachtendeOrders === 1 ? 'wacht' : 'wachten'} ${wachtendeOrders} ${orderWoord} bij eToro. Kader kan niet lezen hoeveel geld daarvan vaststaat, dus dat zit nog in het beschikbare bedrag.`;
-  const belegdUsd = Math.max(0, waarde.huidigeWaardeUsd);
+  const copyTraderUsd = heeftSaldo && copies ? Math.max(0, copies.copyTraderUsd) : 0;
+  const belegdUsd = Math.max(0, waarde.huidigeWaardeUsd) + copyTraderUsd;
+  // Van wat er in posities staat: het deel via copies en de rest, je eigen trades.
+  const copiesUsd = heeftSaldo && copies ? Math.min(belegdUsd, Math.max(0, copies.copiesUsd)) : 0;
+  const eigenUsd = Math.max(0, belegdUsd - copiesUsd);
   // Reserveringen horen bij eToro's equity: dat geld is van jou, het zit alleen vast in een order.
   // Zonder dit stuk lag het totaal lager dan het bedrag dat eToro zelf toont.
   const gereserveerdBedrag = heeftSaldo && gereserveerdUsd !== null ? Math.max(0, gereserveerdUsd) : 0;
@@ -532,6 +541,37 @@ export function PortfolioStatusKaart({
               </View>
             )}
           </View>
+          {/* Alleen met copies: dan splitst "in posities" zich in je eigen trades en wat via
+              traders loopt. Percentages van je hele vermogen, net als de regel erboven. */}
+          {copiesUsd > 0 && totaalUsd > 0 && (
+            <View style={[styles.copyRij, { borderTopColor: colors.rand }]}>
+              <View
+                style={styles.saldoKolom}
+                accessible
+                accessibilityLabel={`Eigen trades: ${fmtBedrag(eigenUsd)}, ${spreekAandeel(eigenUsd / totaalUsd)} van je vermogen.`}
+              >
+                <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                  EIGEN TRADES · {aandeelTekst(eigenUsd / totaalUsd)}
+                </Text>
+                <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(eigenUsd)}</Text>
+              </View>
+              <Drukbaar
+                onPress={onOpenCopies}
+                disabled={!onOpenCopies}
+                style={[styles.saldoKolom, styles.copyKolom]}
+                accessibilityRole="button"
+                accessibilityLabel={`Copies: ${fmtBedrag(copiesUsd)}, ${spreekAandeel(copiesUsd / totaalUsd)} van je vermogen. Open Mijn copies.`}
+              >
+                <View style={styles.flex}>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
+                    COPIES · {aandeelTekst(copiesUsd / totaalUsd)}
+                  </Text>
+                  <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{fmtBedrag(copiesUsd)}</Text>
+                </View>
+                {onOpenCopies && <ChevronRight size={16} color={colors.tekstGedimd} strokeWidth={1.75} />}
+              </Drukbaar>
+            </View>
+          )}
         </>
       ) : (
         <>
@@ -727,6 +767,15 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  copyRij: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  copyKolom: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44 },
+  flex: { flex: 1 },
   saldoKolom: {
     flex: 1,
     gap: 2,

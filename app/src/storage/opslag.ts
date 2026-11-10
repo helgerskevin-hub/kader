@@ -86,6 +86,9 @@ export const SLEUTELS = {
   // blootstellingsplafond: zonder noemer is "20% van je kapitaal" een lege uitspraak. Kader vraagt
   // dit nergens verplicht en verzint het nooit.
   handelskapitaal: 'handelskapitaal_usd',
+  // Het handelskapitaal dat Kader na elke sync uit eToro haalt, per omgeving, met tijdstip. Gaat
+  // voor het handmatige getal zolang er een koppeling is. Zie state/autoKapitaal.ts.
+  handelskapitaalAuto: 'handelskapitaal_auto',
   // Het laatst gemelde marktklimaat, zodat de achtergrondcheck een omslag kan herkennen. Zonder
   // dit zou elke ronde opnieuw "het klimaat is ongunstig" melden.
   laatsteKlimaat: 'laatste_gemelde_klimaat',

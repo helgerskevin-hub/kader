@@ -6,6 +6,7 @@ import Animated, {
   useSharedValue,
   withSequence,
 } from 'react-native-reanimated';
+import { Copy } from 'lucide-react-native';
 import { fmtBedrag, fmtPct, fmtPrijs, fmtResultaatUsd, fmtRR } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Fonts, Type } from '../theme/typography';
@@ -38,6 +39,8 @@ interface Props {
   // Ontbreken als deze positie niet bij eToro te besturen is; dan blijven de handmatige knoppen.
   onVerkoop?: (trade: PortfolioTrade) => void;
   onNiveaus?: (trade: PortfolioTrade) => void;
+  // Gebruikersnaam van de trader van wie deze positie gekopieerd is, of undefined voor een eigen trade.
+  copyVan?: string;
 }
 
 // Hoe fel de koerspuls achter het resultaat oplicht. Net genoeg om te zien dat er een nieuwe koers
@@ -51,7 +54,7 @@ const PULS_OPACITY = 0.16;
 // Memo: de prijs-poll tekent PortfolioScreen elke paar minuten opnieuw, en zonder memo tekenden ook de
 // kaarten mee waarvan de koers niet veranderde. Het scherm houdt de callbacks daarvoor stabiel.
 export const PositieKaart = memo(function PositieKaart({
-  trade, livePrijs, afbouw, onOpenDetail, onVraagSluiten, onVerwijder, onBewerk, onVerkoop, onNiveaus,
+  trade, livePrijs, afbouw, onOpenDetail, onVraagSluiten, onVerwijder, onBewerk, onVerkoop, onNiveaus, copyVan,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
@@ -117,6 +120,7 @@ export const PositieKaart = memo(function PositieKaart({
   const kaartLabel =
     `${trade.symbool}, ${advies.kort}`
     + `${afbouw ? `, ${afbouw.kort}` : ''}`
+    + `${copyVan ? `, copy van ${copyVan}` : ''}`
     + `${resultaatPct !== null ? `, resultaat ${fmtPct(resultaatPct)}` : ''}`;
 
   const heeftInleg = typeof trade.bedragUsd === 'number' && trade.bedragUsd > 0;
@@ -189,6 +193,14 @@ export const PositieKaart = memo(function PositieKaart({
               <Text style={[Type.caption, styles.statusTekst, { color: afbouwKleur }]}>
                 {afbouw.kort}
               </Text>
+            )}
+            {copyVan && (
+              <View style={styles.statusRegel}>
+                <Copy size={12} color={colors.tekstGedimd} strokeWidth={1.75} />
+                <Text style={[Type.caption, styles.statusTekst, { color: colors.tekstGedimd }]}>
+                  Copy van {copyVan}
+                </Text>
+              </View>
             )}
           </View>
           <View style={styles.kopRechts}>

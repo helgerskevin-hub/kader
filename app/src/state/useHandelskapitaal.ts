@@ -1,42 +1,77 @@
 import { useCallback, useEffect, useState } from 'react';
 import { laadTekst, bewaarTekst, verwijderSleutel, SLEUTELS } from '../storage/opslag';
+import { haalOmgeving, heeftEnigeSleutel } from './etoroSleutels';
+import { usePortfolio } from './PortfolioProvider';
+import { AutoKapitaal, AutoKapitaalPerOmgeving, laadAutoKapitaal, luisterNaarAutoKapitaal } from './autoKapitaal';
 
-// Het handelskapitaal dat de gebruiker zelf invult, in dollars: het bedrag dat hij in totaal aan
-// deze markt wil besteden, dus wat er in de markt staat plus wat er nog aan de kant ligt.
+// Het handelskapitaal in dollars: de noemer onder blootstelling, risico per trade, de verliesrem
+// en het plafond voor copies.
 //
-// Kader vraagt dit nergens verplicht en leidt het nergens af. Het staat los van wat eToro als saldo
-// teruggeeft: dat is het vrij besteedbare bedrag van dat ene account, terwijl deze noemer over je
-// eigen plan gaat. Zonder ingevuld kapitaal toont het blootstellingsvak alleen de richtlijn en geen
-// percentage, want een verzonnen noemer maakt elk percentage waardeloos.
-// Los te lezen, voor schermen die het kapitaal alleen nodig hebben op het moment dat ze opengaan
-// (de kooporder) en niet de hele hook willen die alleen bij het mounten laadt.
-export async function laadHandelskapitaal(): Promise<number | null> {
+// Met een eToro-koppeling haalt Kader het zelf uit eToro: alles wat er op het account van de
+// actieve omgeving staat (vrij saldo, posities, copies, ongerealiseerd resultaat), bijgewerkt bij
+// elke sync. Zie berekenHandelskapitaal in engine/etoro.ts. Zonder koppeling, of als eToro geen
+// saldo meestuurde, geldt het getal dat de gebruiker zelf invulde. Is dat er ook niet, dan null:
+// een verzonnen noemer maakt elk percentage waardeloos.
+
+async function laadHandmatig(): Promise<number | null> {
   const tekst = await laadTekst(SLEUTELS.handelskapitaal, '');
   const waarde = Number(tekst);
   return tekst !== '' && Number.isFinite(waarde) && waarde > 0 ? waarde : null;
 }
 
+const bruikbaar = (auto: AutoKapitaal | undefined): auto is AutoKapitaal => !!auto && auto.totaalUsd > 0;
+
+// Los te lezen, voor schermen die het kapitaal alleen nodig hebben op het moment dat ze opengaan
+// (de kooporder) en niet de hele hook willen.
+export async function laadHandelskapitaal(): Promise<number | null> {
+  const [gekoppeld, omgeving, auto] = await Promise.all([
+    heeftEnigeSleutel().catch(() => false),
+    haalOmgeving().catch(() => 'demo' as const),
+    laadAutoKapitaal(),
+  ]);
+  const vanEtoro = auto[omgeving];
+  if (gekoppeld && bruikbaar(vanEtoro)) return vanEtoro.totaalUsd;
+  return laadHandmatig();
+}
+
 export function useHandelskapitaal() {
-  const [kapitaal, setKapitaal] = useState<number | null>(null);
+  const { etoroGekoppeld, omgeving } = usePortfolio();
+  const [handmatig, setHandmatig] = useState<number | null>(null);
+  const [auto, setAuto] = useState<AutoKapitaalPerOmgeving>({});
   const [geladen, setGeladen] = useState(false);
 
   useEffect(() => {
-    laadTekst(SLEUTELS.handelskapitaal, '').then(tekst => {
-      const waarde = Number(tekst);
-      setKapitaal(tekst !== '' && Number.isFinite(waarde) && waarde > 0 ? waarde : null);
+    let actief = true;
+    Promise.all([laadHandmatig(), laadAutoKapitaal()]).then(([h, a]) => {
+      if (!actief) return;
+      setHandmatig(h);
+      setAuto(a);
       setGeladen(true);
-    });
+    }).catch(() => { if (actief) setGeladen(true); });
+    const stop = luisterNaarAutoKapitaal(setAuto);
+    return () => { actief = false; stop(); };
   }, []);
 
   const zetKapitaal = useCallback(async (waarde: number | null) => {
     if (waarde === null || !(waarde > 0)) {
-      setKapitaal(null);
+      setHandmatig(null);
       await verwijderSleutel(SLEUTELS.handelskapitaal);
       return;
     }
-    setKapitaal(waarde);
+    setHandmatig(waarde);
     await bewaarTekst(SLEUTELS.handelskapitaal, String(waarde));
   }, []);
 
-  return { kapitaal, zetKapitaal, geladen };
+  const vanEtoro = etoroGekoppeld ? auto[omgeving] : undefined;
+  const automatisch = bruikbaar(vanEtoro);
+
+  return {
+    kapitaal: automatisch ? vanEtoro.totaalUsd : handmatig,
+    // true = het getal komt uit eToro en is niet zelf aan te passen.
+    automatisch,
+    // De opbouw en het tijdstip van de laatste sync, alleen als automatisch true is.
+    stand: automatisch ? vanEtoro : null,
+    zetKapitaal,
+    geladen,
+  };
 }

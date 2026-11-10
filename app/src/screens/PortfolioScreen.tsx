@@ -38,6 +38,9 @@ import { bepaalAfbouwAdvies, AfbouwAdvies } from '../state/afbouw';
 import { BlootstellingKaart } from '../components/BlootstellingKaart';
 import { KapitaalSheet } from '../components/KapitaalSheet';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
+import { SegmentKnop } from '../components/SegmentKnop';
+import { copyAandeel, copyVanPerPositie } from '../state/kapitaalVerdeling';
+import { useCopy } from '../state/CopyProvider';
 import { berekenOpenRisico } from '../state/openRisico';
 import { OpenRisicoKaart } from '../components/OpenRisicoKaart';
 import { SpreidingKaart } from '../components/SpreidingKaart';
@@ -510,13 +513,15 @@ export function PortfolioScreen() {
   const [historieOpen, setHistorieOpen] = useState(false);
   const [verdelingOpen, setVerdelingOpen] = useState(false);
   const [kapitaalOpen, setKapitaalOpen] = useState(false);
-  const { kapitaal, zetKapitaal } = useHandelskapitaal();
+  const { kapitaal, zetKapitaal, automatisch: kapitaalAutomatisch, stand: kapitaalStand } = useHandelskapitaal();
+  const { herkomst } = useCopy();
+  const [herkomstFilter, setHerkomstFilter] = useState<'alles' | 'eigen' | 'copies'>('alles');
   // Het marktscherm heeft de analyse en het klimaat al opgehaald. Dit scherm leunt daarop en scant
   // niet zelf: dat zou 57 coins aan requests kosten voor data die al in het geheugen staat. Zonder
   // een gedraaide analyse blijft het klimaat null en verdwijnen het blootstellingsvak en de
   // afbouwadviezen gewoon; die zijn een aanvulling, geen voorwaarde om je trades te kunnen zien.
   const { state: marktState } = useMarkt();
-  const { doel: navigatieDoel, wisDoel } = useNavigatie();
+  const { doel: navigatieDoel, wisDoel, gaNaar } = useNavigatie();
   const [meldingNotitie, setMeldingNotitie] = useState<string | null>(null);
   const reduceMotion = useReduceMotion();
 
@@ -755,6 +760,17 @@ export function PortfolioScreen() {
     }
   }
 
+  // Per eToro-positie de trader van wie hij gekopieerd is, voor het label op de kaart en het filter.
+  const copyVan = useMemo(() => copyVanPerPositie(herkomst, omgeving), [herkomst, omgeving]);
+  const copyVanTrade = useCallback(
+    (t: PortfolioTrade) => (t.bron === 'etoro' && typeof t.etoroPositionID === 'number' ? copyVan.get(t.etoroPositionID) : undefined),
+    [copyVan],
+  );
+  const copies = useMemo(
+    () => copyAandeel({ trades, herkomst, livePrijzen, omgeving, copyTraderUsd: kapitaalStand?.inCopiesUsd ?? 0 }),
+    [trades, herkomst, livePrijzen, omgeving, kapitaalStand],
+  );
+
   const openTrades = trades.filter(t => t.status === 'open');
   const openSymbolenSleutel = [...new Set(openTrades.filter(t => inOmgeving(t, omgeving)).map(t => t.symbool))].sort().join(',');
   const openSymbolen = useMemo(() => (openSymbolenSleutel ? openSymbolenSleutel.split(',') : []), [openSymbolenSleutel]);
@@ -771,6 +787,8 @@ export function PortfolioScreen() {
   // compleet is: met een positie zonder koers zou de opname van vandaag te laag uitvallen.
   const waardeNu = vrijSaldoUsd !== null && statusWaarde.zonderLivePrijs === 0
     ? Math.max(0, statusWaarde.huidigeWaardeUsd) + Math.max(0, gereserveerdUsd ?? 0) + Math.max(0, vrijSaldoUsd)
+      // Geld in CopyTrader-relaties hoort bij je vermogen, net als op de statuskaart.
+      + copies.copyTraderUsd
     : null;
   useWaardeMomentopname(waardeNu, omgeving);
 
@@ -800,11 +818,15 @@ export function PortfolioScreen() {
 
   // Groeperen per bron, eToro eerst, dan handmatig. Bij maar één bron geen groepsbalken: een
   // enkele balk boven al je trades is ruis voor iedereen zonder eToro-koppeling.
+  const aantalCopies = openTrades.filter(t => copyVanTrade(t) !== undefined).length;
   const lijstData = useMemo<TradeLijstItem[]>(() => {
-    const etoroTrades = openTrades.filter(t => bronVan(t) === 'etoro');
-    const handmatigeTrades = openTrades.filter(t => bronVan(t) === 'handmatig');
+    // Het filter geldt alleen als er copies zijn; anders staat het niet in beeld en is alles alles.
+    const zichtbaar = aantalCopies === 0 || herkomstFilter === 'alles' ? openTrades
+      : openTrades.filter(t => (copyVanTrade(t) !== undefined) === (herkomstFilter === 'copies'));
+    const etoroTrades = zichtbaar.filter(t => bronVan(t) === 'etoro');
+    const handmatigeTrades = zichtbaar.filter(t => bronVan(t) === 'handmatig');
     if (etoroTrades.length === 0 || handmatigeTrades.length === 0) {
-      return openTrades.map(trade => ({ soort: 'trade', trade } as const));
+      return zichtbaar.map(trade => ({ soort: 'trade', trade } as const));
     }
     const items: TradeLijstItem[] = [];
     for (const [bron, groep] of [['etoro', etoroTrades], ['handmatig', handmatigeTrades]] as const) {
@@ -814,7 +836,7 @@ export function PortfolioScreen() {
       }
     }
     return items;
-  }, [openTrades, dichteBronnen]);
+  }, [openTrades, dichteBronnen, aantalCopies, herkomstFilter, copyVanTrade]);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[portfolioStyles.root, { backgroundColor: colors.achtergrond }]}>
@@ -870,6 +892,7 @@ export function PortfolioScreen() {
                 trade={trade}
                 livePrijs={livePrijzen[trade.symbool]}
                 afbouw={afbouwPerTrade[trade.id]}
+                copyVan={copyVanTrade(trade)}
                 onVraagSluiten={opVraagSluiten}
                 onVerwijder={verwijderTrade}
                 onBewerk={setBewerkTrade}
@@ -910,6 +933,8 @@ export function PortfolioScreen() {
               onVerversen={swipeSync}
               onImporteren={importerenUitEtoro}
               onOpenHistorie={() => setHistorieOpen(true)}
+              copies={copies}
+              onOpenCopies={() => gaNaar({ soort: 'copy', segment: 'mijn' })}
             />
 
             {/* Rendert zichzelf niet zonder kapitaal of zonder open posities. */}
@@ -998,6 +1023,8 @@ export function PortfolioScreen() {
                 nietGewaardeerd={waarde.zonderLivePrijs}
                 klimaat={klimaat.klimaat}
                 kapitaalUsd={kapitaal}
+                kapitaalAutomatisch={kapitaalAutomatisch}
+                kapitaalBijgewerkt={kapitaalStand?.tijd ?? null}
                 onKapitaalWijzigen={() => setKapitaalOpen(true)}
               />
             )}
@@ -1007,7 +1034,22 @@ export function PortfolioScreen() {
               <Animated.View layout={schuifOvergang(reduceMotion)} style={portfolioStyles.lijstKop}>
                 <Text style={[Type.overline, { color: colors.tekstGedimd }]}>
                   {openTrades.length} {openTrades.length === 1 ? 'OPEN POSITIE' : 'OPEN POSITIES'}
+                  {aantalCopies > 0 ? ` · ${aantalCopies} ${aantalCopies === 1 ? 'COPY' : 'COPIES'}` : ''}
                 </Text>
+                {/* Alleen als er copies zijn: zonder copies is er niets te scheiden. */}
+                {aantalCopies > 0 && (
+                  <View style={portfolioStyles.herkomstFilter}>
+                    <SegmentKnop
+                      opties={[
+                        { id: 'alles' as const, label: 'Alles' },
+                        { id: 'eigen' as const, label: 'Eigen' },
+                        { id: 'copies' as const, label: 'Copies' },
+                      ]}
+                      actief={herkomstFilter}
+                      onKies={setHerkomstFilter}
+                    />
+                  </View>
+                )}
               </Animated.View>
             )}
           </>
@@ -1169,4 +1211,5 @@ const portfolioStyles = StyleSheet.create({
     marginHorizontal: spacing.base,
     marginBottom: spacing.sm,
   },
+  herkomstFilter: { marginTop: spacing.sm },
 });
