@@ -1,7 +1,7 @@
 // De Copy-tab: Feed (wat doen mijn favorieten nu), Ontdek (wie is goed) en Mijn copies. Zie
 // docs/copy-trading-plan.md. Elke kernactie is één tik: de ster, en Kopieer. Kopiëren opent de
 // bestaande koopsheet, vooringevuld, waarin de bevestigknop de enige handeling is.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -237,18 +237,27 @@ export function CopyScreen() {
   }, [handmatigOpen]);
 
   // Een nieuwe zoekterm maakt een eerdere eToro-uitkomst ongeldig.
-  const wijzigZoek = useCallback((v: string) => { setZoek(v); setZoekUitkomst(null); }, []);
+  // Elke wijziging krijgt een nieuw nummer; een trage eToro-uitkomst voor een oudere zoekterm valt weg.
+  const zoekNummer = useRef(0);
+  const wijzigZoek = useCallback((v: string) => {
+    zoekNummer.current += 1;
+    setZoek(v);
+    setZoekUitkomst(null);
+    setZoekBezig(false);
+  }, []);
   const gezocht = zoek.trim();
   const exactInLijst = gezocht.length > 0
     && copy.traders.some(t => t.rij.username.toLowerCase() === gezocht.toLowerCase());
   const { zoekTrader } = copy;
   const zoekBijEtoro = useCallback(async () => {
     if (!gezocht || exactInLijst || zoekBezig) return;
+    const nummer = zoekNummer.current;
     setZoekBezig(true);
     try {
-      setZoekUitkomst(await zoekTrader(gezocht));
+      const uitkomst = await zoekTrader(gezocht);
+      if (nummer === zoekNummer.current) setZoekUitkomst(uitkomst);
     } finally {
-      setZoekBezig(false);
+      if (nummer === zoekNummer.current) setZoekBezig(false);
     }
   }, [gezocht, exactInLijst, zoekBezig, zoekTrader]);
 
@@ -437,7 +446,9 @@ export function CopyScreen() {
                     trader={zoekUitkomst.trader}
                     favoriet={copy.isFavoriet(zoekUitkomst.trader.rij.username)}
                     onWisselFavoriet={() => copy.wisselFavoriet({ username: zoekUitkomst.trader.rij.username, cid: zoekUitkomst.trader.rij.cid })}
-                    onOpen={() => setProfiel(zoekUitkomst.trader)}
+                    // Buiten de drempels geen profiel: daar staat Kopieer alles, en dat hoort alleen
+                    // bij traders die Kader zelf zou tonen. De ster mag wel (dan volg je zijn trades).
+                    onOpen={() => { if (!zoekUitkomst.buiten) setProfiel(zoekUitkomst.trader); }}
                     bron={{ kleur: colors.kaart, radius: radii.kaart }}
                     buiten={zoekUitkomst.buiten}
                     trackrecord={trackPerTrader[zoekUitkomst.trader.rij.username.toLowerCase()]}
@@ -476,7 +487,11 @@ export function CopyScreen() {
         }
         ListEmptyComponent={
           <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>
-            {gezocht ? `Niemand in de lijst met "${gezocht}" in de naam.` : 'Geen traders met deze filters.'}
+            {!gezocht
+              ? 'Geen traders met deze filters.'
+              : copy.traders.some(t => t.rij.username.toLowerCase().includes(gezocht.toLowerCase()))
+                ? `Een filter verbergt wie "${gezocht}" in de naam heeft. Zet de filters uit om hem te zien.`
+                : `Niemand in de lijst met "${gezocht}" in de naam.`}
           </Text>
         }
         renderItem={({ item, index }) => (

@@ -131,6 +131,20 @@ export function waaromBuiten(rij: RanglijstRij): string | null {
   return null;
 }
 
+// Het zoekveld leunt op een ander eToro-endpoint (rankings/multiple), en het is niet gemeten of dat
+// alle velden stuurt. Ontbreekt wat de drempels nodig hebben, dan kan Kader niet zeggen dat de trader
+// erbinnen valt, en dan geldt hij als buiten (fail-closed). Null als alles er is.
+export function ontbreektVoorDrempels(rij: RanglijstRij): string | null {
+  const mist: string[] = [];
+  if (typeof rij.riskScore !== 'number') mist.push('het risico');
+  if (typeof rij.weeksSinceRegistration !== 'number') mist.push('hoe lang hij actief is');
+  if (typeof rij.topTradedInstrumentId !== 'number' && typeof rij.topTradedAssetClassId !== 'number') {
+    mist.push('wat hij vooral verhandelt');
+  }
+  if (mist.length === 0) return null;
+  return `eToro gaf niet genoeg om hem te beoordelen: ${mist.join(' en ')} ${mist.length === 1 ? 'ontbreekt' : 'ontbreken'}.`;
+}
+
 // De Kader-score uit één ranglijstregel. Zelfde weging als de handmatige beoordeling (consistentie
 // 35%, risico 40%, spreiding 25%), maar gevoed met eToro's eigen cijfers in plaats van overgetikte.
 // Voor het risico-deel draait letterlijk analyseRisico uit de auditor.
@@ -483,6 +497,11 @@ if (require.main === module) {
     for (const r of [basis, { ...basis, riskScore: 8 }, { ...basis, weeksSinceRegistration: 10 }, { ...basis, type: 'portfolio' }] as RanglijstRij[]) {
       check(haaltDrempels(r) === (waaromBuiten(r) === null), `waaromBuiten en haaltDrempels zijn het eens (${JSON.stringify(r)})`);
     }
+    // Zoeken: een regel zonder de velden voor de drempels geldt als buiten.
+    check(ontbreektVoorDrempels({ ...basis, topTradedAssetClassId: 10 } as RanglijstRij) === null, 'volle regel mist niets');
+    check(ontbreektVoorDrempels({ cid: 0, username: 'x', gain: 30, riskScore: 4, copiers: 9 } as RanglijstRij) !== null,
+      'regel met alleen gain, risico en copiers is onvolledig');
+    check(ontbreektVoorDrempels({ ...basis } as RanglijstRij) !== null, 'zonder instrument of klasse is onvolledig');
   }
 
   if (missers > 0) {

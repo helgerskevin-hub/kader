@@ -188,7 +188,11 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
         const dicht = new Set(trackDicht);
         const teSluiten = lijst.filter(t => dicht.has(t.sleutel) && t.gesloten === null);
         const koersen = teSluiten.length > 0
-          ? await haalLaatstePrijzen([...new Set(teSluiten.map(t => t.symbool))]).catch(() => ({} as Record<string, number>))
+          ? await Promise.race([
+            haalLaatstePrijzen([...new Set(teSluiten.map(t => t.symbool))]).catch(() => ({} as Record<string, number>)),
+            // Een trage koers mag de meldingen hieronder niet ophouden.
+            new Promise<Record<string, number>>(klaar => setTimeout(() => klaar({}), 5000)),
+          ])
           : {};
         await bewaarTrackrecord(lijst.map(t => (dicht.has(t.sleutel) && t.gesloten === null
           ? { ...t, gesloten: nu, uitstap: typeof koersen[t.symbool] === 'number' ? koersen[t.symbool] : null }

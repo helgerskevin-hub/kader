@@ -14,7 +14,7 @@ import {
   bewaarSymboolKaart, markeerGekopieerd, noteerHerkomst,
 } from './copyOpslag';
 import {
-  RanglijstRij, TraderBeoordeling, TrackrecordTrade, beoordeelRij, haaltDrempels, isCryptoTrader, waaromBuiten,
+  RanglijstRij, TraderBeoordeling, TrackrecordTrade, beoordeelRij, haaltDrempels, isCryptoTrader, waaromBuiten, ontbreektVoorDrempels,
 } from '../engine/copyTrading';
 import { haalRanglijst, haalRanglijstVoor } from '../engine/etoroTraders';
 import { haalCryptoTypeIds } from '../engine/etoro';
@@ -83,6 +83,25 @@ const VOORGROND_POLL_MS = 5 * 60 * 1000;
 // niet gevraagd, null = gevraagd maar niet te herkennen.
 let cryptoKlassen: Set<number> | null | undefined;
 
+// De crypto-klassen en Kaders eigen crypto-instrumenten, gedeeld door Ontdek en het zoekveld.
+// eToro's instrumenttypes en de assetclass in de ranglijst zijn nog niet tegen elkaar gemeten.
+// Valt geen enkele regel onder de crypto-klasse, dan is de nummering kennelijk een andere, en dan
+// liever niet op klasse filteren dan een lege lijst tonen.
+async function cryptoBasis(rijen: RanglijstRij[]): Promise<{ klassen: Set<number> | null; crypto: Set<number> }> {
+  if (cryptoKlassen === undefined) {
+    const sleutels = await actieveSleutels();
+    cryptoKlassen = sleutels ? await haalCryptoTypeIds(sleutels) : null;
+  }
+  let klassen = cryptoKlassen;
+  if (klassen && !rijen.some(r => typeof r.topTradedAssetClassId === 'number' && klassen!.has(r.topTradedAssetClassId))) {
+    klassen = null;
+  }
+  // De instrumentId's van Kaders eigen coins, uit wat de app al weet.
+  const kaart = await zaaiSymboolKaart(await laadSymboolKaart());
+  const crypto = new Set(Object.entries(kaart).filter(([, s]) => s !== null).map(([id]) => Number(id)));
+  return { klassen, crypto };
+}
+
 export function CopyProvider({ children }: { children: React.ReactNode }) {
   const { trades, etoroGekoppeld, omgeving } = usePortfolio();
   const [favorieten, setFavorieten] = useState<FavorieteTrader[]>([]);
@@ -149,20 +168,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   // ---------- Ranglijst ----------
 
   const beoordeel = useCallback(async (rijen: RanglijstRij[]): Promise<TraderMetScore[]> => {
-    if (cryptoKlassen === undefined) {
-      const sleutels = await actieveSleutels();
-      cryptoKlassen = sleutels ? await haalCryptoTypeIds(sleutels) : null;
-    }
-    // eToro's instrumenttypes en de assetclass in de ranglijst zijn nog niet tegen elkaar gemeten.
-    // Valt geen enkele regel onder de crypto-klasse, dan is de nummering kennelijk een andere, en
-    // dan liever niet op klasse filteren dan een lege lijst tonen.
-    let klassen = cryptoKlassen;
-    if (klassen && !rijen.some(r => typeof r.topTradedAssetClassId === 'number' && klassen!.has(r.topTradedAssetClassId))) {
-      klassen = null;
-    }
-    // De instrumentId's van Kaders eigen coins, uit wat de app al weet.
-    const kaart = await zaaiSymboolKaart(await laadSymboolKaart());
-    const crypto = new Set(Object.entries(kaart).filter(([, s]) => s !== null).map(([id]) => Number(id)));
+    const { klassen, crypto } = await cryptoBasis(rijen);
     return rijen
       .filter(haaltDrempels)
       .filter(r => isCryptoTrader(r, klassen, crypto))
@@ -179,11 +185,12 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
       const rijen = await haalRanglijstVoor([gezocht], sleutels);
       const rij = rijen.find(r => r.username.toLowerCase() === gezocht.toLowerCase());
       if (!rij) return { soort: 'niet-gevonden' };
-      if (cryptoKlassen === undefined) cryptoKlassen = await haalCryptoTypeIds(sleutels);
-      const kaart = await zaaiSymboolKaart(await laadSymboolKaart());
-      const crypto = new Set(Object.entries(kaart).filter(([, s]) => s !== null).map(([id]) => Number(id)));
-      const buiten = waaromBuiten(rij)
-        ?? (isCryptoTrader(rij, cryptoKlassen, crypto) ? null : 'Handelt vooral buiten crypto.');
+      // Zelfde klasse-terugval als Ontdek: beoordeeld tegen de ranglijst plus deze ene regel.
+      const cache = await laadRanglijstCache();
+      const { klassen, crypto } = await cryptoBasis([...(cache?.rijen ?? []), rij]);
+      const buiten = ontbreektVoorDrempels(rij)
+        ?? waaromBuiten(rij)
+        ?? (isCryptoTrader(rij, klassen, crypto) ? null : 'Handelt vooral buiten crypto.');
       return { soort: 'gevonden', trader: { rij, beoordeling: beoordeelRij(rij) }, buiten };
     } catch (e) {
       return { soort: 'fout', melding: e instanceof Error ? e.message : 'Onbekende fout.' };

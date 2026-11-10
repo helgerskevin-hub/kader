@@ -42,13 +42,13 @@ export const TraderKaart = React.memo(function TraderKaart({ trader, favoriet, o
   const copiers = typeof rij.copiers === 'number' ? rij.copiers.toLocaleString('nl-NL') : null;
   const score = Math.round(beoordeling.score);
 
-  const label = `${rij.username}, Kader-score ${score}, oordeel ${beoordeling.oordeel}`
+  const label = `${rij.username}, Kader-score ${score}, ${buiten ? 'buiten de drempels' : `oordeel ${beoordeling.oordeel}`}`
     + `${rendement !== null ? `, ${fmtPct(rendement)} in 12 maanden` : ''}`
     + `${beoordeling.maxDalingPct !== null ? `, grootste daling ${fmtPct(-beoordeling.maxDalingPct, 0)}` : ''}`
     + `${typeof rij.riskScore === 'number' ? `, risico ${rij.riskScore} van 10` : ''}`
     + `${copiers ? `, ${copiers} copiers` : ''}`
     + `${trackrecord ? `, ${trackrecordTekst(trackrecord)}` : ''}`
-    + `${buiten ? `, niet in de lijst: ${buiten}` : ''}. Open profiel.`;
+    + `${buiten ? `. Niet in Ontdek: ${buiten}` : '. Open profiel.'}`;
 
   return (
     <Animated.View layout={schuifOvergang(reduceMotion)}>
@@ -70,7 +70,14 @@ export const TraderKaart = React.memo(function TraderKaart({ trader, favoriet, o
           <View style={styles.midden}>
             <Text style={[Type.sectiekop, styles.naam, { color: colors.tekstPrimair }]} numberOfLines={1}>{rij.username}</Text>
             <View style={styles.badges}>
-              <OordeelBadge oordeel={beoordeling.oordeel} />
+              {buiten ? (
+                // Buiten de drempels geeft Kader geen oordeel: een KOPIEER-badge zou misleiden.
+                <View style={[styles.buitenPil, { backgroundColor: colors.verhoogd }]}>
+                  <Text style={[Type.overline, { color: colors.tekstGedimd }]}>BUITEN DREMPELS</Text>
+                </View>
+              ) : (
+                <OordeelBadge oordeel={beoordeling.oordeel} />
+              )}
               <Text style={[Type.label, { color: colors.tekstGedimd }]}>score {score}</Text>
             </View>
           </View>
@@ -133,6 +140,7 @@ const styles = StyleSheet.create({
   rechts: { alignItems: 'flex-end', gap: 2 },
   rendement: { fontSize: 17, lineHeight: 22 },
   extra: { marginTop: spacing.sm, lineHeight: 20 },
+  buitenPil: { borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: 3 },
   cijfers: {
     marginTop: spacing.md,
     paddingTop: spacing.md,

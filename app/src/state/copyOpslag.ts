@@ -139,8 +139,11 @@ export async function laadTrackrecord(): Promise<TrackrecordTrade[]> {
 
 export async function bewaarTrackrecord(lijst: TrackrecordTrade[]): Promise<void> {
   const grens = Date.now() - TRACKRECORD_LEEFTIJD_MS;
-  const vers = lijst.filter(t => (t.gesloten ?? t.geopend) >= grens);
-  await bewaarLijst(SLEUTELS.traderTrackrecord, vers.slice(-MAX_TRACKRECORD));
+  // Open trades blijven altijd staan, ook als ze ouder zijn dan 90 dagen: anders krijgt een lang
+  // lopende positie bij het sluiten nooit een resultaat. Alleen gesloten trades vallen weg.
+  const open = lijst.filter(t => t.gesloten === null);
+  const gesloten = lijst.filter(t => t.gesloten !== null && t.gesloten >= grens);
+  await bewaarLijst(SLEUTELS.traderTrackrecord, [...open.slice(-MAX_TRACKRECORD), ...gesloten.slice(-MAX_TRACKRECORD)]);
 }
 
 export async function laadBekendePosities(): Promise<BekendePosities> {
