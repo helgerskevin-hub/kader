@@ -88,11 +88,14 @@ interface Props {
   controleerVoorVersturen?: () => Promise<string | null>;
   // Eigen titel voor de bevestigingsdialoog, bijvoorbeeld "Kopie staat bij eToro".
   geluktTitel?: string;
+  // Een LET OP bij dit bedrag, of null. Alleen een melding: hij houdt de order niet tegen. De
+  // Copy-tab zegt hier dat een kopie boven je plafond voor copies uitkomt.
+  waarschuwing?: (bedragUsd: number) => string | null;
 }
 
 export function KooporderSheet({
   zichtbaar, onSluiten, symbool, naam, entry, stop, doel, onVerlaatScherm, startBedrag, onGelukt, onOnzeker,
-  controleerVoorVersturen, geluktTitel,
+  controleerVoorVersturen, geluktTitel, waarschuwing,
 }: Props) {
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
@@ -190,6 +193,7 @@ export function KooporderSheet({
   // eToro gaat. Wie 12.345 tikt ziet $12.35 en koopt voor $12.35.
   const bedragGetal = Math.round(parseFloat(bedrag.replace(',', '.')) * 100) / 100;
   const heeftBedrag = !isNaN(bedragGetal) && bedragGetal > 0;
+  const waarschuwingTekst = waarschuwing && heeftBedrag ? waarschuwing(bedragGetal) : null;
 
   const invoer: KooporderInvoer = {
     instrumentId: instrumentId ?? 0,
@@ -505,6 +509,11 @@ export function KooporderSheet({
         />
 
         <OpenRisicoRegel kapitaal={kapitaal} bestaandUsd={bestaandRisico} ditUsd={verliesBijStop} />
+        {waarschuwingTekst ? (
+          <View style={[stijlen.waarschuwing, { backgroundColor: colors.verhoogd, borderColor: colors.letOp }]}>
+            <Text style={[Type.caption, { color: colors.letOp, lineHeight: 18 }]}>LET OP · {waarschuwingTekst}</Text>
+          </View>
+        ) : null}
         <SpreidingRegel symbool={symbool} bezit={bezit} zichtbaar={zichtbaar} />
 
         <PlanInGeldKaart

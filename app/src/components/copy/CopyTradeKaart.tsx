@@ -98,9 +98,11 @@ interface Props {
   volgorde?: number;
   // Uit in het profiel van de trader zelf: daar staat zijn naam al bovenaan.
   metTrader?: boolean;
-  onKopieer: () => void;
+  // Krijgen de trade mee, zodat de lijst een stabiele callback kan geven en de memo op deze kaart
+  // bij elke koers-poll blijft werken.
+  onKopieer: (item: FeedItem) => void;
   // Alleen als de trader uitstapte en jij zijn kopie nog open hebt (en hij via eToro te verkopen is).
-  onVerkoopOok?: () => void;
+  onVerkoopOok?: (item: FeedItem) => void;
   // Hoe Kader zelf over deze coin denkt (zijn eigen score). Puur informatief.
   kaderCheck?: KaderCheck;
 }
@@ -218,7 +220,7 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
             label={bezig ? 'Even kijken' : `Kopieer voor ${fmtBedrag(bedragUsd, DOLLARS)}`}
             icoon={CopyIcoon}
             variant="cta"
-            onPress={() => { if (!bezig) onKopieer(); }}
+            onPress={() => { if (!bezig) onKopieer(item); }}
             accessibilityLabel={`Kopieer ${symbool} van ${item.username} voor ${fmtBedrag(bedragUsd, DOLLARS)}`}
           />
         </View>
@@ -230,7 +232,7 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
             label="Verkoop ook"
             icoon={LogOut}
             variant="tweede"
-            onPress={onVerkoopOok}
+            onPress={() => onVerkoopOok(item)}
             accessibilityLabel={`Verkoop ook je ${symbool}, ${item.username} stapte uit. Je bevestigt in het volgende scherm.`}
           />
         </View>

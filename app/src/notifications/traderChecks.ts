@@ -9,7 +9,7 @@ import {
   bewaarSymboolKaart, inStilleUren, laadBekendePosities, laadFavorieten, laadFeed, laadHerkomst,
   laadInstellingen, laadSymboolKaart, zaaiSymboolKaart,
   bewaarLaatstGekeken,
-  laadTrackrecord, bewaarTrackrecord,
+  laadTrackrecord, bewaarTrackrecord, laadLeegGezien, bewaarLeegGezien,
 } from '../state/copyOpslag';
 import { directePosities, nieuwePosities, verdwenenPosities, TraderPositie, TrackrecordTrade } from '../engine/copyTrading';
 import { haalLaatstePrijzen } from '../engine/marketData';
@@ -55,6 +55,9 @@ function naarFeedItem(username: string, p: TraderPositie, symbool: string | null
 }
 
 // Kaders koers per coin uit eToro's eenheid (SHIB en PEPE staan bij eToro per miljoen munten).
+// Hoe lang een lege portfolio minstens leeg moet blijven voordat Kader zijn posities als gesloten ziet.
+const LEEG_BEVESTIG_MS = 3 * 60 * 1000;
+
 export function kaderKoers(item: Pick<FeedItem, 'symbool' | 'openRate'>, waarde: number): number {
   return item.symbool ? waarde / koersFactor(item.symbool) : waarde;
 }
@@ -83,12 +86,14 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
     const [bekend, feed, herkomst, instellingen] = await Promise.all([
       laadBekendePosities(), laadFeed(), laadHerkomst(), laadInstellingen(),
     ]);
+    const leegGezien = await laadLeegGezien().catch(() => ({} as Record<string, number>));
+    const volgendeLeeg: Record<string, number> = {};
     let symbolen = await zaaiSymboolKaart(await laadSymboolKaart());
 
     const volgendeBekend: BekendePosities = { ...bekend };
     const feedPerSleutel = new Map(feed.map(i => [i.sleutel, i]));
     const nieuweTrades: FeedItem[] = [];
-    const uitstappen: { item: FeedItem; herkomst: CopyHerkomst }[] = [];
+    const uitstappen: { sleutel: string; username: string; symbool: string | null; herkomst: CopyHerkomst }[] = [];
     let gesloten = 0;
     let bereikt = 0;
     // Voor Kaders eigen trackrecord: nieuwe long-trades in Kader-coins, en wat er sloot.
@@ -128,6 +133,16 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
         continue;
       }
 
+      // Een lege portfolio terwijl Kader nog open posities kende kan ook een hapering bij eToro zijn
+      // (of een even afgeschermd profiel). Dan nog niets sluiten: pas als hij een volgende ronde, een
+      // paar minuten later, nog steeds leeg is, telt alles als gesloten. Anders volgt op een hapering
+      // een rij valse uitstapmeldingen en een trackrecord vol nep-sluitingen.
+      const leegSinds = leegGezien[fav.username];
+      if (posities.length === 0 && eerder.length > 0 && (leegSinds === undefined || nu - leegSinds < LEEG_BEVESTIG_MS)) {
+        volgendeLeeg[fav.username] = leegSinds ?? nu;
+        continue;
+      }
+
       for (const p of nieuwePosities(eerder, posities)) {
         const item = naarFeedItem(fav.username, p, symboolVan(p.instrumentId), nu);
         feedPerSleutel.set(item.sleutel, item);
@@ -148,8 +163,10 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
           feedPerSleutel.set(sleutel, { ...item, gesloten: true });
           gesloten++;
         }
+        // Ook als de Feed deze trade al kwijt is (ouder dan een week, of buiten de laatste 50): jouw
+        // kopie staat er nog, dus de uitstap telt. De herkomst weet zelf welke coin het was.
         const h = herkomst.find(x => x.username === fav.username && x.bronPositieId === id && !x.uitstapGemeld);
-        if (h && item) uitstappen.push({ item, herkomst: h });
+        if (h) uitstappen.push({ sleutel, username: fav.username, symbool: item?.symbool ?? h.symbool, herkomst: h });
       }
 
       volgendeBekend[fav.username] = posities.map(p => p.positionId);
@@ -176,24 +193,31 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
       bewaarBekendePosities(volgendeBekend),
       bewaarFeed([...feedPerSleutel.values()]),
       bewaarSymboolKaart(symbolen),
+      bewaarLeegGezien(volgendeLeeg).catch(() => {}),
     ]);
 
     // Trackrecord bijwerken. De uitstapkoers is de koers van nu: Kader ziet de sluiting pas bij deze
     // ronde, dus het is een benadering. Zonder koers blijft de uitstap leeg en telt hij niet mee.
     if (trackNieuw.length > 0 || trackDicht.length > 0) {
       try {
-        const track = await laadTrackrecord();
-        const bekendTrack = new Set(track.map(t => t.sleutel));
-        const lijst = [...track, ...trackNieuw.filter(t => !bekendTrack.has(t.sleutel))];
         const dicht = new Set(trackDicht);
-        const teSluiten = lijst.filter(t => dicht.has(t.sleutel) && t.gesloten === null);
-        const koersen = teSluiten.length > 0
+        // Eerst de koersen, dan pas lezen en schrijven. Zo zit er tussen het lezen en het schrijven
+        // geen wachttijd, en overschrijft deze ronde niet wat de achtergrondtaak (een eigen
+        // JS-omgeving, dus de vlag `bezig` helpt daar niet) intussen vastlegde.
+        const symbolenDicht = [...new Set([
+          ...trackNieuw.filter(t => dicht.has(t.sleutel)).map(t => t.symbool),
+          ...(await laadTrackrecord()).filter(t => dicht.has(t.sleutel) && t.gesloten === null).map(t => t.symbool),
+        ])];
+        const koersen = symbolenDicht.length > 0
           ? await Promise.race([
-            haalLaatstePrijzen([...new Set(teSluiten.map(t => t.symbool))]).catch(() => ({} as Record<string, number>)),
+            haalLaatstePrijzen(symbolenDicht).catch(() => ({} as Record<string, number>)),
             // Een trage koers mag de meldingen hieronder niet ophouden.
             new Promise<Record<string, number>>(klaar => setTimeout(() => klaar({}), 5000)),
           ])
           : {};
+        const track = await laadTrackrecord();
+        const bekendTrack = new Set(track.map(t => t.sleutel));
+        const lijst = [...track, ...trackNieuw.filter(t => !bekendTrack.has(t.sleutel))];
         await bewaarTrackrecord(lijst.map(t => (dicht.has(t.sleutel) && t.gesloten === null
           ? { ...t, gesloten: nu, uitstap: typeof koersen[t.symbool] === 'number' ? koersen[t.symbool] : null }
           : t)));
@@ -236,7 +260,7 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
       const jouwTrade = eigen.find(t => t.status === 'open' && t.etoroPositionID === u.herkomst.etoroPositionID
         && (t.etoroOmgeving ?? 'real') === u.herkomst.omgeving);
       meldingen.push({
-        sleutel: `uitstap:${u.item.sleutel}`,
+        sleutel: `uitstap:${u.sleutel}`,
         // Opent de verkoopsheet voor jouw positie; verkopen gebeurt pas na de bevestigknop daar.
         doel: jouwTrade
           ? {
@@ -244,7 +268,7 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
             etoroPositionID: u.herkomst.etoroPositionID as number, omgeving: u.herkomst.omgeving,
           }
           : { soort: 'copy', segment: 'mijn' },
-        titel: `${u.item.username} is uit ${u.item.symbool ?? 'een positie'} gestapt`,
+        titel: `${u.username} is uit ${u.symbool ?? 'een positie'} gestapt`,
         tekst: 'Jij hebt deze trade ook. Tik om je verkoop klaar te zetten, jij bevestigt.',
       });
     }

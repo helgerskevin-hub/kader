@@ -141,6 +141,9 @@ export const SLEUTELS = {
   // Per belegger de positionId's die Kader al kent: { [username]: number[] }. Een id die hier niet
   // in staat is een nieuwe trade. Gedeeld door de voorgrond-check en de achtergrondtaak.
   traderPosities: 'trader_posities',
+  // Per belegger sinds wanneer eToro een lege portfolio teruggaf terwijl Kader nog open posities van
+  // hem kende: { [username]: epoch ms }. Pas bij een tweede lege ronde gelden ze als gesloten.
+  traderLeegGezien: 'trader_leeg_gezien',
   // De Feed: trades van favorieten die Kader zag, nieuwste eerst, max 50.
   traderFeed: 'trader_feed',
   traderLaatstGekeken: 'trader_laatst_gekeken',

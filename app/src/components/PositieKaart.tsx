@@ -41,6 +41,9 @@ interface Props {
   onNiveaus?: (trade: PortfolioTrade) => void;
   // Gebruikersnaam van de trader van wie deze positie gekopieerd is, of undefined voor een eigen trade.
   copyVan?: string;
+  // Extra regels onder de status in de kop, zoals in Mijn copies de instap van de trader en de
+  // LET OP als hij uitstapte. Staat in de kop zodat het ook ingeklapt te zien is.
+  extra?: React.ReactNode;
 }
 
 // Hoe fel de koerspuls achter het resultaat oplicht. Net genoeg om te zien dat er een nieuwe koers
@@ -54,7 +57,7 @@ const PULS_OPACITY = 0.16;
 // Memo: de prijs-poll tekent PortfolioScreen elke paar minuten opnieuw, en zonder memo tekenden ook de
 // kaarten mee waarvan de koers niet veranderde. Het scherm houdt de callbacks daarvoor stabiel.
 export const PositieKaart = memo(function PositieKaart({
-  trade, livePrijs, afbouw, onOpenDetail, onVraagSluiten, onVerwijder, onBewerk, onVerkoop, onNiveaus, copyVan,
+  trade, livePrijs, afbouw, onOpenDetail, onVraagSluiten, onVerwijder, onBewerk, onVerkoop, onNiveaus, copyVan, extra,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
@@ -202,6 +205,7 @@ export const PositieKaart = memo(function PositieKaart({
                 </Text>
               </View>
             )}
+            {extra}
           </View>
           <View style={styles.kopRechts}>
             {resultaatPct !== null ? (

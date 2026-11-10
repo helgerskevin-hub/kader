@@ -1,6 +1,7 @@
 // Opslag van de Copy-tab: favorieten, instellingen, de Feed en de herkomst van gekopieerde
 // posities. Los van de React-context, zodat de achtergrondtaak dezelfde functies gebruikt als de
 // app op de voorgrond. Alles is AsyncStorage: er staat geen geheim in.
+import { STANDAARD_MAX_COPIES_PCT } from './mijnCopies';
 import { SLEUTELS, bewaarLijst, bewaarObject, laadLijst, laadObject } from '../storage/opslag';
 import type { EtoroOmgeving } from '../engine/etoro';
 import type { RanglijstRij, TrackrecordTrade } from '../engine/copyTrading';
@@ -55,6 +56,9 @@ export interface CopyInstellingen {
   stilleUren: boolean;
   // Heeft de gebruiker het instellingenvenster al een keer gezien?
   ingesteld: boolean;
+  // Hoeveel procent van het handelskapitaal er hooguit in copies mag. Boven die grens waarschuwt de
+  // koopsheet; hij blokkeert niet.
+  maxCopiesPct: number;
 }
 
 export const STANDAARD_INSTELLINGEN: CopyInstellingen = {
@@ -62,6 +66,7 @@ export const STANDAARD_INSTELLINGEN: CopyInstellingen = {
   meldingen: true,
   stilleUren: true,
   ingesteld: false,
+  maxCopiesPct: STANDAARD_MAX_COPIES_PCT,
 };
 
 export async function laadInstellingen(): Promise<CopyInstellingen> {
@@ -72,6 +77,8 @@ export async function laadInstellingen(): Promise<CopyInstellingen> {
     meldingen: typeof ruw?.meldingen === 'boolean' ? ruw.meldingen : STANDAARD_INSTELLINGEN.meldingen,
     stilleUren: typeof ruw?.stilleUren === 'boolean' ? ruw.stilleUren : STANDAARD_INSTELLINGEN.stilleUren,
     ingesteld: ruw?.ingesteld === true,
+    maxCopiesPct: typeof ruw?.maxCopiesPct === 'number' && ruw.maxCopiesPct > 0 && ruw.maxCopiesPct <= 100
+      ? ruw.maxCopiesPct : STANDAARD_INSTELLINGEN.maxCopiesPct,
   };
 }
 
@@ -171,6 +178,14 @@ export async function bewaarBekendePosities(kaart: BekendePosities): Promise<voi
   await bewaarObject(SLEUTELS.traderPosities, kaart);
 }
 
+export async function laadLeegGezien(): Promise<Record<string, number>> {
+  return (await laadObject<Record<string, number>>(SLEUTELS.traderLeegGezien)) ?? {};
+}
+
+export async function bewaarLeegGezien(kaart: Record<string, number>): Promise<void> {
+  await bewaarObject(SLEUTELS.traderLeegGezien, kaart);
+}
+
 // ---------- Herkomst van gekopieerde posities ----------
 
 export interface CopyHerkomst {
@@ -185,6 +200,9 @@ export interface CopyHerkomst {
   etoroPositionID?: number;
   // De uitstapmelding is al verstuurd.
   uitstapGemeld?: boolean;
+  // De instap van de trader in Kaders eenheid, voor "jij vs de trader". Ontbreekt bij copies van
+  // voor deze versie; dan zoekt Mijn copies hem in de Feed zolang die de trade nog heeft.
+  bronOpenRate?: number;
 }
 
 export async function laadHerkomst(): Promise<CopyHerkomst[]> {

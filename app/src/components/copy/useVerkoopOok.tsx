@@ -12,7 +12,10 @@ import type { PortfolioTrade } from '../../state/portfolioTypes';
 export function useVerkoopOok() {
   const { trades, livePrijzen, omgeving, magHandelen } = usePortfolio();
   const { herkomst } = useCopy();
-  const [trade, setTrade] = useState<PortfolioTrade | null>(null);
+  // De trade zoals hij was toen je tikte. De sheet krijgt de verse versie zolang de sync hem nog
+  // heeft (een bijgewerkt aantal of niveau na een sync), en houdt de oude alleen vast als hij net
+  // verdween, bijvoorbeeld tijdens het vinkje na een geslaagde verkoop.
+  const [gekozen, setGekozen] = useState<PortfolioTrade | null>(null);
 
   // Jouw open, via eToro te verkopen positie per eToro-positie-id.
   const verkoopbaar = useMemo(() => {
@@ -32,14 +35,18 @@ export function useVerkoopOok() {
     return h ? verkoopbaar.get(h.etoroPositionID as number) ?? null : null;
   }, [herkomst, verkoopbaar, omgeving]);
 
+  const trade = gekozen
+    ? trades.find(t => t.id === gekozen.id && t.status === 'open') ?? gekozen
+    : null;
+
   const sheet = trade ? (
     <VerkoopOrderSheet
       zichtbaar
       trade={trade}
       huidigePrijs={livePrijzen[trade.symbool]}
-      onSluiten={() => setTrade(null)}
+      onSluiten={() => setGekozen(null)}
     />
   ) : null;
 
-  return { tradeVoor, verkoopbaar, open: setTrade, sheet };
+  return { tradeVoor, verkoopbaar, open: setGekozen, sheet };
 }
