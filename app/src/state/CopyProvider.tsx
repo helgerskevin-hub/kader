@@ -35,6 +35,8 @@ interface CopyWaarde {
   favorieten: FavorieteTrader[];
   isFavoriet: (username: string) => boolean;
   wisselFavoriet: (trader: FavorieteTrader) => void;
+  // Meldingen over nieuwe trades van één favoriet aan of uit. De Feed vult hoe dan ook.
+  zetTraderMeldingen: (username: string, aan: boolean) => void;
   // Te veel favorieten: de laatste wissel ging niet door.
   favorietenVol: boolean;
 
@@ -113,6 +115,14 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
     const volgende = bestaat
       ? huidig.filter(f => f.username.toLowerCase() !== trader.username.toLowerCase())
       : [...huidig, trader];
+    favorietenRef.current = volgende;
+    setFavorieten(volgende);
+    bewaarFavorieten(volgende).catch(() => {});
+  }, []);
+
+  const zetTraderMeldingen = useCallback((username: string, aan: boolean) => {
+    const volgende = favorietenRef.current.map(f =>
+      (f.username.toLowerCase() === username.toLowerCase() ? { ...f, meldingen: aan } : f));
     favorietenRef.current = volgende;
     setFavorieten(volgende);
     bewaarFavorieten(volgende).catch(() => {});
@@ -204,9 +214,11 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
     try {
       // Melden mag: staat de app open maar kijk je naar een andere tab, dan is een melding nuttig.
       await checkFavorieteTraders({ melden: true });
-      const [vers, gekeken] = await Promise.all([laadFeed(), laadLaatstGekeken()]);
+      // Ook de herkomst: de check markeert daarin een uitstap (uitstapGemeld) voor Mijn copies.
+      const [vers, gekeken, h] = await Promise.all([laadFeed(), laadLaatstGekeken(), laadHerkomst()]);
       setFeed(vers);
       setLaatstGekeken(gekeken);
+      setHerkomst(h);
       setFeedStand('klaar');
       verversKoersen(vers);
     } catch {
@@ -284,13 +296,13 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const waarde = useMemo<CopyWaarde>(() => ({
-    geladen, favorieten, isFavoriet, wisselFavoriet, favorietenVol,
+    geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, favorietenVol,
     instellingen, wijzigInstellingen,
     traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst,
     feed, feedStand, koersen, verversFeed, laatstGekeken,
     herkomst, noteerKopie,
   }), [
-    geladen, favorieten, isFavoriet, wisselFavoriet, favorietenVol, instellingen, wijzigInstellingen,
+    geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, favorietenVol, instellingen, wijzigInstellingen,
     traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst,
     feed, feedStand, koersen, verversFeed, laatstGekeken, herkomst, noteerKopie,
   ]);

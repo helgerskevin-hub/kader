@@ -12,7 +12,15 @@ export type MeldingDoel =
   // stop-venster met dit niveau al ingevuld. Optioneel, zodat oude logregels zonder dit veld gewoon
   // als gewone trade-tik blijven werken. Het is een voorstel: verzetten gebeurt pas na de
   // bevestigknop in dat venster, nooit vanuit de melding zelf.
-  | { soort: 'trade'; tradeId: string; symbool: string; voorstelStop?: number }
+  //
+  // `verkoop` staat er bij "je trader stapte uit": een tik opent dan de verkoopsheet voor deze
+  // positie. Ook dat is alleen een voorstel; verkopen gebeurt pas na de bevestigknop daar. Bij
+  // `verkoop` horen `etoroPositionID` en `omgeving`: alleen precies die positie mag de verkoopsheet
+  // openen, nooit een andere in dezelfde coin of in de andere omgeving.
+  | {
+    soort: 'trade'; tradeId: string; symbool: string; voorstelStop?: number;
+    verkoop?: boolean; etoroPositionID?: number; omgeving?: 'real' | 'demo';
+  }
   // Een coin die je (nog) niet hebt, zoals bij een koopsignaal. Hoort thuis op het Marktscherm.
   | { soort: 'coin'; symbool: string }
   // Gaat over je posities als geheel, niet over één trade.
@@ -42,9 +50,16 @@ export function leesDoel(ruw: unknown): MeldingDoel | null {
     const symbool = tekst((ruw as { symbool?: unknown }).symbool);
     if (!tradeId || !symbool) return null;
     const voorstel = (ruw as { voorstelStop?: unknown }).voorstelStop;
-    return typeof voorstel === 'number' && Number.isFinite(voorstel) && voorstel > 0
-      ? { soort: 'trade', tradeId, symbool, voorstelStop: voorstel }
-      : { soort: 'trade', tradeId, symbool };
+    const basis = typeof voorstel === 'number' && Number.isFinite(voorstel) && voorstel > 0
+      ? { soort: 'trade' as const, tradeId, symbool, voorstelStop: voorstel }
+      : { soort: 'trade' as const, tradeId, symbool };
+    // Een verkoopdoel zonder exacte positie en omgeving is geen verkoopdoel: dan gewoon de trade.
+    const r = ruw as { verkoop?: unknown; etoroPositionID?: unknown; omgeving?: unknown };
+    if (r.verkoop === true && typeof r.etoroPositionID === 'number' && Number.isFinite(r.etoroPositionID)
+      && (r.omgeving === 'real' || r.omgeving === 'demo')) {
+      return { ...basis, verkoop: true, etoroPositionID: r.etoroPositionID, omgeving: r.omgeving };
+    }
+    return basis;
   }
   if (soort === 'coin') {
     const symbool = tekst((ruw as { symbool?: unknown }).symbool);
@@ -54,7 +69,8 @@ export function leesDoel(ruw: unknown): MeldingDoel | null {
   if (soort === 'markt') return { soort: 'markt' };
   if (soort === 'copy') {
     const sleutel = tekst((ruw as { sleutel?: unknown }).sleutel);
-    return sleutel ? { soort: 'copy', sleutel } : { soort: 'copy' };
+    if (sleutel) return { soort: 'copy', sleutel };
+    return (ruw as { segment?: unknown }).segment === 'mijn' ? { soort: 'copy', segment: 'mijn' } : { soort: 'copy' };
   }
   return null;
 }

@@ -25,6 +25,7 @@ import { bewaarSymboolKaart, FeedItem, laadSymboolKaart, zaaiSymboolKaart } from
 import { TraderAvatar } from './TraderAvatar';
 import { OordeelBadge } from './OordeelBadge';
 import { SterKnop } from './SterKnop';
+import { BelKnop } from './BelKnop';
 import { CopyTradeKaart } from './CopyTradeKaart';
 import { AllesKopierenSheet } from './AllesKopierenSheet';
 import { useKopieerFlow } from './useKopieerFlow';
@@ -63,7 +64,7 @@ export function TraderProfielScherm({ trader, onSluiten }: Props) {
 function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }) {
   const { colors } = useTheme();
   const kopruimte = useModalKopruimte();
-  const { isFavoriet, wisselFavoriet, instellingen } = useCopy();
+  const { isFavoriet, wisselFavoriet, instellingen, favorieten, zetTraderMeldingen } = useCopy();
   const { magHandelen } = usePortfolio();
   const { rij, beoordeling } = trader;
   const [data, setData] = useState<Geladen | null>(null);
@@ -171,6 +172,12 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
           <Text style={[Type.titel, { color: colors.tekstPrimair }]} numberOfLines={1}>{rij.username}</Text>
           {rij.fullName ? <Text style={[Type.caption, { color: colors.tekstGedimd }]} numberOfLines={1}>{rij.fullName}</Text> : null}
         </View>
+        {(() => {
+          const fav = favorieten.find(f => f.username.toLowerCase() === rij.username.toLowerCase());
+          if (!fav) return null;
+          const aan = fav.meldingen !== false;
+          return <BelKnop username={rij.username} aan={aan} onWissel={() => zetTraderMeldingen(rij.username, !aan)} />;
+        })()}
         <SterKnop
           username={rij.username}
           aan={isFavoriet(rij.username)}

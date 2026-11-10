@@ -11,6 +11,8 @@ export interface FavorieteTrader {
   username: string;
   // Nodig voor "Kopieer alles via eToro". 0 als hij nog niet bekend is.
   cid: number;
+  // Meldingen over nieuwe trades van deze trader. Ontbreekt (oudere opslag) betekent aan.
+  meldingen?: boolean;
 }
 
 // Hooguit zoveel favorieten: elke favoriet kost per check een verzoek, en het quotum voor live

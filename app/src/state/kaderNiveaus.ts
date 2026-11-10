@@ -21,3 +21,38 @@ export async function haalKaderNiveaus(symbool: string): Promise<KaderNiveaus | 
     return null;
   }
 }
+
+// ---------- Kader-check voor een gekopieerde trade ----------
+// Hoe Kader zelf over de coin denkt, naast wat de trader doet. Puur informatief: het verandert niets
+// aan de kopie. Eerst uit de laatste marktanalyse (die heeft alle coins al gescoord), anders een
+// eigen scoring op verse dagcandles (zonder R/R-drempel, zoals de analyse ook alle coins scoort), een
+// half uur bewaard zodat de Feed niet bij elke render haalt. Een mislukte ophaalpoging maar twee minuten.
+
+export interface KaderCheck {
+  score: number;
+  signaal: 'KOOP' | 'WATCH';
+  // De belangrijkste reden uit de analyse, zoals "opwaartse trend (EMA20>EMA50)", of null.
+  reden: string | null;
+}
+
+const CHECK_TTL_MS = 30 * 60 * 1000;
+const checkCache = new Map<string, { tijd: number; check: KaderCheck | null }>();
+
+export function naarKaderCheck(t: { score: number; signaal: 'KOOP' | 'WATCH'; redenen: string[] }): KaderCheck {
+  return { score: Math.round(t.score), signaal: t.signaal, reden: t.redenen[0] ?? null };
+}
+
+export async function haalKaderCheck(symbool: string): Promise<KaderCheck | null> {
+  const bekend = checkCache.get(symbool);
+  if (bekend && Date.now() - bekend.tijd < (bekend.check ? CHECK_TTL_MS : 2 * 60 * 1000)) return bekend.check;
+  let check: KaderCheck | null = null;
+  try {
+    const data = await haalData(symbool);
+    const trade = data ? scoorCandles(symbool, data.candles, data.bron, { minRR: 0 }) : null;
+    check = trade ? naarKaderCheck(trade) : null;
+  } catch {
+    check = null;
+  }
+  checkCache.set(symbool, { tijd: Date.now(), check });
+  return check;
+}

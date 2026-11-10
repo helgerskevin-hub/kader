@@ -54,20 +54,11 @@ import { vanPortfolioTrade } from '../engine/coinDetailData';
 import { laadTekst, bewaarTekst, laadObject, bewaarObject, verwijderSleutel, SLEUTELS } from '../storage/opslag';
 import { sleutelUitkomst, haalOmgeving, magHandelen as magNuHandelen } from '../state/etoroSleutels';
 import { useValutaStand } from '../state/useValuta';
+import { isEtoroBestuurbaar } from '../state/etoroBestuurbaar';
 
 // ---------- eToro-bestuurbaarheid ----------
-// Kan deze rij bij eToro verkocht en gewijzigd worden? Alles moet kloppen: de trade komt uit eToro,
-// we kennen zowel het positie- als het instrument-ID, en de positie hoort bij de omgeving waar de
-// app nu in staat. Een positie-ID uit de ene omgeving naar het endpoint van de andere sturen is een
-// slechte afloop, dus bij twijfel verschijnt de knop simpelweg niet. Oude opgeslagen trades missen
-// deze velden en herstellen zichzelf bij de volgende sync.
-export function isEtoroBestuurbaar(trade: PortfolioTrade, omgeving: EtoroOmgeving): boolean {
-  return trade.bron === 'etoro'
-    && trade.status === 'open'
-    && typeof trade.etoroPositionID === 'number'
-    && typeof trade.etoroInstrumentID === 'number'
-    && (trade.etoroOmgeving ?? 'real') === omgeving;
-}
+// Staat in state/, zodat Copy dezelfde regel gebruikt. Hier opnieuw geëxporteerd voor bestaande imports.
+export { isEtoroBestuurbaar };
 
 // ---------- Formulier (handmatig toevoegen vanuit Portfolio) ----------
 interface VormData {
@@ -579,15 +570,33 @@ export function PortfolioScreen() {
 
     // Op id, met het symbool als terugval: een opnieuw geïmporteerde eToro-positie kan een ander
     // id hebben gekregen, en dan is de open trade in dezelfde coin wat je bedoelde.
-    const trade = trades.find(t => t.id === navigatieDoel.tradeId)
-      ?? trades.find(t => t.symbool === navigatieDoel.symbool && t.status === 'open');
+    // Een verkoopdoel ("je trader stapte uit") alleen op de exacte positie in de exacte omgeving:
+    // geen terugval op symbool, anders opent de verkoopsheet voor een andere positie in die coin,
+    // bijvoorbeeld je echte positie terwijl de melding over demo ging.
+    if (navigatieDoel.verkoop && navigatieDoel.omgeving && navigatieDoel.omgeving !== omgeving) {
+      setMeldingNotitie(
+        `Die melding ging over je ${navigatieDoel.symbool} in ${navigatieDoel.omgeving === 'demo' ? 'Demo' : 'Echt'}. `
+        + 'Zet de schakelaar in Instellingen om om die positie te bekijken.',
+      );
+      wisDoel();
+      return;
+    }
+    const trade = navigatieDoel.verkoop
+      ? trades.find(t => t.etoroPositionID === navigatieDoel.etoroPositionID
+        && (t.etoroOmgeving ?? 'real') === navigatieDoel.omgeving)
+      : trades.find(t => t.id === navigatieDoel.tradeId)
+        ?? trades.find(t => t.symbool === navigatieDoel.symbool && t.status === 'open');
     // Een net geopende positie staat pas na de eerste sync in de lijst: even blijven wachten.
     if (!trade && !doelWachtVerlopen) return;
 
     // Een "zet je winst vast"-melding opent het stop-venster met het voorstel ingevuld, als deze
     // positie via eToro te wijzigen is. Het venster zelf zegt het als de omgeving niet klopt. Een
     // handmatige trade krijgt gewoon het detail, de melding noemde het niveau al.
-    if (trade && navigatieDoel.voorstelStop !== undefined && trade.status === 'open'
+    // "Je trader stapte uit": de verkoopsheet openen. Verkopen gebeurt pas na de bevestigknop daar.
+    // Kan deze positie niet via eToro verkocht worden, dan gewoon het detail.
+    if (trade && navigatieDoel.verkoop && trade.status === 'open' && magHandelen && isEtoroBestuurbaar(trade, omgeving)) {
+      setVerkoopTrade(trade);
+    } else if (trade && navigatieDoel.voorstelStop !== undefined && trade.status === 'open'
       && trade.bron === 'etoro' && magHandelen) {
       setNiveausVoorstel(navigatieDoel.voorstelStop);
       setNiveausTrade(trade);
@@ -599,7 +608,7 @@ export function PortfolioScreen() {
       );
     }
     wisDoel();
-  }, [navigatieDoel, trades, livePrijzen, wisDoel, magHandelen, geladen, handelStatusBekend, doelWachtVerlopen]);
+  }, [navigatieDoel, trades, livePrijzen, wisDoel, magHandelen, omgeving, geladen, handelStatusBekend, doelWachtVerlopen]);
 
   // Een groep dichtklappen animeert zichzelf: de rijen vervagen weg (exiting) en de groep eronder
   // schuift op via itemLayoutAnimation op de lijst. Openklappen laat de rijen weer invervagen.

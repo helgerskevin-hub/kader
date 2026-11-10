@@ -6,9 +6,9 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { AlertTriangle, CheckCircle, Copy as CopyIcoon, Eye, Info } from 'lucide-react-native';
+import { AlertTriangle, CheckCircle, Copy as CopyIcoon, Eye, Info, LogOut } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Type } from '../../theme/typography';
+import { Fonts, Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
 import { useReduceMotion } from '../../theme/useReduceMotion';
 import { schuifOvergang, uitklapInGestaffeld, uitklapUit } from '../../theme/lijstBeweging';
@@ -18,6 +18,8 @@ import { COIN_INFO } from '../../engine/coinInfo';
 import type { CopyStand } from '../../engine/copyTrading';
 import type { FeedItem } from '../../state/copyOpslag';
 import { CoinLogo } from '../CoinLogo';
+import { ScoreRing } from '../ScoreRing';
+import type { KaderCheck } from '../../state/kaderNiveaus';
 import { StopDoelBaan } from '../StopDoelBaan';
 import { useDrukVeer } from '../Drukbaar';
 import { PilKnop } from '../PilKnop';
@@ -51,7 +53,14 @@ interface Status {
   reden: string | null;
 }
 
-function bepaalStatus(item: FeedItem, stand: CopyStand, magHandelen: boolean): Status {
+function bepaalStatus(item: FeedItem, stand: CopyStand, magHandelen: boolean, jijHebtNog: boolean): Status {
+  if (jijHebtNog) {
+    return {
+      label: 'Trader uit',
+      toon: 'letOp',
+      reden: `${item.username} heeft deze positie gesloten, jij hebt hem nog. Verkoop ook als je zijn plan volgt, of laat hem lopen met je eigen stop. Kader verkoopt nooit zelf.`,
+    };
+  }
   if (item.gekopieerd) return { label: 'Gekopieerd', toon: 'goed', reden: null };
   switch (stand.soort) {
     case 'te-laat':
@@ -90,10 +99,14 @@ interface Props {
   // Uit in het profiel van de trader zelf: daar staat zijn naam al bovenaan.
   metTrader?: boolean;
   onKopieer: () => void;
+  // Alleen als de trader uitstapte en jij zijn kopie nog open hebt (en hij via eToro te verkopen is).
+  onVerkoopOok?: () => void;
+  // Hoe Kader zelf over deze coin denkt (zijn eigen score). Puur informatief.
+  kaderCheck?: KaderCheck;
 }
 
 export const CopyTradeKaart = React.memo(function CopyTradeKaart({
-  item, stand, koers, bedragUsd, magHandelen, bezig, uitgelicht = false, volgorde = 0, metTrader = true, onKopieer,
+  item, stand, koers, bedragUsd, magHandelen, bezig, uitgelicht = false, volgorde = 0, metTrader = true, onKopieer, onVerkoopOok, kaderCheck,
 }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
@@ -107,20 +120,22 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
   const heeftBaan = stop > 0 && doel > 0 && stop < entry && doel > entry;
   const symbool = item.symbool ?? '?';
   const naam = item.symbool ? COIN_INFO[item.symbool]?.naam ?? item.symbool : 'Onbekende coin';
-  const status = bepaalStatus(item, stand, magHandelen);
+  const status = bepaalStatus(item, stand, magHandelen, !!onVerkoopOok);
   const kanKopieren = stand.soort === 'kopieerbaar' && !item.gekopieerd && magHandelen;
   const tijd = tijdGeleden(item.openTijd ?? item.gezien);
 
   const verschuiving = (stand.soort === 'kopieerbaar' || stand.soort === 'te-laat') ? stand.verschuivingPct : null;
   const toonKleur = (t: Toon) => (t === 'goed' ? colors.winst : t === 'letOp' ? colors.letOp : colors.tekstGedimd);
-  const StatusIcoon = item.gekopieerd ? CheckCircle
+  const StatusIcoon = onVerkoopOok ? AlertTriangle
+    : item.gekopieerd ? CheckCircle
     : status.toon === 'letOp' ? AlertTriangle
     : status.label === 'Alleen meekijken' ? Eye
     : status.toon === 'goed' ? CopyIcoon
     : Info;
 
   const kaartLabel = `${symbool}, ${item.isBuy ? 'long' : 'short'} van ${item.username}, ${tijd} geleden`
-    + `${verschuiving !== null ? `, ${verschuivingTekst(verschuiving)} sinds de trader` : ''}, ${status.label}`;
+    + `${verschuiving !== null ? `, ${verschuivingTekst(verschuiving)} sinds de trader` : ''}, ${status.label}`
+    + `${kaderCheck ? `, Kader-score voor ${symbool} ${kaderCheck.score}` : ''}`;
 
   return (
     <Animated.View
@@ -142,7 +157,9 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
         style={styles.boven}
       >
         <View style={styles.kop}>
-          <CoinLogo symbool={symbool} grootte={40} />
+          {kaderCheck && item.symbool
+            ? <ScoreRing symbool={item.symbool} score={kaderCheck.score} maat={48} volgorde={volgorde} accessible={false} />
+            : <CoinLogo symbool={symbool} grootte={40} />}
           <View style={styles.kopMidden}>
             <View style={styles.symboolRij}>
               <Text style={[Type.sectiekop, styles.symbool, { color: colors.tekstPrimair }]}>{symbool}</Text>
@@ -207,6 +224,18 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
         </View>
       )}
 
+      {onVerkoopOok && (
+        <View style={styles.actie}>
+          <PilKnop
+            label="Verkoop ook"
+            icoon={LogOut}
+            variant="tweede"
+            onPress={onVerkoopOok}
+            accessibilityLabel={`Verkoop ook je ${symbool}, ${item.username} stapte uit. Je bevestigt in het volgende scherm.`}
+          />
+        </View>
+      )}
+
       {uitgeklapt && (
         <Animated.View exiting={uitklapUit()} style={[styles.uitklap, { borderTopColor: colors.rand }]}>
           {status.reden && (
@@ -222,7 +251,17 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
               <Cijfer label="JIJ" waarde={`${fmtBedrag(bedragUsd, DOLLARS)} · 1x`} />
             </CijferRij>
           </Animated.View>
-          <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)}>
+          {kaderCheck && (
+            <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)}>
+              <Text style={[Type.caption, styles.regelHoogte, { color: colors.tekstPrimair }]}>
+                <Text style={{ fontFamily: Fonts.monoMedium }}>Kader {kaderCheck.score}</Text>
+                {kaderCheck.signaal === 'KOOP' ? ', zelf ook een koopsignaal' : ', zelf geen koopsignaal'}
+                {kaderCheck.reden ? ` · ${kaderCheck.reden}` : ''}. De ring om het logo is Kaders eigen score voor
+                deze coin, los van de trader.
+              </Text>
+            </Animated.View>
+          )}
+          <Animated.View entering={uitklapInGestaffeld(3, reduceMotion)}>
             <Text style={[Type.caption, styles.regelHoogte, { color: colors.tekstGedimd }]}>
               {stop > 0
                 ? 'Je kopieert zonder hefboom, met de stop en het doel van de trader.'

@@ -3,7 +3,7 @@
 // bestaande verkoopsheet zit; stoppen van een hele copy kan hier.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { AlertTriangle, ChevronRight, Copy as CopyIcoon, Square } from 'lucide-react-native';
+import { AlertTriangle, ChevronRight, Copy as CopyIcoon, LogOut, Square } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
@@ -22,6 +22,7 @@ import { LegeStaatBeeld, Opkomst } from '../LegeStaatBeeld';
 import { StopCopySheet } from './StopCopySheet';
 import { Cijfer, CijferRij } from './Cijfer';
 import { TraderAvatar } from './TraderAvatar';
+import { useVerkoopOok } from './useVerkoopOok';
 
 const DOLLARS = { valuta: 'USD' } as const;
 
@@ -30,6 +31,7 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
   const { trades, livePrijzen, omgeving, etoroGekoppeld } = usePortfolio();
   const { herkomst } = useCopy();
   const { gaNaar } = useNavigatie();
+  const verkoopOok = useVerkoopOok();
   const [mirrors, setMirrors] = useState<EigenMirror[] | null>(null);
   const [alles, setAlles] = useState<AllesCopy[]>([]);
   const [stoppen, setStoppen] = useState<{ mirrorId: number; username: string } | null>(null);
@@ -51,7 +53,7 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
 
   // Jouw open posities die uit een kopie komen.
   const kopieen = useMemo(() => {
-    const perPositie = new Map(herkomst.filter(h => typeof h.etoroPositionID === 'number').map(h => [h.etoroPositionID as number, h]));
+    const perPositie = new Map(herkomst.filter(h => typeof h.etoroPositionID === 'number' && h.omgeving === omgeving).map(h => [h.etoroPositionID as number, h]));
     return trades
       .filter(t => t.status === 'open' && typeof t.etoroPositionID === 'number' && perPositie.has(t.etoroPositionID))
       .map(t => {
@@ -60,7 +62,7 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
         const pct = typeof koers === 'number' && t.entryPrijs > 0 ? ((koers - t.entryPrijs) / t.entryPrijs) * 100 : null;
         return { trade: t, herkomst: h, pct };
       });
-  }, [trades, herkomst, livePrijzen]);
+  }, [trades, herkomst, livePrijzen, omgeving]);
 
   const totaal = useMemo(() => {
     const metPct = kopieen.filter(k => k.pct !== null);
@@ -141,6 +143,17 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
                 <Text style={[Type.caption, { color: colors.letOp }]}>LET OP · {h.username} is uitgestapt</Text>
               </View>
             )}
+            {h.uitstapGemeld && verkoopOok.verkoopbaar.has(trade.etoroPositionID as number) && (
+              <View style={styles.verkoopOok}>
+                <PilKnop
+                  label="Verkoop ook"
+                  icoon={LogOut}
+                  variant="tweede"
+                  onPress={() => { const t = verkoopOok.verkoopbaar.get(trade.etoroPositionID as number); if (t) verkoopOok.open(t); }}
+                  accessibilityLabel={`Verkoop ook je ${trade.symbool}, ${h.username} stapte uit. Je bevestigt in het volgende scherm.`}
+                />
+              </View>
+            )}
           </View>
           {pct !== null && (
             <Text style={[Type.prijs, { color: pct >= 0 ? colors.winst : colors.verlies }]}>{fmtPct(pct)}</Text>
@@ -198,6 +211,7 @@ export function MijnCopies({ inBeeld }: { inBeeld: boolean }) {
       ))}
 
       <StopCopySheet doel={stoppen} onSluiten={() => setStoppen(null)} onGestopt={() => { laad().catch(() => {}); }} />
+      {verkoopOok.sheet}
     </View>
   );
 }
@@ -225,6 +239,7 @@ const styles = StyleSheet.create({
   },
   rijBinnen: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   letOp: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  verkoopOok: { flexDirection: 'row', marginTop: spacing.sm },
   knopRij: { flexDirection: 'row', justifyContent: 'flex-end' },
   leegStaat: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
   midden: { textAlign: 'center' },
