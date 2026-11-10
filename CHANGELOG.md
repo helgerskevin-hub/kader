@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.4.1
 
 - Demo en Echt worden bij het ophalen uit eToro nu strikt uit elkaar gehouden. Had een demo-positie toevallig hetzelfde nummer als een echte, dan kon de ene de andere in je portfolio overschrijven. Dat kan niet meer, en ook de koppeling van copies en de afhandeling van een verkooporder kijken nu naar de omgeving
 - Mijn copies is opnieuw opgezet. Je copies staan per trader, met wat open staat en wat al dicht is, in dollars en procenten. Een open copy is dezelfde kaart als op Portfolio, dus je kunt hem daar meteen verkopen of je stop en doel aanpassen; er gaat pas iets naar eToro als jij bevestigt. Per copy zie je hoeveel hoger of lager jij instapte dan de trader. In de Copy-instellingen kies je hoeveel van je handelskapitaal hooguit in copies mag, standaard 25%. Mijn copies laat zien waar je staat, en gaat een nieuwe kopie erboven, dan zegt de koopsheet het. Kopen blijft gewoon mogelijk. Een lege portfolio bij eToro leidt niet meer meteen tot uitstapmeldingen: Kader wacht een ronde om een hapering uit te sluiten
