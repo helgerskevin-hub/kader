@@ -1,4 +1,4 @@
-// Speelt checkFavorieteTraders na (acht rondes) met nagebootste opslag, meldingen en eToro-antwoorden. Geen
+// Speelt checkFavorieteTraders na (negen rondes) met nagebootste opslag, meldingen en eToro-antwoorden. Geen
 // testframework, net als de self-checks elders. Draaien vanuit app/: npx tsx scripts/test-traderChecks.ts
 const Module = require('module');
 const path = require('path');
@@ -34,6 +34,8 @@ const nep: Record<string, any> = {
   }),
 };
 const nepPaden: Record<string, any> = {
+  // Koers van nu, voor de uitstap in het trackrecord.
+  [path.join(APP, 'engine/marketData')]: { haalLaatstePrijzen: async (s: string[]) => Object.fromEntries(s.map(x => [x, x === 'BTC' ? 63000 : 1])) },
   [path.join(APP, 'state/etoroSleutels')]: { actieveSleutels: async () => ({ apiKey: 'a', userKey: 'b', omgeving: 'demo' }) },
   [path.join(APP, 'state/meldingVoorkeur')]: { meldingenAan: async () => true },
   [path.join(APP, 'engine/etoroTraders')]: {
@@ -104,6 +106,9 @@ const check = (ok: boolean, tekst: string) => { if (!ok) { missers++; console.er
   check((meldingen[0]?.data as any)?.doel?.soort === 'copy' && (meldingen[0]?.data as any)?.doel?.sleutel === 'jan:3', 'tik opent de trade');
   feed = lees(SLEUTELS.traderFeed);
   check(feed.some((i: any) => i.positionId === 5 && i.symbool === null), 'het aandeel staat als buiten Kader');
+  let track = lees(SLEUTELS.traderTrackrecord) ?? [];
+  check(track.length === 1 && track[0].sleutel === 'jan:3' && track[0].instap === 61000 && track[0].uitstap === null,
+    `trackrecord: alleen de long in een Kader-coin, nog open (${JSON.stringify(track)})`);
   check(!feed.some((i: any) => i.positionId === 6), 'de copy van iemand anders telt niet');
 
   // Ronde 3: niets nieuw, geen nieuwe melding.
@@ -112,12 +117,17 @@ const check = (ok: boolean, tekst: string) => { if (!ok) { missers++; console.er
 
   // Ronde 4: jij kopieerde positie 3, jouw positie 777 staat open; jan sluit 3.
   zet(SLEUTELS.copyHerkomst, [{ verzoekId: 'v1', username: 'jan', bronPositieId: 3, symbool: 'BTC', omgeving: 'demo', tijd: Date.now(), etoroPositionID: 777 }]);
-  zet(SLEUTELS.portfolio, [{ id: 't1', symbool: 'BTC', status: 'open', etoroPositionID: 777, entryPrijs: 61000 }]);
+  zet(SLEUTELS.portfolio, [{ id: 't1', symbool: 'BTC', status: 'open', etoroPositionID: 777, etoroOmgeving: 'demo', entryPrijs: 61000 }]);
   scenario.jan.positions = scenario.jan.positions.filter((p: any) => p.positionId !== 3);
   u = await checkFavorieteTraders();
   check(u.gesloten === 1, 'sluiting gezien');
   check(meldingen.length === 2 && meldingen[1].titel === 'jan is uit BTC gestapt', `uitstapmelding: ${meldingen[1]?.titel}`);
   check(lees(SLEUTELS.copyHerkomst)[0].uitstapGemeld === true, 'uitstap onthouden');
+  const uitDoel = (meldingen[1]?.data as any)?.doel;
+  check(uitDoel?.soort === 'trade' && uitDoel?.verkoop === true && uitDoel?.etoroPositionID === 777 && uitDoel?.omgeving === 'demo',
+    `uitstapmelding opent de verkoopsheet voor precies die positie: ${JSON.stringify(uitDoel)}`);
+  track = lees(SLEUTELS.traderTrackrecord);
+  check(track[0].uitstap === 63000 && typeof track[0].gesloten === 'number', 'trackrecord: uitstap met de koers van nu');
   feed = lees(SLEUTELS.traderFeed);
   check(feed.find((i: any) => i.positionId === 3)?.gesloten === true, 'feedregel staat op gesloten');
 
@@ -163,6 +173,13 @@ const check = (ok: boolean, tekst: string) => { if (!ok) { missers++; console.er
   const voor = meldingen.length;
   u = await checkFavorieteTraders();
   check(u.nieuw === 0 && meldingen.length === voor, `terug als favoriet: geen stortvloed (nieuw ${u.nieuw})`);
+
+  // Ronde 9: de bel voor jan staat uit. Nieuwe trade: wel in de feed, geen melding.
+  zet(SLEUTELS.favorieteTraders, [{ username: 'jan', cid: 1, meldingen: false }]);
+  scenario.jan.positions.push({ positionId: 14, instrumentId: 100000, openRate: 63000, isBuy: true, openTimestamp: nu });
+  const voorStil = meldingen.length;
+  u = await checkFavorieteTraders();
+  check(u.nieuw === 1 && meldingen.length === voorStil, 'bel uit: wel in de feed, geen melding');
 
   if (missers > 0) { console.error(`\n${missers} controle(s) mislukt`); process.exit(1); }
   console.log('\ntraderChecks-test geslaagd');

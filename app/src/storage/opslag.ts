@@ -144,6 +144,7 @@ export const SLEUTELS = {
   // De Feed: trades van favorieten die Kader zag, nieuwste eerst, max 50.
   traderFeed: 'trader_feed',
   traderLaatstGekeken: 'trader_laatst_gekeken',
+  traderTrackrecord: 'trader_trackrecord',
   // Welke eigen positie uit welke trade van welke belegger komt, voor Mijn copies en de
   // uitstapmelding.
   copyHerkomst: 'copy_herkomst',
