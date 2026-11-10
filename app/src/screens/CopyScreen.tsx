@@ -104,6 +104,11 @@ export function CopyScreen() {
   // Zo is het melding plus één druk op de bevestigknop.
   useEffect(() => {
     if (!doel || doel.soort !== 'copy') return;
+    if (doel.segment === 'mijn') {
+      setSegment('mijn');
+      wisDoel();
+      return;
+    }
     setSegment('feed');
     const sleutel = doel.sleutel;
     wisDoel();

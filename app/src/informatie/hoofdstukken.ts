@@ -269,7 +269,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     icoon: 'Layers',
     kort: 'Hoeveel geld er in de markt hoort, en wanneer je afbouwt.',
     zie: 'Op Portfolio staat hoeveel procent van je handelskapitaal in de markt zit, met een plafond dat bij het klimaat past.',
-    reken: 'Bij een gunstig klimaat is er geen plafond, bij gemengd de helft, bij ongunstig een vijfde. Het percentage verschijnt alleen als je zelf je handelskapitaal invult; dat bedrag blijft op je telefoon.',
+    reken: 'Bij een gunstig klimaat is er geen plafond, bij gemengd de helft, bij ongunstig een vijfde. Met een eToro-koppeling haalt Kader je handelskapitaal bij elke sync zelf uit eToro: vrij saldo, posities, copies en open resultaat samen. Zonder koppeling vul je het zelf in, en dan blijft dat bedrag op je telefoon.',
     doe: 'Boven het plafond zitten is geen verkoopopdracht, wel een reden om niet bij te kopen. Onder een positie kan een afbouwadvies staan, maar alleen als er iets te melden is.',
     detail: [
       'In winst, maar onder de eigen EMA50 in een dalende markt: winst nemen of de stop optrekken',

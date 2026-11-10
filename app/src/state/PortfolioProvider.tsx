@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { PortfolioTrade } from './portfolioTypes';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
+import { noteerAutoKapitaal, wisAutoKapitaal } from './autoKapitaal';
 import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving, EtoroFout, EtoroSleutels, WachtendeOrder, OrderUitkomst, annuleerOrder, zoekOrderStatus, guid, echtNiveau } from '../engine/etoro';
 import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
@@ -583,6 +584,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       setCreditUsd(null);
       // Zelfde reden: zonder koppeling zijn er geen wachtende orders om te tonen.
       setWachtendeOrderLijst([]);
+      // En geen automatisch handelskapitaal: dan geldt weer wat de gebruiker zelf invulde.
+      wisAutoKapitaal().catch(() => {});
       return leeg;
     }
     if (uitkomst.soort === 'kluisfout') {
@@ -600,7 +603,11 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     laatsteEtoroPogingRef.current = Date.now();
 
     try {
-      const { open, historie, creditUsd: credit, wachtendeOrderLijst: wachtendeLijst } = await importeerEtoroAlles(sleutels);
+      const { open, historie, creditUsd: credit, wachtendeOrderLijst: wachtendeLijst, kapitaal } = await importeerEtoroAlles(sleutels);
+      // Per omgeving bewaard, dus ook na een wissel tijdens de sync hoort dit bij syncOmgeving.
+      // Eerst vastleggen en dan pas het saldo zetten: anders tekent Portfolio één keer het nieuwe
+      // saldo met het copybedrag van de vorige sync, en dat komt zo in de waardereeks.
+      await noteerAutoKapitaal(syncOmgeving, kapitaal).catch(() => {});
       // Alleen na een geslaagde ophaal bijwerken. Mislukt de sync, dan blijft de vorige waarde in
       // beeld: die is oud, maar hij is echt geweest.
       //

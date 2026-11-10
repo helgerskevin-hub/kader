@@ -40,6 +40,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-11-10',
+    punten: [
+      'Met een eToro-koppeling vult Kader je handelskapitaal nu zelf in: alles wat er op je account staat, dus je vrije saldo, je posities, je copies en het resultaat dat nog open staat. Het wordt bij elke sync bijgewerkt, apart voor Demo en Echt. Blootstelling, risico per trade, open risico en de kooporder rekenen er meteen mee. Zonder koppeling vul je het zoals voorheen zelf in',
+      'Op Portfolio zie je nu hoeveel van je geld in je eigen trades zit en hoeveel in copies, in dollars en als deel van je vermogen. Geld dat eToro voor je kopieert via Kopieer alles telt mee in je totale vermogen. Een tik op Copies opent Mijn copies. In de lijst met posities staat bij een gekopieerde trade van wie hij komt, en met Alles, Eigen en Copies filter je de lijst',
+    ],
+  },
+  {
     versie: '0.4.0',
     datum: '2026-11-09',
     nieuweFeatures: [
