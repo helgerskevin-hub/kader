@@ -77,6 +77,10 @@ function begrens(waarde: number, min = 0, max = 100): number {
 // Ruimer dan dit is geen "rustige" trader meer. Startwaarden; na een paar weken meten bijstellen.
 export const MAX_RISICOSCORE = 6;
 export const MIN_WEKEN_ACTIEF = 52;
+// Weging van de Kader-score en de grenzen voor het oordeel. Ook de uitleg in Ontdek leest ze hier.
+export const WEGING = { consistentie: 0.35, risico: 0.40, spreiding: 0.25 } as const;
+export const GRENS_KOPIEER = 70;
+export const GRENS_VOLG = 50;
 
 export type Oordeel = 'KOPIEER' | 'VOLG' | 'VERMIJD';
 
@@ -136,8 +140,8 @@ export function beoordeelRij(rij: RanglijstRij): TraderBeoordeling {
   if (hefboomPct > 20) spreiding -= 15;
   spreiding = Math.round(begrens(spreiding));
 
-  const score = Math.round(0.35 * consistentie + 0.40 * risico + 0.25 * spreiding);
-  const kleur = score >= 70 ? 'GROEN' : score >= 50 ? 'GEEL' : 'ROOD';
+  const score = Math.round(WEGING.consistentie * consistentie + WEGING.risico * risico + WEGING.spreiding * spreiding);
+  const kleur = score >= GRENS_KOPIEER ? 'GROEN' : score >= GRENS_VOLG ? 'GEEL' : 'ROOD';
   const oordeel: Oordeel = kleur === 'GROEN' ? 'KOPIEER' : kleur === 'GEEL' ? 'VOLG' : 'VERMIJD';
 
   return {

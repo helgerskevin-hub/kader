@@ -2,7 +2,7 @@
 // Handmatig gelijk houden met CHANGELOG.md in de projectmap. Nieuwste eerst.
 
 export interface NieuweFeature {
-  icoon: 'risico' | 'doel' | 'kansen' | 'benchmark' | 'spreiding' | 'export' | 'widget' | 'copy' | 'melding';
+  icoon: 'risico' | 'doel' | 'kansen' | 'benchmark' | 'spreiding' | 'export' | 'widget' | 'copy' | 'melding' | 'ontdek' | 'ster';
   kleur: 'cta' | 'primair' | 'letOp' | 'winst' | 'goud';
   titel: string;
   tekst: string;
@@ -43,6 +43,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     versie: 'Nog niet uitgebracht',
     datum: '2026-11-10',
     punten: [
+      'Copy legt nu zelf uit hoe het werkt. Bij je eerste bezoek loop je in vier stappen langs Ontdek, de ster, kopiëren en de veiligheidsregels, en kies je daarna je bedrag. Boven de Feed staat wanneer Kader voor het laatst bij je favorieten keek en hoe vaak hij kijkt. Zonder eToro-koppeling opent de knop Koppel eToro meteen de koppelwizard. In Ontdek legt Hoe kiest Kader deze traders? uit waar de lijst vandaan komt, welke drempels gelden en hoe de score is opgebouwd. In het boek staat een nieuw hoofdstuk over Copy, en het hoofdstuk over het trader-oordeel is uitgebreid',
       'De Copy-tab heeft dezelfde kaarten als Markt en Kansen gekregen. Een trade in de Feed is compacter: coin, trader, hoeveel de koers sinds de trader bewoog, de stop-doel-baan en een duidelijk label als Kopieerbaar, Te laat of Gekopieerd. Een tik klapt de reden en de cijfers uit. In Ontdek staat de Kader-score als ring om de avatar, met het rendement en drie cijfers eronder. Ook het traderprofiel en Mijn copies zijn rustiger opgezet',
       'Met een eToro-koppeling vult Kader je handelskapitaal nu zelf in: alles wat er op je account staat, dus je vrije saldo, je posities, je copies en het resultaat dat nog open staat. Het wordt bij elke sync bijgewerkt, apart voor Demo en Echt. Blootstelling, risico per trade, open risico en de kooporder rekenen er meteen mee. Zonder koppeling vul je het zoals voorheen zelf in',
       'Op Portfolio zie je nu hoeveel van je geld in je eigen trades zit en hoeveel in copies, in dollars en als deel van je vermogen. Geld dat eToro voor je kopieert via Kopieer alles telt mee in je totale vermogen. Een tik op Copies opent Mijn copies. In de lijst met posities staat bij een gekopieerde trade van wie hij komt, en met Alles, Eigen en Copies filter je de lijst',

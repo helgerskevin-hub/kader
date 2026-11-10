@@ -53,12 +53,16 @@ export function CopyInstellingenSheet({ zichtbaar, huidig, onOpslaan, onSluiten 
     />
   );
 
+  // Bij het eerste bezoek telt elke manier van sluiten als "ingesteld" (met het standaardbedrag),
+  // anders komt de intro bij elke start terug.
+  const sluit = () => { if (huidig.ingesteld) onSluiten(); else opslaan(); };
+
   return (
-    <BottomSheet zichtbaar={zichtbaar} onSluiten={() => { if (huidig.ingesteld) onSluiten(); else opslaan(); }} velStijl={styles.vel}>
+    <BottomSheet zichtbaar={zichtbaar} onSluiten={sluit} velStijl={styles.vel}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.inhoud} showsVerticalScrollIndicator={false}>
         <View style={styles.titelRij}>
           <Text style={[Type.titel, { color: colors.tekstPrimair }]}>Copy instellen</Text>
-          <Pressable onPress={onSluiten} accessibilityRole="button" accessibilityLabel="Sluiten" style={styles.sluitKnop}>
+          <Pressable onPress={sluit} accessibilityRole="button" accessibilityLabel="Sluiten" style={styles.sluitKnop}>
             <X size={20} color={colors.tekstGedimd} strokeWidth={1.75} />
           </Pressable>
         </View>
