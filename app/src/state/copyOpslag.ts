@@ -13,6 +13,8 @@ export interface FavorieteTrader {
   cid: number;
   // Meldingen over nieuwe trades van deze trader. Ontbreekt (oudere opslag) betekent aan.
   meldingen?: boolean;
+  // Eigen bedrag per kopie van deze trader, in dollars. Ontbreekt = het standaardbedrag.
+  bedragUsd?: number;
 }
 
 // Hooguit zoveel favorieten: elke favoriet kost per check een verzoek, en het quotum voor live

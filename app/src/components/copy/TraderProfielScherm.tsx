@@ -1,5 +1,6 @@
 // Profiel van één belegger, full-screen vanuit zijn kaart. Wie hij is, waarom Kader hem dit oordeel
-// geeft, zijn maandrendementen, wat hij nu open heeft (met de copyknop), en "Kopieer alles via eToro".
+// geeft (met uitleg per deelscore), zijn rendement tegen BTC, waar zijn geld in zit, wat Kader zelf
+// van hem zag, wat hij nu open heeft (met de copyknop), en "Kopieer alles via eToro".
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Copy as CopyIcoon, X } from 'lucide-react-native';
@@ -15,20 +16,36 @@ import { radii, shadow, spacing } from '../../theme/tokens';
 import { useModalKopruimte } from '../../theme/useModalKopruimte';
 import { fmtPct } from '../../engine/format';
 import { koersFactor } from '../../engine/etoroSymbolen';
-import { haalLaatstePrijzen } from '../../engine/marketData';
-import { allePosities, beoordeelCopyTrade, directePosities, TraderPositie } from '../../engine/copyTrading';
+import { haalDagHistorie, haalLaatstePrijzen } from '../../engine/marketData';
+import type { Candle } from '../../engine/types';
+import { btcOp } from '../../state/benchmark';
+import {
+  allePosities, beoordeelCopyTrade, btcVergelijking, cumulatiefRendement, directePosities, traderVerdeling, TraderPositie,
+} from '../../engine/copyTrading';
 import { haalLivePortfolio, haalMaandRendementen, MaandRendement, vulSymbolenAan } from '../../engine/etoroTraders';
 import { actieveSleutels } from '../../state/etoroSleutels';
 import { useCopy, TraderMetScore } from '../../state/CopyProvider';
 import { usePortfolio } from '../../state/PortfolioProvider';
 import { bewaarSymboolKaart, FeedItem, laadSymboolKaart, zaaiSymboolKaart } from '../../state/copyOpslag';
 import { TraderAvatar } from './TraderAvatar';
-import { OordeelBadge } from './OordeelBadge';
 import { SterKnop } from './SterKnop';
 import { BelKnop } from './BelKnop';
 import { CopyTradeKaart } from './CopyTradeKaart';
 import { AllesKopierenSheet } from './AllesKopierenSheet';
 import { useKopieerFlow } from './useKopieerFlow';
+import { TraderBedragSheet } from './TraderBedragSheet';
+import { BedragKaart, GeslotenTradesKaart, RendementKaart, ScoreKaart, TraderVerdelingKaart } from './ProfielOnderdelen';
+
+// BTC-dagkoersen voor de vergelijking, een uur bewaard: elk profiel dat je opent wil dezelfde reeks.
+let btcCache: { tijd: number; candles: Candle[] } | null = null;
+async function btcHistorie(): Promise<Candle[] | null> {
+  if (btcCache && Date.now() - btcCache.tijd < 60 * 60 * 1000) return btcCache.candles;
+  const candles = await haalDagHistorie('BTC', 400).catch(() => null);
+  if (candles && candles.length > 0) btcCache = { tijd: Date.now(), candles };
+  return candles;
+}
+
+const MAX_GESLOTEN = 8;
 
 const MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
@@ -64,13 +81,23 @@ export function TraderProfielScherm({ trader, onSluiten }: Props) {
 function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }) {
   const { colors } = useTheme();
   const kopruimte = useModalKopruimte();
-  const { isFavoriet, wisselFavoriet, instellingen, favorieten, zetTraderMeldingen } = useCopy();
+  const {
+    isFavoriet, wisselFavoriet, instellingen, favorieten, zetTraderMeldingen, zetTraderBedrag, bedragVoor, trackrecord,
+  } = useCopy();
   const { magHandelen } = usePortfolio();
   const { rij, beoordeling } = trader;
   const [data, setData] = useState<Geladen | null>(null);
   const [fout, setFout] = useState<string | null>(null);
   const [allesOpen, setAllesOpen] = useState(false);
+  const [bedragOpen, setBedragOpen] = useState(false);
+  const [btc, setBtc] = useState<Candle[] | null>(null);
   const kopieer = useKopieerFlow(sluit);
+
+  useEffect(() => {
+    let actief = true;
+    btcHistorie().then(c => { if (actief) setBtc(c); }).catch(() => {});
+    return () => { actief = false; };
+  }, []);
 
   useEffect(() => {
     let actief = true;
@@ -83,16 +110,17 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
           haalMaandRendementen(rij.username, sleutels).catch(() => [] as MaandRendement[]),
         ]);
         const posities = directePosities(portfolio);
+        const alle = allePosities(portfolio);
         let symbolen = await zaaiSymboolKaart(await laadSymboolKaart());
         try {
-          symbolen = await vulSymbolenAan(posities.map(p => p.instrumentId), symbolen, sleutels);
+          symbolen = await vulSymbolenAan(alle.map(p => p.instrumentId), symbolen, sleutels);
           bewaarSymboolKaart(symbolen).catch(() => {});
         } catch {
           // Zonder symbolen staan de posities er als "buiten Kader".
         }
         const munten = [...new Set(posities.map(p => symbolen[String(p.instrumentId)]).filter((s): s is string => !!s))];
         const koersen = munten.length > 0 ? await haalLaatstePrijzen(munten).catch(() => ({})) : {};
-        if (actief) setData({ posities, allePosities: allePosities(portfolio), symbolen, maanden, koersen });
+        if (actief) setData({ posities, allePosities: alle, symbolen, maanden, koersen });
       } catch (e) {
         if (actief) setFout(e instanceof Error ? e.message : 'Kader kan dit profiel nu niet laden.');
       }
@@ -137,6 +165,22 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
     return Math.round((crypto / totaal) * 100);
   }, [data]);
 
+  const verdeling = useMemo(() => (data ? traderVerdeling(data.allePosities, data.symbolen) : []), [data]);
+  const rendement = useMemo(() => (data ? cumulatiefRendement(data.maanden) : []), [data]);
+  const btcLijn = useMemo(
+    () => (btc && rendement.length > 1 ? btcVergelijking(rendement, ms => btcOp(btc, ms)) : null),
+    [btc, rendement],
+  );
+  const gesloten = useMemo(
+    () => trackrecord
+      .filter(t => t.username.toLowerCase() === rij.username.toLowerCase() && t.gesloten !== null)
+      .sort((a, b) => (b.gesloten ?? 0) - (a.gesloten ?? 0))
+      .slice(0, MAX_GESLOTEN),
+    [trackrecord, rij.username],
+  );
+  const favoriet = favorieten.find(f => f.username.toLowerCase() === rij.username.toLowerCase());
+  const eigenBedrag = typeof favoriet?.bedragUsd === 'number' ? favoriet.bedragUsd : null;
+
   const winratio = typeof rij.winRatio === 'number' ? rij.winRatio : null;
   const cijfers: { label: string; waarde: string; kleur?: string }[] = [
     {
@@ -149,11 +193,6 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
     { label: 'RISICO', waarde: typeof rij.riskScore === 'number' ? `${rij.riskScore}/10` : 'onbekend' },
     { label: 'COPIERS', waarde: typeof rij.copiers === 'number' ? rij.copiers.toLocaleString('nl-NL') : 'onbekend' },
     { label: 'CRYPTO NU', waarde: cryptoAandeel !== null ? `${cryptoAandeel}%` : 'onbekend' },
-  ];
-  const deelscores = [
-    { label: 'Consistentie', score: beoordeling.consistentie, uitleg: 'Hoeveel maanden met winst' },
-    { label: 'Risico', score: beoordeling.risico, uitleg: 'Rendement tegenover de grootste daling' },
-    { label: 'Spreiding', score: beoordeling.spreiding, uitleg: 'Niet alles op één coin, weinig hefboom' },
   ];
   const maxMaand = data ? Math.max(1, ...data.maanden.map(m => Math.abs(m.pct))) : 1;
 
@@ -189,21 +228,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
-          <View style={styles.oordeelRij}>
-            <OordeelBadge oordeel={beoordeling.oordeel} />
-            <Text style={[Type.label, styles.flex, { color: colors.tekstGedimd }]}>Kader-score {Math.round(beoordeling.score)}</Text>
-          </View>
-          {deelscores.map(d => (
-            <View key={d.label} style={styles.deelRij}>
-              <View style={styles.flex}>
-                <Text style={[Type.body, { color: colors.tekstPrimair }]}>{d.label}</Text>
-                <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{d.uitleg}</Text>
-              </View>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{d.score}</Text>
-            </View>
-          ))}
-        </View>
+        <ScoreKaart beoordeling={beoordeling} />
 
         <View style={[styles.kaart, shadow.kaart, styles.raster, { backgroundColor: colors.kaart }]}>
           <CijferRij>
@@ -213,6 +238,8 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
             {cijfers.slice(3).map(c => <Cijfer key={c.label} label={c.label} waarde={c.waarde} kleur={c.kleur} />)}
           </CijferRij>
         </View>
+
+        <RendementKaart punten={rendement} btc={btcLijn} />
 
         {data && data.maanden.length > 0 && (
           <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
@@ -234,6 +261,17 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
             })}
           </View>
         )}
+
+        <TraderVerdelingKaart segmenten={verdeling} username={rij.username} />
+
+        {(favoriet || gesloten.length > 0) && <GeslotenTradesKaart trades={gesloten} username={rij.username} />}
+
+        <BedragKaart
+          bedrag={bedragVoor(rij.username)}
+          eigen={eigenBedrag !== null}
+          favoriet={!!favoriet}
+          onAanpassen={() => setBedragOpen(true)}
+        />
 
         <Text style={[Type.overline, styles.sectie, { color: colors.tekstGedimd }]}>OPEN CRYPTO-POSITIES</Text>
         {!data && !fout && <><SkeletonKaart /><SkeletonKaart /></>}
@@ -259,7 +297,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
               item={item}
               stand={stand}
               koers={koers}
-              bedragUsd={instellingen.bedragUsd}
+              bedragUsd={bedragVoor(rij.username)}
               magHandelen={magHandelen}
               bezig={kopieer.bezigSleutel === item.sleutel}
               metTrader={false}
@@ -290,6 +328,14 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
         adviesCsl={beoordeling.csl}
         posities={data?.allePosities ?? []}
       />
+      <TraderBedragSheet
+        zichtbaar={bedragOpen}
+        username={rij.username}
+        eigen={eigenBedrag}
+        standaard={instellingen.bedragUsd}
+        onOpslaan={b => zetTraderBedrag(rij.username, b)}
+        onSluiten={() => setBedragOpen(false)}
+      />
     </View>
   );
 }
@@ -313,8 +359,6 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     borderRadius: radii.kaart,
   },
-  oordeelRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-  deelRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   raster: { gap: spacing.base },
   maandRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 24 },
   maandLabel: { width: 60 },

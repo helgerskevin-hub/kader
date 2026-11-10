@@ -145,6 +145,11 @@ export function ontbreektVoorDrempels(rij: RanglijstRij): string | null {
   return `eToro gaf niet genoeg om hem te beoordelen: ${mist.join(' en ')} ${mist.length === 1 ? 'ontbreekt' : 'ontbreken'}.`;
 }
 
+// De grenzen achter de deelscores. Staan hier zodat de uitleg in het profiel dezelfde getallen toont.
+export const CONSISTENTIE = { nul: 40, vol: 80 } as const;
+export const SPREIDING = { topGrens: 20, perPunt: 1.25, hefboomGrens: 20, hefboomAftrek: 15 } as const;
+export const ONBEKENDE_DALING_PCT = 30;
+
 // De Kader-score uit één ranglijstregel. Zelfde weging als de handmatige beoordeling (consistentie
 // 35%, risico 40%, spreiding 25%), maar gevoed met eToro's eigen cijfers in plaats van overgetikte.
 // Voor het risico-deel draait letterlijk analyseRisico uit de auditor.
@@ -153,18 +158,21 @@ export function beoordeelRij(rij: RanglijstRij): TraderBeoordeling {
   const dalingRuw = alsPct(rij.peakToValley);
   const maxDalingPct = dalingRuw === null ? null : Math.abs(dalingRuw);
 
-  // Consistentie: het deel van de maanden met winst. 40% of minder is niets waard, 80% of meer is vol.
+  // Consistentie: het deel van de maanden met winst. Tot de ondergrens is niets waard, vanaf de
+  // bovengrens is vol.
   const winstMaanden = alsPct(rij.profitableMonthsPct);
-  const consistentie = winstMaanden === null ? 50 : Math.round(begrens(((winstMaanden - 40) / 40) * 100));
+  const consistentie = winstMaanden === null
+    ? 50
+    : Math.round(begrens(((winstMaanden - CONSISTENTIE.nul) / (CONSISTENTIE.vol - CONSISTENTIE.nul)) * 100));
 
   // Zonder bekende daling geen gok: 30% is wat de auditor als middelmatig behandelt.
-  const risico = analyseRisico([], maxDalingPct ?? 30, rendementPct ?? 0, rij.riskScore ?? 5).score;
+  const risico = analyseRisico([], maxDalingPct ?? ONBEKENDE_DALING_PCT, rendementPct ?? 0, rij.riskScore ?? 5).score;
 
-  // Spreiding: één instrument boven de 20% van zijn handel kost punten, en veel hefboom ook.
+  // Spreiding: één instrument boven de grens van zijn handel kost punten, en veel hefboom ook.
   const topPct = alsPct(rij.topTradedInstrumentPct) ?? 30;
   const hefboomPct = alsPct(rij.highLeveragePct) ?? 0;
-  let spreiding = 100 - Math.max(0, topPct - 20) * 1.25;
-  if (hefboomPct > 20) spreiding -= 15;
+  let spreiding = 100 - Math.max(0, topPct - SPREIDING.topGrens) * SPREIDING.perPunt;
+  if (hefboomPct > SPREIDING.hefboomGrens) spreiding -= SPREIDING.hefboomAftrek;
   spreiding = Math.round(begrens(spreiding));
 
   const score = Math.round(WEGING.consistentie * consistentie + WEGING.risico * risico + WEGING.spreiding * spreiding);
@@ -215,6 +223,97 @@ export function nieuwePosities(bekend: readonly number[], huidig: readonly Trade
 export function verdwenenPosities(bekend: readonly number[], huidig: readonly TraderPositie[]): number[] {
   const nu = new Set(huidig.map(p => p.positionId));
   return bekend.filter(id => !nu.has(id));
+}
+
+// ---------- Profiel: rendementslijn en verdeling ----------
+
+export interface RendementPunt {
+  tijd: number;
+  // Cumulatief rendement sinds het begin van de eerste maand, in procenten.
+  pct: number;
+}
+
+function maandBegin(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+}
+
+function volgendeMaand(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+}
+
+// Maandrendementen op elkaar gestapeld tot één lijn: begint op 0 aan het begin van de eerste maand,
+// en elk volgend punt is het einde van een maand. De lopende maand eindigt op nu.
+export function cumulatiefRendement(maanden: { datum: string; pct: number }[], nu = Date.now()): RendementPunt[] {
+  const geldig = maanden
+    .map(m => ({ t: Date.parse(m.datum), pct: m.pct }))
+    .filter(m => Number.isFinite(m.t) && Number.isFinite(m.pct))
+    .sort((a, b) => a.t - b.t);
+  if (geldig.length === 0) return [];
+  const punten: RendementPunt[] = [{ tijd: maandBegin(geldig[0].t), pct: 0 }];
+  let factor = 1;
+  geldig.forEach((m, i) => {
+    factor *= 1 + m.pct / 100;
+    const eind = i + 1 < geldig.length ? maandBegin(geldig[i + 1].t) : Math.min(volgendeMaand(m.t), nu);
+    // De tijd moet oplopen, ook als eToro twee regels in dezelfde maand stuurt.
+    const tijd = Math.max(eind, punten[punten.length - 1].tijd + 1);
+    punten.push({ tijd, pct: (factor - 1) * 100 });
+  });
+  return punten;
+}
+
+// Wat BTC op dezelfde momenten deed, in procenten sinds het eerste punt. Null als er ook maar één
+// koers ontbreekt: een halve vergelijkingslijn is erger dan geen.
+export function btcVergelijking(punten: RendementPunt[], koersOp: (ms: number) => number | null): number[] | null {
+  if (punten.length < 2) return null;
+  const basis = koersOp(punten[0].tijd);
+  if (basis === null || basis <= 0) return null;
+  const uit: number[] = [];
+  for (const p of punten) {
+    const k = koersOp(p.tijd);
+    if (k === null) return null;
+    uit.push((k / basis - 1) * 100);
+  }
+  return uit;
+}
+
+export const OVERIGE_CRYPTO = '__overig__';
+export const BUITEN_KADER = '__buiten__';
+
+export interface TraderSegment {
+  sleutel: string;
+  label: string;
+  // 0..1
+  aandeel: number;
+}
+
+// Waar zijn geld nu in zit, naar investmentPct per positie. Kaders coins los (de grootste vijf),
+// de rest van die coins samen, en alles wat geen Kader-coin is als één segment. Zonder
+// investmentPct telt een positie als 1, net als bij "crypto nu".
+export function traderVerdeling(
+  posities: TraderPositie[],
+  symbolen: Record<string, string | null>,
+  maxLos = 5,
+): TraderSegment[] {
+  const gewicht = (p: TraderPositie) => (p.investmentPct && p.investmentPct > 0 ? p.investmentPct : 1);
+  const perSymbool = new Map<string, number>();
+  let buiten = 0;
+  for (const p of posities) {
+    const symbool = symbolen[String(p.instrumentId)];
+    if (symbool) perSymbool.set(symbool, (perSymbool.get(symbool) ?? 0) + gewicht(p));
+    else buiten += gewicht(p);
+  }
+  const totaal = [...perSymbool.values()].reduce((a, b) => a + b, 0) + buiten;
+  if (totaal <= 0) return [];
+  const gesorteerd = [...perSymbool.entries()].sort((a, b) => b[1] - a[1]);
+  const uit: TraderSegment[] = gesorteerd.slice(0, maxLos).map(([s, w]) => ({ sleutel: s, label: s, aandeel: w / totaal }));
+  const rest = gesorteerd.slice(maxLos);
+  if (rest.length > 0) {
+    uit.push({ sleutel: OVERIGE_CRYPTO, label: `Overige coins (${rest.length})`, aandeel: rest.reduce((a, [, w]) => a + w, 0) / totaal });
+  }
+  if (buiten > 0) uit.push({ sleutel: BUITEN_KADER, label: 'Buiten Kaders coins', aandeel: buiten / totaal });
+  return uit;
 }
 
 // ---------- Is deze trade nog te kopiëren? ----------
@@ -502,6 +601,34 @@ if (require.main === module) {
     check(ontbreektVoorDrempels({ cid: 0, username: 'x', gain: 30, riskScore: 4, copiers: 9 } as RanglijstRij) !== null,
       'regel met alleen gain, risico en copiers is onvolledig');
     check(ontbreektVoorDrempels({ ...basis } as RanglijstRij) !== null, 'zonder instrument of klasse is onvolledig');
+  }
+
+  // Rendementslijn en BTC-vergelijking.
+  {
+    const lijn = cumulatiefRendement([
+      { datum: '2026-02-01', pct: -10 },
+      { datum: '2026-01-01', pct: 10 },
+    ], Date.UTC(2026, 1, 15));
+    check(lijn.length === 3 && lijn[0].pct === 0 && lijn[0].tijd === Date.UTC(2026, 0, 1), 'lijn begint op 0, begin eerste maand');
+    check(Math.abs(lijn[1].pct - 10) < 1e-9 && lijn[1].tijd === Date.UTC(2026, 1, 1), 'na januari +10%');
+    check(Math.abs(lijn[2].pct - -1) < 1e-9, `+10% en dan -10% is -1%, kreeg ${lijn[2].pct}`);
+    check(lijn[2].tijd === Date.UTC(2026, 1, 15), 'lopende maand eindigt op nu');
+    check(cumulatiefRendement([]).length === 0, 'geen maanden, geen lijn');
+    const koers = (ms: number) => (ms === lijn[0].tijd ? 100 : ms === lijn[1].tijd ? 120 : 90);
+    const btc = btcVergelijking(lijn, koers)!;
+    check(btc[0] === 0 && Math.abs(btc[1] - 20) < 1e-9 && Math.abs(btc[2] - -10) < 1e-9, 'BTC in procenten sinds het eerste punt');
+    check(btcVergelijking(lijn, ms => (ms === lijn[2].tijd ? null : 100)) === null, 'ontbrekende koers: geen BTC-lijn');
+  }
+
+  // Verdeling van een trader.
+  {
+    const pos = (instrumentId: number, investmentPct?: number) => ({ positionId: instrumentId, instrumentId, openRate: 1, isBuy: true, investmentPct }) as TraderPositie;
+    const sym: Record<string, string | null> = { 1: 'BTC', 2: 'ETH', 3: 'SOL', 4: null };
+    const v = traderVerdeling([pos(1, 50), pos(2, 20), pos(3, 10), pos(4, 20)], sym, 2);
+    check(v.map(s => s.sleutel).join(',') === `BTC,ETH,${OVERIGE_CRYPTO},${BUITEN_KADER}`, `volgorde segmenten, kreeg ${v.map(s => s.sleutel)}`);
+    check(Math.abs(v.reduce((a, s) => a + s.aandeel, 0) - 1) < 1e-9, 'aandelen tellen op tot 1');
+    check(Math.abs(v[0].aandeel - 0.5) < 1e-9 && Math.abs(v[3].aandeel - 0.2) < 1e-9, 'BTC 50%, buiten 20%');
+    check(traderVerdeling([], sym).length === 0, 'geen posities, geen verdeling');
   }
 
   if (missers > 0) {

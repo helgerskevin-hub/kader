@@ -62,6 +62,9 @@ interface Props {
   // Een tweede, gestippelde lijn op dezelfde schaal, even lang als `candles`. Voor de BTC-benchmark
   // in Historie; alleen zinvol zonder periodeknoppen, want hij volgt de candles één op één.
   vergelijk?: number[] | null;
+  // Altijd de hele reeks tonen, ook zonder periodeknoppen. Anders valt de grafiek terug op het
+  // standaardbereik (3M) zodra de reeks langer is, en dat knipt een jaar maandpunten af.
+  heleReeks?: boolean;
 }
 
 const GEEN_NIVEAUS: Niveau[] = [];
@@ -105,10 +108,13 @@ function fmtDatumKort(tijd?: number, bereik?: BereikId): string {
     const dag = d.toLocaleDateString('nl-NL', { weekday: 'short' });
     return `${dag} ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`;
   }
-  return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+  // Een datum uit een ander jaar krijgt het jaar erbij, anders staat er bij een jaar data twee keer
+  // "1 nov" onder de grafiek.
+  const anderJaar = d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleDateString('nl-NL', anderJaar ? { day: 'numeric', month: 'short', year: '2-digit' } : { day: 'numeric', month: 'short' });
 }
 
-export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs, vergelijk }: Props) {
+export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs, vergelijk, heleReeks = false }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -122,7 +128,7 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
   const periodes = toonPeriodes ? beschikbareBereiken(candles, metIntraday) : [];
   // Niet op de keuze zelf markeren maar op wat er echt getoond wordt: heeft deze coin te weinig
   // historie voor de gekozen periode, dan valt hij terug op Alles en hoort die knop op te lichten.
-  const actievePeriode = geldigBereik(candles, periode, metIntraday);
+  const actievePeriode: BereikId = heleReeks ? 'alles' : geldigBereik(candles, periode, metIntraday);
 
   // Intraday-reeksen worden pas opgehaald als je de knop kiest, en daarna bewaard zolang het scherm
   // open is. Tijdens het laden blijft de vorige lijn staan; de pil staat al op de nieuwe keuze.

@@ -10,9 +10,9 @@ import { Type } from '../../theme/typography';
 import { radii, spacing } from '../../theme/tokens';
 import type { CopyInstellingen } from '../../state/copyOpslag';
 
-const SNEL = [25, 50, 100, 250];
+export const SNEL = [25, 50, 100, 250];
 // eToro's minimum per positie (gemeten voor BTC x1).
-const MINIMUM_USD = 10;
+export const MINIMUM_USD = 10;
 
 interface Props {
   zichtbaar: boolean;

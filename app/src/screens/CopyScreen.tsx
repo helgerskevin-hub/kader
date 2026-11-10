@@ -378,7 +378,7 @@ export function CopyScreen() {
               item={item}
               stand={stand}
               koers={koers}
-              bedragUsd={copy.instellingen.bedragUsd}
+              bedragUsd={copy.bedragVoor(item.username)}
               magHandelen={magHandelen}
               bezig={kopieer.bezigSleutel === item.sleutel}
               uitgelicht={uitgelicht === item.sleutel}
