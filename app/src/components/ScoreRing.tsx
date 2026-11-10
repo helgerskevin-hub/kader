@@ -8,7 +8,10 @@ import { curve, duur, staggerVertraging } from '../theme/beweging';
 import { CoinLogo } from './CoinLogo';
 
 interface Props {
-  symbool: string;
+  // Het coinlogo in de ring. Of `kind` voor iets anders in het midden, zoals de avatar van een
+  // trader op Copy: zelfde ring, zelfde betekenis (een score, geen resultaat).
+  symbool?: string;
+  kind?: React.ReactNode;
   // 0 tot 100. Daarbuiten wordt hij afgekapt, zodat de boog nooit verder loopt dan rond.
   score: number;
   // Buitenmaat van de ring. 48 op de kaarten, 44 in de carrousel.
@@ -27,7 +30,7 @@ const DIKTE = 3;
 //
 // De boog tekent in via `end` van het pad, net als de verdelingsring op Portfolio: dat is Skia-
 // tekenwerk op de UI-thread, geen layout. Bij Minder beweging staat hij direct op zijn plek.
-export function ScoreRing({ symbool, score, maat = 48, volgorde = 0, accessible = true }: Props) {
+export function ScoreRing({ symbool, kind, score, maat = 48, volgorde = 0, accessible = true }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const fractie = Math.min(Math.max(score, 0), 100) / 100;
@@ -87,7 +90,7 @@ export function ScoreRing({ symbool, score, maat = 48, volgorde = 0, accessible 
         />
       </Canvas>
       <View style={styles.midden} pointerEvents="none">
-        <CoinLogo symbool={symbool} grootte={maat - 12} />
+        {kind ?? (symbool ? <CoinLogo symbool={symbool} grootte={maat - 12} /> : null)}
       </View>
     </View>
   );

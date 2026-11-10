@@ -1,10 +1,14 @@
 // Profiel van één belegger, full-screen vanuit zijn kaart. Wie hij is, waarom Kader hem dit oordeel
 // geeft, zijn maandrendementen, wat hij nu open heeft (met de copyknop), en "Kopieer alles via eToro".
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { X } from 'lucide-react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Copy as CopyIcoon, X } from 'lucide-react-native';
 import { PodiumScherm } from '../PodiumScherm';
 import { Disclaimer } from '../Disclaimer';
+import { ScoreRing } from '../ScoreRing';
+import { SkeletonKaart } from '../SkeletonKaart';
+import { PilKnop } from '../PilKnop';
+import { Cijfer, CijferRij } from './Cijfer';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
@@ -19,11 +23,20 @@ import { useCopy, TraderMetScore } from '../../state/CopyProvider';
 import { usePortfolio } from '../../state/PortfolioProvider';
 import { bewaarSymboolKaart, FeedItem, laadSymboolKaart, zaaiSymboolKaart } from '../../state/copyOpslag';
 import { TraderAvatar } from './TraderAvatar';
-import { OordeelBadge, ScorePil } from './OordeelBadge';
+import { OordeelBadge } from './OordeelBadge';
 import { SterKnop } from './SterKnop';
 import { CopyTradeKaart } from './CopyTradeKaart';
 import { AllesKopierenSheet } from './AllesKopierenSheet';
 import { useKopieerFlow } from './useKopieerFlow';
+
+const MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+
+// "2025-11-..." wordt "nov '25".
+function maandLabel(datum: string): string {
+  const [jaar, maand] = datum.split('-');
+  const index = Number(maand) - 1;
+  return index >= 0 && index < 12 && jaar ? `${MAANDEN[index]} '${jaar.slice(2)}` : datum.slice(0, 7);
+}
 
 interface Props {
   trader: TraderMetScore | null;
@@ -124,11 +137,15 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
   }, [data]);
 
   const winratio = typeof rij.winRatio === 'number' ? rij.winRatio : null;
-  const cijfers: { label: string; waarde: string }[] = [
-    { label: 'RENDEMENT 12 MND', waarde: beoordeling.rendementPct !== null ? fmtPct(beoordeling.rendementPct) : 'onbekend' },
-    { label: 'GROOTSTE DALING', waarde: beoordeling.maxDalingPct !== null ? fmtPct(-beoordeling.maxDalingPct) : 'onbekend' },
+  const cijfers: { label: string; waarde: string; kleur?: string }[] = [
+    {
+      label: '12 MAANDEN',
+      waarde: beoordeling.rendementPct !== null ? fmtPct(beoordeling.rendementPct) : 'onbekend',
+      kleur: beoordeling.rendementPct === null ? undefined : beoordeling.rendementPct >= 0 ? colors.winst : colors.verlies,
+    },
+    { label: 'MAX DALING', waarde: beoordeling.maxDalingPct !== null ? fmtPct(-beoordeling.maxDalingPct) : 'onbekend' },
     { label: 'WINSTKANS', waarde: winratio !== null ? `${Math.round(winratio <= 1 ? winratio * 100 : winratio)}%` : 'onbekend' },
-    { label: 'RISICO (1-10)', waarde: typeof rij.riskScore === 'number' ? String(rij.riskScore) : 'onbekend' },
+    { label: 'RISICO', waarde: typeof rij.riskScore === 'number' ? `${rij.riskScore}/10` : 'onbekend' },
     { label: 'COPIERS', waarde: typeof rij.copiers === 'number' ? rij.copiers.toLocaleString('nl-NL') : 'onbekend' },
     { label: 'CRYPTO NU', waarde: cryptoAandeel !== null ? `${cryptoAandeel}%` : 'onbekend' },
   ];
@@ -142,7 +159,14 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
   return (
     <View style={[styles.root, { backgroundColor: colors.achtergrond }]}>
       <View style={[styles.kop, { borderBottomColor: colors.rand, paddingTop: spacing.base + kopruimte }]}>
-        <TraderAvatar username={rij.username} url={rij.avatarUrl} grootte={48} />
+        {/* Dezelfde scorering als op de kaart in Ontdek, zodat het scherm leest als de kaart die net
+            is opengegroeid. */}
+        <ScoreRing
+          score={beoordeling.score}
+          maat={52}
+          accessible={false}
+          kind={<TraderAvatar username={rij.username} url={rij.avatarUrl} grootte={40} />}
+        />
         <View style={styles.flex}>
           <Text style={[Type.titel, { color: colors.tekstPrimair }]} numberOfLines={1}>{rij.username}</Text>
           {rij.fullName ? <Text style={[Type.caption, { color: colors.tekstGedimd }]} numberOfLines={1}>{rij.fullName}</Text> : null}
@@ -160,9 +184,8 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.kaart, shadow.kaart, { backgroundColor: colors.kaart }]}>
           <View style={styles.oordeelRij}>
-            <ScorePil score={beoordeling.score} />
             <OordeelBadge oordeel={beoordeling.oordeel} />
-            <Text style={[Type.caption, styles.flex, { color: colors.tekstGedimd }]}>Kader-score</Text>
+            <Text style={[Type.label, styles.flex, { color: colors.tekstGedimd }]}>Kader-score {Math.round(beoordeling.score)}</Text>
           </View>
           {deelscores.map(d => (
             <View key={d.label} style={styles.deelRij}>
@@ -176,12 +199,12 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
         </View>
 
         <View style={[styles.kaart, shadow.kaart, styles.raster, { backgroundColor: colors.kaart }]}>
-          {cijfers.map(c => (
-            <View key={c.label} style={styles.cel}>
-              <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{c.label}</Text>
-              <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{c.waarde}</Text>
-            </View>
-          ))}
+          <CijferRij>
+            {cijfers.slice(0, 3).map(c => <Cijfer key={c.label} label={c.label} waarde={c.waarde} kleur={c.kleur} />)}
+          </CijferRij>
+          <CijferRij>
+            {cijfers.slice(3).map(c => <Cijfer key={c.label} label={c.label} waarde={c.waarde} kleur={c.kleur} />)}
+          </CijferRij>
         </View>
 
         {data && data.maanden.length > 0 && (
@@ -191,7 +214,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
               const winst = m.pct >= 0;
               return (
                 <View key={m.datum} style={styles.maandRij}>
-                  <Text style={[Type.label, styles.maandLabel, { color: colors.tekstGedimd }]}>{m.datum.slice(0, 7)}</Text>
+                  <Text style={[Type.label, styles.maandLabel, { color: colors.tekstGedimd }]}>{maandLabel(m.datum)}</Text>
                   <View style={styles.balkBaan}>
                     <View style={[styles.balk, {
                       width: `${Math.max(2, (Math.abs(m.pct) / maxMaand) * 100)}%`,
@@ -206,7 +229,7 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
         )}
 
         <Text style={[Type.overline, styles.sectie, { color: colors.tekstGedimd }]}>OPEN CRYPTO-POSITIES</Text>
-        {!data && !fout && <ActivityIndicator color={colors.tekstGedimd} style={{ marginVertical: spacing.lg }} />}
+        {!data && !fout && <><SkeletonKaart /><SkeletonKaart /></>}
         {fout && <Text style={[Type.body, styles.tekst, { color: colors.tekstGedimd }]}>{fout}</Text>}
         {data && regels.length === 0 && (
           <Text style={[Type.body, styles.tekst, { color: colors.tekstGedimd }]}>
@@ -232,19 +255,18 @@ function Inhoud({ trader, sluit }: { trader: TraderMetScore; sluit: () => void }
               bedragUsd={instellingen.bedragUsd}
               magHandelen={magHandelen}
               bezig={kopieer.bezigSleutel === item.sleutel}
+              metTrader={false}
               onKopieer={() => kopieer.start(item)}
             />
           );
         })}
 
-        <Pressable
-          onPress={() => setAllesOpen(true)}
-          disabled={!data}
-          accessibilityRole="button"
-          style={[styles.allesKnop, { borderColor: colors.cta, opacity: data ? 1 : 0.5 }]}
-        >
-          <Text style={[Type.body, { color: colors.cta, fontWeight: '600' }]}>Kopieer alles via eToro</Text>
-        </Pressable>
+        <Text style={[Type.overline, styles.sectie, { color: colors.tekstGedimd }]}>ALLES KOPIËREN</Text>
+        {data && (
+          <View style={styles.allesKnop}>
+            <PilKnop label="Kopieer alles via eToro" icoon={CopyIcoon} variant="tweede" onPress={() => setAllesOpen(true)} />
+          </View>
+        )}
         <Text style={[Type.caption, styles.tekst, { color: colors.tekstGedimd }]}>
           eToro kopieert dan elke trade van {rij.username} zelf, zonder vertraging. Alleen bij weinig hefboom en shorts.
         </Text>
@@ -286,8 +308,7 @@ const styles = StyleSheet.create({
   },
   oordeelRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
   deelRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
-  raster: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.base },
-  cel: { width: '50%', gap: 2 },
+  raster: { gap: spacing.base },
   maandRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 24 },
   maandLabel: { width: 60 },
   balkBaan: { flex: 1, height: 8 },
@@ -295,14 +316,5 @@ const styles = StyleSheet.create({
   maandWaarde: { width: 64, textAlign: 'right' },
   sectie: { marginHorizontal: spacing.base, marginTop: spacing.lg, marginBottom: spacing.sm },
   tekst: { marginHorizontal: spacing.base, marginBottom: spacing.md, lineHeight: 20 },
-  allesKnop: {
-    marginHorizontal: spacing.base,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    minHeight: 48,
-    borderRadius: radii.knop,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  allesKnop: { marginHorizontal: spacing.base, marginBottom: spacing.sm, alignItems: 'flex-start' },
 });
