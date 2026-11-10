@@ -26,6 +26,8 @@ import { TraderProfielScherm } from '../components/copy/TraderProfielScherm';
 import { CopyInstellingenSheet } from '../components/copy/CopyInstellingenSheet';
 import { VolgStatus } from '../components/copy/VolgStatus';
 import { FavorietenRij } from '../components/copy/FavorietenRij';
+import { OntdekKop, OntdekFilters, Sortering, sorteerEnFilter } from '../components/copy/OntdekKop';
+import { laadLijst, SLEUTELS } from '../storage/opslag';
 import { useVerkoopOok } from '../components/copy/useVerkoopOok';
 import { useKaderChecks } from '../state/useKaderChecks';
 import { useDialoog } from '../state/DialoogProvider';
@@ -36,19 +38,18 @@ import type { NieuweFeature } from '../changelog';
 import { MijnCopies } from '../components/copy/MijnCopies';
 import { useKopieerFlow } from '../components/copy/useKopieerFlow';
 import { TradersScreen } from './TradersScreen';
-import { useCopy, TraderMetScore } from '../state/CopyProvider';
+import { useCopy, TraderMetScore, ZoekUitkomst } from '../state/CopyProvider';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useNavigatie } from '../state/navigatie';
 import { useTabZichtbaar } from '../state/tabZichtbaar';
 import {
   beoordeelCopyTrade, CopyStand, GRENS_KOPIEER, GRENS_VOLG, MAX_RISICOSCORE, MAX_VERSCHUIVING_PCT,
-  MIN_WEKEN_ACTIEF, WEGING,
+  MIN_WEKEN_ACTIEF, TrackrecordSamenvatting, WEGING, vatTrackrecordSamen,
 } from '../engine/copyTrading';
 import { koersFactor } from '../engine/etoroSymbolen';
 import { laadFeed, type FeedItem } from '../state/copyOpslag';
 
 type Segment = 'feed' | 'ontdek' | 'mijn';
-type Filter = 'alles' | 'laag-risico' | 'copiers';
 
 // Zolang de Copy-tab in beeld is en op de Feed staat: elke minuut kijken.
 const FEED_POLL_MS = 60_000;
@@ -59,11 +60,6 @@ const SEGMENTEN = [
   { id: 'mijn' as const, label: 'Mijn copies' },
 ];
 
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'alles', label: 'Alles' },
-  { id: 'laag-risico', label: 'Laag risico' },
-  { id: 'copiers', label: 'Meeste copiers' },
-];
 
 function standVan(item: FeedItem, koersen: Record<string, number>): { stand: CopyStand; koers: number | null } {
   const koers = item.symbool && typeof koersen[item.symbool] === 'number' ? koersen[item.symbool] : null;
@@ -120,7 +116,13 @@ export function CopyScreen() {
   const { magHandelen, omgeving, setOmgeving } = usePortfolio();
   const { doel, wisDoel } = useNavigatie();
   const [segment, setSegment] = useState<Segment | null>(null);
-  const [filter, setFilter] = useState<Filter>('alles');
+  const [zoek, setZoek] = useState('');
+  const [sortering, setSortering] = useState<Sortering>('score');
+  const [ontdekFilters, setOntdekFilters] = useState<OntdekFilters>({ laagRisico: false, alleenKopieer: false });
+  const [zoekUitkomst, setZoekUitkomst] = useState<ZoekUitkomst | null>(null);
+  const [zoekBezig, setZoekBezig] = useState(false);
+  // De oude handmatige beoordelingen blijven bereikbaar zolang er een is opgeslagen.
+  const [heeftHandmatig, setHeeftHandmatig] = useState(false);
   const [profiel, setProfiel] = useState<TraderMetScore | null>(null);
   const [instellingenOpen, setInstellingenOpen] = useState(false);
   const [handmatigOpen, setHandmatigOpen] = useState(false);
@@ -220,12 +222,35 @@ export function CopyScreen() {
     }
   }, [segment, copy]);
 
-  const traders = useMemo(() => {
-    const lijst = [...copy.traders];
-    if (filter === 'laag-risico') return lijst.filter(t => (t.rij.riskScore ?? 10) <= 3);
-    if (filter === 'copiers') return lijst.sort((a, b) => (b.rij.copiers ?? 0) - (a.rij.copiers ?? 0));
-    return lijst;
-  }, [copy.traders, filter]);
+  const traders = useMemo(
+    () => sorteerEnFilter(copy.traders, zoek, sortering, ontdekFilters),
+    [copy.traders, zoek, sortering, ontdekFilters],
+  );
+  const trackPerTrader = useMemo(() => {
+    const kaart: Record<string, TrackrecordSamenvatting> = {};
+    for (const f of copy.favorieten) kaart[f.username.toLowerCase()] = vatTrackrecordSamen(copy.trackrecord, f.username);
+    return kaart;
+  }, [copy.favorieten, copy.trackrecord]);
+
+  useEffect(() => {
+    laadLijst<unknown>(SLEUTELS.traders).then(l => setHeeftHandmatig(l.length > 0)).catch(() => {});
+  }, [handmatigOpen]);
+
+  // Een nieuwe zoekterm maakt een eerdere eToro-uitkomst ongeldig.
+  const wijzigZoek = useCallback((v: string) => { setZoek(v); setZoekUitkomst(null); }, []);
+  const gezocht = zoek.trim();
+  const exactInLijst = gezocht.length > 0
+    && copy.traders.some(t => t.rij.username.toLowerCase() === gezocht.toLowerCase());
+  const { zoekTrader } = copy;
+  const zoekBijEtoro = useCallback(async () => {
+    if (!gezocht || exactInLijst || zoekBezig) return;
+    setZoekBezig(true);
+    try {
+      setZoekUitkomst(await zoekTrader(gezocht));
+    } finally {
+      setZoekBezig(false);
+    }
+  }, [gezocht, exactInLijst, zoekBezig, zoekTrader]);
 
   // Een filter op iemand die geen favoriet meer is, vervalt vanzelf.
   const filterTrader = feedTrader && copy.favorieten.some(f => f.username.toLowerCase() === feedTrader.toLowerCase())
@@ -386,23 +411,48 @@ export function CopyScreen() {
         refreshControl={<RefreshControl refreshing={vernieuwt} onRefresh={vernieuw} tintColor={colors.cta} colors={[colors.cta]} />}
         ListHeaderComponent={
           <View>
-            <View style={styles.filters}>
-              {FILTERS.map(f => {
-                const actief = filter === f.id;
-                return (
+            <OntdekKop
+              zoek={zoek}
+              onZoek={wijzigZoek}
+              onZoekBijEtoro={() => { zoekBijEtoro().catch(() => {}); }}
+              sortering={sortering}
+              onSortering={setSortering}
+              filters={ontdekFilters}
+              onFilters={setOntdekFilters}
+            />
+            {gezocht.length > 0 && !exactInLijst && (
+              <View style={styles.zoekBlok}>
+                {zoekUitkomst === null ? (
                   <Drukbaar
-                    key={f.id}
-                    onPress={() => setFilter(f.id)}
-                    haptiek="tik"
-                    style={[styles.filter, { backgroundColor: actief ? colors.tekstPrimair : colors.verhoogd }]}
+                    onPress={() => { zoekBijEtoro().catch(() => {}); }}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: actief }}
+                    style={styles.zoekKnop}
                   >
-                    <Text style={[Type.caption, { color: actief ? colors.achtergrond : colors.tekstPrimair }]}>{f.label}</Text>
+                    <Text style={[Type.body, { color: colors.cta }]}>
+                      {zoekBezig ? 'Even zoeken bij eToro' : `Zoek "${gezocht}" bij eToro`}
+                    </Text>
                   </Drukbaar>
-                );
-              })}
-            </View>
+                ) : zoekUitkomst.soort === 'gevonden' ? (
+                  <TraderKaart
+                    trader={zoekUitkomst.trader}
+                    favoriet={copy.isFavoriet(zoekUitkomst.trader.rij.username)}
+                    onWisselFavoriet={() => copy.wisselFavoriet({ username: zoekUitkomst.trader.rij.username, cid: zoekUitkomst.trader.rij.cid })}
+                    onOpen={() => setProfiel(zoekUitkomst.trader)}
+                    bron={{ kleur: colors.kaart, radius: radii.kaart }}
+                    buiten={zoekUitkomst.buiten}
+                    trackrecord={trackPerTrader[zoekUitkomst.trader.rij.username.toLowerCase()]}
+                  />
+                ) : (
+                  <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>
+                    {zoekUitkomst.soort === 'niet-gevonden'
+                      ? `eToro kent geen trader met precies de naam "${gezocht}". Let op de schrijfwijze, zoals op zijn profiel.`
+                      : zoekUitkomst.soort === 'geen-koppeling'
+                        ? 'Koppel eToro om traders op te zoeken.'
+                        : `Zoeken lukte niet: ${zoekUitkomst.melding}`}
+                  </Text>
+                )}
+              </View>
+            )}
             {copy.favorietenVol && (
               <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
                 Je hebt al 20 favorieten. Haal er een weg voor je een nieuwe toevoegt.
@@ -411,7 +461,7 @@ export function CopyScreen() {
             <View style={styles.lijstKopBlok}>
               <View style={styles.lijstKopRij}>
                 <Text style={[Type.overline, styles.flex, { color: colors.tekstGedimd }]}>
-                  {traders.length} CRYPTO-TRADERS{tijd ? ` · BIJGEWERKT ${tijd}` : ''}
+                  {traders.length === copy.traders.length ? traders.length : `${traders.length} VAN ${copy.traders.length}`} CRYPTO-TRADERS{tijd ? ` · BIJGEWERKT ${tijd}` : ''}
                 </Text>
                 <UitlegKnop open={hoeGekozen.open} onWissel={hoeGekozen.wissel} onderwerp="hoe Kader deze traders kiest" />
               </View>
@@ -425,7 +475,9 @@ export function CopyScreen() {
           </View>
         }
         ListEmptyComponent={
-          <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>Geen traders gevonden met dit filter.</Text>
+          <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>
+            {gezocht ? `Niemand in de lijst met "${gezocht}" in de naam.` : 'Geen traders met deze filters.'}
+          </Text>
         }
         renderItem={({ item, index }) => (
           <Animated.View entering={kaartLandt(index, reduceMotion)} exiting={uitklapUit()}>
@@ -436,18 +488,21 @@ export function CopyScreen() {
             onWisselFavoriet={() => copy.wisselFavoriet({ username: item.rij.username, cid: item.rij.cid })}
             onOpen={() => setProfiel(item)}
             bron={{ kleur: colors.kaart, radius: radii.kaart }}
+            trackrecord={trackPerTrader[item.rij.username.toLowerCase()]}
           />
           </Animated.View>
         )}
         ListFooterComponent={
           <View>
-            <Drukbaar
-              onPress={() => setHandmatigOpen(true)}
-              accessibilityRole="button"
-              style={styles.handmatig}
-            >
-              <Text style={[Type.body, { color: colors.cta }]}>Trader niet gevonden? Beoordeel handmatig</Text>
-            </Drukbaar>
+            {heeftHandmatig && (
+              <Drukbaar
+                onPress={() => setHandmatigOpen(true)}
+                accessibilityRole="button"
+                style={styles.handmatig}
+              >
+                <Text style={[Type.body, { color: colors.cta }]}>Je handmatige beoordelingen</Text>
+              </Drukbaar>
+            )}
             <Disclaimer />
           </View>
         }
@@ -556,11 +611,11 @@ const styles = StyleSheet.create({
   kopKnop: { minHeight: 44, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
   segment: { paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
   lijst: { paddingTop: spacing.md, paddingBottom: spacing.md },
+  zoekBlok: { marginBottom: spacing.md },
+  zoekKnop: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.base },
   lijstKopBlok: { paddingHorizontal: spacing.base, paddingBottom: spacing.sm, gap: 4 },
   lijstKopRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tweedeKnop: { minHeight: 48, justifyContent: 'center', marginTop: spacing.sm },
-  filters: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: spacing.md },
-  filter: { borderRadius: radii.pill, paddingHorizontal: spacing.md, minHeight: 36, justifyContent: 'center' },
   uitleg: { marginHorizontal: spacing.base, marginBottom: spacing.md, lineHeight: 22 },
   handmatig: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginHorizontal: spacing.base },
   leeg: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },

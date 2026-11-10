@@ -118,6 +118,19 @@ export function haaltDrempels(rij: RanglijstRij): boolean {
   return true;
 }
 
+// Waarom een trader niet in Ontdek staat, voor wie hem via het zoekveld opzoekt. Null als hij de
+// drempels haalt. Zelfde regels als haaltDrempels, in dezelfde volgorde.
+export function waaromBuiten(rij: RanglijstRij): string | null {
+  if (rij.type && rij.type !== 'trader') return 'Dit is een Smart Portfolio, geen trader.';
+  if (typeof rij.riskScore === 'number' && rij.riskScore > MAX_RISICOSCORE) {
+    return `eToro geeft een risico van ${rij.riskScore}, Kader neemt tot ${MAX_RISICOSCORE}.`;
+  }
+  if (typeof rij.weeksSinceRegistration === 'number' && rij.weeksSinceRegistration < MIN_WEKEN_ACTIEF) {
+    return `Korter dan ${MIN_WEKEN_ACTIEF} weken actief (${rij.weeksSinceRegistration} weken).`;
+  }
+  return null;
+}
+
 // De Kader-score uit één ranglijstregel. Zelfde weging als de handmatige beoordeling (consistentie
 // 35%, risico 40%, spreiding 25%), maar gevoed met eToro's eigen cijfers in plaats van overgetikte.
 // Voor het risico-deel draait letterlijk analyseRisico uit de auditor.
@@ -309,6 +322,51 @@ export function copyReferentie(): string {
 }
 
 // ponytail: self-check ipv testframework, run met `npx tsx src/engine/copyTrading.ts` vanuit app/
+// ---------- Kaders eigen trackrecord ----------
+// Wat een favoriet deed sinds je hem een ster gaf, gemeten door Kader zelf: elke long-trade in een
+// Kader-coin met de instap van de trader, en als uitstap de koers op het moment dat Kader zag dat de
+// positie weg was. Dat laatste is een benadering (de check loopt elke minuut tot elk kwartier), dus
+// de app zegt er "ongeveer" bij. Alleen long: dat is wat je via Kader kunt kopiëren.
+
+export interface TrackrecordTrade {
+  // "username:positionId", net als de Feed.
+  sleutel: string;
+  username: string;
+  symbool: string;
+  // In Kaders koers (al gedeeld door de koersfactor).
+  instap: number;
+  geopend: number;
+  uitstap: number | null;
+  gesloten: number | null;
+}
+
+export function trackrecordPct(t: Pick<TrackrecordTrade, 'instap' | 'uitstap'>): number | null {
+  if (t.uitstap === null || !(t.instap > 0) || !(t.uitstap > 0)) return null;
+  return ((t.uitstap - t.instap) / t.instap) * 100;
+}
+
+export interface TrackrecordSamenvatting {
+  // Gesloten trades met een bekende uitstap.
+  aantal: number;
+  // Gemiddeld resultaat per trade in procent, of null zonder gesloten trades.
+  gemPct: number | null;
+  // Hoeveel daarvan met winst.
+  winst: number;
+  // Nog open.
+  open: number;
+}
+
+export function vatTrackrecordSamen(trades: readonly TrackrecordTrade[], username: string): TrackrecordSamenvatting {
+  const van = trades.filter(t => t.username.toLowerCase() === username.toLowerCase());
+  const pcts = van.map(trackrecordPct).filter((p): p is number => p !== null);
+  return {
+    aantal: pcts.length,
+    gemPct: pcts.length > 0 ? pcts.reduce((s, p) => s + p, 0) / pcts.length : null,
+    winst: pcts.filter(p => p > 0).length,
+    open: van.filter(t => t.gesloten === null).length,
+  };
+}
+
 if (require.main === module) {
   let missers = 0;
   const check = (voorwaarde: boolean, tekst: string) => {
@@ -408,6 +466,23 @@ if (require.main === module) {
     check(begrensCsl(80) === MAX_CSL && begrensCsl(0) === MIN_CSL && begrensCsl(25) === 25, 'Copy Stop Loss begrensd');
     const ref = copyReferentie();
     check(ref.length <= 35 && /^[a-z0-9-]+$/.test(ref), 'referentie past in eToro\'s eisen');
+  }
+
+  // Trackrecord.
+  {
+    const t = (sleutel: string, instap: number, uitstap: number | null, username = 'rik'): TrackrecordTrade =>
+      ({ sleutel, username, symbool: 'BTC', instap, geopend: 1, uitstap, gesloten: uitstap === null ? null : 2 });
+    check(trackrecordPct(t('a', 100, 110)) === 10, 'winst van 10%');
+    check(trackrecordPct(t('a', 100, null)) === null, 'open trade heeft geen resultaat');
+    check(trackrecordPct(t('a', 0, 50)) === null, 'instap 0 geeft geen resultaat');
+    const s = vatTrackrecordSamen([t('a', 100, 110), t('b', 100, 95), t('c', 100, null), t('d', 100, 120, 'cor')], 'RIK');
+    check(s.aantal === 2 && s.gemPct === 2.5 && s.winst === 1 && s.open === 1, 'samenvatting per trader, hoofdletterongevoelig');
+    check(vatTrackrecordSamen([], 'rik').gemPct === null, 'zonder trades geen gemiddelde');
+    // waaromBuiten volgt haaltDrempels.
+    const basis = { cid: 1, username: 'x', type: 'trader', riskScore: 4, weeksSinceRegistration: 100 } as RanglijstRij;
+    for (const r of [basis, { ...basis, riskScore: 8 }, { ...basis, weeksSinceRegistration: 10 }, { ...basis, type: 'portfolio' }] as RanglijstRij[]) {
+      check(haaltDrempels(r) === (waaromBuiten(r) === null), `waaromBuiten en haaltDrempels zijn het eens (${JSON.stringify(r)})`);
+    }
   }
 
   if (missers > 0) {

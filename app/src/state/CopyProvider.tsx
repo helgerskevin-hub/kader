@@ -9,14 +9,14 @@ import { actieveSleutels } from './etoroSleutels';
 import { usePortfolio } from './PortfolioProvider';
 import {
   CopyHerkomst, CopyInstellingen, FavorieteTrader, FeedItem, MAX_FAVORIETEN, STANDAARD_INSTELLINGEN,
-  bewaarFavorieten, bewaarHerkomst, bewaarInstellingen, bewaarRanglijstCache, laadFavorieten, laadFeed, laadLaatstGekeken,
+  bewaarFavorieten, bewaarHerkomst, bewaarInstellingen, bewaarRanglijstCache, laadFavorieten, laadFeed, laadLaatstGekeken, laadTrackrecord,
   laadHerkomst, laadInstellingen, laadRanglijstCache, laadSymboolKaart, RANGLIJST_TTL_MS, zaaiSymboolKaart,
   bewaarSymboolKaart, markeerGekopieerd, noteerHerkomst,
 } from './copyOpslag';
 import {
-  RanglijstRij, TraderBeoordeling, beoordeelRij, haaltDrempels, isCryptoTrader,
+  RanglijstRij, TraderBeoordeling, TrackrecordTrade, beoordeelRij, haaltDrempels, isCryptoTrader, waaromBuiten,
 } from '../engine/copyTrading';
-import { haalRanglijst } from '../engine/etoroTraders';
+import { haalRanglijst, haalRanglijstVoor } from '../engine/etoroTraders';
 import { haalCryptoTypeIds } from '../engine/etoro';
 import { haalLaatstePrijzen } from '../engine/marketData';
 import { checkFavorieteTraders } from '../notifications/traderChecks';
@@ -25,6 +25,13 @@ export interface TraderMetScore {
   rij: RanglijstRij;
   beoordeling: TraderBeoordeling;
 }
+
+// Uitkomst van het zoekveld in Ontdek, als de naam niet in de lijst staat en Kader eToro vraagt.
+export type ZoekUitkomst =
+  | { soort: 'gevonden'; trader: TraderMetScore; buiten: string | null }
+  | { soort: 'niet-gevonden' }
+  | { soort: 'geen-koppeling' }
+  | { soort: 'fout'; melding: string };
 
 export type LaadStand = 'leeg' | 'laden' | 'klaar' | 'fout' | 'geen-koppeling';
 
@@ -48,6 +55,8 @@ interface CopyWaarde {
   ranglijstFout: string | null;
   ranglijstTijd: number | null;
   verversRanglijst: (forceer?: boolean) => Promise<void>;
+  // Een trader op exacte naam bij eToro opzoeken, ook als hij buiten de drempels valt (dan met reden).
+  zoekTrader: (naam: string) => Promise<ZoekUitkomst>;
 
   feed: FeedItem[];
   feedStand: LaadStand;
@@ -56,6 +65,8 @@ interface CopyWaarde {
   verversFeed: () => Promise<void>;
   // Wanneer Kader voor het laatst bij je favorieten keek (voorgrond of achtergrond), of null.
   laatstGekeken: number | null;
+  // Kaders eigen trackrecord van favorieten (90 dagen), voor "Sinds je ster" op de kaarten.
+  trackrecord: TrackrecordTrade[];
 
   herkomst: CopyHerkomst[];
   // Na een geslaagde kooporder vanuit een feedregel: onthoud welke trade je kopieerde.
@@ -85,6 +96,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   const [feedStand, setFeedStand] = useState<LaadStand>('leeg');
   const [koersen, setKoersen] = useState<Record<string, number>>({});
   const [laatstGekeken, setLaatstGekeken] = useState<number | null>(null);
+  const [trackrecord, setTrackrecord] = useState<TrackrecordTrade[]>([]);
   const [herkomst, setHerkomst] = useState<CopyHerkomst[]>([]);
   const favorietenRef = useRef<FavorieteTrader[]>([]);
   const [geladen, setGeladen] = useState(false);
@@ -96,6 +108,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
     ]).catch(() => {}).finally(() => setGeladen(true));
     laadFeed().then(setFeed).catch(() => {});
     laadLaatstGekeken().then(setLaatstGekeken).catch(() => {});
+    laadTrackrecord().then(setTrackrecord).catch(() => {});
     laadHerkomst().then(setHerkomst).catch(() => {});
   }, []);
 
@@ -157,6 +170,26 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
       .sort((a, b) => b.beoordeling.score - a.beoordeling.score);
   }, []);
 
+  const zoekTrader = useCallback(async (naam: string): Promise<ZoekUitkomst> => {
+    const gezocht = naam.trim();
+    if (!gezocht) return { soort: 'niet-gevonden' };
+    const sleutels = await actieveSleutels();
+    if (!sleutels) return { soort: 'geen-koppeling' };
+    try {
+      const rijen = await haalRanglijstVoor([gezocht], sleutels);
+      const rij = rijen.find(r => r.username.toLowerCase() === gezocht.toLowerCase());
+      if (!rij) return { soort: 'niet-gevonden' };
+      if (cryptoKlassen === undefined) cryptoKlassen = await haalCryptoTypeIds(sleutels);
+      const kaart = await zaaiSymboolKaart(await laadSymboolKaart());
+      const crypto = new Set(Object.entries(kaart).filter(([, s]) => s !== null).map(([id]) => Number(id)));
+      const buiten = waaromBuiten(rij)
+        ?? (isCryptoTrader(rij, cryptoKlassen, crypto) ? null : 'Handelt vooral buiten crypto.');
+      return { soort: 'gevonden', trader: { rij, beoordeling: beoordeelRij(rij) }, buiten };
+    } catch (e) {
+      return { soort: 'fout', melding: e instanceof Error ? e.message : 'Onbekende fout.' };
+    }
+  }, []);
+
   const verversRanglijst = useCallback(async (forceer = false) => {
     const cache = await laadRanglijstCache();
     if (cache) {
@@ -215,10 +248,11 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
       // Melden mag: staat de app open maar kijk je naar een andere tab, dan is een melding nuttig.
       await checkFavorieteTraders({ melden: true });
       // Ook de herkomst: de check markeert daarin een uitstap (uitstapGemeld) voor Mijn copies.
-      const [vers, gekeken, h] = await Promise.all([laadFeed(), laadLaatstGekeken(), laadHerkomst()]);
+      const [vers, gekeken, h, track] = await Promise.all([laadFeed(), laadLaatstGekeken(), laadHerkomst(), laadTrackrecord()]);
       setFeed(vers);
       setLaatstGekeken(gekeken);
       setHerkomst(h);
+      setTrackrecord(track);
       setFeedStand('klaar');
       verversKoersen(vers);
     } catch {
@@ -298,13 +332,13 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   const waarde = useMemo<CopyWaarde>(() => ({
     geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, favorietenVol,
     instellingen, wijzigInstellingen,
-    traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst,
-    feed, feedStand, koersen, verversFeed, laatstGekeken,
+    traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst, zoekTrader,
+    feed, feedStand, koersen, verversFeed, laatstGekeken, trackrecord,
     herkomst, noteerKopie,
   }), [
     geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, favorietenVol, instellingen, wijzigInstellingen,
-    traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst,
-    feed, feedStand, koersen, verversFeed, laatstGekeken, herkomst, noteerKopie,
+    traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst, zoekTrader,
+    feed, feedStand, koersen, verversFeed, laatstGekeken, trackrecord, herkomst, noteerKopie,
   ]);
 
   return <CopyContext.Provider value={waarde}>{children}</CopyContext.Provider>;

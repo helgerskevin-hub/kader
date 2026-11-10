@@ -3,7 +3,7 @@
 // app op de voorgrond. Alles is AsyncStorage: er staat geen geheim in.
 import { SLEUTELS, bewaarLijst, bewaarObject, laadLijst, laadObject } from '../storage/opslag';
 import type { EtoroOmgeving } from '../engine/etoro';
-import type { RanglijstRij } from '../engine/copyTrading';
+import type { RanglijstRij, TrackrecordTrade } from '../engine/copyTrading';
 
 // ---------- Favorieten ----------
 
@@ -126,6 +126,21 @@ export async function laadLaatstGekeken(): Promise<number | null> {
 
 export async function bewaarLaatstGekeken(tijd: number): Promise<void> {
   await bewaarObject(SLEUTELS.traderLaatstGekeken, { tijd });
+}
+
+// ---------- Trackrecord ----------
+// Langer bewaard dan de Feed (90 dagen), want een trackrecord heeft maanden nodig om iets te zeggen.
+export const TRACKRECORD_LEEFTIJD_MS = 90 * 24 * 60 * 60 * 1000;
+const MAX_TRACKRECORD = 1000;
+
+export async function laadTrackrecord(): Promise<TrackrecordTrade[]> {
+  return laadLijst<TrackrecordTrade>(SLEUTELS.traderTrackrecord);
+}
+
+export async function bewaarTrackrecord(lijst: TrackrecordTrade[]): Promise<void> {
+  const grens = Date.now() - TRACKRECORD_LEEFTIJD_MS;
+  const vers = lijst.filter(t => (t.gesloten ?? t.geopend) >= grens);
+  await bewaarLijst(SLEUTELS.traderTrackrecord, vers.slice(-MAX_TRACKRECORD));
 }
 
 export async function laadBekendePosities(): Promise<BekendePosities> {

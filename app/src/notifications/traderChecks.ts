@@ -9,8 +9,10 @@ import {
   bewaarSymboolKaart, inStilleUren, laadBekendePosities, laadFavorieten, laadFeed, laadHerkomst,
   laadInstellingen, laadSymboolKaart, zaaiSymboolKaart,
   bewaarLaatstGekeken,
+  laadTrackrecord, bewaarTrackrecord,
 } from '../state/copyOpslag';
-import { directePosities, nieuwePosities, verdwenenPosities, TraderPositie } from '../engine/copyTrading';
+import { directePosities, nieuwePosities, verdwenenPosities, TraderPositie, TrackrecordTrade } from '../engine/copyTrading';
+import { haalLaatstePrijzen } from '../engine/marketData';
 import { haalLivePortfolio, vulSymbolenAan } from '../engine/etoroTraders';
 import { koersFactor } from '../engine/etoroSymbolen';
 import { fmtPrijs } from '../engine/format';
@@ -89,6 +91,9 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
     const uitstappen: { item: FeedItem; herkomst: CopyHerkomst }[] = [];
     let gesloten = 0;
     let bereikt = 0;
+    // Voor Kaders eigen trackrecord: nieuwe long-trades in Kader-coins, en wat er sloot.
+    const trackNieuw: TrackrecordTrade[] = [];
+    const trackDicht: string[] = [];
 
     for (const fav of favorieten) {
       let posities: TraderPositie[];
@@ -127,10 +132,17 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
         const item = naarFeedItem(fav.username, p, symboolVan(p.instrumentId), nu);
         feedPerSleutel.set(item.sleutel, item);
         nieuweTrades.push(item);
+        if (item.isBuy && item.symbool) {
+          trackNieuw.push({
+            sleutel: item.sleutel, username: fav.username, symbool: item.symbool,
+            instap: kaderKoers(item, item.openRate), geopend: item.openTijd ?? nu, uitstap: null, gesloten: null,
+          });
+        }
       }
 
       for (const id of verdwenenPosities(eerder, posities)) {
         const sleutel = `${fav.username}:${id}`;
+        trackDicht.push(sleutel);
         const item = feedPerSleutel.get(sleutel);
         if (item && !item.gesloten) {
           feedPerSleutel.set(sleutel, { ...item, gesloten: true });
@@ -165,6 +177,26 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
       bewaarFeed([...feedPerSleutel.values()]),
       bewaarSymboolKaart(symbolen),
     ]);
+
+    // Trackrecord bijwerken. De uitstapkoers is de koers van nu: Kader ziet de sluiting pas bij deze
+    // ronde, dus het is een benadering. Zonder koers blijft de uitstap leeg en telt hij niet mee.
+    if (trackNieuw.length > 0 || trackDicht.length > 0) {
+      try {
+        const track = await laadTrackrecord();
+        const bekendTrack = new Set(track.map(t => t.sleutel));
+        const lijst = [...track, ...trackNieuw.filter(t => !bekendTrack.has(t.sleutel))];
+        const dicht = new Set(trackDicht);
+        const teSluiten = lijst.filter(t => dicht.has(t.sleutel) && t.gesloten === null);
+        const koersen = teSluiten.length > 0
+          ? await haalLaatstePrijzen([...new Set(teSluiten.map(t => t.symbool))]).catch(() => ({} as Record<string, number>))
+          : {};
+        await bewaarTrackrecord(lijst.map(t => (dicht.has(t.sleutel) && t.gesloten === null
+          ? { ...t, gesloten: nu, uitstap: typeof koersen[t.symbool] === 'number' ? koersen[t.symbool] : null }
+          : t)));
+      } catch {
+        // Het trackrecord is extra; de Feed en de meldingen gaan voor.
+      }
+    }
 
     // Een uitstap telt alleen als jouw kopie nog open staat.
     const eigen = await laadLijst<PortfolioTrade>(SLEUTELS.portfolio);

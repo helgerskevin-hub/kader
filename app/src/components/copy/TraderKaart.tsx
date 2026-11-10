@@ -18,6 +18,7 @@ import { OordeelBadge } from './OordeelBadge';
 import { SterKnop } from './SterKnop';
 import { Cijfer, CijferRij } from './Cijfer';
 import type { TraderMetScore } from '../../state/CopyProvider';
+import type { TrackrecordSamenvatting } from '../../engine/copyTrading';
 
 interface Props {
   trader: TraderMetScore;
@@ -27,9 +28,13 @@ interface Props {
   bron?: BronStijl;
   // Plek in de lijst, voor de staffeling van de ring.
   volgorde?: number;
+  // Kaders eigen meting sinds je ster, alleen voor favorieten.
+  trackrecord?: TrackrecordSamenvatting;
+  // Waarom deze trader niet in de lijst staat (alleen bij een zoekresultaat van buiten de lijst).
+  buiten?: string | null;
 }
 
-export const TraderKaart = React.memo(function TraderKaart({ trader, favoriet, onWisselFavoriet, onOpen, bron, volgorde = 0 }: Props) {
+export const TraderKaart = React.memo(function TraderKaart({ trader, favoriet, onWisselFavoriet, onOpen, bron, volgorde = 0, trackrecord, buiten }: Props) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const { rij, beoordeling } = trader;
@@ -41,7 +46,9 @@ export const TraderKaart = React.memo(function TraderKaart({ trader, favoriet, o
     + `${rendement !== null ? `, ${fmtPct(rendement)} in 12 maanden` : ''}`
     + `${beoordeling.maxDalingPct !== null ? `, grootste daling ${fmtPct(-beoordeling.maxDalingPct, 0)}` : ''}`
     + `${typeof rij.riskScore === 'number' ? `, risico ${rij.riskScore} van 10` : ''}`
-    + `${copiers ? `, ${copiers} copiers` : ''}. Open profiel.`;
+    + `${copiers ? `, ${copiers} copiers` : ''}`
+    + `${trackrecord ? `, ${trackrecordTekst(trackrecord)}` : ''}`
+    + `${buiten ? `, niet in de lijst: ${buiten}` : ''}. Open profiel.`;
 
   return (
     <Animated.View layout={schuifOvergang(reduceMotion)}>
@@ -89,11 +96,28 @@ export const TraderKaart = React.memo(function TraderKaart({ trader, favoriet, o
             <Cijfer label="RISICO" waarde={typeof rij.riskScore === 'number' ? `${rij.riskScore}/10` : 'onbekend'} />
             <Cijfer label="COPIERS" waarde={copiers ?? 'onbekend'} />
           </CijferRij>
+          {trackrecord && (
+            <Text style={[Type.caption, styles.extra, { color: colors.tekstGedimd }]}>
+              <Text style={{ color: colors.tekstPrimair }}>Sinds je ster: </Text>
+              {trackrecordTekst(trackrecord)}
+            </Text>
+          )}
+          {buiten && (
+            <Text style={[Type.caption, styles.extra, { color: colors.letOp }]}>Niet in Ontdek: {buiten}</Text>
+          )}
         </View>
       </Drukbaar>
     </Animated.View>
   );
 });
+
+// "ongeveer +4,2% gemiddeld over 9 trades, 6 met winst": de uitstapkoers is Kaders benadering.
+function trackrecordTekst(t: TrackrecordSamenvatting): string {
+  const open = t.open > 0 ? `${t.open} nog open` : '';
+  if (t.aantal === 0 || t.gemPct === null) return open ? `nog geen gesloten trades, ${open}` : 'nog geen trades gezien';
+  const kern = `ongeveer ${fmtPct(t.gemPct)} gemiddeld over ${t.aantal} ${t.aantal === 1 ? 'trade' : 'trades'}, ${t.winst} met winst`;
+  return open ? `${kern}, ${open}` : kern;
+}
 
 const styles = StyleSheet.create({
   kaart: {
@@ -108,6 +132,7 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rechts: { alignItems: 'flex-end', gap: 2 },
   rendement: { fontSize: 17, lineHeight: 22 },
+  extra: { marginTop: spacing.sm, lineHeight: 20 },
   cijfers: {
     marginTop: spacing.md,
     paddingTop: spacing.md,
