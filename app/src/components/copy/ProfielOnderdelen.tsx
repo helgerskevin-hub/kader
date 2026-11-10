@@ -11,7 +11,9 @@ import { PilKnop } from '../PilKnop';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, shadow, spacing } from '../../theme/tokens';
-import { fmtPct } from '../../engine/format';
+import { fmtBedrag, fmtPct } from '../../engine/format';
+
+const DOLLARS = { valuta: 'USD' } as const;
 import { aandeelTekst } from '../../engine/verdeling';
 import type { Candle } from '../../engine/types';
 import {
@@ -194,7 +196,7 @@ export function GeslotenTradesKaart({ trades, username }: { trades: TrackrecordT
           <View key={t.sleutel} style={styles.tradeRij}>
             <Text style={[Type.body, styles.symbool, { color: colors.tekstPrimair }]}>{t.symbool}</Text>
             <Text style={[Type.caption, styles.flex, { color: colors.tekstGedimd }]}>
-              {datumKort(t.geopend)} tot {t.gesloten !== null ? datumKort(t.gesloten) : 'nu'}
+              {datumKort(t.geopend)} tot {datumKort(t.gesloten ?? t.geopend)}
             </Text>
             <Text style={[Type.label, { color: resultaat === null ? colors.tekstGedimd : resultaat >= 0 ? colors.winst : colors.verlies }]}>
               {resultaat === null ? 'geen koers' : `ca. ${fmtPct(resultaat)}`}
@@ -220,7 +222,7 @@ export function BedragKaart({ bedrag, eigen, favoriet, onAanpassen }: {
       <View style={styles.flex}>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>JOUW BEDRAG PER KOPIE</Text>
         <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>
-          ${bedrag}
+          {fmtBedrag(bedrag, DOLLARS)}
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{eigen ? '  eigen bedrag' : '  standaard'}</Text>
         </Text>
         {!favoriet && (

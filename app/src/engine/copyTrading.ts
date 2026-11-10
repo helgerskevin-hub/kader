@@ -238,6 +238,15 @@ function maandBegin(ms: number): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
 }
 
+// "2026-01-01T00:00:00" zonder zone leest Date.parse als lokale tijd, en in Nederland is dat nog
+// december in UTC. Daarom alleen het jaar en de maand uit de tekst.
+function maandUitDatum(datum: string): number {
+  const m = /^(\d{4})-(\d{2})/.exec(datum);
+  if (!m) return NaN;
+  const maand = Number(m[2]);
+  return maand >= 1 && maand <= 12 ? Date.UTC(Number(m[1]), maand - 1, 1) : NaN;
+}
+
 function volgendeMaand(ms: number): number {
   const d = new Date(ms);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
@@ -247,7 +256,7 @@ function volgendeMaand(ms: number): number {
 // en elk volgend punt is het einde van een maand. De lopende maand eindigt op nu.
 export function cumulatiefRendement(maanden: { datum: string; pct: number }[], nu = Date.now()): RendementPunt[] {
   const geldig = maanden
-    .map(m => ({ t: Date.parse(m.datum), pct: m.pct }))
+    .map(m => ({ t: maandUitDatum(m.datum), pct: m.pct }))
     .filter(m => Number.isFinite(m.t) && Number.isFinite(m.pct))
     .sort((a, b) => a.t - b.t);
   if (geldig.length === 0) return [];
@@ -289,14 +298,18 @@ export interface TraderSegment {
 }
 
 // Waar zijn geld nu in zit, naar investmentPct per positie. Kaders coins los (de grootste vijf),
-// de rest van die coins samen, en alles wat geen Kader-coin is als één segment. Zonder
-// investmentPct telt een positie als 1, net als bij "crypto nu".
+// de rest van die coins samen, en alles wat geen Kader-coin is als één segment. Mist bij één
+// positie investmentPct, dan telt elke positie als 1: procenten en stuks door elkaar geeft een
+// scheve ring. Is van een positie niet bekend of het een Kader-coin is (het opzoeken mislukte),
+// dan geen verdeling: een verzonnen verdeling is erger dan geen.
 export function traderVerdeling(
   posities: TraderPositie[],
   symbolen: Record<string, string | null>,
   maxLos = 5,
 ): TraderSegment[] {
-  const gewicht = (p: TraderPositie) => (p.investmentPct && p.investmentPct > 0 ? p.investmentPct : 1);
+  if (posities.some(p => !(String(p.instrumentId) in symbolen))) return [];
+  const metPct = posities.every(p => typeof p.investmentPct === 'number' && p.investmentPct > 0);
+  const gewicht = (p: TraderPositie) => (metPct ? (p.investmentPct as number) : 1);
   const perSymbool = new Map<string, number>();
   let buiten = 0;
   for (const p of posities) {
@@ -614,6 +627,8 @@ if (require.main === module) {
     check(Math.abs(lijn[2].pct - -1) < 1e-9, `+10% en dan -10% is -1%, kreeg ${lijn[2].pct}`);
     check(lijn[2].tijd === Date.UTC(2026, 1, 15), 'lopende maand eindigt op nu');
     check(cumulatiefRendement([]).length === 0, 'geen maanden, geen lijn');
+    check(cumulatiefRendement([{ datum: '2026-01-01T00:00:00', pct: 1 }], Date.UTC(2026, 5, 1))[0].tijd === Date.UTC(2026, 0, 1),
+      'datum zonder zone blijft in zijn eigen maand');
     const koers = (ms: number) => (ms === lijn[0].tijd ? 100 : ms === lijn[1].tijd ? 120 : 90);
     const btc = btcVergelijking(lijn, koers)!;
     check(btc[0] === 0 && Math.abs(btc[1] - 20) < 1e-9 && Math.abs(btc[2] - -10) < 1e-9, 'BTC in procenten sinds het eerste punt');
@@ -629,6 +644,9 @@ if (require.main === module) {
     check(Math.abs(v.reduce((a, s) => a + s.aandeel, 0) - 1) < 1e-9, 'aandelen tellen op tot 1');
     check(Math.abs(v[0].aandeel - 0.5) < 1e-9 && Math.abs(v[3].aandeel - 0.2) < 1e-9, 'BTC 50%, buiten 20%');
     check(traderVerdeling([], sym).length === 0, 'geen posities, geen verdeling');
+    check(traderVerdeling([pos(1, 50), pos(9, 50)], sym).length === 0, 'onbekend instrument: geen verdeling');
+    const stuks = traderVerdeling([pos(1, 90), pos(2)], sym);
+    check(Math.abs(stuks[0].aandeel - 0.5) < 1e-9, 'zonder investmentPct bij één positie: per stuk geteld');
   }
 
   if (missers > 0) {

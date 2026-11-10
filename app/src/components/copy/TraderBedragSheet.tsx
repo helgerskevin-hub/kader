@@ -8,7 +8,11 @@ import { Drukbaar } from '../Drukbaar';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
 import { radii, spacing } from '../../theme/tokens';
-import { MINIMUM_USD, SNEL } from './CopyInstellingenSheet';
+import { SNEL } from './CopyInstellingenSheet';
+import { MINIMUM_COPY_USD as MINIMUM_USD } from '../../state/copyOpslag';
+import { fmtBedrag } from '../../engine/format';
+
+const DOLLARS = { valuta: 'USD' } as const;
 
 interface Props {
   zichtbaar: boolean;
@@ -80,8 +84,8 @@ export function TraderBedragSheet({ zichtbaar, username, eigen, standaard, onOps
         </View>
         <Text style={[Type.caption, { color: geldig ? colors.tekstGedimd : colors.verlies, lineHeight: 18 }]}>
           {geldig
-            ? `Je standaardbedrag is $${standaard}. In de koopsheet zie je dit bedrag en kun je het per kopie nog aanpassen.`
-            : `Het minimum bij eToro is $${MINIMUM_USD}.`}
+            ? `Je standaardbedrag is ${fmtBedrag(standaard, DOLLARS)}. In de koopsheet zie je dit bedrag en kun je het per kopie nog aanpassen.`
+            : `Het minimum bij eToro is ${fmtBedrag(MINIMUM_USD, DOLLARS)}.`}
         </Text>
 
         <Drukbaar
@@ -98,7 +102,7 @@ export function TraderBedragSheet({ zichtbaar, username, eigen, standaard, onOps
             accessibilityRole="button"
             style={styles.tweedeKnop}
           >
-            <Text style={[Type.body, { color: colors.cta }]}>Terug naar standaard (${standaard})</Text>
+            <Text style={[Type.body, { color: colors.cta }]}>Terug naar standaard ({fmtBedrag(standaard, DOLLARS)})</Text>
           </Drukbaar>
         )}
       </View>

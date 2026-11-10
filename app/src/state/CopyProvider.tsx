@@ -10,7 +10,7 @@ import { usePortfolio } from './PortfolioProvider';
 import {
   CopyHerkomst, CopyInstellingen, FavorieteTrader, FeedItem, MAX_FAVORIETEN, STANDAARD_INSTELLINGEN,
   bewaarFavorieten, bewaarHerkomst, bewaarInstellingen, bewaarRanglijstCache, laadFavorieten, laadFeed, laadLaatstGekeken, laadTrackrecord,
-  laadHerkomst, laadInstellingen, laadRanglijstCache, laadSymboolKaart, RANGLIJST_TTL_MS, zaaiSymboolKaart,
+  isGeldigCopyBedrag, laadHerkomst, laadInstellingen, laadRanglijstCache, laadSymboolKaart, RANGLIJST_TTL_MS, zaaiSymboolKaart,
   bewaarSymboolKaart, markeerGekopieerd, noteerHerkomst,
 } from './copyOpslag';
 import {
@@ -142,7 +142,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
 
   const bedragVoor = useCallback((username: string) => {
     const eigen = favorieten.find(f => f.username.toLowerCase() === username.toLowerCase())?.bedragUsd;
-    return typeof eigen === 'number' && eigen > 0 ? eigen : instellingen.bedragUsd;
+    return isGeldigCopyBedrag(eigen) ? eigen : instellingen.bedragUsd;
   }, [favorieten, instellingen.bedragUsd]);
 
   const wisselFavoriet = useCallback((trader: FavorieteTrader) => {
@@ -173,7 +173,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
     const volgende = favorietenRef.current.map(f => {
       if (f.username.toLowerCase() !== username.toLowerCase()) return f;
       const { bedragUsd: _oud, ...rest } = f;
-      return bedragUsd !== null && Number.isFinite(bedragUsd) && bedragUsd > 0 ? { ...rest, bedragUsd } : rest;
+      return isGeldigCopyBedrag(bedragUsd) ? { ...rest, bedragUsd } : rest;
     });
     favorietenRef.current = volgende;
     setFavorieten(volgende);
