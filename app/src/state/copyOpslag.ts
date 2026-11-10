@@ -13,15 +13,32 @@ export interface FavorieteTrader {
   cid: number;
   // Meldingen over nieuwe trades van deze trader. Ontbreekt (oudere opslag) betekent aan.
   meldingen?: boolean;
+  // Eigen bedrag per kopie van deze trader, in dollars. Ontbreekt = het standaardbedrag.
+  bedragUsd?: number;
 }
 
 // Hooguit zoveel favorieten: elke favoriet kost per check een verzoek, en het quotum voor live
 // portfolio's is 60 per minuut.
 export const MAX_FAVORIETEN = 20;
 
+// eToro's minimum per positie (gemeten voor BTC x1). Geldt voor het standaardbedrag en voor het
+// eigen bedrag per trader.
+export const MINIMUM_COPY_USD = 10;
+
+export function isGeldigCopyBedrag(x: unknown): x is number {
+  return typeof x === 'number' && Number.isFinite(x) && x >= MINIMUM_COPY_USD;
+}
+
 export async function laadFavorieten(): Promise<FavorieteTrader[]> {
   const lijst = await laadLijst<FavorieteTrader>(SLEUTELS.favorieteTraders);
-  return lijst.filter(f => f && typeof f.username === 'string' && f.username.length > 0);
+  return lijst
+    .filter(f => f && typeof f.username === 'string' && f.username.length > 0)
+    // Een eigen bedrag onder het minimum (oude of kapotte opslag) valt weg: dan het standaardbedrag.
+    .map(f => {
+      if (f.bedragUsd === undefined || isGeldigCopyBedrag(f.bedragUsd)) return f;
+      const { bedragUsd: _weg, ...rest } = f;
+      return rest;
+    });
 }
 
 export async function bewaarFavorieten(lijst: FavorieteTrader[]): Promise<void> {
@@ -49,7 +66,7 @@ export const STANDAARD_INSTELLINGEN: CopyInstellingen = {
 
 export async function laadInstellingen(): Promise<CopyInstellingen> {
   const ruw = await laadObject<Partial<CopyInstellingen>>(SLEUTELS.copyInstellingen);
-  const bedrag = typeof ruw?.bedragUsd === 'number' && ruw.bedragUsd >= 10 ? ruw.bedragUsd : STANDAARD_INSTELLINGEN.bedragUsd;
+  const bedrag = typeof ruw?.bedragUsd === 'number' && ruw.bedragUsd >= MINIMUM_COPY_USD ? ruw.bedragUsd : STANDAARD_INSTELLINGEN.bedragUsd;
   return {
     bedragUsd: bedrag,
     meldingen: typeof ruw?.meldingen === 'boolean' ? ruw.meldingen : STANDAARD_INSTELLINGEN.meldingen,

@@ -19,7 +19,7 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 // één vermenigvuldiging per segment en de tekening klopt vanzelf bij één segment, bij zeven, en bij
 // een segment van 0,4 procent. Skia en niet SVG omdat elke boog zo een eigen `end` krijgt die op de
 // UI-thread kan intekenen.
-const RING_MAAT = 150;
+export const RING_MAAT = 150;
 const MIDDEN = RING_MAAT / 2;
 const STRAAL = 58;
 const DIKTE = 22;
@@ -112,7 +112,7 @@ export function VerdelingKaart({ trades, livePrijzen, onOpenDetail }: Props) {
             accessible
             accessibilityLabel={ringLabel}
           >
-            <Ring
+            <VerdelingRing
               segmenten={segmenten.map((s, i) => ({
                 sleutel: s.sleutel,
                 kleur: kleurVoor(s, i),
@@ -186,7 +186,7 @@ export function VerdelingKaart({ trades, livePrijzen, onOpenDetail }: Props) {
   );
 }
 
-interface RingSegment {
+export interface RingSegment {
   sleutel: string;
   kleur: string;
   begin: number;
@@ -196,7 +196,7 @@ interface RingSegment {
 // De ring tekent bij het verschijnen met de klok mee in, als één doorlopende streek: elk segment
 // begint pas als het vorige rond is. Dat leest als één gebaar in plaats van zeven losse. Bij Minder
 // beweging staat de ring er meteen helemaal en vervaagt hij alleen in.
-function Ring({ segmenten }: { segmenten: RingSegment[] }) {
+export function VerdelingRing({ segmenten }: { segmenten: RingSegment[] }) {
   const reduceMotion = useReduceMotion();
   const voortgang = useSharedValue(0);
   const dekking = useSharedValue(0);

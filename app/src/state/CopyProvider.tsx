@@ -10,7 +10,7 @@ import { usePortfolio } from './PortfolioProvider';
 import {
   CopyHerkomst, CopyInstellingen, FavorieteTrader, FeedItem, MAX_FAVORIETEN, STANDAARD_INSTELLINGEN,
   bewaarFavorieten, bewaarHerkomst, bewaarInstellingen, bewaarRanglijstCache, laadFavorieten, laadFeed, laadLaatstGekeken, laadTrackrecord,
-  laadHerkomst, laadInstellingen, laadRanglijstCache, laadSymboolKaart, RANGLIJST_TTL_MS, zaaiSymboolKaart,
+  isGeldigCopyBedrag, laadHerkomst, laadInstellingen, laadRanglijstCache, laadSymboolKaart, RANGLIJST_TTL_MS, zaaiSymboolKaart,
   bewaarSymboolKaart, markeerGekopieerd, noteerHerkomst,
 } from './copyOpslag';
 import {
@@ -44,6 +44,10 @@ interface CopyWaarde {
   wisselFavoriet: (trader: FavorieteTrader) => void;
   // Meldingen over nieuwe trades van één favoriet aan of uit. De Feed vult hoe dan ook.
   zetTraderMeldingen: (username: string, aan: boolean) => void;
+  // Eigen bedrag per kopie van één favoriet; null zet hem terug op het standaardbedrag.
+  zetTraderBedrag: (username: string, bedragUsd: number | null) => void;
+  // Het startbedrag voor een kopie van deze trader: zijn eigen bedrag, anders het standaardbedrag.
+  bedragVoor: (username: string) => number;
   // Te veel favorieten: de laatste wissel ging niet door.
   favorietenVol: boolean;
 
@@ -136,6 +140,11 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
     [favorieten],
   );
 
+  const bedragVoor = useCallback((username: string) => {
+    const eigen = favorieten.find(f => f.username.toLowerCase() === username.toLowerCase())?.bedragUsd;
+    return isGeldigCopyBedrag(eigen) ? eigen : instellingen.bedragUsd;
+  }, [favorieten, instellingen.bedragUsd]);
+
   const wisselFavoriet = useCallback((trader: FavorieteTrader) => {
     const huidig = favorietenRef.current;
     const bestaat = huidig.some(f => f.username.toLowerCase() === trader.username.toLowerCase());
@@ -155,6 +164,17 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   const zetTraderMeldingen = useCallback((username: string, aan: boolean) => {
     const volgende = favorietenRef.current.map(f =>
       (f.username.toLowerCase() === username.toLowerCase() ? { ...f, meldingen: aan } : f));
+    favorietenRef.current = volgende;
+    setFavorieten(volgende);
+    bewaarFavorieten(volgende).catch(() => {});
+  }, []);
+
+  const zetTraderBedrag = useCallback((username: string, bedragUsd: number | null) => {
+    const volgende = favorietenRef.current.map(f => {
+      if (f.username.toLowerCase() !== username.toLowerCase()) return f;
+      const { bedragUsd: _oud, ...rest } = f;
+      return isGeldigCopyBedrag(bedragUsd) ? { ...rest, bedragUsd } : rest;
+    });
     favorietenRef.current = volgende;
     setFavorieten(volgende);
     bewaarFavorieten(volgende).catch(() => {});
@@ -337,13 +357,14 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const waarde = useMemo<CopyWaarde>(() => ({
-    geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, favorietenVol,
+    geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, zetTraderBedrag, bedragVoor, favorietenVol,
     instellingen, wijzigInstellingen,
     traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst, zoekTrader,
     feed, feedStand, koersen, verversFeed, laatstGekeken, trackrecord,
     herkomst, noteerKopie,
   }), [
-    geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, favorietenVol, instellingen, wijzigInstellingen,
+    geladen, favorieten, isFavoriet, wisselFavoriet, zetTraderMeldingen, zetTraderBedrag, bedragVoor, favorietenVol,
+    instellingen, wijzigInstellingen,
     traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst, zoekTrader,
     feed, feedStand, koersen, verversFeed, laatstGekeken, trackrecord, herkomst, noteerKopie,
   ]);

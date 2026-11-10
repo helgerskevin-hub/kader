@@ -24,7 +24,7 @@ interface Open {
 }
 
 export function useKopieerFlow(onVerlaatScherm?: () => void) {
-  const { instellingen, noteerKopie, feed } = useCopy();
+  const { bedragVoor, noteerKopie, feed } = useCopy();
   // De nieuwste Feed, zodat de laatste controle ziet of de trader intussen uitstapte.
   const feedRef = useRef(feed);
   feedRef.current = feed;
@@ -89,7 +89,8 @@ export function useKopieerFlow(onVerlaatScherm?: () => void) {
       entry={open.entry}
       stop={open.stop}
       doel={open.doel}
-      startBedrag={instellingen.bedragUsd}
+      // Het eigen bedrag van deze trader als hij er een heeft; je bevestigt het in de sheet.
+      startBedrag={bedragVoor(open.item.username)}
       geluktTitel={`Kopie van ${open.item.username} staat bij eToro`}
       onGelukt={({ verzoekId, omgeving }) => { noteerKopie(open.item, verzoekId, omgeving).catch(() => {}); }}
       onOnzeker={({ verzoekId, omgeving }) => { noteerKopie(open.item, verzoekId, omgeving).catch(() => {}); }}
