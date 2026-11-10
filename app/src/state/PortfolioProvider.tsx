@@ -12,6 +12,7 @@ import { bronVan } from './portfolioTypes';
 import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks';
 import { checkNiveausGeraakt, meldEtoroSluitingen } from '../notifications/sluitingen';
 import { werkWidgetBij } from '../widget/widgetVerversen';
+import { isGenegeerd, positieSleutel } from './positieSleutel';
 
 export interface SyncResultaat {
   gekoppeld: boolean;                          // false = geen eToro-sleutels ingesteld
@@ -174,7 +175,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const laatsteTradeCheckRef = useRef(0);
   // Verwijderde eToro-posities. In een ref én in state: de sync-functies lezen 'm synchroon uit
   // (ref), maar hij moet ook van schijf komen bij het opstarten.
-  const genegeerdeIdsRef = useRef<Set<number>>(new Set());
+  const genegeerdeIdsRef = useRef<Set<number | string>>(new Set());
   // De leidende kopie van de geplaatste orders; de state volgt 'm alleen voor de weergave. Wordt
   // uitsluitend in bewaarGeplaatst (en bij het laden) gezet, synchroon en vóór elke await, zodat
   // twee schrijvers kort na elkaar (een order noteren terwijl de sync statussen opvraagt) elkaars
@@ -212,8 +213,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
         laatsteSyncRef.current = ms;
       }
     });
-    laadLijst<number>(SLEUTELS.genegeerdeEtoroIds).then(ids => {
-      genegeerdeIdsRef.current = new Set(ids.filter(id => typeof id === 'number'));
+    laadLijst<number | string>(SLEUTELS.genegeerdeEtoroIds).then(ids => {
+      genegeerdeIdsRef.current = new Set(ids.filter(id => typeof id === 'number' || typeof id === 'string'));
     });
   }, []);
 
@@ -324,27 +325,27 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   // nooit kwijtraken.
   const verwijderTrade = useCallback((id: string) => {
     const trade = tradesRef.current.find(t => t.id === id);
-    if (trade?.etoroPositionID !== undefined) {
-      genegeerdeIdsRef.current.add(trade.etoroPositionID);
+    const sleutel = trade ? positieSleutel(trade) : null;
+    if (sleutel !== null) {
+      genegeerdeIdsRef.current.add(sleutel);
       bewaarLijst(SLEUTELS.genegeerdeEtoroIds, [...genegeerdeIdsRef.current]);
     }
     setTrades(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  // Dedupliceert op etoroPositionID: bestaande geïmporteerde trade wordt bijgewerkt (entry/bedrag/
+  // Dedupliceert op omgeving + etoroPositionID (positieSleutel): bestaande geïmporteerde trade wordt bijgewerkt (entry/bedrag/
   // aantal/SL/TP), handmatige trades blijven onaangeroerd. Retourneert het aantal nieuw toegevoegde
   // (berekend via tradesRef, want setTrades' updater draait niet gegarandeerd voor de return).
   const importeerEtoroTrades = useCallback((alle: PortfolioTrade[]): number => {
-    const nieuwe = alle.filter(t => !genegeerdeIdsRef.current.has(t.etoroPositionID!));
-    const huidig = tradesRef.current;
-    const toegevoegd = nieuwe.filter(
-      t => !huidig.some(h => h.etoroPositionID === t.etoroPositionID),
-    ).length;
+    const nieuwe = alle.filter(t => positieSleutel(t) !== null && !isGenegeerd(genegeerdeIdsRef.current, t));
+    const bekend = new Set(tradesRef.current.map(positieSleutel).filter(k => k !== null));
+    const toegevoegd = nieuwe.filter(t => !bekend.has(positieSleutel(t)!)).length;
 
     setTrades(prev => {
       const resultaat = [...prev];
       for (const trade of nieuwe) {
-        const index = resultaat.findIndex(t => t.etoroPositionID === trade.etoroPositionID);
+        const sleutel = positieSleutel(trade);
+        const index = resultaat.findIndex(t => positieSleutel(t) === sleutel);
         if (index >= 0) {
           // De verse eToro-versie vervangt de positie volledig, dus de oorspronkelijke stop moet
           // expliciet mee: eToro kent alleen de huidige. Een oude positie zonder initieleStop krijgt
@@ -400,15 +401,15 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const verwerkEtoroHistorie = useCallback((alle: PortfolioTrade[]) => {
     // Verwijderde posities blijven verwijderd, ook al staan ze nog in eToro's historie.
     const gesloten = alle.filter(
-      t => t.etoroPositionID !== undefined && !genegeerdeIdsRef.current.has(t.etoroPositionID),
+      t => positieSleutel(t) !== null && !isGenegeerd(genegeerdeIdsRef.current, t),
     );
-    const perPositie = new Map(gesloten.map(t => [t.etoroPositionID!, t]));
+    const perPositie = new Map(gesloten.map(t => [positieSleutel(t)!, t]));
     const huidig = tradesRef.current;
-    const bekend = new Set(huidig.map(t => t.etoroPositionID).filter(id => id !== undefined));
+    const bekend = new Set(huidig.map(positieSleutel).filter(k => k !== null));
     const afgesloten = huidig.filter(
-      t => t.bron === 'etoro' && t.status === 'open' && t.etoroPositionID !== undefined && perPositie.has(t.etoroPositionID),
+      t => t.bron === 'etoro' && t.status === 'open' && positieSleutel(t) !== null && perPositie.has(positieSleutel(t)!),
     ).length;
-    const nieuw = gesloten.filter(t => !bekend.has(t.etoroPositionID!));
+    const nieuw = gesloten.filter(t => !bekend.has(positieSleutel(t)!));
     if (afgesloten === 0 && nieuw.length === 0) return { afgesloten: 0, toegevoegd: 0 };
 
     // Hoeveel er echt bijkomen, voor de melding aan de gebruiker. Dit is dezelfde afweging als in
@@ -437,7 +438,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       // Stap 1: lokaal open, op eToro gesloten.
       const bijgewerkt = prev.map(t => {
         if (t.bron !== 'etoro' || t.status !== 'open' || t.etoroPositionID === undefined) return t;
-        const uitEtoro = perPositie.get(t.etoroPositionID);
+        const uitEtoro = perPositie.get(positieSleutel(t)!);
         if (!uitEtoro) return t;
         return {
           ...t,
@@ -450,12 +451,12 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       });
 
       // Stap 2 en 3: alles wat we nog niet kennen, óf adopteren óf toevoegen.
-      const alBekend = new Set(bijgewerkt.map(t => t.etoroPositionID).filter(id => id !== undefined));
+      const alBekend = new Set(bijgewerkt.map(positieSleutel).filter(k => k !== null));
       const resultaat = [...bijgewerkt];
       const echtNieuw: PortfolioTrade[] = [];
 
       for (const uitEtoro of gesloten) {
-        if (alBekend.has(uitEtoro.etoroPositionID!)) continue;
+        if (alBekend.has(positieSleutel(uitEtoro)!)) continue;
         const tweeling = zoekHandmatigeTweeling(uitEtoro, resultaat);
         if (tweeling) {
           // De handmatige regel blijft leidend (eigen id, eigen notitie en SL/TP), maar krijgt het
@@ -470,11 +471,12 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
             resultaatUsd: uitEtoro.resultaatUsd,
             aantalCoins: tweeling.aantalCoins ?? uitEtoro.aantalCoins,
             etoroPositionID: uitEtoro.etoroPositionID,
+            etoroOmgeving: uitEtoro.etoroOmgeving,
           };
-          alBekend.add(uitEtoro.etoroPositionID!);
+          alBekend.add(positieSleutel(uitEtoro)!);
         } else {
           echtNieuw.push(uitEtoro);
-          alBekend.add(uitEtoro.etoroPositionID!);
+          alBekend.add(positieSleutel(uitEtoro)!);
         }
       }
 

@@ -24,6 +24,7 @@ import { haalLaatstePrijzen } from '../engine/marketData';
 import { fmtPct, fmtPrijs, fmtResultaatUsd } from '../engine/format';
 import { stuurTradeMelding } from './meldingen';
 import { Melding, loggeMeldingen } from './tradeChecks';
+import { isGenegeerd, positieSleutel } from '../state/positieSleutel';
 
 // Genoeg om elke sluiting van het afgelopen jaar te onthouden bij normaal gebruik, en klein genoeg
 // om bij elke check in één keer uit AsyncStorage te lezen. Een ID dat eruit valt is zo oud dat hij
@@ -139,7 +140,9 @@ async function meldEtoroSluitingenNu(vorigOpen: PortfolioTrade[], gesloten: Port
     .filter((p): p is { lokaal: PortfolioTrade; uitEtoro: PortfolioTrade } => p.uitEtoro !== undefined);
   if (overgangen.length === 0) return 0;
 
-  const gemeld = await laadLijst<number>(SLEUTELS.gemeldeSluitingen);
+  // Nieuwe regels zijn omgeving + positionID (positieSleutel); oude kale getallen tellen voor
+  // beide omgevingen, net als bij de negeerlijst.
+  const gemeld = await laadLijst<number | string>(SLEUTELS.gemeldeSluitingen);
   const alGemeld = new Set(gemeld);
   const [geplaatst, onbekend] = await Promise.all([
     laadLijst<GeplaatsteOrder>(SLEUTELS.geplaatsteOrders),
@@ -148,12 +151,12 @@ async function meldEtoroSluitingenNu(vorigOpen: PortfolioTrade[], gesloten: Port
   const nu = Date.now();
 
   const meldingen: Melding[] = [];
-  const positieIds: number[] = [];
+  const positieIds: string[] = [];
   // Te oude sluitingen: geen melding, wel onthouden (zie MAX_LEEFTIJD_MS).
-  const teOud: number[] = [];
+  const teOud: string[] = [];
   for (const { lokaal, uitEtoro } of overgangen) {
-    const positieId = lokaal.etoroPositionID as number;
-    if (alGemeld.has(positieId) || inBehandeling.has(`sluiting:${positieId}`)) continue;
+    const positieId = positieSleutel(lokaal)!;
+    if (isGenegeerd(alGemeld, lokaal) || inBehandeling.has(`sluiting:${positieId}`)) continue;
     const exit = uitEtoro.exitPrijs;
     if (typeof exit !== 'number' || !(exit > 0)) continue;
     if (typeof uitEtoro.slotTijd === 'number' && nu - uitEtoro.slotTijd > MAX_LEEFTIJD_MS) {
@@ -180,7 +183,7 @@ async function meldEtoroSluitingenNu(vorigOpen: PortfolioTrade[], gesloten: Port
     });
     positieIds.push(positieId);
   }
-  const bewaarGemeld = async (erbij: number[]) => {
+  const bewaarGemeld = async (erbij: string[]) => {
     if (erbij.length > 0) {
       await bewaarLijst(SLEUTELS.gemeldeSluitingen, [...gemeld, ...erbij].slice(-MAX_GEMELDE_SLUITINGEN));
     }

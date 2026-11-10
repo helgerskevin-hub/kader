@@ -20,6 +20,7 @@ import { SLEUTELS, laadLijst } from '../storage/opslag';
 import type { PortfolioTrade } from '../state/portfolioTypes';
 import { stuurTradeMelding } from './meldingen';
 import { Melding, loggeMeldingen } from './tradeChecks';
+import { positieSleutel } from '../state/positieSleutel';
 
 // Een positie die de trader al langer open had toen je hem favoriet maakte, is geen nieuws meer.
 // Wat in het laatste etmaal opende komt wel in de Feed, zonder melding.
@@ -228,11 +229,13 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
 
     // Een uitstap telt alleen als jouw kopie nog open staat.
     const eigen = await laadLijst<PortfolioTrade>(SLEUTELS.portfolio);
-    const openIds = new Set(
-      eigen.filter(t => t.status === 'open' && typeof t.etoroPositionID === 'number').map(t => t.etoroPositionID as number),
+    // Op omgeving + positionID: demo en echt nummeren los, dus het kale ID kan in beide bestaan.
+    const openSleutels = new Set(
+      eigen.filter(t => t.status === 'open').map(positieSleutel).filter(k => k !== null),
     );
     const echteUitstappen = uitstappen.filter(u =>
-      typeof u.herkomst.etoroPositionID === 'number' && openIds.has(u.herkomst.etoroPositionID));
+      typeof u.herkomst.etoroPositionID === 'number'
+      && openSleutels.has(positieSleutel({ etoroPositionID: u.herkomst.etoroPositionID, etoroOmgeving: u.herkomst.omgeving })!));
 
     const mogen = opties.melden !== false
       && instellingen.meldingen

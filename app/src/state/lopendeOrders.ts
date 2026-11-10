@@ -56,7 +56,8 @@ function isOpgelost(order: OnbekendeOrder, trades: PortfolioTrade[]): boolean {
   // rij helemaal, dan verloopt de order na een kwartier en ziet de gebruiker de banner. Dat is de
   // goede kant om op te falen.
   if (order.soort === 'verkoop') {
-    return trades.some(t => t.etoroPositionID === order.positionId && t.status !== 'open');
+    return trades.some(t => t.etoroPositionID === order.positionId
+      && (t.etoroOmgeving ?? 'real') === order.omgeving && t.status !== 'open');
   }
 
   // Niveauwijziging: hier valt niets betrouwbaars aan af te lezen zonder de nieuwe waarden te

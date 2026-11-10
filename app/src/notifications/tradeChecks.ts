@@ -9,6 +9,7 @@ import { stuurTradeMelding } from './meldingen';
 import { MeldingDoel, leesDoel } from './meldingDoel';
 import { bewaarAlerts, geraakteAlerts, laadAlerts, wachtendeSymbolen } from '../state/prijsalerts';
 import { meldingenAan } from '../state/meldingVoorkeur';
+import { isGenegeerd } from '../state/positieSleutel';
 
 // 'verhoogTP', 'klimaat' en 'portfolioRisico' bestonden tot deze versie. Ze worden niet meer
 // verstuurd; oude regels in het meldingenlog blijven gewoon leesbaar (het log bewaart titel en tekst,
@@ -351,9 +352,9 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   // in het opgeslagen portfolio soms nog open: alleen de voorgrond-sync werkt het portfolio bij.
   // Zonder deze filter kreeg de gebruiker vanuit de achtergrond nog "momentum vlakt af" over een
   // positie die eToro al gesloten heeft.
-  const gesloten = new Set(await laadLijst<number>(SLEUTELS.gemeldeSluitingen));
+  const gesloten = new Set(await laadLijst<number | string>(SLEUTELS.gemeldeSluitingen));
   const open = alle.filter(t => t.status === 'open'
-    && !(t.bron === 'etoro' && t.etoroPositionID !== undefined && gesloten.has(t.etoroPositionID)));
+    && !(t.bron === 'etoro' && isGenegeerd(gesloten, t)));
 
   const state = leesSuppressie(await laadObject<Record<string, unknown>>(SLEUTELS.meldingSuppressie));
 
