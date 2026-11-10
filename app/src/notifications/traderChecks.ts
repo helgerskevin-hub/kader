@@ -8,6 +8,7 @@ import {
   BekendePosities, CopyHerkomst, FeedItem, bewaarBekendePosities, bewaarFeed, bewaarHerkomst,
   bewaarSymboolKaart, inStilleUren, laadBekendePosities, laadFavorieten, laadFeed, laadHerkomst,
   laadInstellingen, laadSymboolKaart, zaaiSymboolKaart,
+  bewaarLaatstGekeken,
 } from '../state/copyOpslag';
 import { directePosities, nieuwePosities, verdwenenPosities, TraderPositie } from '../engine/copyTrading';
 import { haalLivePortfolio, vulSymbolenAan } from '../engine/etoroTraders';
@@ -87,6 +88,7 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
     const nieuweTrades: FeedItem[] = [];
     const uitstappen: { item: FeedItem; herkomst: CopyHerkomst }[] = [];
     let gesloten = 0;
+    let bereikt = 0;
 
     for (const fav of favorieten) {
       let posities: TraderPositie[];
@@ -97,6 +99,7 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
         // bekende posities veranderen: anders lijkt alles wat hij open heeft straks nieuw.
         continue;
       }
+      bereikt++;
 
       try {
         symbolen = await vulSymbolenAan(posities.map(p => p.instrumentId), symbolen, sleutels);
@@ -218,6 +221,9 @@ export async function checkFavorieteTraders(opties: { melden?: boolean } = {}): 
       const vers = await laadHerkomst();
       await bewaarHerkomst(vers.map(h => (gezien.has(h.verzoekId) ? { ...h, uitstapGemeld: true } : h)));
     }
+
+    // Alleen als er echt iemand bereikt is: een ronde zonder verbinding is geen "gekeken".
+    if (bereikt > 0) await bewaarLaatstGekeken(nu).catch(() => {});
 
     return { nieuw: nieuweTrades.length, gesloten, gemeld };
   } finally {

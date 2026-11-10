@@ -9,7 +9,7 @@ import { actieveSleutels } from './etoroSleutels';
 import { usePortfolio } from './PortfolioProvider';
 import {
   CopyHerkomst, CopyInstellingen, FavorieteTrader, FeedItem, MAX_FAVORIETEN, STANDAARD_INSTELLINGEN,
-  bewaarFavorieten, bewaarHerkomst, bewaarInstellingen, bewaarRanglijstCache, laadFavorieten, laadFeed,
+  bewaarFavorieten, bewaarHerkomst, bewaarInstellingen, bewaarRanglijstCache, laadFavorieten, laadFeed, laadLaatstGekeken,
   laadHerkomst, laadInstellingen, laadRanglijstCache, laadSymboolKaart, RANGLIJST_TTL_MS, zaaiSymboolKaart,
   bewaarSymboolKaart, markeerGekopieerd, noteerHerkomst,
 } from './copyOpslag';
@@ -52,6 +52,8 @@ interface CopyWaarde {
   // Live koers per Kader-symbool, voor de koersverschuiving op de feedkaarten.
   koersen: Record<string, number>;
   verversFeed: () => Promise<void>;
+  // Wanneer Kader voor het laatst bij je favorieten keek (voorgrond of achtergrond), of null.
+  laatstGekeken: number | null;
 
   herkomst: CopyHerkomst[];
   // Na een geslaagde kooporder vanuit een feedregel: onthoud welke trade je kopieerde.
@@ -80,6 +82,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [feedStand, setFeedStand] = useState<LaadStand>('leeg');
   const [koersen, setKoersen] = useState<Record<string, number>>({});
+  const [laatstGekeken, setLaatstGekeken] = useState<number | null>(null);
   const [herkomst, setHerkomst] = useState<CopyHerkomst[]>([]);
   const favorietenRef = useRef<FavorieteTrader[]>([]);
   const [geladen, setGeladen] = useState(false);
@@ -90,6 +93,7 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
       laadInstellingen().then(setInstellingen),
     ]).catch(() => {}).finally(() => setGeladen(true));
     laadFeed().then(setFeed).catch(() => {});
+    laadLaatstGekeken().then(setLaatstGekeken).catch(() => {});
     laadHerkomst().then(setHerkomst).catch(() => {});
   }, []);
 
@@ -200,8 +204,9 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
     try {
       // Melden mag: staat de app open maar kijk je naar een andere tab, dan is een melding nuttig.
       await checkFavorieteTraders({ melden: true });
-      const vers = await laadFeed();
+      const [vers, gekeken] = await Promise.all([laadFeed(), laadLaatstGekeken()]);
       setFeed(vers);
+      setLaatstGekeken(gekeken);
       setFeedStand('klaar');
       verversKoersen(vers);
     } catch {
@@ -282,12 +287,12 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
     geladen, favorieten, isFavoriet, wisselFavoriet, favorietenVol,
     instellingen, wijzigInstellingen,
     traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst,
-    feed, feedStand, koersen, verversFeed,
+    feed, feedStand, koersen, verversFeed, laatstGekeken,
     herkomst, noteerKopie,
   }), [
     geladen, favorieten, isFavoriet, wisselFavoriet, favorietenVol, instellingen, wijzigInstellingen,
     traders, ranglijstStand, ranglijstFout, ranglijstTijd, verversRanglijst,
-    feed, feedStand, koersen, verversFeed, herkomst, noteerKopie,
+    feed, feedStand, koersen, verversFeed, laatstGekeken, herkomst, noteerKopie,
   ]);
 
   return <CopyContext.Provider value={waarde}>{children}</CopyContext.Provider>;

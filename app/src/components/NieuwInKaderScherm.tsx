@@ -14,6 +14,8 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 import {
   Bell,
+  Compass,
+  Star,
   ChartPie,
   ChartSpline,
   Copy,
@@ -43,6 +45,9 @@ interface Props {
   zichtbaar: boolean;
   onSluiten: () => void;
   features: NieuweFeature[];
+  // Voor een rondleiding buiten de versie-update, zoals de intro van de Copy-tab.
+  kop?: string;
+  laatsteLabel?: string;
 }
 
 const ICONEN: Record<NieuweFeature['icoon'], LucideIcon> = {
@@ -55,6 +60,8 @@ const ICONEN: Record<NieuweFeature['icoon'], LucideIcon> = {
   widget: Smartphone,
   copy: Copy,
   melding: Bell,
+  ontdek: Compass,
+  ster: Star,
 };
 
 // Waar het icoon vandaan komt, zodat elke feature een eigen beweging heeft: het schild klikt vast,
@@ -77,6 +84,8 @@ const START: Record<NieuweFeature['icoon'], Start> = {
   widget: { schaal: 0.55, rot: 12, x: 0, y: 10 },
   copy: { schaal: 0.6, rot: 0, x: 18, y: -18 },
   melding: { schaal: 0.7, rot: -24, x: 0, y: 0 },
+  ontdek: { schaal: 0.6, rot: -90, x: 0, y: 0 },
+  ster: { schaal: 0.4, rot: 72, x: 0, y: 0 },
 };
 
 const TEGEL = 112;
@@ -87,7 +96,7 @@ const RING_SCHAAL = 1.55;
 const EERSTE_VERTRAGING = 320;
 const SLOT = 18;
 
-export function NieuwInKaderScherm({ zichtbaar, onSluiten, features }: Props) {
+export function NieuwInKaderScherm({ zichtbaar, onSluiten, features, kop = 'NIEUW IN KADER', laatsteLabel = 'Aan de slag' }: Props) {
   // Elke keer dat het scherm opent beginnen we met verse staat, ook als de modal zijn kinderen
   // tussendoor bewaart.
   const openTeller = useRef(0);
@@ -99,12 +108,12 @@ export function NieuwInKaderScherm({ zichtbaar, onSluiten, features }: Props) {
 
   return (
     <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
-      {sluit => <Inhoud key={openTeller.current} features={features} onKlaar={() => sluit()} />}
+      {sluit => <Inhoud key={openTeller.current} features={features} kop={kop} laatsteLabel={laatsteLabel} onKlaar={() => sluit()} />}
     </PodiumScherm>
   );
 }
 
-function Inhoud({ features, onKlaar }: { features: NieuweFeature[]; onKlaar: () => void }) {
+function Inhoud({ features, kop, laatsteLabel, onKlaar }: { features: NieuweFeature[]; kop: string; laatsteLabel: string; onKlaar: () => void }) {
   const { colors } = useTheme();
   const { reduceMotion } = useBeweging();
   const { width: schermBreedte } = useWindowDimensions();
@@ -174,7 +183,7 @@ function Inhoud({ features, onKlaar }: { features: NieuweFeature[]; onKlaar: () 
   return (
     <View style={[styles.root, { backgroundColor: colors.achtergrond }]} onLayout={opLayout}>
       <View style={styles.kop}>
-        <Text accessibilityRole="header" style={[Type.overline, { color: colors.cta }]}>NIEUW IN KADER</Text>
+        <Text accessibilityRole="header" style={[Type.overline, { color: colors.cta }]}>{kop}</Text>
         <Animated.View style={skipStijl} pointerEvents={isLaatste ? 'none' : 'auto'}>
           <Pressable
             onPress={onKlaar}
@@ -226,7 +235,7 @@ function Inhoud({ features, onKlaar }: { features: NieuweFeature[]; onKlaar: () 
           <Animated.View style={[styles.pil, { backgroundColor: colors.cta }, pilStijl]} />
         </View>
         <PilKnop
-          label={isLaatste ? 'Aan de slag' : 'Volgende'}
+          label={isLaatste ? laatsteLabel : 'Volgende'}
           variant="cta"
           onPress={volgende}
         />

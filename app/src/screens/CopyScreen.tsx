@@ -24,6 +24,11 @@ import { CopyTradeKaart } from '../components/copy/CopyTradeKaart';
 import { TraderKaart } from '../components/copy/TraderKaart';
 import { TraderProfielScherm } from '../components/copy/TraderProfielScherm';
 import { CopyInstellingenSheet } from '../components/copy/CopyInstellingenSheet';
+import { VolgStatus } from '../components/copy/VolgStatus';
+import { NieuwInKaderScherm } from '../components/NieuwInKaderScherm';
+import { EtoroKoppelingWizard } from '../components/EtoroKoppelingWizard';
+import { UitlegKnop, UitlegTekst, useUitleg } from '../components/UitlegKnop';
+import type { NieuweFeature } from '../changelog';
 import { MijnCopies } from '../components/copy/MijnCopies';
 import { useKopieerFlow } from '../components/copy/useKopieerFlow';
 import { TradersScreen } from './TradersScreen';
@@ -31,7 +36,10 @@ import { useCopy, TraderMetScore } from '../state/CopyProvider';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useNavigatie } from '../state/navigatie';
 import { useTabZichtbaar } from '../state/tabZichtbaar';
-import { beoordeelCopyTrade, CopyStand } from '../engine/copyTrading';
+import {
+  beoordeelCopyTrade, CopyStand, GRENS_KOPIEER, GRENS_VOLG, MAX_RISICOSCORE, MAX_VERSCHUIVING_PCT,
+  MIN_WEKEN_ACTIEF, WEGING,
+} from '../engine/copyTrading';
 import { koersFactor } from '../engine/etoroSymbolen';
 import { laadFeed, type FeedItem } from '../state/copyOpslag';
 
@@ -66,17 +74,56 @@ function standVan(item: FeedItem, koersen: Record<string, number>): { stand: Cop
   return { stand, koers };
 }
 
+const pct = (f: number) => `${Math.round(f * 100)}%`;
+
+// De rondleiding bij het eerste bezoek. Daarna kies je meteen je bedrag.
+const INTRO: NieuweFeature[] = [
+  {
+    icoon: 'ontdek', kleur: 'cta', plek: 'Copy, onder Ontdek',
+    titel: 'Ontdek de beste crypto-traders',
+    tekst: 'Kader haalt de ranglijst van eToro op en geeft elke trader een Kader-score met een oordeel: KOPIEER, VOLG of VERMIJD.',
+  },
+  {
+    icoon: 'ster', kleur: 'goud', plek: 'De ster op elke trader',
+    titel: 'Geef een trader een ster',
+    tekst: 'Zijn nieuwe crypto-trades verschijnen in je Feed en Kader stuurt je een melding. Kopieerde je een trade, dan hoor je het ook als hij die sluit.',
+  },
+  {
+    icoon: 'copy', kleur: 'primair', plek: 'Copy, onder Feed',
+    titel: 'Kopieer met één druk',
+    tekst: 'De kooporder staat al klaar met je bedrag, een stop en een doel. Jij kijkt hem na en bevestigt, Kader verstuurt niets zonder jou.',
+  },
+  {
+    icoon: 'risico', kleur: 'winst', plek: 'Elke kopie',
+    titel: 'Veilig kopiëren',
+    tekst: `Altijd long, zonder hefboom en met een stop. Ligt de koers meer dan ${MAX_VERSCHUIVING_PCT}% van de instap van de trader af, dan kopieert Kader niet: je bent dan te laat.`,
+  },
+];
+
+const HOE_GEKOZEN =
+  'Kader vraagt eToro om de Popular Investors, gesorteerd op het aantal copiers, en ververst die lijst '
+  + `elke zes uur. Alleen wie minstens ${MIN_WEKEN_ACTIEF} weken actief is, een eToro-risico van hooguit `
+  + `${MAX_RISICOSCORE} heeft en vooral crypto handelt komt erin. Smart Portfolios vallen af. Daarna geeft `
+  + `Kader elke trader een eigen score: consistentie (winstmaanden) telt ${pct(WEGING.consistentie)}, risico `
+  + `(grootste daling en eToro-risico) ${pct(WEGING.risico)} en spreiding (niet alles in één coin, weinig `
+  + `hefboom) ${pct(WEGING.spreiding)}. Vanaf ${GRENS_KOPIEER} is het oordeel KOPIEER, vanaf ${GRENS_VOLG} VOLG, `
+  + 'daaronder VERMIJD. Het rendement uit het verleden is geen belofte voor later.';
+
 export function CopyScreen() {
   const { colors } = useTheme();
   const inBeeld = useTabZichtbaar();
   const copy = useCopy();
-  const { magHandelen } = usePortfolio();
+  const { magHandelen, omgeving, setOmgeving } = usePortfolio();
   const { doel, wisDoel } = useNavigatie();
   const [segment, setSegment] = useState<Segment | null>(null);
   const [filter, setFilter] = useState<Filter>('alles');
   const [profiel, setProfiel] = useState<TraderMetScore | null>(null);
   const [instellingenOpen, setInstellingenOpen] = useState(false);
   const [handmatigOpen, setHandmatigOpen] = useState(false);
+  const [introOpen, setIntroOpen] = useState(false);
+  const [introGezien, setIntroGezien] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const hoeGekozen = useUitleg();
   const [uitgelicht, setUitgelicht] = useState<string | null>(null);
   const [vernieuwt, setVernieuwt] = useState(false);
   const reduceMotion = useReduceMotion();
@@ -92,13 +139,31 @@ export function CopyScreen() {
     if (segment === null && copy.geladen) setSegment(copy.favorieten.length > 0 ? 'feed' : 'ontdek');
   }, [copy.geladen, copy.favorieten.length, segment]);
 
-  // Het instellingenvenster één keer, bij het eerste bezoek.
+  const { verversRanglijst, verversFeed } = copy;
+
+  // Bij het eerste bezoek eerst de rondleiding; het bedrag kiezen komt daarna (zie sluitIntro).
+  // De bedragsheet slaat bij elke manier van sluiten op, dus de intro komt maar één keer.
   useEffect(() => {
-    if (inBeeld && copy.geladen && !copy.instellingen.ingesteld) setInstellingenOpen(true);
-  }, [inBeeld, copy.geladen, copy.instellingen.ingesteld]);
+    if (inBeeld && copy.geladen && !copy.instellingen.ingesteld && !introGezien) {
+      setIntroGezien(true);
+      setIntroOpen(true);
+    }
+  }, [inBeeld, copy.geladen, copy.instellingen.ingesteld, introGezien]);
+
+  const sluitIntro = useCallback(() => {
+    setIntroOpen(false);
+    // Eerst het scherm laten wegschuiven, dan pas de sheet: geen twee Modals tegelijk in beweging.
+    setTimeout(() => setInstellingenOpen(true), 280);
+  }, []);
+
+  const naKoppelen = useCallback(() => {
+    // Zelfde als in Instellingen: leest het schrijfrecht vers en synchroniseert. Daarna de Copy-data.
+    setOmgeving(omgeving).catch(() => {});
+    verversRanglijst(true).catch(() => {});
+    verversFeed().catch(() => {});
+  }, [setOmgeving, omgeving, verversRanglijst, verversFeed]);
 
   // Bij het openen van de tab: ranglijst (uit de cache als die vers is) en de Feed.
-  const { verversRanglijst, verversFeed } = copy;
   useEffect(() => {
     if (!inBeeld) return;
     verversRanglijst().catch(() => {});
@@ -176,8 +241,9 @@ export function CopyScreen() {
     <LegeStaat
       icoon={<CopyIcoon size={26} color={colors.tekstGedimd} strokeWidth={1.5} />}
       titel="Koppel eToro"
-      tekst="Kader haalt de ranglijst en de trades van beleggers uit eToro. Koppel je eToro-account via de drie puntjes rechtsboven, bij Instellingen. Een trader beoordelen kan ook zonder koppeling."
-      knop={{ label: 'Beoordeel handmatig', onDruk: () => setHandmatigOpen(true) }}
+      tekst="Kader haalt de ranglijst en de trades van beleggers uit eToro. Koppel je account met een API-sleutel, dat duurt een paar minuten. Een trader beoordelen kan ook zonder koppeling."
+      knop={{ label: 'Koppel eToro', onDruk: () => setWizardOpen(true) }}
+      tweede={{ label: 'Beoordeel handmatig', onDruk: () => setHandmatigOpen(true) }}
     />
   );
 
@@ -212,10 +278,10 @@ export function CopyScreen() {
         itemLayoutAnimation={schuifOvergang(reduceMotion)}
         contentContainerStyle={styles.lijst}
         refreshControl={<RefreshControl refreshing={vernieuwt} onRefresh={vernieuw} tintColor={colors.cta} colors={[colors.cta]} />}
+        ListHeaderComponent={<VolgStatus laatstGekeken={copy.laatstGekeken} />}
         ListEmptyComponent={
           <Text style={[Type.body, styles.uitleg, { color: colors.tekstGedimd }]}>
-            Nog geen nieuwe trades van je favorieten. Kader kijkt elke minuut zolang deze tab open is, en
-            ongeveer elk kwartier als de app dicht is.
+            Nog geen nieuwe trades van je favorieten. Zodra er een opent, staat hij hier.
           </Text>
         }
         renderItem={({ item, index }) => {
@@ -289,9 +355,20 @@ export function CopyScreen() {
                 Je hebt al 20 favorieten. Haal er een weg voor je een nieuwe toevoegt.
               </Text>
             )}
-            <Text style={[Type.overline, styles.lijstKop, { color: colors.tekstGedimd }]}>
-              {traders.length} CRYPTO-TRADERS{tijd ? ` · BIJGEWERKT ${tijd}` : ''}
-            </Text>
+            <View style={styles.lijstKopBlok}>
+              <View style={styles.lijstKopRij}>
+                <Text style={[Type.overline, styles.flex, { color: colors.tekstGedimd }]}>
+                  {traders.length} CRYPTO-TRADERS{tijd ? ` · BIJGEWERKT ${tijd}` : ''}
+                </Text>
+                <UitlegKnop open={hoeGekozen.open} onWissel={hoeGekozen.wissel} onderwerp="hoe Kader deze traders kiest" />
+              </View>
+              {!hoeGekozen.open && (
+                <Drukbaar onPress={hoeGekozen.wissel} accessibilityRole="button" hitSlop={6}>
+                  <Text style={[Type.caption, { color: colors.cta }]}>Hoe kiest Kader deze traders?</Text>
+                </Drukbaar>
+              )}
+              <UitlegTekst open={hoeGekozen.open} tekst={HOE_GEKOZEN} />
+            </View>
           </View>
         }
         ListEmptyComponent={
@@ -354,6 +431,14 @@ export function CopyScreen() {
         onOpslaan={copy.wijzigInstellingen}
         onSluiten={() => setInstellingenOpen(false)}
       />
+      <NieuwInKaderScherm
+        zichtbaar={introOpen}
+        onSluiten={sluitIntro}
+        features={INTRO}
+        kop="ZO WERKT COPY"
+        laatsteLabel="Kies je bedrag"
+      />
+      <EtoroKoppelingWizard zichtbaar={wizardOpen} onSluiten={() => setWizardOpen(false)} onOpgeslagen={naKoppelen} />
       <PodiumScherm zichtbaar={handmatigOpen} onSluiten={() => setHandmatigOpen(false)}>
         {sluit => <TradersScreen onSluiten={() => sluit()} />}
       </PodiumScherm>
@@ -372,11 +457,12 @@ function Skeletons({ aantal }: { aantal: number }) {
   );
 }
 
-function LegeStaat({ icoon, titel, tekst, knop }: {
+function LegeStaat({ icoon, titel, tekst, knop, tweede }: {
   icoon?: React.ReactNode;
   titel: string;
   tekst: string;
   knop?: { label: string; onDruk: () => void };
+  tweede?: { label: string; onDruk: () => void };
 }) {
   const { colors } = useTheme();
   return (
@@ -399,6 +485,13 @@ function LegeStaat({ icoon, titel, tekst, knop }: {
           </Drukbaar>
         </Opkomst>
       )}
+      {tweede && (
+        <Opkomst volgorde={4}>
+          <Drukbaar onPress={tweede.onDruk} accessibilityRole="button" style={styles.tweedeKnop}>
+            <Text style={[Type.body, { color: colors.cta }]}>{tweede.label}</Text>
+          </Drukbaar>
+        </Opkomst>
+      )}
     </View>
   );
 }
@@ -409,7 +502,9 @@ const styles = StyleSheet.create({
   kopKnop: { minHeight: 44, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
   segment: { paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
   lijst: { paddingTop: spacing.md, paddingBottom: spacing.md },
-  lijstKop: { paddingHorizontal: spacing.base, paddingBottom: spacing.sm },
+  lijstKopBlok: { paddingHorizontal: spacing.base, paddingBottom: spacing.sm, gap: 4 },
+  lijstKopRij: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  tweedeKnop: { minHeight: 48, justifyContent: 'center', marginTop: spacing.sm },
   filters: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: spacing.md },
   filter: { borderRadius: radii.pill, paddingHorizontal: spacing.md, minHeight: 36, justifyContent: 'center' },
   uitleg: { marginHorizontal: spacing.base, marginBottom: spacing.md, lineHeight: 22 },

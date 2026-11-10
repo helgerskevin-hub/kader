@@ -115,6 +115,17 @@ export async function markeerGekopieerd(sleutel: string): Promise<void> {
 
 export type BekendePosities = Record<string, number[]>;
 
+// Wanneer Kader voor het laatst minstens een favoriet bereikte, voor de volgstatus boven de Feed.
+// Zowel de check op de voorgrond als de achtergrondtaak zet hem.
+export async function laadLaatstGekeken(): Promise<number | null> {
+  const t = await laadObject<{ tijd: number }>(SLEUTELS.traderLaatstGekeken);
+  return typeof t?.tijd === 'number' ? t.tijd : null;
+}
+
+export async function bewaarLaatstGekeken(tijd: number): Promise<void> {
+  await bewaarObject(SLEUTELS.traderLaatstGekeken, { tijd });
+}
+
 export async function laadBekendePosities(): Promise<BekendePosities> {
   return (await laadObject<BekendePosities>(SLEUTELS.traderPosities)) ?? {};
 }
