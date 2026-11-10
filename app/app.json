@@ -57,7 +57,7 @@
             {
               "name": "KaderPortfolio",
               "label": "Kader",
-              "description": "Je open resultaat in R, en welke positie dicht bij stop of doel staat.",
+              "description": "Je open resultaat in procenten, dollars of R, en hoe je posities ervoor staan.",
               "minWidth": "110dp",
               "minHeight": "110dp",
               "targetCellWidth": 2,

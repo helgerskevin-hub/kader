@@ -7,17 +7,20 @@
 
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
 import { laadWidgetInhoud, ververWidgetMetVerseKoersen, widgetVoor } from './widgetVerversen';
+import { registreerAchtergrondtaak } from '../notifications/achtergrondtaak';
 
 export async function widgetTaak({ widgetInfo, widgetAction, renderWidget }: WidgetTaskHandlerProps): Promise<void> {
   if (widgetAction !== 'WIDGET_ADDED' && widgetAction !== 'WIDGET_UPDATE' && widgetAction !== 'WIDGET_RESIZED') return;
 
   // Eerst meteen tekenen met wat er bewaard is, zodat de widget nooit leeg staat te wachten op het
   // netwerk.
-  const { stand, bedragen } = await laadWidgetInhoud();
-  renderWidget(widgetVoor(stand, bedragen, widgetInfo.width));
+  const { stand, weergave } = await laadWidgetInhoud();
+  renderWidget(widgetVoor(stand, weergave, widgetInfo.width));
 
   // Bij vergroten veranderen de cijfers niet, alleen de opmaak.
   if (widgetAction === 'WIDGET_RESIZED') return;
+  // Een nieuwe widget wil ook ververst worden als de meldingen uit staan. Al geregistreerd: niets.
+  if (widgetAction === 'WIDGET_ADDED') await registreerAchtergrondtaak();
   try {
     await ververWidgetMetVerseKoersen();
   } catch {

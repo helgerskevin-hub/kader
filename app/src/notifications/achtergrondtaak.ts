@@ -6,6 +6,7 @@ import { werkSignalenBij } from '../state/signaalBoek';
 import { checkWeekrapport } from './weekrapport';
 import { checkFavorieteTraders } from './traderChecks';
 import { ververWidgetMetVerseKoersen } from '../widget/widgetVerversen';
+import { meldingenAan } from '../state/meldingVoorkeur';
 
 export const TRADE_CHECK_TAAK = 'kader-trade-check';
 
@@ -19,19 +20,21 @@ const INTERVAL_MINUTEN = 15;
 // importeert dit bestand daarom bovenaan.
 TaskManager.defineTask(TRADE_CHECK_TAAK, async () => {
   try {
+    // De widget op het startscherm eerst: goedkoop (één koers per open coin, en niets zonder
+    // widget), los van de meldingen en met een eigen vangnet. De taak draait ook voor wie meldingen
+    // uit heeft maar wel een widget, en dan is dit het enige wat hij doet.
+    try {
+      await ververWidgetMetVerseKoersen();
+    } catch {
+      // Volgende ronde opnieuw; de widget toont tot dan de vorige stand met zijn tijd.
+    }
+    if (!(await meldingenAan())) return BackgroundTask.BackgroundTaskResult.Success;
     // De prijsalerts eerst en apart: die hebben hun eigen (goedkope) prijsverzoeken en mogen niet
     // uitvallen als de zwaardere trade-check op een netwerkfout stukloopt.
     try {
       await checkPrijsalerts();
     } catch {
       // Volgende ronde opnieuw. Een alert blijft wachten tot hij geraakt is, dus er gaat niets verloren.
-    }
-    // De widget op het startscherm: goedkoop (één koers per open coin, en niets zonder widget) en
-    // los van de meldingen, dus ook vóór de zware checks en met een eigen vangnet.
-    try {
-      await ververWidgetMetVerseKoersen();
-    } catch {
-      // Volgende ronde opnieuw; de widget toont tot dan de vorige stand met zijn tijd.
     }
     // Sluitingen en geraakte niveaus ook elk apart: een eToro-storing mag de melding over een
     // handmatige stop niet tegenhouden, en andersom. Allebei vóór checkOpenTrades, want die is het

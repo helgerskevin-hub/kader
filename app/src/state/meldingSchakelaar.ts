@@ -4,12 +4,13 @@
 import { registreerAchtergrondtaak, stopAchtergrondtaak } from '../notifications/achtergrondtaak';
 import { stelDagelijkseMeldingIn, wisAlleGeplandeMeldingen } from '../notifications/meldingen';
 import { bewaarMeldingVoorkeur } from './meldingVoorkeur';
+import { heeftWidgets } from '../widget/widgetVerversen';
 
 /**
  * Zet alle Kader-meldingen aan of uit, en maakt dat meteen waar.
  *
  * Uit betekent echt uit: de geplande dagelijkse herinnering wordt gewist en de achtergrondtaak
- * uitgeschreven. Alleen een vlag zetten zou de dagelijkse melding gewoon laten doorgaan, want die
+ * uitgeschreven, behalve als er een widget op het startscherm staat (dan ververst hij alleen die). Alleen een vlag zetten zou de dagelijkse melding gewoon laten doorgaan, want die
  * staat al bij Android in de wachtrij en heeft de app niet meer nodig om af te gaan.
  */
 export async function zetMeldingen(aan: boolean): Promise<void> {
@@ -19,6 +20,8 @@ export async function zetMeldingen(aan: boolean): Promise<void> {
     await registreerAchtergrondtaak();
   } else {
     await wisAlleGeplandeMeldingen();
-    await stopAchtergrondtaak();
+    // Met een widget op het startscherm blijft de taak draaien, alleen voor de widget: de taak
+    // slaat de meldingen zelf over zolang ze uit staan.
+    if (!(await heeftWidgets())) await stopAchtergrondtaak();
   }
 }

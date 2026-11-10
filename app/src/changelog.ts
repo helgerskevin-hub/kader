@@ -40,6 +40,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-11-10',
+    punten: [
+      'De widget is vernieuwd. Hij toont je open resultaat nu standaard in procenten, met de dollars eronder als je die aanzet, en op de brede widget per positie een balk van stop naar doel met een stip op de koers. In Instellingen, onder Widget, kies je de indeling (Resultaat of Vermogen), het hoofdgetal (%, $ of R), de balken, welke posities erop staan (dichtst bij stop of doel, grootste, of beste en slechtste) en hoeveel. Rechtsboven staat hoe laat de cijfers zijn; zijn ze ouder dan twee uur, dan is de tijd oranje. De widget ververst nu ook op de achtergrond als je meldingen uit staan',
+    ],
+  },
+  {
     versie: '0.4.1',
     datum: '2026-11-10',
     nieuweFeatures: [
