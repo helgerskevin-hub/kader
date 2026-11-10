@@ -40,8 +40,24 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.4.2',
     datum: '2026-11-10',
+    nieuweFeatures: [
+      {
+        icoon: 'widget',
+        kleur: 'primair',
+        titel: 'Een duidelijkere widget',
+        tekst: 'Je open resultaat staat nu in procenten, en op de brede widget heeft elke positie een balk van stop naar doel. De widget ververst ook als je meldingen uit staan.',
+        plek: 'Je startscherm',
+      },
+      {
+        icoon: 'spreiding',
+        kleur: 'cta',
+        titel: 'Kies zelf wat de widget toont',
+        tekst: 'Procenten, dollars of R, je resultaat of je vermogen, met of zonder balken, en welke posities. Dollars staan er alleen op als jij dat kiest.',
+        plek: 'Instellingen, onder Widget',
+      },
+    ],
     punten: [
       'De widget is vernieuwd. Hij toont je open resultaat nu standaard in procenten, met de dollars eronder als je die aanzet, en op de brede widget per positie een balk van stop naar doel met een stip op de koers. In Instellingen, onder Widget, kies je de indeling (Resultaat of Vermogen), het hoofdgetal (%, $ of R), de balken, welke posities erop staan (dichtst bij stop of doel, grootste, of beste en slechtste) en hoeveel. Rechtsboven staat hoe laat de cijfers zijn; zijn ze ouder dan twee uur, dan is de tijd oranje. De widget ververst nu ook op de achtergrond als je meldingen uit staan',
     ],
