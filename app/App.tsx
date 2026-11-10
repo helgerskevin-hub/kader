@@ -38,7 +38,7 @@ import { meldingenAan } from './src/state/meldingVoorkeur';
 import { heeftWidgets } from './src/widget/widgetVerversen';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
-import { registreerAchtergrondtaak } from './src/notifications/achtergrondtaak';
+import { registreerAchtergrondtaak, stopAchtergrondtaak } from './src/notifications/achtergrondtaak';
 import { MarktProvider, useMarkt } from './src/state/MarktProvider';
 import { KansenProvider } from './src/state/KansenProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
@@ -409,6 +409,9 @@ function AppInhoud() {
           registreerAchtergrondtaak();
         } else if (await heeftWidgets()) {
           registreerAchtergrondtaak();
+        } else {
+          // Meldingen uit en de widget weg: dan heeft de taak niets meer te doen.
+          stopAchtergrondtaak();
         }
       });
     });

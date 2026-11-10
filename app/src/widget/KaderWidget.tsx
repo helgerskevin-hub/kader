@@ -282,12 +282,13 @@ function Posities({ posities, weergave, kleuren, breedte }: { posities: WidgetPo
 }
 
 // Indeling Vermogen: het vermogen groot, het open resultaat in dollars en procenten eronder.
-function Vermogen({ stand, vermogen, kleuren, breed, posities }: {
+function Vermogen({ stand, vermogen, kleuren, breed, posities, nu }: {
   stand: WidgetStand;
   vermogen: number;
   kleuren: ColorTokens;
   breed: boolean;
   posities: WidgetPositie[];
+  nu: number;
 }) {
   const pct = getal(stand.totaalPct);
   const delen = [
@@ -304,7 +305,7 @@ function Vermogen({ stand, vermogen, kleuren, breed, posities }: {
         {delen.length > 0 && (
           <TextWidget text={delen.join(' · ')} maxLines={1} style={{ fontSize: 13, fontFamily: MONO, color: kleur, marginTop: spacing.xs }} />
         )}
-        <TextWidget text={`open resultaat · ${tijdTekst(stand.tijd, Date.now())}`} maxLines={1} style={{ fontSize: 11, fontFamily: SANS, color: hex(kleuren.tekstGedimd) }} />
+        <TextWidget text={`open resultaat · ${tijdTekst(stand.tijd, nu)}`} maxLines={1} style={{ fontSize: 11, fontFamily: SANS, color: hex(nu - stand.tijd > OUD_NA_MS ? kleuren.letOp : kleuren.tekstGedimd) }} />
       </FlexWidget>
     );
   }
@@ -355,7 +356,7 @@ export function KaderWidget({ stand, weergave, breedte, kleuren, nu, uri }: Prop
     inhoud = <Melding titel="Open Kader om bij te werken" sub={null} kleuren={kleuren} />;
   } else if (aantal === 0) {
     inhoud = vermogen !== null
-      ? <Vermogen stand={stand} vermogen={vermogen} kleuren={kleuren} breed={false} posities={[]} />
+      ? <Vermogen stand={stand} vermogen={vermogen} kleuren={kleuren} breed={false} posities={[]} nu={nu} />
       : <Melding titel="Geen open posities" sub={null} kleuren={kleuren} />;
   } else if (stand.metKoers === 0) {
     inhoud = <Melding titel="Open Kader om bij te werken" sub={`${aantal} open, nog geen koers`} kleuren={kleuren} />;
@@ -365,7 +366,7 @@ export function KaderWidget({ stand, weergave, breedte, kleuren, nu, uri }: Prop
     const telling = `${aantal} open${gedeeltelijk ? `, ${stand.metKoers} met koers` : ''}`;
     if (vermogen !== null) {
       volleBreedte = breed;
-      inhoud = <Vermogen stand={stand} vermogen={vermogen} kleuren={kleuren} breed={breed} posities={posities.slice(0, 3)} />;
+      inhoud = <Vermogen stand={stand} vermogen={vermogen} kleuren={kleuren} breed={breed} posities={posities.slice(0, 3)} nu={nu} />;
     } else {
       // Op de smalle widget staat de urgentste positie in de onderregel; op de brede staan ze ernaast.
       const urgent = stand.posities.find(p => p.nabij !== null);

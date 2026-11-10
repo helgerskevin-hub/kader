@@ -87,7 +87,10 @@ export function useWidgetWeergave(opTekenen: () => Promise<void>) {
   }, []);
 
   const kies = useCallback(async (wijziging: Partial<WidgetWeergave>) => {
-    const nieuw = pasToe(geheugen ?? STANDAARD_WEERGAVE, wijziging);
+    // Nog niet geladen (de sheet ging net open): eerst de bewaarde keuzes, anders overschrijft één
+    // tik alle andere met de standaard.
+    if (geheugen === null) geheugen = await laadWidgetWeergave();
+    const nieuw = pasToe(geheugen, wijziging);
     geheugen = nieuw;
     luisteraars.forEach(f => f(nieuw));
     const { bedragen, ...rest } = nieuw;
