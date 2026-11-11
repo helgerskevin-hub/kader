@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Het vermogen op de widget telt je posities nu tegen de koers van nu, net als de statuskaart op Portfolio. Eerder stond er het bedrag van de laatste eToro-sync, met je posities op wat je erin stopte
+
 ## 0.4.2
 
 - De widget is vernieuwd. Hij toont je open resultaat nu standaard in procenten, met de dollars eronder als je die aanzet, en op de brede widget per positie een balk van stop naar doel met een stip op de koers. In Instellingen, onder Widget, kies je de indeling (Resultaat of Vermogen), het hoofdgetal (%, $ of R), de balken, welke posities erop staan (dichtst bij stop of doel, grootste, of beste en slechtste) en hoeveel. Rechtsboven staat hoe laat de cijfers zijn; zijn ze ouder dan twee uur, dan is de tijd oranje. De widget ververst nu ook op de achtergrond als je meldingen uit staan

@@ -40,6 +40,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-11-11',
+    punten: [
+      'Het vermogen op de widget telt je posities nu tegen de koers van nu, net als de statuskaart op Portfolio. Eerder stond er het bedrag van de laatste eToro-sync, met je posities op wat je erin stopte',
+    ],
+  },
+  {
     versie: '0.4.2',
     datum: '2026-11-10',
     nieuweFeatures: [
