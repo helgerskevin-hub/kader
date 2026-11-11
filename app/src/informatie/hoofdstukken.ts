@@ -227,7 +227,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
       '▲ en ▼ tonen hoeveel plekken een coin steeg of zakte sinds de vorige scan',
       'De stop staat ruim, omdat eToro 1% rekent bij kopen en 1% bij verkopen: hoe krapper de stop, hoe zwaarder die 2% weegt tegenover je risico',
       'Met het oude plan (stop op de EMA20) ging een koopsignaal na kosten van +0,22 R naar -0,17 R per trade',
-      'De prijs en het plan volgen de koers van nu; de score, de ring en de afstand tot de top zijn die van de laatste afgesloten dag. VANDAAG op de kaart is het verschil tussen die twee',
+      'De prijs en het plan volgen de koers van nu; de score, de ring en de afstand tot de top zijn die van de laatste afgesloten dag. NU op de kaart is de beweging sinds dat slot',
       'Signaalresultaat houdt bij wat het plan van elke radar-coin na kosten gedaan zou hebben, zodat je ziet of de lijst live doet wat de meting zei',
       'Eist eToro een ruimere stop dan 3x ATR, dan schuift de stop op en zakt de R/R mee',
       'De niveaus wijken af van Markt, omdat dit een ander plan is',

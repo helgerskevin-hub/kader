@@ -84,7 +84,8 @@ export function MomentumCompact({ ingredienten, volgorde = 0, vandaag = null }: 
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MOMENTUM</Text>
         <View style={styles.spacer} />
         {([
-          { label: 'VANDAAG', waarde: vandaag },
+          // Kort label: met VANDAAG erbij brak 30D op een telefoon van 411 dp naar een tweede regel.
+          { label: 'NU', waarde: vandaag },
           { label: '7D', waarde: rendement7d },
           { label: '30D', waarde: rendement30d },
         ] as const).map(({ label, waarde }) => waarde !== null && (

@@ -12,7 +12,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 - Heb je een coin van de radar al, dan staat er Heb je al op de kaart. Beweegt een coin sterk mee met een van je posities, dan zegt de kaart dat erbij
 - Bij Waarom stond het verschil met bitcoin als sterker dan BTC. Dat las als een pluspunt, terwijl het niet meetelt in de score. Het staat er nu als kaal getal
 - Signaalresultaat houdt nu ook de volglijst van Kansen bij. Elke coin die op de radar komt, volgt Kader met het plan van de kaart, tot stop, doel of 30 dagen. Je ziet het gemiddelde resultaat na de kosten van eToro, apart voor een gunstig en een ander marktklimaat, naast wat de meting voorspelde. Het zijn geen koopsignalen en ze tellen niet mee in de andere cijfers
-- Op de kaart van Kansen staat nu ook hoeveel de koers vandaag bewogen is. De score en de afstand tot de top zijn van de laatste afgesloten dag, de prijs is van nu; dit getal laat zien waarom die twee soms uit elkaar lopen
+- Op de kaart van Kansen staat nu ook hoeveel de koers vandaag bewogen is, onder NU. De score en de afstand tot de top zijn van de laatste afgesloten dag, de prijs is van nu; dit getal laat zien waarom die twee soms uit elkaar lopen
 
 ## 0.4.2
 
