@@ -62,7 +62,8 @@ Bevat 3 sub-tabbladen:
   van 30 dagen met verandering en momentumbalkjes; uitgeklapt staan het
   plan (stop 3x ATR onder de koers, doel op drie keer dat risico) als stop-doel-baan
   met stip voor de koers, de uitleg wat dat plan na kosten deed, en de knoppen
-  "Getrade" en "Details". Er staat altijd WATCH en er is geen Koop-knop. Heb je de
+  "Getrade", "Koop" en "Details". Er staat altijd WATCH: Kader adviseert hier niet, maar kopen
+  kan bij elke coin met een plan, net als op Markt. Heb je de
   coin al, dan staat er een merkje "HEB JE AL". Is het marktklimaat niet gunstig,
   dan staat dat in één regel boven de lijst. Staat niets dicht bij zijn top, dan
   zegt het scherm dat eerlijk en toont het de drie die er het dichtst bij zitten.
@@ -303,8 +304,8 @@ bij de nuchtere toon. Eén icon-familie per rol, consistent doorvoeren.
 coinlogo, naast prijs, badge en een vlakgrafiek van 30 dagen met de verandering.
 Entry-zone, stop, doel en R/R zitten als stop-doel-baan met stip voor de koers
 in het uitgeklapte deel, samen met indicatoren (RSI/MACD), "Over deze coin" en
-de pilknoppen "Getrade", "Koop" en "Details" (op Kansen zonder "Koop"). Tik =
-uitklappen, Details = detailscherm.
+de pilknoppen "Getrade", "Koop" en "Details". Tik = uitklappen, Details =
+detailscherm.
 
 **eToro-resultaatkaart:** 🟢/🟡/🔴-oordeel groot, totaalscore als ring,
 aanbevolen Copy Stop Loss % in een apart vak, onderbouwing als drie korte regels.
