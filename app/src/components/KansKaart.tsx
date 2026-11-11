@@ -1,12 +1,12 @@
 import React, { memo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { CheckCircle, Star, ShoppingCart } from 'lucide-react-native';
+import { CheckCircle, Star } from 'lucide-react-native';
 import { fmtPrijs, fmtRR } from '../engine/format';
 import { StopLossLimiet } from '../engine/etoroLimieten';
-import { MIN_RISK_REWARD } from '../engine/analyzer';
-import { effectiefSignaal } from '../engine/opportunities';
-import { handelbaarOp, isAlleenBekijken, noemPlatforms } from '../engine/platforms';
+import { etoroPlan } from '../engine/opportunities';
+import { RADAR_METING_UITLEG, RADAR_PLAN_UITLEG } from '../engine/momentum';
+import { opsomming } from '../engine/correlatie';
 import { KansMetRang, RangVerschil } from '../state/KansenProvider';
 import { useValutaStand } from '../state/useValuta';
 import { useTheme } from '../theme/ThemeProvider';
@@ -15,8 +15,6 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { schuifOvergang, uitklapInGestaffeld, uitklapUit } from '../theme/lijstBeweging';
 import { AdviceBadge } from './AdviceBadge';
-import { PlatformChips } from './PlatformChip';
-import { PlatformSheet } from './PlatformSheet';
 import { useDrukVeer } from './Drukbaar';
 import { UitklapPijl } from './UitklapPijl';
 import { MomentumCompact, afstandLabel } from './MomentumBalken';
@@ -31,17 +29,18 @@ interface Props {
   volgorde?: number;
   onOpenDetail: (kans: KansMetRang) => void;
   onGetrade: (kans: KansMetRang) => void;
-  // Ontbreekt zonder koppeling met schrijfrecht. De knop opent alleen de sheet, hij plaatst nooit
-  // zelf een order.
-  onKoop?: (kans: KansMetRang) => void;
   favoriet?: boolean;
   onToggleFavoriet?: (symbool: string) => void;
   // De stop-loss-grens van eToro voor deze coin. Zonder grens blijft het niveau van Kader staan.
   limiet?: StopLossLimiet | null;
-  // De scan is ouder dan KANSEN_COOLDOWN_MS: het plan kan al achterhaald zijn, dus geen Koop-knop
-  // tot er ververst is. Het scherm legt dat boven de lijst in één regel uit.
-  verouderd?: boolean;
+  // Je hebt deze coin al als open positie. Een merkje, geen filter: de radar zelf blijft zuiver
+  // marktanalyse.
+  inBezit?: boolean;
+  // Open posities waar deze coin de afgelopen 30 dagen sterk mee meebewoog (zie correlatie.ts).
+  beweegtMeeMet?: string[];
 }
+
+const GEEN_SYMBOLEN: string[] = [];
 
 // Kleine rangwissel naast de badge: pijl plus getal, dus niet alleen kleur. 'nieuw' is een eigen
 // label, null (geen vorige scan, of een gelijke plek) laat niets zien.
@@ -74,8 +73,8 @@ export function RangLabel({ verschil }: { verschil: RangVerschil }) {
 // Memo: tijdens een scan tekent KansenScreen bij elk voortgangstikje opnieuw, en zonder memo
 // tekenden alle al gelande kaarten mee (en startten hun balkjes en sparkline opnieuw op).
 export const KansKaart = memo(function KansKaart({
-  kans, volgorde = 0, onOpenDetail, onGetrade, onKoop, favoriet, onToggleFavoriet, limiet = null,
-  verouderd = false,
+  kans, volgorde = 0, onOpenDetail, onGetrade, favoriet, onToggleFavoriet, limiet = null,
+  inBezit = false, beweegtMeeMet = GEEN_SYMBOLEN,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
@@ -84,30 +83,23 @@ export const KansKaart = memo(function KansKaart({
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
-  const [platformsOpen, setPlatformsOpen] = useState(false);
   // De hele kaart veert mee, en het detailscherm groeit uit de hele kaart, ook via Details.
   const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
 
-  // Het uitbraak-plan van de radar, niet de Markt-niveaus uit kans.trade (zie momentum.ts).
+  // Het plan van de radar, niet de Markt-niveaus uit kans.trade (zie momentum.ts).
   const plan = kans.niveaus;
-  // Na de eToro-stopcorrectie: schuift eToro de stop op en zakt de R/R onder de drempel, dan is het
-  // hier WATCH, ook als de scan KOOP zei. Badge, R/R-chip en Koop-knop lezen alle drie hieruit.
-  const { signaal, haaltRr, niveaus } = effectiefSignaal(kans, limiet);
-  // Zelfde regel als TradeCard: het merkje betekent dat Kader deze order kan plaatsen, dus het
-  // hangt aan precies dezelfde voorwaarde als de koopknop.
-  const platforms = onKoop ? handelbaarOp(kans.symbool) : [];
-  // Alleen bij een KOOP met een plan: zonder entry, stop en doel valt er geen order te bouwen, en
-  // bij WATCH zegt Kader zelf dat het nog niet klopt. Bij een verouderde scan ook niet: dan kan het
-  // plan al achterhaald zijn.
-  const kanKopen = !!(plan && signaal === 'KOOP' && !verouderd && onKoop && !isAlleenBekijken(kans.symbool));
+  // Zoals het bij eToro te zetten is: eist eToro een ruimere stop, dan schuift hij op en zakt de
+  // R/R mee. Baan en R/R-chip lezen allebei hieruit.
+  const niveaus = etoroPlan(kans, limiet);
   const afstand = kans.ingredienten.afstandHigh90d;
   const schuif = schuifOvergang(reduceMotion);
 
   // Prijs en R/R staan op de kaart maar zaten niet in het label: de ring en de chip zijn niet apart
   // voorleesbaar (ze zitten binnen het tikvlak), dus zonder deze twee mist TalkBack ze. Zonder plan
   // is er geen R/R.
-  const kaartLabel = `${kans.symbool}, ${kans.naam}, ${signaal}, momentumscore ${Math.round(kans.momentumScore)}`
-    + `, prijs ${fmtPrijs(kans.prijs)}${plan && niveaus ? `, R/R ${fmtRR(niveaus.rr)}` : ''}`;
+  const kaartLabel = `${kans.symbool}, ${kans.naam}, volglijst, momentumscore ${Math.round(kans.momentumScore)}`
+    + `, prijs ${fmtPrijs(kans.prijs)}${plan && niveaus ? `, R/R ${fmtRR(niveaus.rr)}` : ''}`
+    + (inBezit ? ', heb je al' : '');
 
   return (
     <Animated.View
@@ -187,15 +179,21 @@ export const KansKaart = memo(function KansKaart({
         {/* Wrap: met een grotere systeemletter passen badge, rang en R/R op 360 dp niet altijd
             naast elkaar. De pijl blijft dan rechts op de laatste regel. */}
         <View style={styles.voet}>
-          <AdviceBadge advies={signaal} score={kans.momentumScore} />
+          {/* Altijd WATCH: de radar is een volglijst (zie RADAR_METING_UITLEG in momentum.ts). */}
+          <AdviceBadge advies="WATCH" score={kans.momentumScore} />
           <RangLabel verschil={kans.rangVerschil} />
-          {/* Zonder plan is er geen R/R om te tonen. Onder de drempel in de letOp-kleur: precies de
-              reden dat het hier geen KOOP is. */}
+          {/* Zonder plan is er geen R/R om te tonen. */}
           {plan && niveaus && (
             <View style={[styles.rrChip, { backgroundColor: colors.verhoogd }]}>
-              <Text style={[Type.prijs, styles.pilTekst, { color: haaltRr ? colors.tekstGedimd : colors.letOp }]}>
+              <Text style={[Type.prijs, styles.pilTekst, { color: colors.tekstGedimd }]}>
                 R/R {fmtRR(niveaus.rr)}
               </Text>
+            </View>
+          )}
+          {/* Tekst en geen kleur alleen; het kaartlabel leest hem ook voor. */}
+          {inBezit && (
+            <View style={[styles.nieuw, { backgroundColor: colors.verhoogd }]}>
+              <Text style={[Type.overline, { color: colors.tekstPrimair }]}>HEB JE AL</Text>
             </View>
           )}
           <View style={[styles.pijlRondje, { backgroundColor: colors.verhoogd }]}>
@@ -220,18 +218,11 @@ export const KansKaart = memo(function KansKaart({
                   live={kans.prijs}
                   labels
                 />
-                {/* De stop staat hier op de EMA20 en niet op de swing low zoals op Markt. Zonder deze
-                    regel lijkt een andere stop voor dezelfde coin een fout. */}
+                {/* De stop staat hier veel ruimer dan op Markt. Zonder deze regel lijkt een andere
+                    stop voor dezelfde coin een fout. */}
                 <Text style={[Type.caption, styles.notitie, { color: colors.tekstGedimd }]}>
-                  Uitbraak-plan: stop op de EMA20, doel boven de 90d-top.
+                  {RADAR_PLAN_UITLEG}
                 </Text>
-                {/* Zelfde waarschuwing als TradeCard: onder de drempel in de letOp-kleur, met de
-                    drempel in dezelfde opmaak als de waarde zodat "onder 1 : 2.0" niet als "1,2" leest. */}
-                {!haaltRr && (
-                  <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
-                    R/R {fmtRR(niveaus.rr)}, onder {fmtRR(MIN_RISK_REWARD)}: geen koopsignaal.
-                  </Text>
-                )}
                 {/* Alleen als eToro voor deze coin helemaal geen stop toelaat. */}
                 {niveaus.uitleg ? (
                   <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
@@ -241,7 +232,7 @@ export const KansKaart = memo(function KansKaart({
               </>
             ) : (
               <Text style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>
-                De koers staat onder de EMA20, dus er is nu geen instap-plan.
+                Te weinig koersdata om een plan te maken.
               </Text>
             )}
           </Animated.View>
@@ -252,45 +243,22 @@ export const KansKaart = memo(function KansKaart({
               <Text key={i} style={[Type.caption, styles.reden, { color: colors.tekstGedimd }]}>• {r}</Text>
             ))}
             <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
-              Dit is een uitbraak-plan: de stop staat op de EMA20 en het doel 2x ATR boven de
-              90d-top. Daarom wijken de niveaus af van die op Markt.
+              {RADAR_METING_UITLEG}
             </Text>
+            {beweegtMeeMet.length > 0 && (
+              <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
+                Let op: beweegt sterk mee met je {opsomming(beweegtMeeMet)}. Samen is dat grotendeels
+                één weddenschap.
+              </Text>
+            )}
           </Animated.View>
 
-          {/* De knoppenrij mag afbreken: Getrade en Koop met merkjes passen op 360 dp niet altijd op
-              één regel, en een knop gaat liever naar de volgende regel dan dat zijn label afkapt.
-              Details staat daaronder op een eigen regel. */}
+          {/* Geen Koop-knop: Kader adviseert hier niet. Getrade legt een trade vast die je zelf hebt
+              gedaan, met dit plan. Details staat daaronder op een eigen regel. */}
           <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} style={styles.knoppen}>
             {plan && (
               <View style={styles.pilRij}>
-                {plan && (
-                  <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(kans)} />
-                )}
-                {kanKopen && onKoop && (
-                  <View style={styles.koopGroep}>
-                    <PilKnop
-                      label="Koop"
-                      icoon={ShoppingCart}
-                      variant="cta"
-                      onPress={() => onKoop(kans)}
-                      accessibilityLabel={`${kans.symbool} kopen via eToro`}
-                    />
-                    {/* De merkjes staan alleen naast een Koop-knop die er ook echt staat: zonder knop
-                        kan Kader hier niets plaatsen, dus zou het merkje iets beloven dat niet klopt. */}
-                    {platforms.length > 0 && (
-                      <Pressable
-                        onPress={() => setPlatformsOpen(true)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
-                        // Links maar 4: daar staat de Koop-pil, en de slop mag het raakvlak van die knop
-                        // niet overlappen.
-                        hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
-                      >
-                        <PlatformChips platforms={platforms} maat={20} />
-                      </Pressable>
-                    )}
-                  </View>
-                )}
+                <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(kans)} />
               </View>
             )}
             <View style={styles.details}>
@@ -309,16 +277,6 @@ export const KansKaart = memo(function KansKaart({
             </View>
           </Animated.View>
         </Animated.View>
-      )}
-
-      {/* Alleen mounten als hij open is: anders staat er per kaart een Modal in de boom. */}
-      {platformsOpen && (
-        <PlatformSheet
-          zichtbaar
-          onSluiten={() => setPlatformsOpen(false)}
-          symbool={kans.symbool}
-          platforms={platforms}
-        />
       )}
     </Animated.View>
   );
@@ -398,7 +356,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  koopGroep: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   knoppen: { gap: spacing.sm },
   // Details staat op een eigen regel, rechts. In de afbrekende knoppenrij met marginLeft auto
   // rekende Yoga er een lege extra regel bij, met een gat onder de knop.

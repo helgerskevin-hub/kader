@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
+import { Marktklimaat } from '../engine/marktklimaat';
 import { laadObject, bewaarObject, SLEUTELS } from '../storage/opslag';
 
 // De Kansen-scan (momentum-radar) woont hier en niet in het scherm, zodat het laatste resultaat
@@ -34,15 +35,19 @@ export type KansenState =
   | {
       status: 'success';
       kansen: KansMetRang[];
-      // True als er niets op de radar staat; `kansen` zijn dan de sterkste drie, als WATCH.
+      // True als er niets op de radar staat; `kansen` zijn dan de sterkste drie.
       radarLeeg: boolean;
       gescand: number;
+      // Het marktklimaat van deze scan, zelfde berekening als op Markt. Null als het niet te
+      // bepalen was.
+      klimaat: Marktklimaat | null;
       lastUpdate: Date;
     };
 
 // Versie van de bewaarde vorm. Verhoog hem als BewaardeScan of Opportunity verandert: een scan in
 // een andere versie wordt dan niet getoond maar gewoon opnieuw gedaan.
-const BEWAAR_VERSIE = 1;
+// Versie 2 (nov 2026): geen signaal meer per kans, een ander plan, en het klimaat erbij.
+const BEWAAR_VERSIE = 2;
 
 // Wat er in AsyncStorage staat.
 interface BewaardeScan {
@@ -50,6 +55,7 @@ interface BewaardeScan {
   kansen: Opportunity[];
   radarLeeg: boolean;
   gescand: number;
+  klimaat: Marktklimaat | null;
   tijdstip: number;
   // Symbool -> positie (0 = bovenaan) in de scan hiervoor. Null als er geen scan hiervoor was.
   vorigeRanking: Record<string, number> | null;
@@ -80,6 +86,7 @@ function naarSucces(scan: BewaardeScan): KansenState {
     kansen: metRang(scan),
     radarLeeg: scan.radarLeeg,
     gescand: scan.gescand,
+    klimaat: scan.klimaat ?? null,
     lastUpdate: new Date(scan.tijdstip),
   };
 }
@@ -167,7 +174,7 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
       if (!stil) dispatch({ type: 'START' });
       try {
         await laadBewaard();
-        const { kansen, radarLeeg, gescand } = await zoekKansen(
+        const { kansen, radarLeeg, gescand, klimaat } = await zoekKansen(
           (klaar, totaal) => {
             if (!stil) dispatch({ type: 'PROGRESS', gescand: klaar, totaal });
           },
@@ -176,7 +183,7 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
         const vorige = laatsteRef.current;
         const nieuw: BewaardeScan = {
           versie: BEWAAR_VERSIE,
-          kansen, radarLeeg, gescand,
+          kansen, radarLeeg, gescand, klimaat,
           tijdstip: Date.now(),
           vorigeRanking: vorige ? rankingVan(vorige) : null,
         };
