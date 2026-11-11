@@ -12,7 +12,10 @@ import { haalLaatstePrijzen } from '../engine/marketData';
 import { haalOmgeving } from '../state/etoroSleutels';
 import { laadLijst, laadObject, bewaarObject, SLEUTELS } from '../storage/opslag';
 import { WidgetWeergave, laadWidgetWeergave } from '../state/widgetWeergave';
-import { laadHandelskapitaal } from '../state/handelskapitaal';
+import { bruikbaar, laadHandmatig } from '../state/handelskapitaal';
+import { laadAutoKapitaal } from '../state/autoKapitaal';
+import { heeftEnigeSleutel } from '../state/etoroSleutels';
+import { berekenPortfolioWaarde } from '../state/statistieken';
 import { lightTokens, darkTokens } from '../theme/tokens';
 
 // Moet gelijk zijn aan de naam in de plugin-instelling in app.json.
@@ -62,13 +65,30 @@ export async function heeftWidgets(): Promise<boolean> {
   }
 }
 
+// Het vermogen van nu, zoals de statuskaart op Portfolio het telt: vrij saldo (met wat er in
+// wachtende orders vastzit) plus CopyTrader-geld plus je eToro-posities tegen de koers van nu.
+// Niet het totaal uit de laatste sync: dat zet de posities op kostprijs met eToro's ongerealiseerde
+// resultaat van dat moment, en loopt dus achter op wat de widget eronder als resultaat toont.
+// Zonder eToro-koppeling het handmatig ingevulde kapitaal, dat is geen live getal.
+async function vermogenNu(
+  trades: PortfolioTrade[],
+  livePrijzen: Record<string, number>,
+  omgeving: EtoroOmgeving,
+): Promise<number | null> {
+  const [gekoppeld, auto] = await Promise.all([heeftEnigeSleutel().catch(() => false), laadAutoKapitaal()]);
+  const stand = auto[omgeving];
+  if (!gekoppeld || !bruikbaar(stand)) return laadHandmatig();
+  const posities = berekenPortfolioWaarde(trades, livePrijzen, { etoroOmgeving: omgeving }).huidigeWaardeUsd;
+  return Math.max(0, stand.vrijUsd) + Math.max(0, stand.inCopiesUsd) + Math.max(0, posities);
+}
+
 async function berekenBewaarTeken(
   trades: PortfolioTrade[],
   livePrijzen: Record<string, number>,
   omgeving: EtoroOmgeving,
 ): Promise<void> {
   // Het vermogen is extra: lukt het lezen niet, dan toont de widget het gewoon niet.
-  const vermogen = await laadHandelskapitaal().catch(() => null);
+  const vermogen = await vermogenNu(trades, livePrijzen, omgeving).catch(() => null);
   const stand = berekenWidgetStand(trades, livePrijzen, omgeving, Date.now(), vermogen);
   if (stand.aantalOpen > 0 && stand.metKoers === 0) {
     // Nog geen enkele koers (net opgestart, of geen netwerk): dan is de vorige stand van deze
