@@ -34,6 +34,33 @@ Elk punt is in de code nagelopen, niet aangenomen.
 | 8 | Kansen-signalen worden niet gelogd. Het signaalboek volgt alleen Markt. | `MarktProvider` is de enige aanroeper van `registreerSignalen` |
 | 9 | Kansen kijkt niet naar je portfolio. | `KansenScreen` gebruikt alleen `magHandelen` |
 
+### Eerste meting: wat de kosten doen (11 nov 2026)
+
+De bestaande backtest reproduceert op verse data (57 coins t/m 10 nov 2026): de KOOP-regel van
+Kansen geeft +0,236 R over 1279 trades, tegen +0,235 over 1161 in `docs/metingen.md`.
+
+Daarna dezelfde regel nagespeeld met kosten erbij. eToro rekent 1% bij kopen en 1% bij verkopen
+van crypto (eToro's eigen tarievenpagina). De stop van deze trades ligt op mediaan 7,3% van de
+koers, een kwart ligt onder 4,6%.
+
+| scenario | n | gem R | t/m 2022 | 2023 en later |
+|---|---|---|---|---|
+| zonder kosten (wat de app nu aanneemt) | 1279 | +0,236 | +0,350 | +0,192 |
+| 0,5% per kant | 1279 | +0,038 | +0,199 | -0,025 |
+| **1% per kant (eToro)** | 1279 | **-0,160** | +0,048 | -0,241 |
+| 1% per kant, stop minimaal 5% | 1173 | -0,066 | +0,122 | -0,144 |
+| 1% per kant, stop minimaal 10% | 751 | -0,070 | +0,142 | -0,191 |
+
+Met eToro's kosten verliest de huidige KOOP van Kansen gemiddeld geld, en sinds 2023 in elk jaar.
+De kosten in R zijn de kosten gedeeld door de stopafstand: hoe krapper de stop, hoe zwaarder 2%
+weegt. Dat is de belangrijkste ontwerpregel voor alles hierna. Een soort kans met een ruimere
+stop en een groter doel betaalt naar verhouding minder.
+
+Kanttekeningen: dit is een proefmeting buiten `backtest.ts`, zonder klimaatpoort, en de minimale
+stop is als één percentage voor alle coins genomen in plaats van per coin. Fase 0 bouwt hem
+netjes in. Markts eigen KOOP (+0,106 R zonder kosten) is nog niet met kosten gemeten; dat hoort
+bij het vervolgvoorstel voor Markt.
+
 ## 3. Keuzes van Kevin (11 nov 2026)
 
 | Onderwerp | Keuze |
@@ -94,9 +121,10 @@ Doel: een backtest die meet wat de app straks doet.
 
 - Historie ophalen (`node scripts/haal-historie.mjs 9`) en meting C, I en J reproduceren. De
   cijfers moeten overeenkomen met `docs/metingen.md`, op de extra weken data na.
-- Kosten in `simuleer()`: een parameter voor de spread per kant. De echte waarden komen uit de
-  live spread die de app al ophaalt (`engine/spread.ts`); tot die gemeten zijn rekent de backtest
-  met drie scenario's (0,5%, 1% en 1,5% per kant) en moet een regel de lat halen op 1%.
+- Kosten in `simuleer()`: een parameter voor de kosten per kant. eToro rekent 1% per kant; daar
+  moet een regel de lat op halen. De backtest toont ook 0,5% en 1,5%, zodat zichtbaar is hoe
+  gevoelig een uitkomst is. De live spread uit `engine/spread.ts` komt daar nog bovenop en wordt
+  per coin gemeten zodra de koppeling beschikbaar is.
 - eToro-stop: per coin de minimale stopafstand. De app kent die via `etoroLimieten.ts`; voor de
   backtest komt er een tabel in `scripts/`, gevuld uit de cache van de app of het demo-account.
 - Splitsing in afstel- en toetsjaren, bootstrap per dag, excess R als standaardkolom.
