@@ -370,3 +370,116 @@ stop onder de swing low ligt op mediaan 11% van de koers. Wat een vervolg zou mo
 dezelfde ruime opzet op Markts selectie, de kosten in de drempels van `drempels.ts`, en de
 afgesloten dag in `analyseerMarkt`. Tot dan beloven de cijfers in `drempels.ts` meer dan er na
 kosten overblijft.
+
+## Meting N: Markt na kosten (11 nov 2026)
+
+Vervolg op meting M. Script: `app/scripts/meting-markt.ts`, dat de kern van `meting-kansen.ts`
+gebruikt. Draaien vanuit `app/`: `npx tsx scripts/meting-markt.ts poort|score|onderdelen|toets`.
+De beslisregels lagen vooraf vast in `docs/markt-kosten-plan.md`, paragraaf 5.
+
+Zelfde opzet als meting M: 1% kosten per kant, instap op de open na het signaal, afstellen op
+signalen t/m november 2022, toetsen op 2023 t/m 2026. Het plan is niet opnieuw afgesteld: stop
+3x ATR, doel 3R, hoogstens 30 dagen.
+
+Twee trappen. Trap 1 (KOOP): het signaal volgen houdt na kosten aantoonbaar geld over. Trap 2
+(STERK KOOP, BEVESTIGD): aantoonbaar beter dan de gewone KOOP-coins op dezelfde dag.
+
+### N1: de klimaatpoort, op de afsteljaren
+
+Elke coin met het plan, zonder verdere selectie.
+
+| poort | n | netto R | 90%-interval | jaren positief |
+|---|---|---|---|---|
+| geen poort | 1911 | +0,107 | -0,08 tot +0,32 | 3 van 5 |
+| huidig: BTC boven EMA50, breedte stijgt | 942 | +0,284 | -0,02 tot +0,58 | 2 van 3 |
+| **huidig, plus BTC boven EMA200** | 707 | **+0,474** | +0,12 tot +0,80 | 2 van 3 |
+| huidig, plus breedte minstens 50% | 835 | +0,263 | -0,09 tot +0,62 | 2 van 3 |
+| BTC boven EMA50 en EMA200, zonder breedte | 922 | +0,386 | +0,10 tot +0,67 | 2 van 4 |
+
+Alleen de huidige poort met "BTC boven EMA200" erbij haalt in de afsteljaren de eis (interval
+boven nul, meerderheid van de jaren). 2022 blijft in elke variant een zwaar verliesjaar; een poort
+maakt er minder trades van, geen betere.
+
+### N2: de score en BEVESTIGD, op de afsteljaren
+
+Met die poort open. Excess is de netto R min die van elke coin op dezelfde dag met de poort open.
+
+| selectie | n | netto R | excess | 90%-interval excess |
+|---|---|---|---|---|
+| elke coin, poort open | 707 | +0,474 | -0,014 | -0,04 tot +0,01 |
+| score 55 of hoger (KOOP) | 689 | +0,460 | -0,018 | -0,07 tot +0,03 |
+| score 72 of hoger (STERK KOOP) | 606 | +0,483 | -0,015 | -0,08 tot +0,05 |
+| BEVESTIGD | 420 | +0,504 | -0,012 | -0,09 tot +0,07 |
+| score onder 55 (geen KOOP) | 324 | +0,657 | -0,003 | -0,07 tot +0,07 |
+
+Tegen de gewone KOOP-coins op dezelfde dag (de eis van trap 2): score 72+ -0,024, score 75+
+-0,028, BEVESTIGD -0,022, alle intervallen rond nul.
+
+De score kiest na kosten niet. Coins onder de 55 deden het met de poort open minstens zo goed.
+
+### N3: de losse onderdelen, op de afsteljaren
+
+| onderdeel | n | netto R | excess | 90%-interval excess |
+|---|---|---|---|---|
+| trend op (EMA20 boven EMA50) | 624 | +0,421 | +0,006 | -0,05 tot +0,06 |
+| slot boven EMA20 | 691 | +0,460 | -0,014 | -0,06 tot +0,03 |
+| RSI gezond (45 tot 68) | 633 | +0,465 | +0,010 | -0,04 tot +0,06 |
+| MACD bullish | 660 | +0,474 | +0,005 | -0,05 tot +0,06 |
+| volume 1,2x of meer | 582 | +0,548 | -0,008 | -0,07 tot +0,05 |
+| volume 1,5x of meer | 502 | +0,594 | +0,005 | -0,04 tot +0,05 |
+
+Geen enkel onderdeel komt aantoonbaar boven de andere coins uit.
+
+**Trap 2 heeft daarmee geen kandidaat.** Geen scoreband, BEVESTIGD of onderdeel haalt de
+afstelpoort, dus er is voor trap 2 niets getoetst.
+
+### N4: de toets voor trap 1, 2023 t/m 2026
+
+Eén regel ging naar de toets: score 55 of hoger, poort open met BTC ook boven EMA200, het plan.
+
+| regel, 1% per kant | n | netto R | 90%-interval | 23 | 24 | 25 | 26 |
+|---|---|---|---|---|---|---|---|
+| **KOOP: score 55+, poort met BTC boven EMA200** | 1586 | **+0,112** | -0,18 tot +0,41 | +0,21 | +0,17 | -0,22 | +0,26 |
+| idem, elke coin (zonder score) | 1732 | +0,079 | -0,21 tot +0,38 | +0,15 | +0,08 | -0,14 | +0,27 |
+| idem, met de huidige poort | 1780 | +0,133 | -0,16 tot +0,42 | +0,39 | +0,17 | -0,22 | +0,04 |
+| idem, zonder poort | 2327 | +0,020 | -0,23 tot +0,27 | +0,33 | +0,14 | -0,37 | -0,05 |
+| idem, zonder kosten | 1586 | +0,232 | -0,06 tot +0,54 | | | | |
+| idem, 1,5% per kant | 1586 | +0,052 | -0,24 tot +0,35 | | | | |
+| ter vergelijking: Markt nu (eigen niveaus, huidige poort) | 1269 | -0,140 | | +0,02 | -0,13 | -0,44 | -0,03 |
+
+Tegen de lat:
+
+- ja: minstens 150 trades in de toetsjaren (1586)
+- **nee**: netto R aantoonbaar boven nul (ondergrens interval -0,18)
+- ja: netto R positief in minstens 3 van de 4 toetsjaren (3 van 4)
+- ja: netto R positief in de meerderheid van alle jaren (5 van 7)
+
+**Trap 1 haalt de lat niet.** Drie van de vier eisen kloppen, maar het gemiddelde is niet
+aantoonbaar boven nul. Met "stop minimaal 10%" is de uitkomst gelijk (+0,109). Op 29% van de dagen
+in de toetsjaren stond de poort open met minstens één KOOP.
+
+### Hoe het te lezen
+
+- **Het ruime plan is ook op Markt veel beter dan het huidige**: van -0,14 naar +0,11 R per trade
+  na kosten. Dat komt uit het plan, niet uit de score.
+- **De score kiest niet.** Elke coin met de poort open deed +0,08 R, KOOP-coins +0,11 R. In de
+  afsteljaren was het verschil zelfs licht negatief.
+- **De poort doet werk, maar minder dan gedacht.** Zonder poort +0,02 R, met poort +0,11 tot
+  +0,13 R. De variant met EMA200 erbij, die in de afsteljaren het beste was, is op de toets niet
+  beter dan de huidige poort (+0,112 tegen +0,133). Er is dus geen reden de poort te veranderen.
+- **"Niet aantoonbaar" is niet hetzelfde als "werkt niet".** Vier toetsjaren van coins die samen
+  bewegen geven een interval van ongeveer 0,3 R aan weerszijden. Een gemiddelde van +0,11 R valt
+  daar niet van nul te onderscheiden. Om de lat te halen had het rond +0,3 R moeten liggen, of
+  moeten er meer jaren bij. Dat is de prijs van de strenge lat, en die was vooraf gekozen.
+
+### Kanttekeningen
+
+- De toetsjaren waren in meting M al één keer bekeken. Daarom de afstelpoort en hoogstens twee
+  regels naar de toets; er is er één gegaan.
+- Met een poort die marktbreedte vraagt zijn er drie meetbare afsteljaren (2020, 2021, 2022). De
+  eis "meerderheid van de jaren" is daar gelezen als 2 van de 3.
+- De regel met de minste onderdelen was "elke coin met de poort open". Getoetst is de regel met
+  score 55 of hoger, omdat dat het label is waar het om gaat; trap 1 vraagt niet dat de coin beter
+  is dan een andere. De uitkomst van "elke coin" staat ernaast.
+- Verder gelden de kanttekeningen van meting M: de minimale stop is alleen voor BTC gemeten, de
+  live spread komt nog boven de 1%, en het universum bestaat uit coins die nu op eToro staan.

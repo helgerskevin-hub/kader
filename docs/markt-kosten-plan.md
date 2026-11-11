@@ -120,7 +120,48 @@ In elk geval: Markt gaat rekenen op de laatste afgesloten dag, net als Kansen, e
 3. Daarna pas bouwen, in overleg met Thom, omdat dit `analyzer.ts`, `drempels.ts`, de meldingen
    en het signaalboek raakt.
 
-## 8. Aanbeveling model en inspanning
+## 8. Uitkomst (11 nov 2026)
+
+De volledige cijfers staan in `docs/metingen.md`, meting N.
+
+- **Trap 2 (STERK KOOP, BEVESTIGD): geen kandidaat.** Geen scoreband, BEVESTIGD of los onderdeel
+  van de score kiest in de afsteljaren aantoonbaar beter dan de andere coins. Niets getoetst.
+- **Trap 1 (KOOP): haalt de lat niet.** Netto +0,112 R per trade in 2023 t/m 2026, positief in 3
+  van de 4 toetsjaren, maar het interval loopt van -0,18 tot +0,41.
+- **Het ruime plan is wel veel beter dan het huidige:** van -0,14 naar +0,11 R na kosten.
+- **De poort blijft zoals hij is.** De variant met EMA200 was op de toets niet beter.
+
+Volgens de keuzes in paragraaf 3 verdwijnen daarmee alle kooplabels op Markt tot ze zich bewijzen.
+
+## 9. Voorstel per onderdeel
+
+Nog niets gebouwd. Dit is wat de uitkomst voor elk onderdeel betekent; Kevin en Thom beslissen.
+
+| Onderdeel | Voorstel |
+|---|---|
+| Kaarten op Markt | Score, grafiek en klimaat blijven. KOOPZONE, STERK KOOP en BEVESTIGD verdwijnen. De kaart toont het plan dat de kosten draagt (stop 3x ATR, doel 3R), met dezelfde eerlijke uitleg als op Kansen. |
+| Het plan | Van "stop onder de swing low, doel 3x ATR" naar "stop 3x ATR, doel 3R". Dit is de enige wijziging die aantoonbaar helpt, dus die gaat er in elk geval in. |
+| Afgesloten dag | `analyseerMarkt` rekent het oordeel op de laatste afgesloten dag, net als Kansen. Dan zeggen beide tabs ook hetzelfde klimaat. |
+| Klimaatpoort | Ongewijzigd. De balk op Markt blijft, met een tekst die niet meer over koopsignalen gaat. |
+| "Wat kopen nu" en de filters | Vervallen of worden een neutrale sortering op score. Er is geen koopadvies meer om uit te lichten. |
+| Koopknop | Open keuze. Bij Kansen is hij weggehaald. Voor Markt kan hij blijven als knop zonder advies ("koop met dit plan"), zodat de app bruikbaar blijft voor wie zelf kiest. |
+| Meldingen | De melding bij een sterk koopsignaal vervalt. De checks op je open posities blijven; die gaan over je eigen stop en doel. |
+| Signaalboek en Signaalresultaat | Blijven lopen als trackrecord, na kosten en met het nieuwe plan, zoals de volglijst van Kansen. De ijkpunten +0,08 en +0,15 R worden vervangen door +0,11 R uit meting N, met het interval erbij. |
+| Gemiste kansen en het weekrapport | Vervallen in de huidige vorm: zonder signaal valt er niets te missen. |
+| "Eén ding vandaag" en het afbouwadvies | De acties rond je eigen posities blijven. Acties die een nieuw koopsignaal aanraden vervallen. |
+| Kader-check op Copy | "Zelf ook een koopsignaal" vervalt. De check toont de score en het klimaat. |
+| `drempels.ts` | De cijfers in het commentaar zijn van voor de kosten. Wat overblijft is een kleurschaal voor de score, zonder belofte. |
+| Uitleg over voorlopers en achterblijvers | Vervalt. Meting M liet zien dat het een markteffect was. |
+
+**Wanneer een label terug kan.** Het trackrecord loopt door. Een label komt terug als het de lat
+haalt op data die er nu nog niet is: een jaarlijkse hertoets met de nieuwe jaren erbij, of een
+live trackrecord dat groot genoeg is. Niet door de lat te verlagen.
+
+**De vraag die hierboven nog open staat** is de koopknop op Markt, en daarmee wat Kader is: een
+hulpmiddel voor plan, risico en discipline rond trades die je zelf kiest, met Copy en Portfolio
+ernaast.
+
+## 10. Aanbeveling model en inspanning
 
 - Meten en het voorstel: het sterkste model, hoge inspanning.
 - De bouw daarna: het sterkste model voor de engine en de meldingen, het standaardmodel voor de
