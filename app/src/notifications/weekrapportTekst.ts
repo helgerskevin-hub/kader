@@ -4,7 +4,7 @@
 import type { PortfolioTrade } from '../state/portfolioTypes';
 import { behaaldeRR } from '../state/statistieken';
 import { beoordeelTrade } from '../state/discipline';
-import type { GelogdSignaal } from '../engine/signaalLog';
+import { nettoR, type GelogdSignaal } from '../engine/signaalLog';
 import { fmtR } from '../engine/format';
 
 const DAG_MS = 24 * 60 * 60 * 1000;
@@ -35,8 +35,9 @@ export function bouwWeekrapport(trades: PortfolioTrade[], signalen: GelogdSignaa
     delen.push(zin);
   }
   if (sigAf.length > 0) {
-    const gem = sigAf.reduce((s, x) => s + (x.behaaldeR ?? 0), 0) / sigAf.length;
-    delen.push(`Signalen van Kader: ${sigAf.length} afgesloten, gemiddeld ${fmtR(gem)}.`);
+    // Na kosten, net als Signaalresultaat. Geen koopadvies: het trackrecord van de score.
+    const gem = sigAf.reduce((s, x) => s + (nettoR(x) ?? 0), 0) / sigAf.length;
+    delen.push(`Trackrecord van de score: ${sigAf.length} afgesloten, gemiddeld ${fmtR(gem)} na kosten.`);
   }
   return delen.join(' ');
 }
@@ -59,7 +60,7 @@ if (require.main === module) {
     [{ id: 's', symbool: 'ETH', tijd: 0, score: 70, advies: 'KOOPZONE', entry: 1, stop: 0.9, doel: 1.3, rr: 3, uitkomst: 'doel', uitkomstTijd: nu - DAG_MS, behaaldeR: 3 }],
     nu,
   );
-  console.assert(tekst === 'Je trades: +3.0 R uit 3 gesloten trades. Je volgde je plan bij 2 van de 3. Signalen van Kader: 1 afgesloten, gemiddeld +3.00 R.', `was: ${tekst}`);
+  console.assert(tekst === 'Je trades: +3.0 R uit 3 gesloten trades. Je volgde je plan bij 2 van de 3. Trackrecord van de score: 1 afgesloten, gemiddeld +2.77 R na kosten.', `was: ${tekst}`);
   console.assert(bouwWeekrapport([], [], nu) === null, 'lege week geeft geen rapport');
   console.assert(weekSleutel(nu) === weekSleutel(new Date(2026, 10, 2, 0, 1).getTime()), 'maandag en zondag vallen in dezelfde week');
   console.assert(weekSleutel(nu) !== weekSleutel(new Date(2026, 10, 9, 0, 1).getTime()), 'de maandag erna is een nieuwe week');

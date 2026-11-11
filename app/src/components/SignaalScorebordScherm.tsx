@@ -16,6 +16,8 @@ import { useSignaalBoek } from '../state/signaalBoek';
 import { vatVolglijstSamen, type VolglijstSamenvatting } from '../engine/volglijstLog';
 import { useVolglijstBoek } from '../state/volglijstBoek';
 import { RADAR_METING_NETTO_R } from '../engine/momentum';
+import { LABEL_KOOP_BEWEZEN } from '../engine/drempels';
+import { nettoR } from '../engine/signaalLog';
 import { PodiumScherm } from './PodiumScherm';
 import { LegeStaatBeeld, Opkomst } from './LegeStaatBeeld';
 import { AnimatedGetal } from './AnimatedGetal';
@@ -130,7 +132,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                   <LijstGroep
                     titel="Lopende signalen"
                     lijnInspringing={62}
-                    voetnoot="Kader houdt elk koopsignaal vanaf nu bij. Na een paar weken zie je hier of de signalen werken."
+                    voetnoot="Kader volgt elk signaal van de score en het klimaat, met het plan van de kaart en na kosten. Na een paar weken zie je hier of ze werken."
                   >
                     {lopend.map((s, i) => <SignaalRij key={s.id} s={s} index={i} />)}
                   </LijstGroep>
@@ -159,8 +161,9 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
 
               <Animated.View entering={kaartLandt(1, reduceMotion)} style={[styles.ijkpunt, { backgroundColor: colors.verhoogd }]}>
                 <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 19 }]}>
-                  Backtest over negen jaar: <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.08 R</Text> per signaal,{' '}
-                  <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.15 R</Text> bij sterk koop. Live hoort Kader daar in de buurt te zitten.
+                  Na de kosten van eToro. De meting over 2023 t/m 2026 gaf{' '}
+                  <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.11 R</Text> per signaal, niet aantoonbaar meer dan nul.
+                  Daarom toont Kader deze signalen nu niet als koopadvies; hier loopt het trackrecord door.
                 </Text>
               </Animated.View>
 
@@ -188,7 +191,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                 </LijstGroep>
               </Animated.View>
 
-              {gemist && gemist.gemist.aantal + gemist.ontweken.aantal > 0 && (
+              {LABEL_KOOP_BEWEZEN && gemist && gemist.gemist.aantal + gemist.ontweken.aantal > 0 && (
                 <Animated.View entering={kaartLandt(4, reduceMotion)}>
                   <LijstGroep
                     titel="Gemiste kansen"
@@ -221,7 +224,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                 <LijstGroep
                   titel="Recente signalen"
                   lijnInspringing={62}
-                  voetnoot="Dit zijn de signalen die Kader zelf gaf, niet je eigen trades. Kader telt een signaal als raak bij een positief resultaat."
+                  voetnoot="Dit zijn de signalen die de score en het klimaat aanwezen, niet je eigen trades en nu ook geen koopadvies. Resultaten zijn na kosten; raak is een positief resultaat."
                 >
                   {recent.map((s, i) => <SignaalRij key={s.id} s={s} index={i} />)}
                 </LijstGroep>
@@ -350,7 +353,8 @@ export function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
   }[s.uitkomst];
   const pilAchter = s.uitkomst === 'open' ? colors.verhoogd : kleur + '1F';
   const Icoon = { open: Clock, doel: Check, stop: X, verlopen: Minus }[s.uitkomst];
-  const r = s.behaaldeR;
+  // Na kosten, zoals alle cijfers op dit scherm.
+  const r = nettoR(s);
   const datum = s.uitkomstTijd ? `${korteDatum(s.tijd)} → ${korteDatum(s.uitkomstTijd)}` : `sinds ${korteDatum(s.tijd)}`;
 
   return (
@@ -358,7 +362,7 @@ export function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
       entering={uitklapInGestaffeld(index, reduceMotion)}
       style={styles.rij}
       accessible
-      accessibilityLabel={`${s.symbool}, ${s.advies.toLowerCase()}, ${UITKOMST_LABEL[s.uitkomst]}${typeof r === 'number' ? `, ${fmtR(r)}` : ''}`}
+      accessibilityLabel={`${s.symbool}, ${s.advies.toLowerCase()}, ${UITKOMST_LABEL[s.uitkomst]}${r !== null ? `, ${fmtR(r)}` : ''}`}
     >
       <CoinLogo symbool={s.symbool} grootte={36} />
       <View style={styles.rijMidden}>
@@ -373,7 +377,7 @@ export function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
           {datum} · score {s.score}
         </Text>
       </View>
-      {typeof r === 'number' && (
+      {r !== null && (
         <Text style={[styles.rijR, { color: fmtR(r).startsWith('−') ? colors.verlies : colors.winst }]}>{fmtR(r)}</Text>
       )}
     </Animated.View>

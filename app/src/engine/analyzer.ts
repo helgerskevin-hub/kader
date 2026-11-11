@@ -3,7 +3,10 @@ import { rsi as berekenRsi, ema as berekenEma, macd as berekenMacd, atr as berek
 import { haalData } from './marketData';
 import { bepaalKlimaat, poortOpen, Marktklimaat } from './marktklimaat';
 import { berekenRelatieveSterkte, RelatieveSterkte } from './relatieveSterkte';
-import { HIGH_CONVICTION_SCORE, HIGH_CONVICTION_VOLUME_MIN, DREMPEL_KOOP } from './drempels';
+import {
+  HIGH_CONVICTION_SCORE, HIGH_CONVICTION_VOLUME_MIN, DREMPEL_KOOP, LABEL_KOOP_BEWEZEN, LABEL_STERK_BEWEZEN,
+} from './drempels';
+import { radarNiveaus } from './momentum';
 
 // De coins die wij analyseren: op eToro te kopen én met een live Binance USDT-paar (eventueel via
 // een alias, zie BINANCE_ALIAS in marketData.ts). Dit is dus een deelverzameling van ETORO_TRADABLE
@@ -296,13 +299,89 @@ function vergelijkLongs(a: Trade, b: Trade): number {
   return b.rr - a.rr;
 }
 
+const DAG_MS = 86_400_000;
+
+/**
+ * Splitst dagcandles in de afgesloten dagen en de koers van nu. Binance levert de lopende dag als
+ * laatste candle mee; die is nog niet af, dus het volume is te laag en high en slot schuiven nog.
+ * De metingen gooien hem weg (zie scripts/haal-historie.mjs) en maten dus altijd op afgesloten
+ * dagen. De app doet hetzelfde: het oordeel valt op de afgesloten dagen, het plan rekent met de
+ * koers van nu. Een candle zonder tijd valt niet te plaatsen en telt als afgesloten.
+ */
+export function splitsLopendeDag(candles: Candle[], nu: number): { gesloten: Candle[]; prijsNu: number | null } {
+  const laatste = candles[candles.length - 1];
+  if (!laatste) return { gesloten: [], prijsNu: null };
+  const loopt = laatste.tijd !== undefined && nu - laatste.tijd < DAG_MS;
+  return { gesloten: loopt ? candles.slice(0, -1) : candles, prijsNu: laatste.close };
+}
+
+/**
+ * Zet het plan van Markt op een gescoorde coin: stop 3x ATR onder de koers van nu, doel op drie
+ * keer dat risico. Hetzelfde plan als op Kansen (radarNiveaus in momentum.ts), gekozen in meting M
+ * omdat een ruime stop de kosten van eToro draagt en de stop onder de swing low niet. In meting N
+ * ging Markts eigen koopsignaal daarmee na kosten van -0,14 naar +0,11 R per trade.
+ *
+ * scoorCandles zelf houdt zijn oude niveaus: de backtest in scripts/backtest.ts en de checks op je
+ * open posities rekenen daarmee, en die veranderen hier niet. Zonder bruikbare ATR blijft wat
+ * scoorCandles gaf.
+ */
+export function metPlan(trade: Trade, prijsNu: number | null): Trade {
+  const prijs = prijsNu && prijsNu > 0 ? prijsNu : trade.prijs;
+  const plan = radarNiveaus(prijs, trade.atr);
+  if (!plan) return trade;
+  return {
+    ...trade,
+    prijs,
+    entry: plan.entry,
+    entryLaag: prijs - 0.2 * trade.atr,
+    entryHoog: prijs + 0.2 * trade.atr,
+    stopLoss: plan.stopLoss,
+    takeProfit: plan.takeProfit,
+    rr: plan.rr,
+    // De R/R is per constructie 3. Schuift eToro de stop op, dan rekent de kaart dat zelf door.
+    voldoetAanRR: true,
+    // De grafiek eindigt op de koers van nu, even lang als voorheen.
+    sparkline: trade.sparkline && prijs !== trade.prijs ? [...trade.sparkline.slice(1), prijs] : trade.sparkline,
+  };
+}
+
+/**
+ * Het oordeel bij een gescoorde coin. `ruwSignaal` is wat de score en het klimaat zeggen; `signaal`
+ * en `highConviction` zijn wat de app mag tonen, en dat is alleen een kooplabel als het zich na
+ * kosten bewezen heeft (zie de schakelaars in drempels.ts). `trade` moet rechtstreeks uit
+ * scoorCandles komen (via metPlan), met minRR 0: dan is highConviction daar precies "score 75+,
+ * trend op, MACD bullish, volume", zoals BEVESTIGD in meting N gemeten is.
+ */
+export function metLabels(trade: Trade, poortIsOpen: boolean): Trade {
+  const ruwSignaal: 'KOOP' | 'WATCH' = trade.score >= DREMPEL_KOOP && poortIsOpen ? 'KOOP' : 'WATCH';
+  const ruwHighConviction = ruwSignaal === 'KOOP' && trade.highConviction;
+  const signaal: 'KOOP' | 'WATCH' = LABEL_KOOP_BEWEZEN ? ruwSignaal : 'WATCH';
+  return {
+    ...trade,
+    ruwSignaal,
+    ruwHighConviction,
+    signaal,
+    highConviction: LABEL_STERK_BEWEZEN && signaal === 'KOOP' && ruwHighConviction,
+  };
+}
+
+// Eén coin voor de Markt: het oordeel op de afgesloten dagen, het plan op de koers van nu. Alleen
+// bij Binance splitsen: de CoinGecko-fallback levert vier-uurs candles, daar bestaat "de lopende
+// dag" niet als één candle.
+function scoorVoorMarkt(symbool: string, candles: Candle[], bron: string, nu: number): { trade: Trade; gesloten: Candle[] } | null {
+  const { gesloten, prijsNu } = bron === 'Binance' ? splitsLopendeDag(candles, nu) : { gesloten: candles, prijsNu: null };
+  // minRR 0: de R/R van de oude niveaus telt niet meer, het plan komt uit metPlan.
+  const trade = scoorCandles(symbool, gesloten, bron, { minRR: 0 });
+  return trade ? { trade: metPlan(trade, prijsNu), gesloten } : null;
+}
+
 // De voorlopige top-N na een blok, alleen voor de weergave terwijl de scan nog loopt. De scores
-// en niveaus zijn per coin al definitief (scoorCandles kijkt alleen naar de candles van die ene
-// coin), maar de klimaatpoort hangt af van de hele markt. Die rekenen we op wat er tot nu toe
-// binnen is, met één verschil met de eindberekening: zolang er nog geen klimaat te bepalen valt
-// (BTC nog niet binnen, of te weinig coins voor de marktbreedte) telt de poort hier als dicht en
-// niet als open. Een KOOP die aan het eind alsnog verschijnt is een afronding; een KOOP die je
-// al zag en die aan het eind verdwijnt is een belofte die de app niet waarmaakt.
+// en niveaus zijn per coin al definitief, maar de klimaatpoort hangt af van de hele markt. Die
+// rekenen we op wat er tot nu toe binnen is, met één verschil met de eindberekening: zolang er nog
+// geen klimaat te bepalen valt (BTC nog niet binnen, of te weinig coins voor de marktbreedte) telt
+// de poort hier als dicht en niet als open. Een KOOP die aan het eind alsnog verschijnt is een
+// afronding; een KOOP die je al zag en die aan het eind verdwijnt is een belofte die de app niet
+// waarmaakt.
 function voorlopigeTop(
   gescoord: Trade[],
   opgehaald: { symbool: string; candles: Candle[] }[],
@@ -310,9 +389,8 @@ function voorlopigeTop(
 ): Trade[] {
   const btc = opgehaald.find(o => o.symbool === 'BTC');
   const klimaat = btc ? bepaalKlimaat(btc.candles, opgehaald.map(o => o.candles)) : null;
-  const lijst = klimaat && poortOpen(klimaat)
-    ? [...gescoord]
-    : gescoord.map(t => (t.signaal === 'KOOP' ? { ...t, signaal: 'WATCH' as const, highConviction: false } : t));
+  const open = klimaat !== null && poortOpen(klimaat);
+  const lijst = gescoord.map(t => metLabels(t, open));
   lijst.sort(vergelijkLongs);
   return lijst.slice(0, topN);
 }
@@ -328,15 +406,14 @@ export async function analyseerMarkt(options?: {
 }): Promise<MarktUitkomst> {
   const universum = options?.universum ?? STANDAARD_UNIVERSUM;
   const topN = options?.topN ?? 20;
+  const nu = Date.now();
+  // De afgesloten dagen van elke coin: de basis voor de score, de marktbreedte en de relatieve
+  // sterkte. De lopende dag doet alleen mee als koers van nu, voor het plan.
   const opgehaald: { symbool: string; candles: Candle[]; bron: string }[] = [];
+  // Per coin de score met het plan erop, nog zonder oordeel: dat hangt af van het klimaat.
+  const gescoord: Trade[] = [];
   let klaar = 0;
-  // Alleen gevuld met onVoorlopig. Staat los van `resultaten` hieronder, zodat de eindberekening
-  // niets van de tussenstanden erft.
-  const voorlopigGescoord: Trade[] = [];
 
-  // Data ophalen en scoren in twee losse stappen, zodat we de candles van élke coin (ook wie
-  // straks geen KOOP-signaal haalt) kunnen hergebruiken voor de marktbreedte hieronder, zonder
-  // een tweede ronde requests.
   for (let i = 0; i < universum.length; i += GELIJKTIJDIG) {
     const blok = universum.slice(i, i + GELIJKTIJDIG);
     const uitkomsten = await Promise.all(
@@ -351,27 +428,22 @@ export async function analyseerMarkt(options?: {
         }
       }),
     );
-    for (const res of uitkomsten) if (res) opgehaald.push(res);
+    for (const res of uitkomsten) {
+      if (!res) continue;
+      const s = scoorVoorMarkt(res.symbool, res.candles, res.bron, nu);
+      // Ook zonder score tellen de candles mee voor de marktbreedte, zoals voorheen.
+      opgehaald.push({ symbool: res.symbool, candles: s ? s.gesloten : res.candles, bron: res.bron });
+      if (s) gescoord.push(s.trade);
+    }
 
     if (options?.onVoorlopig) {
       // Een fout in de weergave mag de scan zelf nooit laten mislukken.
       try {
-        for (const res of uitkomsten) {
-          if (!res) continue;
-          const trade = scoorCandles(res.symbool, res.candles, res.bron);
-          if (trade) voorlopigGescoord.push(trade);
-        }
-        options.onVoorlopig(voorlopigeTop(voorlopigGescoord, opgehaald, topN), opgehaald.length);
+        options.onVoorlopig(voorlopigeTop(gescoord, opgehaald, topN), opgehaald.length);
       } catch {
         // Alleen de tussenstand valt weg; de scan loopt door.
       }
     }
-  }
-
-  const resultaten: Trade[] = [];
-  for (const { symbool, candles, bron } of opgehaald) {
-    const trade = scoorCandles(symbool, candles, bron);
-    if (trade) resultaten.push(trade);
   }
 
   const btc = opgehaald.find(o => o.symbool === 'BTC');
@@ -380,14 +452,13 @@ export async function analyseerMarkt(options?: {
   // Hergebruikt dezelfde candles als de scan hierboven, dus dit kost geen extra requests.
   const relatieveSterkte = berekenRelatieveSterkte(opgehaald);
 
-  // De poort: bij een ongunstig of gemengd klimaat wordt geen enkel signaal nog als KOOP getoond.
-  // De score en de onderbouwing blijven gewoon zichtbaar, alleen het koopsignaal zelf zwijgt.
-  const gefilterd = poortOpen(klimaat)
-    ? resultaten
-    : resultaten.map(t => (t.signaal === 'KOOP' ? { ...t, signaal: 'WATCH' as const, highConviction: false } : t));
+  // De poort: bij een ongunstig of gemengd klimaat is er geen ruw koopsignaal. Of een ruw signaal
+  // ook als label getoond wordt, bepaalt metLabels. Score en onderbouwing blijven altijd zichtbaar.
+  const open = poortOpen(klimaat);
+  const gefilterd = gescoord.map(t => metLabels(t, open));
 
   // Sorteer: HIGH CONVICTION eerst, dan wie de R/R-drempel haalt, dan op score, dan op R/R. Zie
-  // vergelijkLongs.
+  // vergelijkLongs. Zonder bewezen labels komt dat neer op de score.
   gefilterd.sort(vergelijkLongs);
 
   return {
@@ -427,6 +498,32 @@ if (require.main === module) {
     'bij de CoinGecko-fallback hoort er geen sparkline te zijn');
 
   console.assert(poortOpen(null) === true, 'zonder klimaat hoort de koop-poort juist open te blijven');
+
+  // metPlan: stop 3x ATR onder de koers van nu, doel op 3R; de score blijft die van de candles.
+  const metNu = metPlan(lang!, 110);
+  console.assert(metNu.prijs === 110 && metNu.entry === 110 && metNu.rr === 3 && metNu.voldoetAanRR
+    && Math.abs(110 - metNu.stopLoss - 3 * lang!.atr) < 1e-9 && Math.abs(metNu.takeProfit - 110 - 9 * lang!.atr) < 1e-9,
+    `metPlan klopt niet: ${JSON.stringify({ s: metNu.stopLoss, d: metNu.takeProfit })}`);
+  console.assert(metNu.score === lang!.score && metNu.sparkline?.length === SPARKLINE_DAGEN_MARKT + 1
+    && metNu.sparkline[SPARKLINE_DAGEN_MARKT] === 110, 'score blijft, de grafiek eindigt op de koers van nu');
+  console.assert(metPlan(lang!, null).prijs === lang!.prijs, 'zonder koers van nu telt het laatste slot');
+
+  // metLabels: het ruwe signaal volgt score en poort; wat getoond wordt volgt de schakelaars.
+  const sterk = { ...lang!, score: 80, highConviction: true };
+  const open = metLabels(sterk, true);
+  console.assert(open.ruwSignaal === 'KOOP' && open.ruwHighConviction === true, 'score 80 met de poort open is een ruw koopsignaal');
+  console.assert(open.signaal === (LABEL_KOOP_BEWEZEN ? 'KOOP' : 'WATCH'), 'het getoonde signaal volgt LABEL_KOOP_BEWEZEN');
+  console.assert(open.highConviction === (LABEL_KOOP_BEWEZEN && LABEL_STERK_BEWEZEN), 'BEVESTIGD volgt LABEL_STERK_BEWEZEN');
+  const dicht = metLabels(sterk, false);
+  console.assert(dicht.ruwSignaal === 'WATCH' && dicht.signaal === 'WATCH' && !dicht.highConviction && !dicht.ruwHighConviction,
+    'met de poort dicht is er geen signaal, ook geen ruw');
+  console.assert(metLabels({ ...sterk, score: 40 }, true).ruwSignaal === 'WATCH', 'onder de drempel geen ruw signaal');
+
+  // splitsLopendeDag: een candle die minder dan een dag oud is loopt nog.
+  const dagen = bouw(60).map((x, i) => ({ ...x, tijd: i * DAG_MS }));
+  const g = splitsLopendeDag(dagen, 59 * DAG_MS + 3_600_000);
+  console.assert(g.gesloten.length === 59 && g.prijsNu === dagen[59].close, 'de lopende dag hoort eraf te gaan');
+  console.assert(splitsLopendeDag(dagen, 61 * DAG_MS).gesloten.length === 60, 'zonder lopende dag blijft alles staan');
 
   console.log('analyzer.ts self-check geslaagd');
 }

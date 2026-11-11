@@ -4,6 +4,19 @@
 // er ooit een eigen kopie van maakten (coinInfo.ts, MarktBalk.tsx, WatKopenNu.tsx, ScoreBadge.tsx,
 // TradeCard.tsx, MarktFilters.tsx).
 
+// LET OP: de cijfers in dit bestand zijn van voor de kosten. Meting M en N (docs/metingen.md, nov
+// 2026) rekenden met eToro's 1% per kant en een aparte toetsperiode. Daarin haalde geen enkel
+// kooplabel de lat: KOOP hield netto +0,11 R over maar niet aantoonbaar boven nul, en STERK KOOP en
+// BEVESTIGD kozen niet beter dan gewone KOOP-coins. Een label dat zijn lat niet haalt toont Kader
+// niet. De drempels hieronder blijven bestaan voor de kleur van de score en voor het trackrecord,
+// dat het ruwe signaal blijft volgen zodat een label terug kan komen.
+//
+// Zet een schakelaar alleen op true als het label de lat uit docs/markt-kosten-plan.md (paragraaf
+// 5) haalt op data die bij het afstellen niet gebruikt is. Niet omdat een scherm er leeg uitziet.
+export const LABEL_KOOP_BEWEZEN: boolean = false;
+// STERK KOOP en BEVESTIGD. Kan alleen aan als LABEL_KOOP_BEWEZEN aan staat.
+export const LABEL_STERK_BEWEZEN: boolean = false;
+
 // Vanaf hier krijgt een coin het signaal KOOP. Gemeten: ±0,06 R gemiddeld per trade.
 export const DREMPEL_KOOP = 55;
 

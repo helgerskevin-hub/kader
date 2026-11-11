@@ -273,7 +273,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
                 "onder 1,2": een grens die het getal erboven ruim haalde. */}
             {!haaltRr && (
               <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
-                Onder {fmtRR(MIN_RISK_REWARD)}: Kader geeft hier geen koopsignaal.
+                Onder {fmtRR(MIN_RISK_REWARD)}, doordat eToro een ruimere stop eist dan het plan.
               </Text>
             )}
           </Animated.View>

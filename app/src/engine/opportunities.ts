@@ -1,6 +1,10 @@
 import { Candle, Opportunity, Trade } from './types';
 import { haalData, haalCoingeckoMarkten } from './marketData';
-import { STANDAARD_UNIVERSUM, scoorCandles } from './analyzer';
+import { STANDAARD_UNIVERSUM, scoorCandles, splitsLopendeDag } from './analyzer';
+
+// Staat in analyzer.ts omdat Markt hem ook gebruikt; hier opnieuw geëxporteerd voor wie hem bij
+// de Kansen-scan zoekt.
+export { splitsLopendeDag };
 import { infoVoor } from './coinInfo';
 import { StopLossLimiet, EtoroNiveaus, etoroNiveaus } from './etoroLimieten';
 import { bepaalKlimaat, Marktklimaat } from './marktklimaat';
@@ -93,20 +97,6 @@ export function bouwRadar(alle: Opportunity[]): { kansen: Opportunity[]; radarLe
   const opRadar = gesorteerd.filter(k => k.momentumScore >= RADAR_DREMPEL);
   if (opRadar.length >= RADAR_MIN) return { kansen: opRadar, radarLeeg: false };
   return { kansen: gesorteerd.slice(0, LEGE_RADAR_TOON), radarLeeg: true };
-}
-
-/**
- * Splitst dagcandles in de afgesloten dagen en de koers van nu. Binance levert de lopende dag als
- * laatste candle mee; die is nog niet af, dus het volume is te laag en high en slot schuiven nog.
- * De backtest gooit hem weg (zie scripts/haal-historie.mjs) en mat dus altijd op afgesloten dagen.
- * De app doet nu hetzelfde: het oordeel valt op de afgesloten dagen, het plan rekent met de koers
- * van nu. Een candle zonder tijd valt niet te plaatsen en telt als afgesloten.
- */
-export function splitsLopendeDag(candles: Candle[], nu: number): { gesloten: Candle[]; prijsNu: number | null } {
-  const laatste = candles[candles.length - 1];
-  if (!laatste) return { gesloten: [], prijsNu: null };
-  const loopt = laatste.tijd !== undefined && nu - laatste.tijd < DAG_MS;
-  return { gesloten: loopt ? candles.slice(0, -1) : candles, prijsNu: laatste.close };
 }
 
 /**

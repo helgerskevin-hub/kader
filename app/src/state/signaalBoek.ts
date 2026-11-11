@@ -8,8 +8,10 @@ import { haalData } from '../engine/marketData';
 import type { Trade } from '../engine/types';
 import { bepaalUitkomst, voegSignalenToe, type GelogdSignaal } from '../engine/signaalLog';
 
+// Versie 2 (nov 2026): signalen met het plan van meting N (stop 3x ATR, doel 3R). Regels van
+// versie 1 volgden het oude plan en zijn niet te vergelijken, dus het boek begint opnieuw.
 interface Boek {
-  versie: 1;
+  versie: 2;
   signalen: GelogdSignaal[];
   laatstBijgewerkt: number;
 }
@@ -31,8 +33,8 @@ const luisteraars = new Set<() => void>();
 
 async function laadBoek(): Promise<Boek> {
   const b = await laadObject<Boek>(SLEUTELS.signaalBoek);
-  if (b && b.versie === 1 && Array.isArray(b.signalen)) return b;
-  return { versie: 1, signalen: [], laatstBijgewerkt: 0 };
+  if (b && b.versie === 2 && Array.isArray(b.signalen)) return b;
+  return { versie: 2, signalen: [], laatstBijgewerkt: 0 };
 }
 
 async function bewaar(b: Boek): Promise<void> {

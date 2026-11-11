@@ -60,6 +60,8 @@ De score gaat nooit boven 100.
   <img src="docs/readme/score-ring.svg" alt="Voorbeeld: een scorering loopt op tot 80 van 100, met de badge STERK KOOP, het keurmerk BEVESTIGD en de vier bevestigingen trend, MACD, volume en R/R." width="760">
 </p>
 
+> **Stand november 2026:** Kader toont op dit moment geen kooplabels. Met de kosten van eToro erbij (1% bij kopen, 1% bij verkopen) haalde geen enkel label de lat: een koopsignaal hield gemiddeld +0,11 R per trade over, maar niet aantoonbaar meer dan nul. Elke coin staat daarom op AFWACHTEN. Het plan bij elke coin is nu stop 3x ATR en doel op drie keer dat risico, en kopen kan altijd met de knop Koop. De labels hieronder komen terug als ze zich bewijzen; zie meting M en N in `docs/metingen.md`.
+
 - **AFWACHTEN:** geen koopsignaal. De score is lager dan 55, de risico/opbrengst haalt 1:2 niet, of het marktklimaat houdt het signaal tegen.
 - **KOOPZONE:** koopsignaal met een score vanaf 55.
 - **STERK KOOP:** koopsignaal met een score vanaf 72.

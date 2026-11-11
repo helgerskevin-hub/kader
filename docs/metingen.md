@@ -472,6 +472,12 @@ in de toetsjaren stond de poort open met minstens één KOOP.
   daar niet van nul te onderscheiden. Om de lat te halen had het rond +0,3 R moeten liggen, of
   moeten er meer jaren bij. Dat is de prijs van de strenge lat, en die was vooraf gekozen.
 
+### Wat er in de app veranderd is
+
+Zie `docs/markt-kosten-plan.md`, paragraaf 10. Kort: Markt toont geen kooplabels tot ze zich
+bewijzen (twee schakelaars in `drempels.ts`), het plan is stop 3x ATR en doel 3R, de score rekent
+op de afgesloten dag, en het signaalboek volgt het ruwe signaal na kosten. De koopknop blijft.
+
 ### Kanttekeningen
 
 - De toetsjaren waren in meting M al één keer bekeken. Daarom de afstelpoort en hoogstens twee

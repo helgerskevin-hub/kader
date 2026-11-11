@@ -144,7 +144,7 @@ Nog niets gebouwd. Dit is wat de uitkomst voor elk onderdeel betekent; Kevin en 
 | Afgesloten dag | `analyseerMarkt` rekent het oordeel op de laatste afgesloten dag, net als Kansen. Dan zeggen beide tabs ook hetzelfde klimaat. |
 | Klimaatpoort | Ongewijzigd. De balk op Markt blijft, met een tekst die niet meer over koopsignalen gaat. |
 | "Wat kopen nu" en de filters | Vervallen of worden een neutrale sortering op score. Er is geen koopadvies meer om uit te lichten. |
-| Koopknop | Open keuze. Bij Kansen is hij weggehaald. Voor Markt kan hij blijven als knop zonder advies ("koop met dit plan"), zodat de app bruikbaar blijft voor wie zelf kiest. |
+| Koopknop | Blijft overal, ook zonder label. Besloten door Kevin: handelen vanuit Kader is het doel. Op Kansen teruggezet in #116. |
 | Meldingen | De melding bij een sterk koopsignaal vervalt. De checks op je open posities blijven; die gaan over je eigen stop en doel. |
 | Signaalboek en Signaalresultaat | Blijven lopen als trackrecord, na kosten en met het nieuwe plan, zoals de volglijst van Kansen. De ijkpunten +0,08 en +0,15 R worden vervangen door +0,11 R uit meting N, met het interval erbij. |
 | Gemiste kansen en het weekrapport | Vervallen in de huidige vorm: zonder signaal valt er niets te missen. |
@@ -161,7 +161,40 @@ live trackrecord dat groot genoeg is. Niet door de lat te verlagen.
 hulpmiddel voor plan, risico en discipline rond trades die je zelf kiest, met Copy en Portfolio
 ernaast.
 
-## 10. Aanbeveling model en inspanning
+## 10. Gebouwd (11 nov 2026)
+
+Kevin besloot dezelfde dag: de koopknop blijft overal ("we willen juist vanuit Kader traden, super
+simpel en laagdrempelig"), en verder bouwen. Wat er nu in zit:
+
+- **Eén plek in de engine.** `analyseerMarkt` rekent de score op de afgesloten dag en zet het plan
+  (stop 3x ATR, doel 3R) op de koers van nu (`metPlan`). `scoorCandles` zelf is ongewijzigd, dus
+  `scripts/backtest.ts` geeft nog exact dezelfde uitvoer en de checks op open posities ook.
+- **Twee schakelaars** in `engine/drempels.ts`: `LABEL_KOOP_BEWEZEN` en `LABEL_STERK_BEWEZEN`,
+  allebei uit. Uit betekent: elke coin op AFWACHTEN, geen BEVESTIGD. Dat is dezelfde toestand die
+  de app al kende bij een ongunstig klimaat, dus kaarten, filters, "Eén ding vandaag" en de
+  meldingen volgen vanzelf.
+- **Het ruwe signaal blijft bestaan** (`ruwSignaal`, `ruwHighConviction`). Het signaalboek volgt
+  dat, na kosten en met het nieuwe plan, in een nieuw boek (versie 2).
+- **Koopknop:** ongewijzigd op Markt (stond er al bij elke coin) en terug op Kansen (#116).
+- **Uit zolang er geen bewezen label is:** "Wat moet ik nu kopen", Gemiste kansen, de melding bij
+  een sterk koopsignaal, het kooplabel in het detailscherm, en "zelf ook een koopsignaal" in de
+  Copy-check.
+- **Teksten:** het uitlegboek, de klimaatbalk, de bear-kaart, de onboarding en de uitleg over
+  voorlopers en achterblijvers beloven geen koopsignaal meer.
+- **Kader-niveaus voor copies** (`state/kaderNiveaus.ts`) gebruiken hetzelfde plan.
+
+Niet gewijzigd, bewust:
+
+- De checks op je open posities (`tradeChecks.ts`) en het afbouwadvies rekenen nog met de oude
+  niveaus uit `scoorCandles`. Die gaan over posities die je al hebt; een nieuw plan daarvoor is
+  een eigen meting waard.
+- De animatie bij het hoofdstuk Advieslabels toont nog de drie labels.
+- De poort: ongewijzigd, de variant met EMA200 was op de toets niet beter.
+
+Een label terugzetten is één schakelaar, maar alleen na een meting die de lat uit paragraaf 5
+haalt op data die bij het afstellen niet gebruikt is.
+
+## 11. Aanbeveling model en inspanning
 
 - Meten en het voorstel: het sterkste model, hoge inspanning.
 - De bouw daarna: het sterkste model voor de engine en de meldingen, het standaardmodel voor de

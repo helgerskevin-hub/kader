@@ -13,8 +13,8 @@
 
 import type { Opportunity } from './types';
 import type { Klimaat } from './marktklimaat';
-import type { SignaalUitkomst } from './signaalLog';
-import { ETORO_KOSTEN_PER_KANT, RADAR_DREMPEL } from './momentum';
+import { nettoR, type SignaalUitkomst } from './signaalLog';
+import { RADAR_DREMPEL } from './momentum';
 
 export interface GevolgdeKans {
   id: string;
@@ -72,15 +72,8 @@ export function voegKansenToe(
   return samen.length > MAX_GEVOLGD ? samen.slice(samen.length - MAX_GEVOLGD) : samen;
 }
 
-// Het resultaat na eToro's kosten over het aankoop- en het verkoopbedrag, in R. Zelfde formule als
-// simuleer() in scripts/meting-kansen.ts. Null zolang de regel loopt.
-export function nettoR(s: Pick<GevolgdeKans, 'entry' | 'stop' | 'behaaldeR'>): number | null {
-  if (typeof s.behaaldeR !== 'number') return null;
-  const risico = s.entry - s.stop;
-  if (!(risico > 0)) return null;
-  const uitstap = s.entry + s.behaaldeR * risico;
-  return s.behaaldeR - (ETORO_KOSTEN_PER_KANT * (s.entry + uitstap)) / risico;
-}
+// Na kosten, met dezelfde formule als het signaalboek van Markt.
+export { nettoR };
 
 export interface VolglijstStand {
   aantal: number;
