@@ -370,9 +370,14 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                       <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
                         Waarom
                       </Text>
-                      <View style={[styles.pil, { backgroundColor: adviesKleur + '1F' }]}>
-                        <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
-                      </View>
+                      {/* Niet vanaf Kansen: daar geeft Kader geen koopoordeel (zie kanTraden), dus een
+                          label als "Sterke koop" zou de volglijst tegenspreken. De toelichting eronder
+                          beschrijft alleen de indicatoren en blijft staan. */}
+                      {data.context !== 'kansen' && (
+                        <View style={[styles.pil, { backgroundColor: adviesKleur + '1F' }]}>
+                          <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
+                        </View>
+                      )}
                     </View>
                     {advies.uitleg ? (
                       <Text style={[Type.body, styles.lopendeTekst, { color: colors.tekstGedimd }]}>{advies.uitleg}</Text>
