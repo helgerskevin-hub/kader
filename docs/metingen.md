@@ -341,6 +341,9 @@ deel van het effect in de afsteljaren leunde op nieuwkomers.
 - Het oordeel valt op de laatste afgesloten dag; de app rekende tot nu toe met de lopende dag,
   wat de backtest nooit gemeten heeft.
 - Het klimaat van Markt staat ook op Kansen.
+- Signaalresultaat volgt elke radar-coin met het plan van de kaart en toont het gemiddelde na
+  kosten naast het ijkpunt van +0,29 R. Zo wordt deze meting live nagekeken. Het logboek stapt in
+  op de koers van het moment van de scan, de meting op de open van de dag erna.
 
 ### Kanttekeningen
 

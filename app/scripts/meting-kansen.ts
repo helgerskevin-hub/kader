@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { scoorCandles, STANDAARD_UNIVERSUM, MIN_CANDLES, MIN_RISK_REWARD } from '../src/engine/analyzer';
 import { ema } from '../src/engine/indicators';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
-import { momentumIngredienten, momentumScore, radarNiveaus as appNiveaus, RADAR_DREMPEL, RADAR_STOP_ATR, RADAR_DOEL_R, RADAR_HOUDTIJD_DAGEN } from '../src/engine/momentum';
+import { momentumIngredienten, momentumScore, radarNiveaus as appNiveaus, RADAR_DREMPEL, RADAR_STOP_ATR, RADAR_DOEL_R, RADAR_HOUDTIJD_DAGEN, ETORO_KOSTEN_PER_KANT } from '../src/engine/momentum';
 import { Candle } from '../src/engine/types';
 
 const HIER = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +32,7 @@ const DATA = join(HIER, '..', '..', 'data', 'historie');
 
 // Zelfde venster als de app (limit=200 in marketData.ts).
 const VENSTER = 200;
-export const KOSTEN_ETORO = 0.01;      // per kant
+export const KOSTEN_ETORO = ETORO_KOSTEN_PER_KANT;   // per kant, hetzelfde getal als in de app
 export const MIN_STOP_BTC = 0.10;      // eToro's gemeten ondergrens voor BTC
 export const TOETS_VANAF = '2023-01-01';
 // Een afsteltrade loopt hoogstens 30 dagen. Signalen in de laatste maand voor de toets zouden hun

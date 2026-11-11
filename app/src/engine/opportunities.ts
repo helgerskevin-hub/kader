@@ -157,6 +157,7 @@ export function maakKans(
     naam: info?.naam || infoVoor(symbool).naam,
     marktcap: info?.marktcap ?? null,
     prijs,
+    vandaagPct: prijs !== trade.prijs && trade.prijs > 0 ? (prijs / trade.prijs - 1) * 100 : null,
     momentumScore: momentumScore(ingredienten),
     ingredienten,
     redenen: momentumRedenen(ingredienten),
@@ -282,6 +283,8 @@ if (require.main === module) {
   // de koers van nu.
   const live = maakKans('TEST', oplopend, 'Binance', undefined, undefined, 210);
   console.assert(live !== null && live.prijs === 210 && live.niveaus?.entry === 210, 'prijs en plan horen de koers van nu te volgen');
+  console.assert(live !== null && Math.abs((live.vandaagPct ?? 0) - (210 / 199 - 1) * 100) < 1e-9 && k!.vandaagPct === null,
+    `de beweging van vandaag klopt niet: ${live?.vandaagPct}`);
   console.assert(live !== null && live.momentumScore === k!.momentumScore && live.trade.score === k!.trade.score,
     'de score hoort niet te bewegen met de koers van nu');
   console.assert(live !== null && live.sparkline.length === SPARKLINE_DAGEN && live.sparkline[29] === 210 && live.sparkline[28] === 199,

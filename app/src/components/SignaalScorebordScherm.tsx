@@ -13,6 +13,9 @@ import { kaartLandt, schuifOvergang, uitklapIn, uitklapInGestaffeld, uitklapUit 
 import { fmtR } from '../engine/format';
 import { vatSamen, type GelogdSignaal, type SignaalUitkomst } from '../engine/signaalLog';
 import { useSignaalBoek } from '../state/signaalBoek';
+import { vatVolglijstSamen, type VolglijstSamenvatting } from '../engine/volglijstLog';
+import { useVolglijstBoek } from '../state/volglijstBoek';
+import { RADAR_METING_NETTO_R } from '../engine/momentum';
 import { PodiumScherm } from './PodiumScherm';
 import { LegeStaatBeeld, Opkomst } from './LegeStaatBeeld';
 import { AnimatedGetal } from './AnimatedGetal';
@@ -54,6 +57,9 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
   const { signalen, bezig } = useSignaalBoek(zichtbaar);
+  // De volglijst van Kansen heeft een eigen logboek en telt nergens hierboven in mee.
+  const gevolgd = useVolglijstBoek(zichtbaar);
+  const volglijst = useMemo(() => (gevolgd && gevolgd.length > 0 ? vatVolglijstSamen(gevolgd) : null), [gevolgd]);
 
   const samenvatting = useMemo(() => (signalen ? vatSamen(signalen) : null), [signalen]);
   const recent = useMemo(
@@ -130,6 +136,11 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                   </LijstGroep>
                 </Animated.View>
               )}
+              {volglijst && (
+                <Animated.View entering={kaartLandt(4, reduceMotion)}>
+                  <VolglijstGroep stand={volglijst} />
+                </Animated.View>
+              )}
             </ScrollView>
           ) : (
             <ScrollView
@@ -200,7 +211,13 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                 </Animated.View>
               )}
 
-              <Animated.View entering={kaartLandt(5, reduceMotion)} layout={schuifOvergang(reduceMotion)}>
+              {volglijst && (
+                <Animated.View entering={kaartLandt(5, reduceMotion)}>
+                  <VolglijstGroep stand={volglijst} />
+                </Animated.View>
+              )}
+
+              <Animated.View entering={kaartLandt(6, reduceMotion)} layout={schuifOvergang(reduceMotion)}>
                 <LijstGroep
                   titel="Recente signalen"
                   lijnInspringing={62}
@@ -216,6 +233,26 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
         </View>
       )}
     </PodiumScherm>
+  );
+}
+
+const coinsTekst = (n: number) => (n === 1 ? '1 coin afgesloten' : `${n} coins afgesloten`);
+
+// De volglijst van Kansen: geen koopsignalen, wel een plan per coin. Hier staat wat dat plan na de
+// kosten van eToro gedaan zou hebben, naast wat de meting voorspelde. Alleen de groep bij een
+// gunstig klimaat is met de meting te vergelijken; de rest staat er apart bij.
+function VolglijstGroep({ stand }: { stand: VolglijstSamenvatting }) {
+  const weinig = [stand.gunstig.aantal, stand.overig.aantal].some(n => n > 0 && n < MIN_VOOR_CONCLUSIE);
+  return (
+    <LijstGroep
+      titel="Volglijst van Kansen"
+      lijnInspringing={spacing.base}
+      voetnoot={`Geen koopsignalen: dit is wat het plan van de volglijst gedaan zou hebben, na 1% kosten bij kopen en bij verkopen. De meting over 2023 t/m 2026 gaf ${fmtR(RADAR_METING_NETTO_R)} bij een gunstig klimaat, met veel onzekerheid.${weinig ? ` Een groep met minder dan ${MIN_VOOR_CONCLUSIE} coins zegt nog weinig.` : ''}`}
+    >
+      <StatRij label="Bij gunstig klimaat" sub={coinsTekst(stand.gunstig.aantal)} waarde={stand.gunstig.gemNettoR} format={r => fmtR(r)} />
+      <StatRij label="Bij ander klimaat" sub={coinsTekst(stand.overig.aantal)} waarde={stand.overig.gemNettoR} format={r => fmtR(r)} />
+      <StatRij label="Loopt nog" sub="hoogstens 30 dagen per coin" waarde={stand.lopend} format={n => String(n)} kleurOpTeken={false} />
+    </LijstGroep>
   );
 }
 

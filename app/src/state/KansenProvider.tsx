@@ -3,6 +3,7 @@ import { Opportunity } from '../engine/types';
 import { zoekKansen } from '../engine/opportunities';
 import { Marktklimaat } from '../engine/marktklimaat';
 import { laadObject, bewaarObject, SLEUTELS } from '../storage/opslag';
+import { registreerVolglijst, werkVolglijstBij } from './volglijstBoek';
 
 // De Kansen-scan (momentum-radar) woont hier en niet in het scherm, zodat het laatste resultaat
 // bewaard blijft en bij het openen van de app meteen in beeld staat. Zelfde opzet als
@@ -190,6 +191,9 @@ export function KansenProvider({ children }: { children: React.ReactNode }) {
         laatsteRef.current = nieuw;
         dispatch({ type: 'SUCCESS', scan: nieuw });
         await bewaarObject(SLEUTELS.kansenScan, nieuw);
+        // Het trackrecord van de volglijst: wat nu op de radar staat erbij, en wat al liep nakijken.
+        // Vangt zijn eigen fouten en mag de scan nooit laten mislukken.
+        registreerVolglijst(kansen, radarLeeg, klimaat?.klimaat ?? null).then(() => werkVolglijstBij());
       } catch (e) {
         if (stil) setStilMislukt(true);
         else dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });

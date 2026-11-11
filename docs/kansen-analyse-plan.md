@@ -228,10 +228,16 @@ Uitgevoerd op dezelfde dag. De volledige cijfers staan in `docs/metingen.md`, me
   De toets gaf daarna dezelfde uitkomst.
 - **Fase 3.** Vervalt: boven de drempel lopen de emmers niet op, dus er is niets om op te sorteren.
 
+Daarna nog gebouwd (11 nov 2026):
+
+- Een live trackrecord van de volglijst, in een eigen logboek naast het signaalboek
+  (`engine/volglijstLog.ts`, `state/volglijstBoek.ts`). Signaalresultaat toont het gemiddelde na
+  kosten, apart voor een gunstig en een ander klimaat, naast het ijkpunt uit meting M.
+- De beweging van vandaag op de kaart, zodat de koers van nu en de afstand tot de top van de
+  afgesloten dag niet zonder uitleg naast elkaar staan.
+
 Niet gedaan, met reden:
 
-- Kansen-signalen in het signaalboek. Er is geen signaal meer om te loggen. Een live trackrecord
-  van de volglijst is een goed vervolg, maar vraagt een eigen groep in Signaalresultaat.
 - De echte spread en minimale stop per coin. Die vragen de eToro-koppeling.
 - Markt. Bewust ongemoeid; het vervolgvoorstel staat onder meting M.
 

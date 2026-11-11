@@ -140,6 +140,14 @@ export const RADAR_DREMPEL = 70;
 //
 // De R/R is hier per constructie 3. Een R/R-filter zegt daarom niets meer en bestaat op Kansen
 // niet meer: bij het oude plan beloonde die filter vooral een toevallig krappe stop.
+// eToro rekent 1% bij kopen en 1% bij verkopen van crypto. Het meetscript en het live trackrecord
+// van de volglijst rekenen allebei met dit getal.
+export const ETORO_KOSTEN_PER_KANT = 0.01;
+// Wat de radar met dit plan na kosten gemiddeld deed in de toetsjaren (2023 t/m 2026), bij een
+// gunstig klimaat. Het ijkpunt waar het live trackrecord naast staat. Onzeker: het 90%-interval
+// loopt van -0,10 tot +0,64.
+export const RADAR_METING_NETTO_R = 0.29;
+
 export const RADAR_STOP_ATR = 3;
 export const RADAR_DOEL_R = 3;
 // Zo lang liep een trade in de meting hoogstens. Het plan zegt dus ook iets over geduld.

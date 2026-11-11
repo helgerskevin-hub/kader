@@ -56,6 +56,10 @@ export interface Opportunity {
   marktcap: number | null;
   // De koers van nu. Score en ingrediënten hieronder komen van de laatste AFGESLOTEN dag.
   prijs: number;
+  // Hoeveel de koers van nu afwijkt van het slot van die afgesloten dag, in procenten. Verklaart
+  // op de kaart waarom de prijs en "x% onder de top" uit elkaar kunnen lopen. Null zonder koers
+  // van nu; ontbreekt in een scan die voor dit veld bewaard is.
+  vandaagPct?: number | null;
   // 0-100, alleen de nabijheid tot de 90-dagen-high (zie momentumScore in momentum.ts).
   momentumScore: number;
   ingredienten: MomentumIngredienten;

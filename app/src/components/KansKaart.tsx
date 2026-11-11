@@ -173,7 +173,7 @@ export const KansKaart = memo(function KansKaart({
         )}
 
         <View style={styles.momentum}>
-          <MomentumCompact ingredienten={kans.ingredienten} volgorde={volgorde} />
+          <MomentumCompact ingredienten={kans.ingredienten} volgorde={volgorde} vandaag={kans.vandaagPct ?? null} />
         </View>
 
         {/* Wrap: met een grotere systeemletter passen badge, rang en R/R op 360 dp niet altijd
