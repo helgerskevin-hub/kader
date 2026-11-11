@@ -1,12 +1,13 @@
 import React, { memo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { CheckCircle, Star } from 'lucide-react-native';
+import { CheckCircle, Star, ShoppingCart } from 'lucide-react-native';
 import { fmtPrijs, fmtRR } from '../engine/format';
 import { StopLossLimiet } from '../engine/etoroLimieten';
 import { etoroPlan } from '../engine/opportunities';
 import { RADAR_METING_UITLEG, RADAR_PLAN_UITLEG } from '../engine/momentum';
 import { opsomming } from '../engine/correlatie';
+import { handelbaarOp, isAlleenBekijken, noemPlatforms } from '../engine/platforms';
 import { KansMetRang, RangVerschil } from '../state/KansenProvider';
 import { useValutaStand } from '../state/useValuta';
 import { useTheme } from '../theme/ThemeProvider';
@@ -15,6 +16,8 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { schuifOvergang, uitklapInGestaffeld, uitklapUit } from '../theme/lijstBeweging';
 import { AdviceBadge } from './AdviceBadge';
+import { PlatformChips } from './PlatformChip';
+import { PlatformSheet } from './PlatformSheet';
 import { useDrukVeer } from './Drukbaar';
 import { UitklapPijl } from './UitklapPijl';
 import { MomentumCompact, afstandLabel } from './MomentumBalken';
@@ -33,6 +36,12 @@ interface Props {
   onToggleFavoriet?: (symbool: string) => void;
   // De stop-loss-grens van eToro voor deze coin. Zonder grens blijft het niveau van Kader staan.
   limiet?: StopLossLimiet | null;
+  // Ontbreekt zonder koppeling met schrijfrecht. De knop opent alleen de koopsheet, hij plaatst
+  // nooit zelf een order.
+  onKoop?: (kans: KansMetRang) => void;
+  // De scan is ouder dan KANSEN_COOLDOWN_MS: de koers waar het plan mee rekent kan achterhaald
+  // zijn, dus geen Koop-knop tot er ververst is. Het scherm legt dat boven de lijst uit.
+  verouderd?: boolean;
   // Je hebt deze coin al als open positie. Een merkje, geen filter: de radar zelf blijft zuiver
   // marktanalyse.
   inBezit?: boolean;
@@ -73,8 +82,8 @@ export function RangLabel({ verschil }: { verschil: RangVerschil }) {
 // Memo: tijdens een scan tekent KansenScreen bij elk voortgangstikje opnieuw, en zonder memo
 // tekenden alle al gelande kaarten mee (en startten hun balkjes en sparkline opnieuw op).
 export const KansKaart = memo(function KansKaart({
-  kans, volgorde = 0, onOpenDetail, onGetrade, favoriet, onToggleFavoriet, limiet = null,
-  inBezit = false, beweegtMeeMet = GEEN_SYMBOLEN,
+  kans, volgorde = 0, onOpenDetail, onGetrade, onKoop, favoriet, onToggleFavoriet, limiet = null,
+  verouderd = false, inBezit = false, beweegtMeeMet = GEEN_SYMBOLEN,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
@@ -83,6 +92,7 @@ export const KansKaart = memo(function KansKaart({
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const [uitgeklapt, setUitgeklapt] = useState(false);
+  const [platformsOpen, setPlatformsOpen] = useState(false);
   // De hele kaart veert mee, en het detailscherm groeit uit de hele kaart, ook via Details.
   const druk = useDrukVeer(undefined, { kleur: colors.kaart, radius: radii.kaart });
 
@@ -91,6 +101,11 @@ export const KansKaart = memo(function KansKaart({
   // Zoals het bij eToro te zetten is: eist eToro een ruimere stop, dan schuift hij op en zakt de
   // R/R mee. Baan en R/R-chip lezen allebei hieruit.
   const niveaus = etoroPlan(kans, limiet);
+  // Kopen kan bij elke coin met een plan, net als op Markt: Kader adviseert hier niet (zie WATCH en
+  // RADAR_METING_UITLEG), maar wie zelf kiest moet in één tik kunnen kopen met een plan dat de
+  // kosten draagt. Het merkje hangt aan dezelfde voorwaarde als de knop.
+  const platforms = onKoop ? handelbaarOp(kans.symbool) : [];
+  const kanKopen = !!(plan && !verouderd && onKoop && !isAlleenBekijken(kans.symbool));
   const afstand = kans.ingredienten.afstandHigh90d;
   const schuif = schuifOvergang(reduceMotion);
 
@@ -253,12 +268,36 @@ export const KansKaart = memo(function KansKaart({
             )}
           </Animated.View>
 
-          {/* Geen Koop-knop: Kader adviseert hier niet. Getrade legt een trade vast die je zelf hebt
-              gedaan, met dit plan. Details staat daaronder op een eigen regel. */}
+          {/* De knoppenrij mag afbreken: Getrade en Koop met merkjes passen op 360 dp niet altijd op
+              één regel. Details staat daaronder op een eigen regel. */}
           <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)} style={styles.knoppen}>
             {plan && (
               <View style={styles.pilRij}>
                 <PilKnop label="Getrade" icoon={CheckCircle} variant="tweede" onPress={() => onGetrade(kans)} />
+                {kanKopen && onKoop && (
+                  <View style={styles.koopGroep}>
+                    <PilKnop
+                      label="Koop"
+                      icoon={ShoppingCart}
+                      variant="cta"
+                      onPress={() => onKoop(kans)}
+                      accessibilityLabel={`${kans.symbool} kopen via eToro`}
+                    />
+                    {/* De merkjes staan alleen naast een Koop-knop die er ook echt staat. */}
+                    {platforms.length > 0 && (
+                      <Pressable
+                        onPress={() => setPlatformsOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Te kopen via ${noemPlatforms(platforms)}. Tik voor uitleg.`}
+                        // Links maar 4: daar staat de Koop-pil, en de slop mag het raakvlak van die knop
+                        // niet overlappen.
+                        hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
+                      >
+                        <PlatformChips platforms={platforms} maat={20} />
+                      </Pressable>
+                    )}
+                  </View>
+                )}
               </View>
             )}
             <View style={styles.details}>
@@ -277,6 +316,15 @@ export const KansKaart = memo(function KansKaart({
             </View>
           </Animated.View>
         </Animated.View>
+      )}
+      {/* Alleen mounten als hij open is: anders staat er per kaart een Modal in de boom. */}
+      {platformsOpen && (
+        <PlatformSheet
+          zichtbaar
+          onSluiten={() => setPlatformsOpen(false)}
+          symbool={kans.symbool}
+          platforms={platforms}
+        />
       )}
     </Animated.View>
   );
@@ -356,6 +404,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  koopGroep: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   knoppen: { gap: spacing.sm },
   // Details staat op een eigen regel, rechts. In de afbrekende knoppenrij met marginLeft auto
   // rekende Yoga er een lege extra regel bij, met een gat onder de knop.

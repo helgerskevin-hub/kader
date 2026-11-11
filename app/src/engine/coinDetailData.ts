@@ -18,6 +18,9 @@ export interface CoinDetailData {
   // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het markt- en
   // het kansenscherm, want daar draaien de scans die het uitrekenen.
   versusBtc?: number;
+  // Alleen vanaf Kansen: de scan is verouderd, dus de koers waar het plan mee rekent kan niet meer
+  // kloppen. Het detailscherm biedt dan geen trade-knop tot er ververst is.
+  planVerouderd?: boolean;
   // alleen relevant voor context 'portfolio'
   entryPrijs?: number;
   bedragUsd?: number;
@@ -43,7 +46,7 @@ export function vanTrade(trade: Trade, versusBtc?: number): CoinDetailData {
   };
 }
 
-export function vanOpportunity(kans: Opportunity): CoinDetailData {
+export function vanOpportunity(kans: Opportunity, planVerouderd = false): CoinDetailData {
   return {
     symbool: kans.symbool,
     naam: kans.naam || infoVoor(kans.symbool).naam,
@@ -56,6 +59,7 @@ export function vanOpportunity(kans: Opportunity): CoinDetailData {
     rr: kans.niveaus?.rr,
     score: kans.trade.score,
     versusBtc: kans.ingredienten.rsBtc30d ?? undefined,
+    planVerouderd,
   };
 }
 

@@ -151,9 +151,9 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const coinInfo = infoVoor(data.symbool);
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
   const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
-  // Niet vanaf Kansen: de radar is een volglijst zonder koopsignaal, dus het detailscherm biedt er
-  // geen trade-knop. Markt en Portfolio houden de knop zoals hij was.
-  const kanTraden = data.context !== 'kansen';
+  // Traden kan vanaf elk scherm, ook vanaf de volglijst van Kansen: Kader adviseert daar niet, maar
+  // wie zelf kiest moet het hier kunnen doen. Alleen niet met een plan uit een verouderde scan.
+  const kanTraden = !data.planVerouderd;
   const getradeBron: GetradeBron | null = kanGetrade
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
     : null;
