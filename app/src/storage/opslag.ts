@@ -123,6 +123,8 @@ export const SLEUTELS = {
   volglijstBoek: 'volglijst_boek',
   // Risico per trade in procent van je handelskapitaal: '0.5', '1' of '2'. Zie state/useRisicoPct.ts.
   risicoPct: 'risico_pct',
+  // Grote koersgrafiek als 'lijn' of 'candles', ontbreekt = lijn. Zie state/useGrafiekSoort.ts.
+  grafiekSoort: 'grafiek_soort',
   // Staat het weekrapport op zondag aan? 'aan' of 'uit', ontbreekt = aan.
   weekrapportAan: 'weekrapport_aan',
   // Week (maandag-datum) waarvan het weekrapport al verstuurd is, zodat het er per week één blijft.

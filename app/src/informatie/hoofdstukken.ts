@@ -128,7 +128,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     titel: 'De prijsgrafiek',
     icoon: 'ChartSpline',
     kort: 'De lijn, de niveaus en vasthouden om te lezen.',
-    zie: 'De grafiek toont de koers over de gekozen periode: groen als hij in die periode steeg, rood als hij daalde.',
+    zie: 'De grafiek toont de koers over de gekozen periode: groen als hij in die periode steeg, rood als hij daalde. Kies je in Instellingen bij Grafiek voor Candles, dan staat er per dag of uur een candle met open, hoog, laag en slot: hol als de koers steeg, gevuld als hij daalde.',
     reken: 'De stippellijnen zijn de stop (rood), de entry (blauw) en het doel (groen). Met 1M, 3M, 6M en Alles kies je de periode; een periode waarvoor te weinig koershistorie is, staat er niet bij.',
     doe: 'Houd je vinger stil op de grafiek of schuif er zijwaarts overheen: je ziet de datum en de koers van elk punt. Op de hoogste en laagste koers voel je een tik.',
     detail: [],

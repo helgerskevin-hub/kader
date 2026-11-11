@@ -14,6 +14,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 - Signaalresultaat houdt nu ook de volglijst van Kansen bij. Elke coin die op de radar komt, volgt Kader met het plan van de kaart, tot stop, doel of 30 dagen. Je ziet het gemiddelde resultaat na de kosten van eToro, apart voor een gunstig en een ander marktklimaat, naast wat de meting voorspelde. Het zijn geen koopsignalen en ze tellen niet mee in de andere cijfers
 - Op de kaart van Kansen staat nu ook hoeveel de koers vandaag bewogen is, onder NU. De score en de afstand tot de top zijn van de laatste afgesloten dag, de prijs is van nu; dit getal laat zien waarom die twee soms uit elkaar lopen
 - Het vermogen op de widget telt je posities nu tegen de koers van nu, net als de statuskaart op Portfolio. Eerder stond er het bedrag van de laatste eToro-sync, met je posities op wat je erin stopte
+- De grote koersgrafiek op het detailscherm van een coin kan nu ook candles tonen. Zet het aan in Instellingen, onder Weergave, bij Grafiek. Een stijgende candle is hol, een dalende gevuld, en tijdens het schuiven over de grafiek zie je ook de hoogste en laagste koers van die candle. Passen er te veel in de breedte, dan voegt Kader er een paar samen, bijvoorbeeld twee dagen in één candle. Geeft de bron alleen slotkoersen, dan blijft het een lijn. De kleine grafiekjes op de kaarten blijven altijd een lijn
 
 ## 0.4.2
 
