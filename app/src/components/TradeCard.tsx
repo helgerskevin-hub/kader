@@ -1,3 +1,4 @@
+import { RADAR_PLAN_UITLEG } from '../engine/momentum';
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -271,6 +272,11 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
             {/* De drempel in dezelfde opmaak als de waarde erboven, en dat is de hele reden dat fmtRR
                 hier staat. Er stond "onder 1:2" onder een waarde van "1 : 1.3", en dat las als
                 "onder 1,2": een grens die het getal erboven ruim haalde. */}
+            {/* Waarom de stop zo ruim ligt. Zonder deze regel leest een stop van 20 tot 40% onder de
+                koers als een fout; het is juist wat de kosten draagt (meting M en N). */}
+            <Text style={[Type.caption, styles.notitie, { color: colors.tekstGedimd }]}>
+              {RADAR_PLAN_UITLEG}
+            </Text>
             {!haaltRr && (
               <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
                 Onder {fmtRR(MIN_RISK_REWARD)}, doordat eToro een ruimere stop eist dan het plan.
