@@ -54,16 +54,18 @@ Bevat 3 sub-tabbladen:
   live entry/stop/take-profit in een tabel; per rij een "✅ Getrade"-knop.
 - **⚡ Momentum-radar (tab Kansen)**: scant dezelfde 57 eToro-coins als Markt,
   maar vraagt iets anders: welke coins staan dicht bij hun hoogste koers van 90
-  dagen (gebacktest, meting I en J). Scant vanzelf bij openen (hooguit elke 30
+  dagen (gebacktest, meting I en M). Een volglijst, geen koopadvies. Scant vanzelf bij openen (hooguit elke 30
   minuten) en onthoudt het laatste resultaat. Bovenaan een top-3 carrousel
   (mini-kaarten met scorering rond het logo en een vlakgrafiek; een tik opent het detailscherm), daaronder kaarten
   (KansKaart) die net als op Markt werken: tik klapt uit, Details opent het
   detailscherm. De kaart toont rangpijltje, scorering rond het logo, vlakgrafiek
   van 30 dagen met verandering en momentumbalkjes; uitgeklapt staan het
-  uitbraak-plan (stop op de EMA20, doel 2x ATR boven de 90d-top) als stop-doel-baan
-  met stip voor de koers, het KOOP/WATCH-oordeel (KOOP alleen bij R/R vanaf 1:2)
-  en de knoppen "Getrade", "Koop" en "Details". Staat niets dicht bij zijn top, dan zegt het scherm
-  dat eerlijk en toont het de drie sterkste als WATCH.
+  plan (stop 3x ATR onder de koers, doel op drie keer dat risico) als stop-doel-baan
+  met stip voor de koers, de uitleg wat dat plan na kosten deed, en de knoppen
+  "Getrade" en "Details". Er staat altijd WATCH en er is geen Koop-knop. Heb je de
+  coin al, dan staat er een merkje "HEB JE AL". Is het marktklimaat niet gunstig,
+  dan staat dat in één regel boven de lijst. Staat niets dicht bij zijn top, dan
+  zegt het scherm dat eerlijk en toont het de drie die er het dichtst bij zitten.
 
 ### Tab 2 — 📈 Mijn Trades
 - Formulier om een trade toe te voegen: Symbool, Aantal (optioneel), Entry-prijs,
@@ -301,8 +303,8 @@ bij de nuchtere toon. Eén icon-familie per rol, consistent doorvoeren.
 coinlogo, naast prijs, badge en een vlakgrafiek van 30 dagen met de verandering.
 Entry-zone, stop, doel en R/R zitten als stop-doel-baan met stip voor de koers
 in het uitgeklapte deel, samen met indicatoren (RSI/MACD), "Over deze coin" en
-de pilknoppen "Getrade", "Koop" en "Details". Tik = uitklappen, Details =
-detailscherm.
+de pilknoppen "Getrade", "Koop" en "Details" (op Kansen zonder "Koop"). Tik =
+uitklappen, Details = detailscherm.
 
 **eToro-resultaatkaart:** 🟢/🟡/🔴-oordeel groot, totaalscore als ring,
 aanbevolen Copy Stop Loss % in een apart vak, onderbouwing als drie korte regels.

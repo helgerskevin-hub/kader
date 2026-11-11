@@ -40,6 +40,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-11-11',
+    punten: [
+      'Kansen is nu een volglijst en geeft geen koopsignaal meer. Kader heeft de radar voor het eerst doorgerekend met de kosten van eToro: 1% bij kopen en 1% bij verkopen. Met het oude plan verloor een koopsignaal op Kansen dan gemiddeld geld. Het plan op elke kaart is daarom ruimer geworden: de stop 3x ATR onder de koers en het doel op drie keer dat risico. Dat hield na kosten wel iets over, maar welke coin de radar kiest bleek niet aantoonbaar beter dan een willekeurige coin op dezelfde dag. Daarom staat er WATCH en geen KOOP, en is de koopknop op Kansen weg. Getrade blijft, voor een trade die je zelf doet',
+      'De score op Kansen kijkt nu naar de laatste afgesloten dag en verspringt dus niet meer in de loop van de dag. De prijs en het plan volgen wel de koers van nu',
+      'Kansen kijkt nu ook naar het marktklimaat. Is dat gemengd of ongunstig, dan staat het boven de lijst',
+      'Heb je een coin van de radar al, dan staat er Heb je al op de kaart. Beweegt een coin sterk mee met een van je posities, dan zegt de kaart dat erbij',
+      'Bij Waarom stond het verschil met bitcoin als sterker dan BTC. Dat las als een pluspunt, terwijl het niet meetelt in de score. Het staat er nu als kaal getal',
+    ],
+  },
+  {
     versie: '0.4.2',
     datum: '2026-11-10',
     nieuweFeatures: [

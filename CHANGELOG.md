@@ -4,6 +4,14 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- Kansen is nu een volglijst en geeft geen koopsignaal meer. Kader heeft de radar voor het eerst doorgerekend met de kosten van eToro: 1% bij kopen en 1% bij verkopen. Met het oude plan verloor een koopsignaal op Kansen dan gemiddeld geld. Het plan op elke kaart is daarom ruimer geworden: de stop 3x ATR onder de koers en het doel op drie keer dat risico. Dat hield na kosten wel iets over, maar welke coin de radar kiest bleek niet aantoonbaar beter dan een willekeurige coin op dezelfde dag. Daarom staat er WATCH en geen KOOP, en is de koopknop op Kansen weg. Getrade blijft, voor een trade die je zelf doet
+- De score op Kansen kijkt nu naar de laatste afgesloten dag en verspringt dus niet meer in de loop van de dag. De prijs en het plan volgen wel de koers van nu
+- Kansen kijkt nu ook naar het marktklimaat. Is dat gemengd of ongunstig, dan staat het boven de lijst
+- Heb je een coin van de radar al, dan staat er Heb je al op de kaart. Beweegt een coin sterk mee met een van je posities, dan zegt de kaart dat erbij
+- Bij Waarom stond het verschil met bitcoin als sterker dan BTC. Dat las als een pluspunt, terwijl het niet meetelt in de score. Het staat er nu als kaal getal
+
 ## 0.4.2
 
 - De widget is vernieuwd. Hij toont je open resultaat nu standaard in procenten, met de dollars eronder als je die aanzet, en op de brede widget per positie een balk van stop naar doel met een stip op de koers. In Instellingen, onder Widget, kies je de indeling (Resultaat of Vermogen), het hoofdgetal (%, $ of R), de balken, welke posities erop staan (dichtst bij stop of doel, grootste, of beste en slechtste) en hoeveel. Rechtsboven staat hoe laat de cijfers zijn; zijn ze ouder dan twee uur, dan is de tijd oranje. De widget ververst nu ook op de achtergrond als je meldingen uit staan

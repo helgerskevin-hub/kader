@@ -208,7 +208,30 @@ Binnen de bestaande kaart, volgens de UI-regels.
 | Spread en minimale stop niet gemeten | Drie scenario's in de backtest; de echte waarden zodra de koppeling beschikbaar is. |
 | Thom werkt tegelijk in dezelfde bestanden | Afstemmen voor de start; deze branch raakt `engine/opportunities.ts`, `engine/momentum.ts`, `state/KansenProvider.tsx`, `components/KansKaart.tsx`, `scripts/backtest.ts`. |
 
-## 8. Aanbeveling model en inspanning
+## 8. Uitkomst (11 nov 2026)
+
+Uitgevoerd op dezelfde dag. De volledige cijfers staan in `docs/metingen.md`, meting M.
+
+- **Fase 0.** Eigen harness in `app/scripts/meting-kansen.ts`. Met 1% kosten per kant is elke
+  bestaande regel negatief, ook Markts KOOP met de poort open.
+- **Fase 1.** Gebouwd: afgesloten dag, klimaat op Kansen, het plan dat de kosten draagt (stop 3x
+  ATR, doel 3R), portfolio-merkjes, neutrale redenen.
+- **Fase 2.** Vier soorten gemeten op de afsteljaren. Alleen "bij de top" hield stand. Terugval
+  bleek een markteffect, uitbraak en opbouw kwamen niet boven de ijklijn, en de afstand in ATR
+  voegde niets toe.
+- **Toets.** De ene regel die overbleef haalt +0,29 R netto in 2023 t/m 2026 (het oude plan
+  -0,19), maar haalt de lat niet: geen aantoonbare excess R en positief in maar 2 van de 4 jaren.
+- **Besluit van Kevin:** het plan volgen. Kansen is een volglijst zonder KOOP en zonder koopknop.
+- **Fase 3.** Vervalt: boven de drempel lopen de emmers niet op, dus er is niets om op te sorteren.
+
+Niet gedaan, met reden:
+
+- Kansen-signalen in het signaalboek. Er is geen signaal meer om te loggen. Een live trackrecord
+  van de volglijst is een goed vervolg, maar vraagt een eigen groep in Signaalresultaat.
+- De echte spread en minimale stop per coin. Die vragen de eToro-koppeling.
+- Markt. Bewust ongemoeid; het vervolgvoorstel staat onder meting M.
+
+## 9. Aanbeveling model en inspanning
 
 - **Fase 0 t/m 3 (meten en engine):** het sterkste model, hoge inspanning. Hier zit het risico:
   een subtiele look-ahead of een verkeerd gelezen meting kost echt geld.

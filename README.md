@@ -20,7 +20,7 @@ De app heeft vier schermen, bereikbaar via de tabbalk onderin. Je wisselt met ee
   <img src="docs/readme/markt-kaart.svg" alt="Voorbeeld van een kaart op Markt voor een verzonnen munt: score 64 als ring rond het logo, koers 100 dollar, plus 6,9 procent over 30 dagen, een koersgrafiek, de badge KOOPZONE en R/R 1 : 2.4." width="460">
 </p>
 
-**Kansen.** De momentum-radar scant dezelfde coins met een andere vraag: welke staan dicht bij hun hoogste koers van de afgelopen 90 dagen? Elke kandidaat krijgt een uitbraak-plan (stop op de EMA20, doel 2x ATR boven de top van 90 dagen). KOOP verschijnt alleen bij een score vanaf 55 en een risico/opbrengst van minstens 1:2, anders staat er WATCH. Staat er niets dicht bij zijn top, dan zegt het scherm dat en toont het de sterkste paar coins als WATCH.
+**Kansen.** De momentum-radar scant dezelfde coins met een andere vraag: welke staan dicht bij hun hoogste koers van de afgelopen 90 dagen? Het is een volglijst, geen koopadvies: na de kosten van eToro bleek de keuze van de coin niet aantoonbaar beter dan willekeurig (meting M in `docs/metingen.md`). Elke coin krijgt wel een plan dat die kosten draagt (stop 3x ATR onder de koers, doel op drie keer dat risico). Staat er niets dicht bij zijn top, dan zegt het scherm dat en toont het de coins die er het dichtst bij zitten.
 
 **Portfolio.** Je open posities, uit eToro of handmatig ingevoerd, met je resultaat groot in beeld en een stip op de stop-doel-baan voor de live koers. Uitgeklapt zie je een afbouwadvies (bijvoorbeeld WINST BESCHERMEN, STOP OPTREKKEN of HOUDT STAND). Kader controleert je posities ook op de achtergrond en stuurt een melding als een positie de rand van je kader nadert of als eToro een positie voor je sluit.
 
