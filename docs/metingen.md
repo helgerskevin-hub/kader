@@ -236,7 +236,8 @@ Vier dingen zijn anders dan in de metingen hierboven:
   de stopafstand, dus een krappe stop betaalt veel meer dan een ruime.
 - **Instap op de open na het signaal.** Het oordeel valt op een afgesloten dag; kopen kan pas
   daarna. `backtest.ts` stapt in op het slot van de signaaldag zelf.
-- **Afstellen en toetsen gescheiden.** Kiezen op t/m 2022, toetsen op 2023 t/m 2026, één keer.
+- **Afstellen en toetsen gescheiden.** Kiezen op t/m november 2022, toetsen op 2023 t/m 2026, één
+  keer. Signalen uit december 2022 tellen bij geen van beide: hun trade loopt de toetsjaren in.
 - **Excess R.** De uitkomst min die van een willekeurige coin op dezelfde dag met dezelfde niveaus.
   Dat scheidt "deze regel kiest goed" van "het was een goede dag".
 
@@ -249,8 +250,8 @@ Gemiddelde R per trade, alle jaren, en tussen haakjes alleen 2023 en later.
 
 | regel | zonder kosten | 1% per kant | 1% per kant, stop minimaal 10% |
 |---|---|---|---|
-| elke bar, niveaus van Markt | +0,020 | -0,251 (-0,300) | -0,123 (-0,153) |
-| Markt KOOP + R/R | +0,106 | -0,151 (-0,254) | -0,093 (-0,170) |
+| elke bar, niveaus van Markt | +0,020 | -0,251 (-0,300) | -0,122 (-0,153) |
+| Markt KOOP + R/R | +0,106 | -0,152 (-0,254) | -0,093 (-0,170) |
 | Markt KOOP + R/R, poort open | +0,220 | -0,052 (-0,140) | -0,010 (-0,074) |
 | Kansen oud (radar + score 55 + R/R 2) | +0,224 | -0,174 (-0,258) | -0,073 (-0,188) |
 
@@ -268,10 +269,11 @@ dagen houdtijd, 1% per kant:
 
 | stop | doel | mediane stop | bruto | netto |
 |---|---|---|---|---|
-| 1,5x ATR | 2R | 13% | +0,212 | +0,046 |
+| 1,5x ATR | 2R | 13% | +0,213 | +0,046 |
+| 1,5x ATR | 3R | 13% | +0,317 | +0,149 |
 | 2x ATR | 3R | 17% | +0,333 | +0,204 |
 | **3x ATR** | **3R** | 25% | +0,395 | **+0,305** |
-| onder low20 en EMA50 | 3R | 30% | +0,378 | +0,299 |
+| onder low20 en EMA50 | 3R | 30% | +0,376 | +0,296 |
 
 Een ruime stop houdt van het bruto resultaat het meeste over. Gekozen: 3x ATR, doel 3R, 30 dagen,
 de eenvoudigste die in alle drie de meetbare afsteljaren boven de ijklijn bleef. Met "stop minimaal
@@ -284,12 +286,12 @@ Zelfde opzet voor alle soorten, poort open, 1% per kant, alleen t/m 2022.
 
 | soort | n | netto | excess | 90%-interval excess |
 |---|---|---|---|---|
-| ijk: elke bar | 989 | +0,238 | -0,004 | -0,03 tot +0,02 |
-| bij de top, binnen 9% (de radar) | 339 | +0,547 | **+0,198** | +0,08 tot +0,30 |
-| bij de top, binnen 1x ATR | 313 | +0,541 | +0,165 | +0,06 tot +0,27 |
+| ijk: elke bar | 942 | +0,284 | -0,004 | -0,03 tot +0,02 |
+| bij de top, binnen 9% (de radar) | 338 | +0,552 | **+0,199** | +0,08 tot +0,31 |
+| bij de top, binnen 1x ATR | 313 | +0,541 | +0,164 | +0,06 tot +0,27 |
 | terugval: trend op, 10pp achter op BTC | 238 | +0,744 | +0,019 | -0,07 tot +0,11 |
 | verse uitbraak, volume 1,5x | 194 | +0,572 | +0,087 | -0,10 tot +0,28 |
-| rustige opbouw, ATR-krimp 0,8 | 282 | +0,183 | +0,023 | -0,11 tot +0,14 |
+| rustige opbouw, ATR-krimp 0,8 | 281 | +0,188 | +0,024 | -0,11 tot +0,15 |
 
 - **Bij de top** houdt stand. De afstand in ATR meten in plaats van in procenten voegt niets toe.
 - **Terugval** heeft het hoogste gemiddelde en geen excess. Dat is de vondst uit meting H opnieuw
@@ -297,8 +299,8 @@ Zelfde opzet voor alle soorten, poort open, 1% per kant, alleen t/m 2022.
   betere keuze van de coin.
 - **Verse uitbraak** en **rustige opbouw** komen niet aantoonbaar boven de ijklijn.
 
-Binnen "bij de top": drempel 60 gaf +0,124 excess, 70 +0,198, 80 +0,115. De Markt-score van 55
-erbij veranderde niets (338 van de 339 trades haalden die al). Boven de 70 lopen de emmers niet op
+Binnen "bij de top": drempel 60 gaf +0,125 excess, 70 +0,199, 80 +0,115. De Markt-score van 55
+erbij veranderde niets (337 van de 338 trades haalden die al). Boven de 70 lopen de emmers niet op
 (70 tot 80 +0,19, 80 tot 90 +0,09, 90 tot 100 +0,17), dus een fijnere sortering is niet te
 onderbouwen.
 
@@ -311,7 +313,7 @@ Eén regel ging naar de toets: radar 70 of hoger, poort open, stop 3x ATR, doel 
 | Markt KOOP + R/R, poort open | 1269 | -0,140 | -0,016 | -0,08 tot +0,05 | +0,02 | -0,13 | -0,44 | -0,03 |
 | Kansen oud, poort open | 662 | -0,194 | -0,112 | -0,33 tot +0,07 | -0,18 | -0,09 | -0,67 | -0,02 |
 | **Kansen nieuw** | 691 | **+0,290** | +0,040 | -0,01 tot +0,09 | +0,39 | +0,65 | -0,30 | -0,04 |
-| idem, zonder poort | 798 | +0,214 | +0,037 | -0,01 tot +0,09 | +0,36 | +0,60 | -0,37 | -0,16 |
+| idem, zonder poort | 796 | +0,215 | +0,036 | -0,01 tot +0,09 | +0,36 | +0,60 | -0,37 | -0,16 |
 | idem, 1,5% per kant | 691 | +0,223 | +0,034 | -0,01 tot +0,09 | | | | |
 | idem, alleen de 18 coins van voor 2019 | 275 | +0,251 | -0,009 | -0,13 tot +0,11 | | | | |
 
@@ -320,7 +322,8 @@ Tegen de lat:
 - ja: minstens 150 trades in de toetsjaren (691)
 - **nee**: excess R aantoonbaar boven nul (ondergrens interval -0,01)
 - ja: wint van Markt KOOP met poort (+0,290 tegen -0,140)
-- **nee**: excess positief in de meeste toetsjaren (2 van 4)
+- **nee**: excess positief in minstens 3 van de 4 toetsjaren (2 van 4)
+- ja: excess positief in de meerderheid van alle jaren (5 van 7)
 
 De regel haalt de lat niet. Het netto gemiddelde zelf heeft een interval van -0,10 tot +0,64. Met
 "stop minimaal 10%" is de uitkomst gelijk (+0,286 over 688 trades). Op 33% van de dagen in de
@@ -346,6 +349,13 @@ deel van het effect in de afsteljaren leunde op nieuwkomers.
 - De minimale stop is alleen voor BTC gemeten (10%). Voor de andere coins is hij onbekend.
 - De live spread van eToro komt nog boven de 1% per kant. Die is niet gemeten.
 - Overlevingsbias: het universum zijn coins die nu op eToro staan.
+- Het interval komt uit een bootstrap per kalendermaand van instap. Trades lopen tot 30 dagen en
+  steken dus over maandgrenzen heen, waardoor het interval eerder te smal dan te breed is. De
+  uitkomst valt daar niet door om: de regel haalt de lat ook met dit interval niet.
+- Een trade die bij het einde van de data nog loopt telt niet mee.
+- Na een onafhankelijke review zijn twee dingen in het script aangescherpt (de maand tussen
+  afstellen en toetsen, en lopende trades aan het einde). De toets gaf daarna exact dezelfde
+  uitkomst; de afstelcijfers verschoven in de derde decimaal en de keuzes bleven gelijk.
 - De toetsjaren zijn één keer bekeken voor de regel die getoetst is. De bestaande regels (Markt
   KOOP, Kansen oud) stonden als ijk in dezelfde tabel en waren niet te vermijden.
 

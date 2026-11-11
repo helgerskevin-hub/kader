@@ -130,9 +130,9 @@ export const RADAR_DREMPEL = 70;
 // Waarom zo ruim? De kosten van eToro zijn 2% van de koers, heen en terug. Uitgedrukt in R is dat
 // 2% gedeeld door de stopafstand: bij een stop op 4% ben je een halve R kwijt voordat de koers
 // beweegt, bij een stop op 20% een tiende. Het oude plan (stop op de EMA20, doel 2x ATR boven de
-// 90d-top) had een mediane stop van 7% en ging met kosten van +0,24 R naar -0,17 R per trade. Van
+// 90d-top) had een mediane stop van 7% en ging met kosten van +0,22 R naar -0,17 R per trade. Van
 // acht opzetten op een neutrale selectie (trend op, klimaat gunstig) hield deze na kosten het
-// meeste over: +0,30 R, tegen +0,05 R voor een stop van 1,5x ATR.
+// meeste over: +0,30 R, tegen +0,15 R voor een stop van 1,5x ATR met hetzelfde doel van 3R.
 //
 // Bijkomend voordeel: 3x ATR ligt vrijwel altijd verder weg dan de 10% die eToro bij BTC minimaal
 // eist. In de meting gaf "stop minimaal 10%" dezelfde uitkomst, dus het plan op de kaart is het
@@ -152,8 +152,9 @@ export const RADAR_PLAN_UITLEG =
   + 'De ruime stop houdt de kosten van eToro (1% bij kopen, 1% bij verkopen) klein tegenover je risico.';
 export const RADAR_METING_UITLEG =
   'Dit is een volglijst, geen koopadvies. Coins op de radar haalden met dit plan na kosten gemiddeld '
-  + '+0,29 R per trade (2023 t/m 2026, bij een gunstig marktklimaat), met verlies in 2025 en 2026. '
-  + 'Dat was niet aantoonbaar beter dan een willekeurige coin op dezelfde dag.';
+  + '+0,29 R per trade (2023 t/m 2026, bij een gunstig marktklimaat). Dat gemiddelde is onzeker en '
+  + '2025 en 2026 waren verliesjaren. Het was ook niet aantoonbaar beter dan een willekeurige coin op '
+  + 'dezelfde dag.';
 
 export interface RadarNiveaus {
   entry: number;

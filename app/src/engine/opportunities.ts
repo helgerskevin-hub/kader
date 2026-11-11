@@ -172,8 +172,9 @@ export interface KansenUitkomst {
   radarLeeg: boolean;
   // Van hoeveel coins er bruikbare dagcandles waren.
   gescand: number;
-  // Hetzelfde klimaat als op Markt (bepaalKlimaat), op de afgesloten dagen. Null bij te weinig
-  // historie of zonder BTC. De meting van het plan gold bij een gunstig klimaat; het scherm zegt
+  // Het klimaat uit bepaalKlimaat, de functie van Markt, maar op de afgesloten dagen: Markt rekent
+  // met de lopende dag erbij, dus rond een omslag kunnen de twee een dag verschillen. Null bij te
+  // weinig historie of zonder BTC. De meting van het plan gold bij een gunstig klimaat; het scherm zegt
   // het erbij als dat nu anders is.
   klimaat: Marktklimaat | null;
 }

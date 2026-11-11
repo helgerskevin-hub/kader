@@ -151,10 +151,9 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const coinInfo = infoVoor(data.symbool);
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
   const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
-  // Vanaf Kansen alleen bij KOOP: een WATCH-kans heeft soms wel een plan, maar Kader zegt er zelf
-  // bij dat het nu niet klopt. Markt en Portfolio geven geen signaal mee en houden de knop zoals
-  // hij was.
-  const kanTraden = !(data.context === 'kansen' && data.signaal !== 'KOOP');
+  // Niet vanaf Kansen: de radar is een volglijst zonder koopsignaal, dus het detailscherm biedt er
+  // geen trade-knop. Markt en Portfolio houden de knop zoals hij was.
+  const kanTraden = data.context !== 'kansen';
   const getradeBron: GetradeBron | null = kanGetrade
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
     : null;

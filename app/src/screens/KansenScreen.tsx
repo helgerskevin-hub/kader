@@ -300,8 +300,9 @@ export function KansenScreen() {
                   Coins die dicht bij hun hoogste koers van 90 dagen staan. Een volglijst, geen
                   koopadvies: de score kijkt naar de laatste afgesloten dag.
                 </Text>
-                {/* Zelfde klimaat als de balk op Markt. Het plan op de kaarten is gemeten bij een
-                    gunstig klimaat, dus het scherm zegt het erbij als dat nu anders is. */}
+                {/* Dezelfde klimaatregel als de balk op Markt, hier op de laatste afgesloten dag. Het
+                    plan op de kaarten is gemeten bij een gunstig klimaat, dus het scherm zegt het erbij
+                    als dat nu anders is. */}
                 {klimaat && klimaat.klimaat !== 'gunstig' && (
                   <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
                     Let op: het marktklimaat is nu {klimaat.klimaat}. In zo'n markt deed ook deze lijst

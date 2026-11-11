@@ -98,7 +98,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     kort: 'eToro eist een minimale afstand voor je stop.',
     zie: 'De stop die Kader toont is altijd een niveau dat eToro accepteert. Ligt Kaders eigen stop te krap of te ver, dan staat er meteen de stop die je bij eToro echt kunt zetten.',
     reken: 'eToro eist per coin een minimale en maximale afstand tussen je stop en een referentieprijs. Voor bitcoin is dat minimaal 10%. Bij een nieuwe kooporder is die referentie je aankoopprijs; bij het wijzigen van de stop van een lopende koop-positie is het de huidige koers. Ligt de stop van Kader buiten die grenzen, dan schuift hij naar de dichtstbijzijnde grens van eToro.',
-    doe: 'Een verdere stop betekent meer risico bij hetzelfde doel. Zakt de R/R daardoor onder 1 : 2, dan kleurt de R/R oranje, vervalt BEVESTIGD en wordt het label op Markt AFWACHTEN. De uitgeklapte kaart zegt dat Kader hier geen koopsignaal geeft. Op Kansen verdwijnt KOOP dan. Staat je positie ver genoeg in winst, dan kun je in het stopvenster een stop boven je aankoopprijs zetten, zolang hij minstens het minimum onder de koers blijft (bij bitcoin 10%). Dat kan in demo en in je echte account.',
+    doe: 'Een verdere stop betekent meer risico bij hetzelfde doel. Zakt de R/R daardoor onder 1 : 2, dan kleurt de R/R oranje, vervalt BEVESTIGD en wordt het label op Markt AFWACHTEN. De uitgeklapte kaart zegt dat Kader hier geen koopsignaal geeft. Op Kansen schuift de stop op dezelfde manier op en zakt de R/R mee. Staat je positie ver genoeg in winst, dan kun je in het stopvenster een stop boven je aankoopprijs zetten, zolang hij minstens het minimum onder de koers blijft (bij bitcoin 10%). Dat kan in demo en in je echte account.',
     detail: [
       'Werkt alleen met een eToro-koppeling; zonder koppeling blijft de eigen stop van Kader staan',
       'Laat eToro voor een coin geen stop toe, dan staat er STOP (KADER): een niveau om zelf in de gaten te houden',
@@ -167,7 +167,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
       'Het aandeel coins wordt vergeleken met 20 dagen eerder',
       'Bij gemengd staat elke coin op Markt ook op AFWACHTEN',
       'Voorbeelden van ongunstige perioden: 2018, 2022 en begin 2026',
-      'Kansen toont hetzelfde klimaat boven de lijst als het gemengd of ongunstig is',
+      'Kansen toont het klimaat boven de lijst als het gemengd of ongunstig is, gerekend op de laatste afgesloten dag. Markt rekent met de lopende dag, dus rond een omslag kunnen de twee een dag verschillen',
     ],
   },
   {
@@ -220,13 +220,14 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     kort: 'Welke coins dicht bij hun hoogste koers van 90 dagen staan.',
     zie: 'Het tabblad Kansen toont coins die vlak onder hun hoogste koers van de laatste 90 dagen staan. Staan er minstens drie op de radar, dan staan de drie die er het dichtst bij zitten bovenaan, onder "In het kader".',
     reken: 'De momentumscore is 100 op de top en loopt terug naar 0 bij 30% eronder. Vanaf 70, ongeveer 9% onder de top, staat een coin op de radar. De score kijkt naar de laatste afgesloten dag. Het plan rekent met de koers van nu: de stop 3x ATR eronder, het doel op drie keer dat risico.',
-    doe: 'De radar is een volglijst, geen koopadvies: er staat altijd WATCH en er is geen koopknop. Met dit plan hielden coins op de radar na de kosten van eToro gemiddeld +0,29 R per trade over, gemeten over 2023 tot en met 2026 bij een gunstig klimaat. Dat was niet aantoonbaar beter dan een willekeurige coin op dezelfde dag, en 2025 en 2026 waren verliesjaren. Doe je zelf een trade, leg hem dan vast met Getrade. Is de scan ouder dan 30 minuten, dan ververst Kader hem als je het tabblad opent.',
+    doe: 'De radar is een volglijst, geen koopadvies: er staat altijd WATCH en er is geen koopknop. Met dit plan hielden coins op de radar na de kosten van eToro gemiddeld +0,29 R per trade over, gemeten over 2023 tot en met 2026 bij een gunstig klimaat. Dat gemiddelde is onzeker: het kan net zo goed rond nul liggen, en 2025 en 2026 waren verliesjaren. Het was ook niet aantoonbaar beter dan een willekeurige coin op dezelfde dag. Doe je zelf een trade, leg hem dan vast met Getrade. Is de scan ouder dan 30 minuten, dan ververst Kader hem als je het tabblad opent.',
     detail: [
       'Gemiddeld staan er zo\'n drie coins op de radar; op ongeveer 4 van de 10 dagen geen enkele',
       'Staat er niets op de radar, dan toont Kader de drie coins die er het dichtst bij zitten',
       '▲ en ▼ tonen hoeveel plekken een coin steeg of zakte sinds de vorige scan',
       'De stop staat ruim, omdat eToro 1% rekent bij kopen en 1% bij verkopen: hoe krapper de stop, hoe zwaarder die 2% weegt tegenover je risico',
       'Met het oude plan (stop op de EMA20) ging een koopsignaal na kosten van +0,22 R naar -0,17 R per trade',
+      'De prijs en het plan volgen de koers van nu; de score, de ring en de afstand tot de top zijn die van de laatste afgesloten dag',
       'Eist eToro een ruimere stop dan 3x ATR, dan schuift de stop op en zakt de R/R mee',
       'De niveaus wijken af van Markt, omdat dit een ander plan is',
       'Is het marktklimaat gemengd of ongunstig, dan staat dat boven de lijst',

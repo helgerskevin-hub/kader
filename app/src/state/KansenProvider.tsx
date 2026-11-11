@@ -38,8 +38,8 @@ export type KansenState =
       // True als er niets op de radar staat; `kansen` zijn dan de sterkste drie.
       radarLeeg: boolean;
       gescand: number;
-      // Het marktklimaat van deze scan, zelfde berekening als op Markt. Null als het niet te
-      // bepalen was.
+      // Het marktklimaat van deze scan, op de afgesloten dagen (zie KansenUitkomst). Null als het
+      // niet te bepalen was.
       klimaat: Marktklimaat | null;
       lastUpdate: Date;
     };

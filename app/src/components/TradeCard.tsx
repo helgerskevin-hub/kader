@@ -61,8 +61,7 @@ type AdviesLabel = 'STERK KOOP' | 'KOOPZONE' | 'AFWACHTEN';
 // kunnen lopen.
 function adviesLabel(trade: Trade, haaltRr: boolean): AdviesLabel {
   if (trade.signaal !== 'KOOP') return 'AFWACHTEN';
-  // Zelfde regel als effectiefSignaal() voor Kansen: schuift eToro de stop zo op dat de R/R onder
-  // de drempel zakt, dan is het geen koopsignaal meer.
+  // Schuift eToro de stop zo op dat de R/R onder de drempel zakt, dan is het geen koopsignaal meer.
   if (!haaltRr) return 'AFWACHTEN';
   if (trade.highConviction || trade.score >= DREMPEL_STERK_KOOP) return 'STERK KOOP';
   return 'KOOPZONE';

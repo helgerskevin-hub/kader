@@ -18,10 +18,6 @@ export interface CoinDetailData {
   // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het markt- en
   // het kansenscherm, want daar draaien de scans die het uitrekenen.
   versusBtc?: number;
-  // Alleen vanaf Kansen, en daar altijd WATCH: de radar is een volglijst zonder koopsignaal, dus
-  // het detailscherm biedt er geen trade-knop. Ontbreekt het, dan verandert er niets (Markt,
-  // Portfolio).
-  signaal?: 'KOOP' | 'WATCH';
   // alleen relevant voor context 'portfolio'
   entryPrijs?: number;
   bedragUsd?: number;
@@ -60,7 +56,6 @@ export function vanOpportunity(kans: Opportunity): CoinDetailData {
     rr: kans.niveaus?.rr,
     score: kans.trade.score,
     versusBtc: kans.ingredienten.rsBtc30d ?? undefined,
-    signaal: 'WATCH',
   };
 }
 

@@ -35,6 +35,9 @@ const VENSTER = 200;
 export const KOSTEN_ETORO = 0.01;      // per kant
 export const MIN_STOP_BTC = 0.10;      // eToro's gemeten ondergrens voor BTC
 export const TOETS_VANAF = '2023-01-01';
+// Een afsteltrade loopt hoogstens 30 dagen. Signalen in de laatste maand voor de toets zouden hun
+// uitkomst deels in de toetsjaren halen, dus die tellen bij geen van beide.
+export const AFSTEL_TOT = '2022-12-01';
 const DAGEN_HIGH = 90;
 
 // --- data --------------------------------------------------------------------------------
@@ -102,17 +105,13 @@ export interface Bar {
   atr: number;
   ema20: number;
   ema50: number;
-  ema50Stijgt: boolean;          // EMA50 hoger dan 10 dagen terug
   radar: number;                 // momentumScore() van de app, op dit venster
   score: number;                 // de technische score van Markt
   rrMarkt: number;               // R/R van Markts eigen niveaus
   stopMarkt: number;
-  rsi: number;
-  macdBullish: boolean;
   volumeRatio: number;
   top90: number;                 // hoogste high van de laatste 90 dagen, deze dag inbegrepen
   top90Voor: number;             // idem, van de 90 dagen ervoor (zonder deze dag)
-  low10: number;                 // laagste low van de laatste 10 dagen
   low20: number;
   rs30: number | null;           // 30-dagenrendement min dat van BTC, in procentpunten
   // ATR als deel van de koers, gedeeld door de mediaan daarvan over de 60 dagen ervoor.
@@ -127,15 +126,13 @@ function bouwBars(sym: string): Bar[] {
   const c = reeksen[sym];
   const uit: Bar[] = [];
   const natr: number[] = [];       // per bar in `uit`
-  const ema50PerI: Record<number, number> = {};
   for (let i = Math.max(MIN_CANDLES - 1, DAGEN_HIGH); i < c.length - 1; i++) {
     const venster = c.slice(Math.max(0, i - VENSTER + 1), i + 1);
     const t = scoorCandles(sym, venster, 'Binance', { minRR: 0 });
     if (!t || !(t.atr > 0)) continue;
-    let top90 = -Infinity, top90Voor = -Infinity, low10 = Infinity, low20 = Infinity;
+    let top90 = -Infinity, top90Voor = -Infinity, low20 = Infinity;
     for (let j = i - DAGEN_HIGH + 1; j <= i; j++) top90 = Math.max(top90, c[j].high);
     for (let j = i - DAGEN_HIGH; j <= i - 1; j++) top90Voor = Math.max(top90Voor, c[j].high);
-    for (let j = i - 9; j <= i; j++) low10 = Math.min(low10, c[j].low);
     for (let j = i - 19; j <= i; j++) low20 = Math.min(low20, c[j].low);
     const datum = datumVan(c[i].tijd);
     let rs30: number | null = null;
@@ -143,18 +140,16 @@ function bouwBars(sym: string): Bar[] {
       const bNu = btcClose[datum], bToen = btcClose[datumVan(c[i - 30].tijd)];
       if (bNu && bToen && c[i - 30].close > 0) rs30 = ((c[i].close / c[i - 30].close - 1) - (bNu / bToen - 1)) * 100;
     }
-    ema50PerI[i] = t.ema50;
     const n = t.atr / c[i].close;
     const vorige = natr.slice(-60);
     natr.push(n);
     uit.push({
       sym, i, datum, close: c[i].close, instap: c[i + 1].open,
       atr: t.atr, ema20: t.ema20, ema50: t.ema50,
-      ema50Stijgt: ema50PerI[i - 10] !== undefined && t.ema50 > ema50PerI[i - 10],
       radar: momentumScore(momentumIngredienten(venster)),
       score: t.score, rrMarkt: t.rr, stopMarkt: t.stopLoss,
-      rsi: t.rsi, macdBullish: t.macdBullish, volumeRatio: t.volumeRatio,
-      top90, top90Voor, low10, low20, rs30,
+      volumeRatio: t.volumeRatio,
+      top90, top90Voor, low20, rs30,
       atrKrimp: vorige.length >= 40 ? n / mediaan(vorige) : null,
       poort: poortOpen(datum),
     });
@@ -185,6 +180,9 @@ function simuleer(c: Candle[], i: number, instap: number, nv: Niveaus, maxBars: 
   if (!(risico > 0) || !(nv.doel > instap)) return null;
   const eind = Math.min(i + maxBars, c.length - 1);
   if (eind <= i) return null;
+  // Loopt de data af voordat de houdtijd om is, dan is de trade alleen af als stop of doel geraakt
+  // is. Anders zou een trade van vorige week als afgerond meetellen op de koers van vandaag.
+  const volledig = i + maxBars <= c.length - 1;
   const sluit = (prijs: number, j: number) => ({
     bruto: (prijs - instap) / risico,
     r: (prijs - instap - kosten * (instap + prijs)) / risico,
@@ -200,7 +198,7 @@ function simuleer(c: Candle[], i: number, instap: number, nv: Niveaus, maxBars: 
     if (k.low <= nv.stop) return sluit(nv.stop, j);
     if (k.high >= nv.doel) return sluit(nv.doel, j);
   }
-  return sluit(c[eind].close, eind);
+  return volledig ? sluit(c[eind].close, eind) : null;
 }
 
 export interface Regel {
@@ -316,11 +314,11 @@ export function kop() {
 
 export interface Samenvatting {
   n: number; netto: number; afstel: number; nToets: number; toets: number; excessToets: number;
-  ondergrens: number; jarenWinst: number; toetsJarenWinst: number; toetsJarenGeteld: number;
+  ondergrens: number; jarenWinst: number; jarenGeteld: number; toetsJarenWinst: number; toetsJarenGeteld: number;
 }
 
 export function vat(trades: TradeUit[]): Samenvatting {
-  const afstel = trades.filter(t => t.datum < TOETS_VANAF);
+  const afstel = trades.filter(t => t.datum < AFSTEL_TOT);
   const toets = trades.filter(t => t.datum >= TOETS_VANAF);
   const ex = (set: TradeUit[]) => set.filter(t => t.excess !== null).map(t => t.excess as number);
   const perJaar = (j: string) => ex(trades.filter(t => jaarVan(t.datum) === j));
@@ -330,7 +328,7 @@ export function vat(trades: TradeUit[]): Samenvatting {
     n: trades.length, netto: gem(trades.map(t => t.r)), afstel: gem(afstel.map(t => t.r)),
     nToets: toets.length, toets: gem(toets.map(t => t.r)), excessToets: gem(ex(toets)),
     ondergrens: interval(toets.filter(t => t.excess !== null), t => t.excess)[0],
-    jarenWinst: meetbaar.filter(j => gem(perJaar(j)) > 0).length,
+    jarenWinst: meetbaar.filter(j => gem(perJaar(j)) > 0).length, jarenGeteld: meetbaar.length,
     toetsJarenWinst: toetsMeetbaar.filter(j => gem(perJaar(j)) > 0).length,
     toetsJarenGeteld: toetsMeetbaar.length,
   };
@@ -351,7 +349,7 @@ export function regel(naam: string, trades: TradeUit[]) {
   );
 }
 
-// De lat uit paragraaf 5 van het plan, op de toetsjaren. Alle vier moeten kloppen.
+// De lat uit paragraaf 5 van het plan. Alle eisen moeten kloppen.
 export function oordeel(trades: TradeUit[], markt: TradeUit[]): string {
   const s = vat(trades);
   const m = vat(markt);
@@ -359,7 +357,9 @@ export function oordeel(trades: TradeUit[], markt: TradeUit[]): string {
     [`minstens 150 trades in de toetsjaren (${s.nToets})`, s.nToets >= 150],
     [`netto excess R boven nul, ondergrens interval ${f(s.ondergrens, 2)}`, s.ondergrens > 0],
     [`wint van Markt KOOP met poort (${f(s.toets)} tegen ${f(m.toets)})`, s.toets > m.toets],
-    [`excess positief in ${s.toetsJarenWinst} van ${s.toetsJarenGeteld} toetsjaren`, s.toetsJarenGeteld >= 3 && s.toetsJarenWinst >= s.toetsJarenGeteld - 1],
+    // Regel 4 uit het plan: minstens 3 van de 4 toetsjaren, en de meerderheid van alle jaren.
+    [`excess positief in ${s.toetsJarenWinst} van ${s.toetsJarenGeteld} toetsjaren (minstens 3 nodig)`, s.toetsJarenWinst >= 3],
+    [`excess positief in ${s.jarenWinst} van ${s.jarenGeteld} jaren in totaal (meerderheid nodig)`, s.jarenWinst > s.jarenGeteld / 2],
   ];
   const gehaald = eisen.every(e => e[1]);
   return (gehaald ? 'HAALT DE LAT' : 'haalt de lat niet') + '\n' + eisen.map(([t, ok]) => `      ${ok ? 'ja ' : 'NEE'}  ${t}`).join('\n');
@@ -423,7 +423,7 @@ if (onderdeel === 'basis') {
 // Alles hieronder toont uitsluitend de afsteljaren. De toetsjaren komen pas in beeld bij het
 // onderdeel 'toets', één keer, met de regels die hier gekozen zijn.
 
-const afstelJaren = jaren.filter(j => `${j}-12-31` < TOETS_VANAF);
+const afstelJaren = jaren.filter(j => `${j}-01-01` < AFSTEL_TOT);
 
 function afstelKop() {
   console.log(
@@ -432,7 +432,7 @@ function afstelKop() {
   );
 }
 function afstelRegel(naam: string, alle: TradeUit[]) {
-  const t = alle.filter(x => x.datum < TOETS_VANAF);
+  const t = alle.filter(x => x.datum < AFSTEL_TOT);
   const metEx = t.filter(x => x.excess !== null);
   const [lo, hi] = interval(metEx, x => x.excess);
   let plus = 0, geteld = 0;
