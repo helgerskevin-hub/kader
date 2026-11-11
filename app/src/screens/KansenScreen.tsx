@@ -27,6 +27,7 @@ import { Laadbalk } from '../components/Laadbalk';
 import { useCoinDetail } from '../components/CoinDetailScherm';
 import { vanOpportunity } from '../engine/coinDetailData';
 import { GetradeFormulier, GetradeBron } from '../components/GetradeFormulier';
+import { KooporderSheet } from '../components/KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useValutaStand } from '../state/useValuta';
 import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
@@ -62,9 +63,10 @@ export function KansenScreen() {
   const [ververst, setVerverstState] = useState(false);
   const { openDetail, detailScherm } = useCoinDetail();
   const [getradeteKans, setGetradeteKans] = useState<GetradeBron | null>(null);
+  const [koopKans, setKoopKans] = useState<KansMetRang | null>(null);
   // Eén keer per scherm de stop-loss-grenzen van eToro, zie MarktScreen voor het waarom.
   const stopLimieten = useStopLossLimieten();
-  const { trades } = usePortfolio();
+  const { trades, magHandelen } = usePortfolio();
   const { isFavoriet, wisselFavoriet } = useFavorieten();
 
   // Scannen zodra dit tabblad in beeld komt, maar alleen als het bewaarde resultaat verouderd is
@@ -117,9 +119,10 @@ export function KansenScreen() {
   }
 
   // Stabiele callbacks, zodat de gememoiseerde kaarten niet bij elke scan-tik opnieuw tekenen.
+  // Het detailscherm biedt dezelfde koopknop als de kaart, dus ook daar niet bij een verouderd plan.
   const opOpenDetail = useCallback(
-    (k: KansMetRang) => openDetail(vanOpportunity(k)),
-    [openDetail],
+    (k: KansMetRang) => openDetail(vanOpportunity(k, verouderd)),
+    [openDetail, verouderd],
   );
   // Het plan van de radar, niet de Markt-niveaus: k.niveaus heeft entry, stopLoss, takeProfit, rr.
   const opGetrade = useCallback(
@@ -265,6 +268,8 @@ export function KansenScreen() {
                 favoriet={isFavoriet(item.symbool)}
                 onToggleFavoriet={wisselFavoriet}
                 limiet={limietVoor(stopLimieten, item.symbool)}
+                onKoop={magHandelen ? setKoopKans : undefined}
+                verouderd={verouderd}
                 inBezit={bezit.includes(item.symbool)}
                 beweegtMeeMet={meeMet[item.symbool]}
               />
@@ -311,7 +316,7 @@ export function KansenScreen() {
                 )}
                 {verouderd && (
                   <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
-                    Deze radar is van {scanMoment(new Date(scanTijd!))}. Ververs voor actuele niveaus.
+                    Deze radar is van {scanMoment(new Date(scanTijd!))}. Ververs voor actuele niveaus en een koopknop.
                   </Text>
                 )}
                 {radarLeeg ? (
@@ -365,6 +370,18 @@ export function KansenScreen() {
         trade={getradeteKans}
         onSluiten={() => setGetradeteKans(null)}
       />
+
+      {koopKans?.niveaus && (
+        <KooporderSheet
+          zichtbaar
+          symbool={koopKans.symbool}
+          naam={koopKans.naam}
+          entry={koopKans.niveaus.entry}
+          stop={koopKans.niveaus.stopLoss}
+          doel={koopKans.niveaus.takeProfit}
+          onSluiten={() => setKoopKans(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
