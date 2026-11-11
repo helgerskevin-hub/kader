@@ -183,6 +183,18 @@ simpel en laagdrempelig"), en verder bouwen. Wat er nu in zit:
   voorlopers en achterblijvers beloven geen koopsignaal meer.
 - **Kader-niveaus voor copies** (`state/kaderNiveaus.ts`) gebruiken hetzelfde plan.
 
+Na een onafhankelijke review aangescherpt:
+
+- Zonder klimaat (BTC ontbreekt of te weinig coins) is er geen ruw signaal. Anders kwamen er na
+  één mislukte ophaalronde tientallen regels in het trackrecord die nooit zo gemeten zijn.
+- Coins op de CoinGecko-terugval (vier-uurs candles) krijgen het plan niet en geen signaal: "3x
+  ATR" zou daar ongeveer 1,2x de dag-ATR zijn, de krappe stop die de kosten niet draagt.
+- Het detailscherm en de Kader-check rekenen op dezelfde afgesloten dag als de score.
+- Het R/R-filter op Markt is weg: de R/R is bij elke coin 1 : 3.
+- STERK KOOP volgt op de kaart zijn eigen schakelaar.
+- Wat er nagelopen moet worden voordat een schakelaar aan gaat, staat bij de schakelaars in
+  `drempels.ts`.
+
 Niet gewijzigd, bewust:
 
 - De checks op je open posities (`tradeChecks.ts`) en het afbouwadvies rekenen nog met de oude

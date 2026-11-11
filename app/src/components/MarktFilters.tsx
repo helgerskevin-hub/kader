@@ -51,12 +51,6 @@ const SCORE_OPTIES: { key: number; label: string }[] = [
   { key: DREMPEL_HOOG, label: `${DREMPEL_HOOG}+` },
 ];
 
-const RR_OPTIES: { key: number; label: string }[] = [
-  { key: 0, label: 'Alle' },
-  { key: 2, label: '1:2+' },
-  { key: 3, label: '1:3+' },
-];
-
 const RS_OPTIES: { key: RsFilter; label: string }[] = [
   { key: 'alle', label: 'Alle' },
   { key: 'geenVoorlopers', label: `Geen voorlopers` },
@@ -92,12 +86,8 @@ export function MarktFilters({ zichtbaar, waarden, onWijzig, onSluiten }: Props)
         actief={waarden.minScore}
         onKies={minScore => onWijzig({ ...waarden, minScore })}
       />
-      <FilterRij
-        titel="R/R"
-        opties={RR_OPTIES}
-        actief={waarden.minRR}
-        onKies={minRR => onWijzig({ ...waarden, minRR })}
-      />
+      {/* Geen R/R-filter meer: met het plan van meting N is de R/R bij elke coin 1 : 3, dus er valt
+          niets te filteren. Het veld minRR blijft in de state voor bewaarde filters. */}
       <FilterRij
         titel="VS BTC (30 DAGEN)"
         opties={RS_OPTIES}
@@ -106,9 +96,9 @@ export function MarktFilters({ zichtbaar, waarden, onWijzig, onSluiten }: Props)
       />
       <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
         {waarden.rs === 'alle'
-          ? `Gemeten over negen jaar: koopsignalen op coins die achterbleven op bitcoin deden het beter dan dezelfde signalen op coins die al ver voorliepen. Deze twee filters gebruiken die grens: voorlopers zijn coins die meer dan ${RS_VOORLOPER_PP}% voorliggen, achterblijvers zitten ${Math.abs(RS_ACHTERBLIJVER_PP)}% of meer achter.`
+          ? `Voorlopers zijn coins die over 30 dagen meer dan ${RS_VOORLOPER_PP}% voorliggen op bitcoin, achterblijvers zitten ${Math.abs(RS_ACHTERBLIJVER_PP)}% of meer achter. Een eerdere meting leek te zeggen dat achterblijvers het beter deden; met de kosten erbij bleek dat een markteffect. De filters zijn er om de lijst te ordenen, niet omdat de ene groep beter presteert.`
           : waarden.rs === 'geenVoorlopers'
-            ? `Coins die meer dan ${RS_VOORLOPER_PP}% voorliggen op bitcoin vallen weg. In de backtest deed die groep het gemiddeld slechter dan de rest.`
+            ? `Coins die meer dan ${RS_VOORLOPER_PP}% voorliggen op bitcoin vallen weg.`
             : `Alleen coins die ${Math.abs(RS_ACHTERBLIJVER_PP)}% of meer achterlopen op bitcoin. Dat was in de backtest de sterkste groep, maar er blijven er weinig over.`}
       </Text>
 

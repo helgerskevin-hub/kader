@@ -13,6 +13,15 @@
 //
 // Zet een schakelaar alleen op true als het label de lat uit docs/markt-kosten-plan.md (paragraaf
 // 5) haalt op data die bij het afstellen niet gebruikt is. Niet omdat een scherm er leeg uitziet.
+//
+// Voor je er een aanzet, eerst nalopen (gevonden bij de review van nov 2026):
+//   - teksten die nu zonder voorwaarde "AFWACHTEN" of "geen kooplabel" zeggen: informatie/
+//     hoofdstukken.ts (score, advies, analyse, klimaat, meldingen), MarktBalk, BearModusKaart,
+//     OnboardingScreen en het ijkpunt in SignaalScorebordScherm;
+//   - coinInfo.ts geeft "Sterke koop" vanaf score 72 zonder LABEL_STERK_BEWEZEN te kennen, en
+//     signaalLog.adviesVan groepeert het trackrecord ook op 72;
+//   - gemisteKansen.ts telt bruto R, terwijl Signaalresultaat netto toont;
+//   - de R/R is nu altijd 3: de takken en het filter die op "R/R onder 1 : 2" letten doen niets.
 export const LABEL_KOOP_BEWEZEN: boolean = false;
 // STERK KOOP en BEVESTIGD. Kan alleen aan als LABEL_KOOP_BEWEZEN aan staat.
 export const LABEL_STERK_BEWEZEN: boolean = false;

@@ -84,8 +84,8 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     doe: 'De ruime stop is er om de kosten. eToro rekent 1% bij kopen en 1% bij verkopen; bij een krappe stop is die 2% een groot deel van je risico. Bij hetzelfde risico per trade koop je met een ruime stop een kleinere positie. De R/R is 1 : 3, tenzij eToro een nog ruimere stop eist.',
     detail: [
       'ATR (14): gemiddelde dagbeweging over 14 dagen',
-      'Stop: net onder de laagste koers van 10 dagen (0,1x ATR eronder), tussen 0,5x en 3x ATR',
-      'Doel: entry plus 3x ATR',
+      'Stop: 3x ATR onder de koers van nu',
+      'Doel: drie keer het risico boven de koers van nu',
       'Entry-zone: entry plus of min 0,2x ATR',
       'Tot november 2026 lag de stop onder het laagste punt van tien dagen; met de kosten erbij verloor dat plan gemiddeld geld',
     ],
@@ -144,7 +144,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     kort: 'Van 57 coins naar de lijst op Markt, stap voor stap.',
     zie: 'De lijst op Markt toont standaard de 20 coins die er na de analyse het best voor staan, met je favorieten erbij. Met één tik zie je alle geanalyseerde coins. Elke coin heeft een score, een label en drie niveaus: entry, stop en doel.',
     reken: 'Kader kijkt naar 57 coins: allemaal handelbaar op eToro en met een USDT-paar op Binance. Per coin komen er 200 dagcandles van Binance, of van CoinGecko als Binance geen data geeft. Daar is geen account of sleutel voor nodig. Op die candles rekent Kader de indicatoren uit en daaruit de score van 0 tot 100. De score rekent op de laatste afgesloten dag, zodat hij in de loop van de dag niet verspringt. Het plan rekent met de koers van nu: de stop 3x de ATR eronder, het doel op drie keer dat risico. Daarna bepaalt Kader het klimaat. Tot slot sorteert Kader de coins op score en houdt de eerste 20 over.',
-    doe: 'De analyse start met de knop Start analyse of als je op Markt omlaag veegt. Er loopt geen timer: de lijst is zo vers als je laatste scan. De radar op Kansen is een aparte scan, die opnieuw loopt als hij ouder is dan 30 minuten. In de achtergrond scant Kader elk uur op een sterk koopsignaal, zie Meldingen.',
+    doe: 'De analyse start met de knop Start analyse of als je op Markt omlaag veegt. Er loopt geen timer: de lijst is zo vers als je laatste scan. De radar op Kansen is een aparte scan, die opnieuw loopt als hij ouder is dan 30 minuten. In de achtergrond controleert Kader je open posities, zie Meldingen.',
     detail: [
       'Indicatoren: RSI (14), EMA20 en EMA50, MACD (12/26/9), ATR (14) en het volume tegenover het gemiddelde van 20 dagen; zie De indicatoren',
       'De score, de labels en BEVESTIGD staan bij De Kader-score en Advieslabels',

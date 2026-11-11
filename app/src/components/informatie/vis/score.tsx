@@ -104,7 +104,7 @@ export function VisScore({ speelSleutel, reduceMotion }: VisProps) {
           ))}
         </View>
       </View>
-      <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Vanaf 55 is het KOOPZONE, vanaf 72 STERK KOOP.</Text>
+      <Text style={[Type.caption, { color: colors.tekstGedimd }]}>De score vat samen wat technisch gunstig staat.</Text>
       <Animated.View style={[styles.lijst, lijstStijl]}>
         {DELEN.map(([naam, uitleg, punten], i) => (
           <View key={naam} style={styles.regel}>

@@ -56,8 +56,11 @@ export async function haalKaderCheck(symbool: string): Promise<KaderCheck | null
   let check: KaderCheck | null = null;
   try {
     const data = await haalData(symbool);
-    const trade = data ? scoorCandles(symbool, data.candles, data.bron, { minRR: 0 }) : null;
-    check = trade ? naarKaderCheck(trade) : null;
+    // Op de afgesloten dagen, net als de marktanalyse, zodat de score hier dezelfde is. Een eigen
+    // scoring kent het klimaat niet en geeft dus nooit een koopsignaal door.
+    const basis = data && data.bron === 'Binance' ? splitsLopendeDag(data.candles, Date.now()).gesloten : data?.candles;
+    const trade = data && basis ? scoorCandles(symbool, basis, data.bron, { minRR: 0 }) : null;
+    check = trade ? naarKaderCheck({ ...trade, signaal: 'WATCH' }) : null;
   } catch {
     check = null;
   }

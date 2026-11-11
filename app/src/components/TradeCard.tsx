@@ -16,7 +16,7 @@ import { AdviceBadge } from './AdviceBadge';
 import { BevestigdKeurmerk } from './BevestigdKeurmerk';
 import { Bevestigingen } from './Bevestigingen';
 import { bevestigingen } from '../engine/bevestigingen';
-import { DREMPEL_STERK_KOOP } from '../engine/drempels';
+import { DREMPEL_STERK_KOOP, LABEL_STERK_BEWEZEN } from '../engine/drempels';
 import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
 import { oordeelRs, rsUitleg } from '../engine/relatieveSterkte';
 import { useValutaStand } from '../state/useValuta';
@@ -64,7 +64,8 @@ function adviesLabel(trade: Trade, haaltRr: boolean): AdviesLabel {
   if (trade.signaal !== 'KOOP') return 'AFWACHTEN';
   // Schuift eToro de stop zo op dat de R/R onder de drempel zakt, dan is het geen koopsignaal meer.
   if (!haaltRr) return 'AFWACHTEN';
-  if (trade.highConviction || trade.score >= DREMPEL_STERK_KOOP) return 'STERK KOOP';
+  // Alleen als STERK KOOP zich bewezen heeft; anders is elk koopsignaal KOOPZONE.
+  if (LABEL_STERK_BEWEZEN && (trade.highConviction || trade.score >= DREMPEL_STERK_KOOP)) return 'STERK KOOP';
   return 'KOOPZONE';
 }
 

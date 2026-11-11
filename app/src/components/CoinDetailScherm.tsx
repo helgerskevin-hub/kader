@@ -12,6 +12,7 @@ import { haalData, haalIntraday } from '../engine/marketData';
 import type { IntradayId } from '../engine/grafiekBereik';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
 import { LABEL_KOOP_BEWEZEN } from '../engine/drempels';
+import { splitsLopendeDag } from '../engine/analyzer';
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
@@ -136,7 +137,10 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   async function laadData(symbool: string) {
     setStatus('loading');
     const result = await haalData(symbool);
-    const verse = result ? berekenVerseIndicatoren(result.candles) : null;
+    // Dezelfde afgesloten dagen als de score op de kaart, anders toont dit scherm halverwege de dag
+    // een andere RSI en vooral een veel te laag volume. De grafiek krijgt wel alle candles.
+    const basis = result && result.bron === 'Binance' ? splitsLopendeDag(result.candles, Date.now()).gesloten : result?.candles;
+    const verse = basis ? berekenVerseIndicatoren(basis) : null;
     if (!result || !verse) {
       setFoutTijd(new Date());
       setStatus('error');

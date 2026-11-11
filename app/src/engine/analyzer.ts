@@ -353,7 +353,9 @@ export function metPlan(trade: Trade, prijsNu: number | null): Trade {
  * trend op, MACD bullish, volume", zoals BEVESTIGD in meting N gemeten is.
  */
 export function metLabels(trade: Trade, poortIsOpen: boolean): Trade {
-  const ruwSignaal: 'KOOP' | 'WATCH' = trade.score >= DREMPEL_KOOP && poortIsOpen ? 'KOOP' : 'WATCH';
+  // Alleen op dagcandles van Binance: de CoinGecko-terugval levert vier-uurs candles, en daar is
+  // het signaal nooit op gemeten. Zo'n coin komt dus ook niet in het trackrecord.
+  const ruwSignaal: 'KOOP' | 'WATCH' = trade.bron === 'Binance' && trade.score >= DREMPEL_KOOP && poortIsOpen ? 'KOOP' : 'WATCH';
   const ruwHighConviction = ruwSignaal === 'KOOP' && trade.highConviction;
   const signaal: 'KOOP' | 'WATCH' = LABEL_KOOP_BEWEZEN ? ruwSignaal : 'WATCH';
   return {
@@ -369,7 +371,14 @@ export function metLabels(trade: Trade, poortIsOpen: boolean): Trade {
 // bij Binance splitsen: de CoinGecko-fallback levert vier-uurs candles, daar bestaat "de lopende
 // dag" niet als één candle.
 function scoorVoorMarkt(symbool: string, candles: Candle[], bron: string, nu: number): { trade: Trade; gesloten: Candle[] } | null {
-  const { gesloten, prijsNu } = bron === 'Binance' ? splitsLopendeDag(candles, nu) : { gesloten: candles, prijsNu: null };
+  if (bron !== 'Binance') {
+    // Vier-uurs candles: "3x ATR" zou hier ongeveer 1,2x de dag-ATR zijn, precies de krappe stop
+    // die de kosten niet draagt. Deze coins houden daarom de niveaus van scoorCandles, zoals
+    // voorheen, en krijgen geen signaal (zie metLabels).
+    const trade = scoorCandles(symbool, candles, bron, { minRR: 0 });
+    return trade ? { trade, gesloten: candles } : null;
+  }
+  const { gesloten, prijsNu } = splitsLopendeDag(candles, nu);
   // minRR 0: de R/R van de oude niveaus telt niet meer, het plan komt uit metPlan.
   const trade = scoorCandles(symbool, gesloten, bron, { minRR: 0 });
   return trade ? { trade: metPlan(trade, prijsNu), gesloten } : null;
@@ -454,7 +463,11 @@ export async function analyseerMarkt(options?: {
 
   // De poort: bij een ongunstig of gemengd klimaat is er geen ruw koopsignaal. Of een ruw signaal
   // ook als label getoond wordt, bepaalt metLabels. Score en onderbouwing blijven altijd zichtbaar.
-  const open = poortOpen(klimaat);
+  // Zonder klimaat (BTC ontbreekt, of te weinig coins voor de marktbreedte) is er geen signaal.
+  // poortOpen(null) is true, maar dat is bedoeld als "blokkeer de weergave niet"; een signaal dat
+  // het trackrecord in gaat moet onder dezelfde voorwaarde vallen als waar het op gemeten is, en
+  // dat is een gunstig klimaat.
+  const open = klimaat !== null && poortOpen(klimaat);
   const gefilterd = gescoord.map(t => metLabels(t, open));
 
   // Sorteer: HIGH CONVICTION eerst, dan wie de R/R-drempel haalt, dan op score, dan op R/R. Zie
@@ -518,6 +531,7 @@ if (require.main === module) {
   console.assert(dicht.ruwSignaal === 'WATCH' && dicht.signaal === 'WATCH' && !dicht.highConviction && !dicht.ruwHighConviction,
     'met de poort dicht is er geen signaal, ook geen ruw');
   console.assert(metLabels({ ...sterk, score: 40 }, true).ruwSignaal === 'WATCH', 'onder de drempel geen ruw signaal');
+  console.assert(metLabels({ ...sterk, bron: 'CoinGecko (fallback)' }, true).ruwSignaal === 'WATCH', 'op vier-uurs candles geen ruw signaal');
 
   // splitsLopendeDag: een candle die minder dan een dag oud is loopt nog.
   const dagen = bouw(60).map((x, i) => ({ ...x, tijd: i * DAG_MS }));
