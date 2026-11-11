@@ -57,13 +57,16 @@ interface Props {
   ingredienten: MomentumIngredienten;
   // Plek van de kaart in de lijst, voor de staffeling.
   volgorde?: number;
+  // De beweging sinds het slot van de laatste afgesloten dag, in procenten. De balk, 7D en 30D zijn
+  // van die afgesloten dag en de prijs op de kaart is van nu; dit getal overbrugt die twee.
+  vandaag?: number | null;
 }
 
 // Het momentum-blok van een radar-kaart: één baan voor de afstand tot de 90d-top, het ingrediënt
 // waar de score op draait, met 7d en 30d alleen als getal ernaast. De afstand zelf staat als pil in
 // de kop van de kaart, dus hier hoeft hij niet nog eens als tekst. Wat null is (te weinig historie)
 // laten we weg.
-export function MomentumCompact({ ingredienten, volgorde = 0 }: Props) {
+export function MomentumCompact({ ingredienten, volgorde = 0, vandaag = null }: Props) {
   const { colors } = useTheme();
   const { afstandHigh90d, rendement7d, rendement30d } = ingredienten;
 
@@ -81,6 +84,8 @@ export function MomentumCompact({ ingredienten, volgorde = 0 }: Props) {
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MOMENTUM</Text>
         <View style={styles.spacer} />
         {([
+          // Kort label: met VANDAAG erbij brak 30D op een telefoon van 411 dp naar een tweede regel.
+          { label: 'NU', waarde: vandaag },
           { label: '7D', waarde: rendement7d },
           { label: '30D', waarde: rendement30d },
         ] as const).map(({ label, waarde }) => waarde !== null && (

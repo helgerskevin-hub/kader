@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { RefreshCw, Radar } from 'lucide-react-native';
 import { useKansen, KansMetRang, KANSEN_COOLDOWN_MS } from '../state/KansenProvider';
-import { effectiefSignaal } from '../engine/opportunities';
+import { sterkMeeMet } from '../engine/correlatie';
+import { useDagKoersen } from '../state/useDagKoersen';
 import { useTabZichtbaar } from '../state/tabZichtbaar';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { kaartLandt, schuifOvergang, uitklapIn, uitklapUit } from '../theme/lijstBeweging';
@@ -26,7 +27,6 @@ import { Laadbalk } from '../components/Laadbalk';
 import { useCoinDetail } from '../components/CoinDetailScherm';
 import { vanOpportunity } from '../engine/coinDetailData';
 import { GetradeFormulier, GetradeBron } from '../components/GetradeFormulier';
-import { KooporderSheet } from '../components/KooporderSheet';
 import { usePortfolio } from '../state/PortfolioProvider';
 import { useValutaStand } from '../state/useValuta';
 import { LegeStaatBeeld, Opkomst } from '../components/LegeStaatBeeld';
@@ -34,12 +34,13 @@ import { KansKaart } from '../components/KansKaart';
 import { KansenTop3 } from '../components/KansenTop3';
 
 // Zoveel coins staan in de carrousel bovenaan. Alleen bij een gevulde radar met minstens zoveel
-// coins: met minder is er niets te swipen en staat alles al in de lijst eronder. Niet alleen KOOP,
-// want dat komt zelden voor; de carrousel is de drie die het dichtst bij hun top staan.
+// coins: met minder is er niets te swipen en staat alles al in de lijst eronder. De carrousel is
+// de drie die het dichtst bij hun top staan.
 const TOP_AANTAL = 3;
 
 // Eén vaste lege lijst, zodat de FlatList zonder data niet bij elke render een nieuwe array krijgt.
 const GEEN_KANSEN: KansMetRang[] = [];
+const GEEN_SYMBOLEN: string[] = [];
 
 // "14:05" voor een scan van vandaag, anders "27 sep 14:05": een bewaarde scan van gisteren mag niet
 // lezen alsof hij van vanmiddag is.
@@ -61,10 +62,9 @@ export function KansenScreen() {
   const [ververst, setVerverstState] = useState(false);
   const { openDetail, detailScherm } = useCoinDetail();
   const [getradeteKans, setGetradeteKans] = useState<GetradeBron | null>(null);
-  const [koopKans, setKoopKans] = useState<KansMetRang | null>(null);
   // Eén keer per scherm de stop-loss-grenzen van eToro, zie MarktScreen voor het waarom.
   const stopLimieten = useStopLossLimieten();
-  const { magHandelen } = usePortfolio();
+  const { trades } = usePortfolio();
   const { isFavoriet, wisselFavoriet } = useFavorieten();
 
   // Scannen zodra dit tabblad in beeld komt, maar alleen als het bewaarde resultaat verouderd is
@@ -86,8 +86,9 @@ export function KansenScreen() {
     return () => sub.remove();
   }, [scanAlsVerouderd]);
 
-  // Is de getoonde scan ouder dan de cooldown? Dan geen Koop-knop tot er ververst is. Een timer op
-  // het moment van verlopen, want blijf je op dit scherm staan dan tekent er verder niets opnieuw.
+  // Is de getoonde scan ouder dan de cooldown? Dan zegt het scherm dat de niveaus verouderd zijn.
+  // Een timer op het moment van verlopen, want blijf je op dit scherm staan dan tekent er verder
+  // niets opnieuw.
   const scanTijd = state.status === 'success' ? state.lastUpdate.getTime() : null;
   const [nu, setNu] = useState(() => Date.now());
   useEffect(() => {
@@ -116,16 +117,11 @@ export function KansenScreen() {
   }
 
   // Stabiele callbacks, zodat de gememoiseerde kaarten niet bij elke scan-tik opnieuw tekenen.
-  // Het detailscherm krijgt het signaal zoals de kaart het toont: na de eToro-stopcorrectie, en
-  // WATCH zolang de scan verouderd is. Zo biedt het nooit een trade aan die de kaart niet biedt.
   const opOpenDetail = useCallback(
-    (k: KansMetRang) => {
-      const { signaal } = effectiefSignaal(k, limietVoor(stopLimieten, k.symbool));
-      openDetail(vanOpportunity(k, verouderd ? 'WATCH' : signaal));
-    },
-    [openDetail, stopLimieten, verouderd],
+    (k: KansMetRang) => openDetail(vanOpportunity(k)),
+    [openDetail],
   );
-  // Het radar-uitbraakplan, niet de Markt-niveaus: k.niveaus heeft entry, stopLoss, takeProfit, rr.
+  // Het plan van de radar, niet de Markt-niveaus: k.niveaus heeft entry, stopLoss, takeProfit, rr.
   const opGetrade = useCallback(
     (k: KansMetRang) => { if (k.niveaus) setGetradeteKans({ symbool: k.symbool, ...k.niveaus }); },
     [],
@@ -142,7 +138,35 @@ export function KansenScreen() {
     : state.status === 'loading' ? state.tussenstand
     : GEEN_KANSEN;
 
+  // Je open posities, als merkje op de kaart. De radar zelf blijft zuiver marktanalyse: een coin
+  // die je al hebt verdwijnt niet, hij krijgt alleen een label.
+  const bezitSleutel = useMemo(
+    () => [...new Set(trades.filter(t => t.status === 'open').map(t => t.symbool))].sort().join(','),
+    [trades],
+  );
+  const bezit = useMemo(() => (bezitSleutel ? bezitSleutel.split(',') : GEEN_SYMBOLEN), [bezitSleutel]);
+  // Dagkoersen van de radar-coins en je posities, voor "beweegt mee met". Alleen als er posities
+  // zijn en het scherm klaar is; useDagKoersen bewaart ze een uur, gedeeld met Portfolio.
+  const lijstSymbolen = useMemo(
+    () => (state.status === 'success' ? state.kansen.map(k => k.symbool) : GEEN_SYMBOLEN),
+    [state],
+  );
+  const koersen = useDagKoersen(
+    bezit.length > 0 ? [...lijstSymbolen, ...bezit] : GEEN_SYMBOLEN,
+    inBeeld && bezit.length > 0 && state.status === 'success',
+  );
+  // Per coin een vaste array, zodat de gememoiseerde kaarten niet opnieuw tekenen als er niets wijzigt.
+  const meeMet = useMemo(() => {
+    const uit: Record<string, string[]> = {};
+    for (const s of lijstSymbolen) {
+      const mee = sterkMeeMet(s, bezit, koersen);
+      if (mee.length > 0) uit[s] = mee;
+    }
+    return uit;
+  }, [lijstSymbolen, bezit, koersen]);
+
   const radarLeeg = state.status === 'success' && state.radarLeeg;
+  const klimaat = state.status === 'success' ? state.klimaat : null;
   const top = useMemo(
     () => (state.status === 'success' && !state.radarLeeg && state.kansen.length >= TOP_AANTAL
       ? [...state.kansen].sort((a, b) => b.momentumScore - a.momentumScore).slice(0, TOP_AANTAL)
@@ -189,7 +213,7 @@ export function KansenScreen() {
           <Opkomst volgorde={2}>
             <Text style={[Type.body, styles.middenBody, { color: colors.tekstGedimd }]}>
               De radar zoekt coins die dicht bij hun hoogste koers van 90 dagen staan en dus voorop
-              lopen.
+              lopen. Het is een volglijst, geen koopadvies.
             </Text>
           </Opkomst>
           <Opkomst volgorde={3}>
@@ -238,11 +262,11 @@ export function KansenScreen() {
                 volgorde={index}
                 onOpenDetail={opOpenDetail}
                 onGetrade={opGetrade}
-                onKoop={magHandelen ? setKoopKans : undefined}
                 favoriet={isFavoriet(item.symbool)}
                 onToggleFavoriet={wisselFavoriet}
                 limiet={limietVoor(stopLimieten, item.symbool)}
-                verouderd={verouderd}
+                inBezit={bezit.includes(item.symbool)}
+                beweegtMeeMet={meeMet[item.symbool]}
               />
             </Animated.View>
           )}
@@ -273,11 +297,21 @@ export function KansenScreen() {
               <Animated.View entering={uitklapIn(reduceMotion)}>
                 <RemKaart />
                 <Text style={[Type.caption, styles.uitleg, { color: colors.tekstGedimd }]}>
-                  Coins die dicht bij hun hoogste koers van 90 dagen staan.
+                  Coins die dicht bij hun hoogste koers van 90 dagen staan. Een volglijst, geen
+                  koopadvies: de score kijkt naar de laatste afgesloten dag.
                 </Text>
+                {/* Dezelfde klimaatregel als de balk op Markt, hier op de laatste afgesloten dag. Het
+                    plan op de kaarten is gemeten bij een gunstig klimaat, dus het scherm zegt het erbij
+                    als dat nu anders is. */}
+                {klimaat && klimaat.klimaat !== 'gunstig' && (
+                  <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
+                    Let op: het marktklimaat is nu {klimaat.klimaat}. In zo'n markt deed ook deze lijst
+                    het historisch slechter.
+                  </Text>
+                )}
                 {verouderd && (
                   <Text style={[Type.caption, styles.uitleg, { color: colors.letOp }]}>
-                    Deze radar is van {scanMoment(new Date(scanTijd!))}. Ververs voor actuele niveaus en een koopknop.
+                    Deze radar is van {scanMoment(new Date(scanTijd!))}. Ververs voor actuele niveaus.
                   </Text>
                 )}
                 {radarLeeg ? (
@@ -291,13 +325,13 @@ export function KansenScreen() {
                     <Text style={[Type.body, styles.leegTekst, { color: colors.tekstGedimd }]}>
                       Geen enkele coin staat dicht genoeg bij zijn 90d-top om op de radar te komen.
                       Kader vult de lijst niet aan met zwakkere coins. Hieronder de drie die er nog
-                      het dichtst bij zitten, zonder koopsignaal.
+                      het dichtst bij zitten.
                     </Text>
                   </View>
                 ) : (
                   <>
                     {top.length === TOP_AANTAL && (
-                      <KansenTop3 kansen={top} onOpenDetail={opOpenDetail} stopLimieten={stopLimieten} />
+                      <KansenTop3 kansen={top} onOpenDetail={opOpenDetail} />
                     )}
                     <Text style={[Type.overline, styles.lijstKop, { color: colors.tekstGedimd }]}>
                       {state.status === 'success'
@@ -331,18 +365,6 @@ export function KansenScreen() {
         trade={getradeteKans}
         onSluiten={() => setGetradeteKans(null)}
       />
-
-      {koopKans?.niveaus && (
-        <KooporderSheet
-          zichtbaar
-          symbool={koopKans.symbool}
-          naam={koopKans.naam}
-          entry={koopKans.niveaus.entry}
-          stop={koopKans.niveaus.stopLoss}
-          doel={koopKans.niveaus.takeProfit}
-          onSluiten={() => setKoopKans(null)}
-        />
-      )}
     </SafeAreaView>
   );
 }

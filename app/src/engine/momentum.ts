@@ -104,17 +104,12 @@ export function momentumIngredienten(candles: Candle[], btcCloses?: number[]): M
 // (meer dan 50% onder de top) scoort ook positief, maar dat is terugveren na een crash en hoort bij
 // het omkeerprofiel, niet op een momentumradar; daarom telt alleen de bovenkant.
 //
-// De radar (score >= RADAR_DREMPEL) als strategie zonder overlap: +0,176 R over 1754 trades tegen
-// +0,032 voor de nulmeting. Tegen de andere coins op dezelfde dag positief in 7 van de 8 meetbare
-// jaren, ook in de dalende jaren (2022 +0,10, 2025 +0,33, 2026 +0,19); alleen 2021 -0,06. In
-// absolute zin blijft hij in een bearmarkt wel verliezen (2022 -0,45 R), net als elke long.
-//
-// Eerlijke kanttekening voor het scherm: radar + KOOP + R/R voegt weinig toe aan Markt's KOOP. Het
-// gaf +0,091 R over 288 trades tegen +0,083 over 3170, met de marktpoort erbij zelfs +0,057 tegen
-// +0,187. Binnen de radar doen de bars met R/R < 2 het beter (+0,154) dan die erboven (+0,113),
-// want een coin vlak onder zijn top heeft zijn swing-low ver weg en dus een brede stop. De radar is
-// daarmee vooral een lijst "wie loopt voorop", geen extra koopfilter. Radar + high conviction
-// deed het wel beter dan high conviction alleen (+0,198 over 1248 tegen +0,154 over 2262).
+// Wat de score NIET is: een koopsignaal. Meting M (app/scripts/meting-kansen.ts, 11 nov 2026) rekende
+// voor het eerst met eToro's kosten (1% bij kopen, 1% bij verkopen) en toetste op jaren die bij het
+// afstellen niet gebruikt waren (2023 t/m 2026). Coins op de radar haalden daar netto +0,29 R per
+// trade met het plan uit radarNiveaus hieronder, maar niet aantoonbaar meer dan een willekeurige
+// coin op dezelfde dag met hetzelfde plan (+0,04 R, interval -0,01 tot +0,09, positief in 2 van de
+// 4 jaren). De radar is dus een volglijst van wie voorop loopt. Zie docs/metingen.md, meting M.
 const AFSTAND_NUL = -30;
 
 export function momentumScore(m: MomentumIngredienten): number {
@@ -123,36 +118,51 @@ export function momentumScore(m: MomentumIngredienten): number {
   return Math.round(100 * Math.max(0, Math.min(1, deel)));
 }
 
-// Score 70 = binnen 9% van de 90-dagen-high. Gekozen in meting I-c0: als lijst gaf 60 +0,134 R,
-// 70 +0,176 en 80 +0,180; 80 voegt dus niets meer toe en maakt de lijst op de helft van de dagen
-// leeg. Op 70 staan er gemiddeld zo'n drie coins op de radar, op 42% van de dagen geen enkele.
+// Score 70 = binnen 9% van de 90-dagen-high. Gekozen in meting I-c0 en in meting M opnieuw bekeken
+// op alleen de afsteljaren (t/m 2022), na kosten: 60 gaf +0,12 R boven een willekeurige coin op
+// dezelfde dag, 70 +0,20 en 80 +0,12. Boven de 70 lopen de emmers niet verder op, dus een fijnere
+// rangorde dan "op de radar of niet" is niet te onderbouwen.
 export const RADAR_DREMPEL = 70;
 
-// Trade-niveaus voor een coin op de radar: stop onder de EMA20, doel een uitbraak boven de
-// 90-dagen-high. Gemeten in meting J van app/scripts/backtest.ts (28 sep 2026, 25 varianten: vijf
-// stops maal vijf doelen, alleen radar-bars, geen overlap, 30 dagen houdtijd).
+// Het plan bij een coin op de radar: stop 3x ATR onder de koers, doel op drie keer dat risico.
+// Gekozen in meting M (app/scripts/meting-kansen.ts, 11 nov 2026), op alleen de afsteljaren.
 //
-// Het probleem dat dit oplost: met de gewone niveaus uit scoorCandles (swing-low-stop, doel 3x ATR)
-// sorteert R/R binnen de radar averechts. R/R >= 2 gaf +0,081 R over 318 trades, R/R < 2 +0,182;
-// de vaste regel R/R >= MIN_RISK_REWARD gooide dus juist de betere instappen weg. Een doel op vaste
-// ATR-afstand zegt niets over hoeveel ruimte er boven de top is, en de swing-low ligt bij een coin
-// vlak onder zijn top ver weg.
+// Waarom zo ruim? De kosten van eToro zijn 2% van de koers, heen en terug. Uitgedrukt in R is dat
+// 2% gedeeld door de stopafstand: bij een stop op 4% ben je een halve R kwijt voordat de koers
+// beweegt, bij een stop op 20% een tiende. Het oude plan (stop op de EMA20, doel 2x ATR boven de
+// 90d-top) had een mediane stop van 7% en ging met kosten van +0,22 R naar -0,17 R per trade. Van
+// acht opzetten op een neutrale selectie (trend op, klimaat gunstig) hield deze na kosten het
+// meeste over: +0,30 R, tegen +0,15 R voor een stop van 1,5x ATR met hetzelfde doel van 3R.
 //
-// Met deze niveaus sorteert R/R wel: R/R >= 2 +0,238 R over 1167 trades tegen +0,170 over 1667
-// voor R/R < 2, en R/R >= 2 was beter in 6 van de 8 meetbare jaren. Het is geen losse gelukstreffer
-// in het rooster: alle vier de combinaties van een EMA20-stop (met of zonder 0,5x ATR buffer) met
-// een uitbraakdoel (90d-high + 1x of 2x ATR) lieten R/R >= 2 winnen in 5 of 6 van de 7 à 8 jaren.
-// Radar + score >= 55 + R/R >= 2 gaf +0,235 over 1161 trades, tegen +0,176 voor de radar alleen en
-// +0,083 voor Markt's KOOP + R/R.
+// Bijkomend voordeel: 3x ATR ligt vrijwel altijd verder weg dan de 10% die eToro bij BTC minimaal
+// eist. In de meting gaf "stop minimaal 10%" dezelfde uitkomst, dus het plan op de kaart is het
+// plan dat je bij eToro ook kunt zetten.
 //
-// Eerlijke grenzen: met de marktpoort open haalt het +0,173 tegen +0,187 voor Markt's KOOP met poort,
-// dus binnen de poort voegt het niets toe. 2022 blijft zwaar negatief (-0,66 R). En R is hier in
-// eenheden van het eigen risico: een krappere stop maakt 1R kleiner, dus vergelijk bedragen niet
-// één op één met de Markt-niveaus.
-//
-// Stop: EMA20 met dezelfde vloer (0,5x ATR) en cap (3x ATR) als stopAfstandStructuur. Staat de koers
-// niet boven zijn EMA20, dan bestaat deze stop niet en geeft de functie null.
-const RADAR_DOEL_BOVEN_TOP_ATR = 2;
+// De R/R is hier per constructie 3. Een R/R-filter zegt daarom niets meer en bestaat op Kansen
+// niet meer: bij het oude plan beloonde die filter vooral een toevallig krappe stop.
+// eToro rekent 1% bij kopen en 1% bij verkopen van crypto. Het meetscript en het live trackrecord
+// van de volglijst rekenen allebei met dit getal.
+export const ETORO_KOSTEN_PER_KANT = 0.01;
+// Wat de radar met dit plan na kosten gemiddeld deed in de toetsjaren (2023 t/m 2026), bij een
+// gunstig klimaat. Het ijkpunt waar het live trackrecord naast staat. Onzeker: het 90%-interval
+// loopt van -0,10 tot +0,64.
+export const RADAR_METING_NETTO_R = 0.29;
+
+export const RADAR_STOP_ATR = 3;
+export const RADAR_DOEL_R = 3;
+// Zo lang liep een trade in de meting hoogstens. Het plan zegt dus ook iets over geduld.
+export const RADAR_HOUDTIJD_DAGEN = 30;
+
+// Wat de kaart over het plan zegt. Staat hier en niet in de component, zodat de zin en de meting
+// waar hij op leunt niet uit elkaar kunnen lopen. Cijfers uit meting M, toetsjaren 2023 t/m 2026.
+export const RADAR_PLAN_UITLEG =
+  `Plan: stop ${RADAR_STOP_ATR}x ATR onder de koers, doel op ${RADAR_DOEL_R} keer dat risico, hoogstens ${RADAR_HOUDTIJD_DAGEN} dagen. `
+  + 'De ruime stop houdt de kosten van eToro (1% bij kopen, 1% bij verkopen) klein tegenover je risico.';
+export const RADAR_METING_UITLEG =
+  'Dit is een volglijst, geen koopadvies. Coins op de radar haalden met dit plan na kosten gemiddeld '
+  + '+0,29 R per trade (2023 t/m 2026, bij een gunstig marktklimaat). Dat gemiddelde is onzeker en '
+  + '2025 en 2026 waren verliesjaren. Het was ook niet aantoonbaar beter dan een willekeurige coin op '
+  + 'dezelfde dag.';
 
 export interface RadarNiveaus {
   entry: number;
@@ -162,23 +172,20 @@ export interface RadarNiveaus {
 }
 
 /**
- * Entry, stop, doel en R/R voor een radar-coin op de laatste candle. `atr` en `ema20` zijn de
- * waarden op die candle (zoals scoorCandles ze teruggeeft). Null bij te weinig historie voor de
- * 90-dagen-high of als de koers niet boven de EMA20 staat.
+ * Entry, stop, doel en R/R bij een gegeven koers. `prijs` is de koers van nu, `atr` de ATR van de
+ * laatste afgesloten dag. Null zonder bruikbare ATR, of als 3x ATR de hele koers zou beslaan.
  */
-export function radarNiveaus(candles: Candle[], atr: number, ema20: number): RadarNiveaus | null {
-  if (candles.length < DAGEN_HIGH || !(atr > 0)) return null;
-  const entry = candles[candles.length - 1].close;
-  if (!(entry > ema20)) return null;
-  const risico = Math.min(Math.max(entry - ema20, 0.5 * atr), 3 * atr);
-  const top = Math.max(...candles.slice(-DAGEN_HIGH).map(c => c.high));
-  const takeProfit = Math.max(top, entry) + RADAR_DOEL_BOVEN_TOP_ATR * atr;
-  return { entry, stopLoss: entry - risico, takeProfit, rr: (takeProfit - entry) / risico };
+export function radarNiveaus(prijs: number, atr: number): RadarNiveaus | null {
+  if (!(prijs > 0) || !(atr > 0)) return null;
+  const risico = RADAR_STOP_ATR * atr;
+  if (!(risico < prijs)) return null;
+  return { entry: prijs, stopLoss: prijs - risico, takeProfit: prijs + RADAR_DOEL_R * risico, rr: RADAR_DOEL_R };
 }
 
 // Korte Nederlandse redenen voor op de kaart. De eerste regel is waar de score op draait; de
-// tweede is context (30-dagenrendement en het verschil met BTC) die bewust NIET meetelt, zie de
-// comment bij momentumScore.
+// tweede is context (30-dagenrendement en het verschil met bitcoin) die bewust NIET meetelt, zie de
+// comment bij momentumScore. Het verschil met bitcoin staat er daarom als kaal getal: "sterker dan
+// BTC" las als een pluspunt, terwijl geen enkele meting dat liet zien.
 export function momentumRedenen(m: MomentumIngredienten): string[] {
   const r: string[] = [];
   if (m.afstandHigh90d !== null) {
@@ -189,8 +196,8 @@ export function momentumRedenen(m: MomentumIngredienten): string[] {
     let regel = `${m.rendement30d >= 0 ? '+' : ''}${m.rendement30d.toFixed(0)}% in 30 dagen`;
     if (m.rsBtc30d !== null) {
       regel += m.rsBtc30d >= 0
-        ? `, ${m.rsBtc30d.toFixed(0)}% sterker dan BTC`
-        : `, ${Math.abs(m.rsBtc30d).toFixed(0)}% zwakker dan BTC`;
+        ? `, ${m.rsBtc30d.toFixed(0)} procentpunt meer dan bitcoin`
+        : `, ${Math.abs(m.rsBtc30d).toFixed(0)} procentpunt minder dan bitcoin`;
     }
     r.push(regel);
   }
@@ -227,13 +234,13 @@ if (require.main === module) {
   console.assert(redenen[0].includes('hoogste koers'), `eerste reden hoort over de top te gaan: ${redenen[0]}`);
   console.assert(redenen.every(r => !r.includes('\u2014')), 'geen em-dashes in de redenen');
 
-  // radarNiveaus: entry 199, EMA20 190 geeft 9 afstand, gecapt op 3x ATR = 6. Doel = top 199 + 2x2.
-  const nv = radarNiveaus(candles, 2, 190);
-  console.assert(nv !== null && nv.stopLoss === 193 && nv.takeProfit === 203,
+  // radarNiveaus: koers 100, ATR 5 geeft stop 85 en doel 145, R/R 3.
+  const nv = radarNiveaus(100, 5);
+  console.assert(nv !== null && nv.stopLoss === 85 && nv.takeProfit === 145 && nv.rr === 3,
     `radarNiveaus klopt niet: ${JSON.stringify(nv)}`);
-  console.assert(nv !== null && Math.abs(nv.rr - 4 / 6) < 1e-9, `R/R klopt niet: ${nv?.rr}`);
-  console.assert(radarNiveaus(candles, 2, 199) === null, 'koers op de EMA20 hoort geen niveaus te geven');
-  console.assert(radarNiveaus(candles.slice(0, 50), 2, 100) === null, 'zonder 90 dagen historie geen niveaus');
+  console.assert(radarNiveaus(100, 0) === null, 'zonder ATR geen niveaus');
+  console.assert(radarNiveaus(100, 40) === null, 'een stop onder nul bestaat niet');
+  console.assert(redenen[1].includes('procentpunt meer dan bitcoin'), `tweede reden hoort neutraal te zijn: ${redenen[1]}`);
 
   console.log('momentum.ts self-check geslaagd');
 }

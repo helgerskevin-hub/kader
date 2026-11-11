@@ -118,6 +118,9 @@ export const SLEUTELS = {
   // Elk koopsignaal dat Kader gaf, met de uitkomst (doel, stop of verlopen) zodra die bekend is.
   // Voor het scherm Signaalresultaat; zie engine/signaalLog.ts en state/signaalBoek.ts.
   signaalBoek: 'signaal_boek',
+  // Elke coin die op de radar van Kansen kwam, met zijn plan en wat ermee gebeurde. Los van het
+  // signaalboek: de volglijst geeft geen koopsignaal. Zie engine/volglijstLog.ts.
+  volglijstBoek: 'volglijst_boek',
   // Risico per trade in procent van je handelskapitaal: '0.5', '1' of '2'. Zie state/useRisicoPct.ts.
   risicoPct: 'risico_pct',
   // Staat het weekrapport op zondag aan? 'aan' of 'uit', ontbreekt = aan.

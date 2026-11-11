@@ -1,9 +1,9 @@
 import { Candle, Opportunity, Trade } from './types';
 import { haalData, haalCoingeckoMarkten } from './marketData';
-import { STANDAARD_UNIVERSUM, MIN_RISK_REWARD, scoorCandles } from './analyzer';
-import { DREMPEL_KOOP } from './drempels';
+import { STANDAARD_UNIVERSUM, scoorCandles } from './analyzer';
 import { infoVoor } from './coinInfo';
 import { StopLossLimiet, EtoroNiveaus, etoroNiveaus } from './etoroLimieten';
+import { bepaalKlimaat, Marktklimaat } from './marktklimaat';
 import {
   momentumIngredienten, momentumScore, momentumRedenen, radarNiveaus, RADAR_DREMPEL, RadarNiveaus,
 } from './momentum';
@@ -36,62 +36,41 @@ export const ETORO_TRADABLE = new Set([
 ]);
 
 // De Kansen-scan is een momentum-radar over hetzelfde universum als de Markt: welke coins staan
-// vlak onder hun 90-dagen-high? Score, drempel en niveaus komen uit engine/momentum.ts en zijn
-// gemeten in meting I en J van app/scripts/backtest.ts; hier staat alleen het ophalen en het
-// samenvoegen tot een lijst.
+// vlak onder hun 90-dagen-high? Het is een volglijst, geen koopsignaal: meting M (zie momentum.ts
+// en docs/metingen.md) liet zien dat de keuze van de coin na eToro's kosten niet aantoonbaar beter
+// is dan willekeurig. Score, drempel en plan komen uit engine/momentum.ts; hier staat alleen het
+// ophalen en het samenvoegen tot een lijst.
 
 // Minder coins dan dit op de radar = de radar geldt als leeg. Bewust 1 en niet hoger: de drempel
-// van 70 is in meting I-c0 als lijst gemeten, ook op de dagen met maar één of twee coins erop.
-// Een coin die hem haalt is dus een gemeten signaal. Aanvullen tot een vast aantal zou coins onder
-// de drempel ertussen zetten die nooit als radar gemeten zijn, en de lijst mooier laten lijken dan
-// de markt is.
+// van 70 is als lijst gemeten, ook op de dagen met maar één of twee coins erop. Aanvullen tot een
+// vast aantal zou coins onder de drempel ertussen zetten die nooit als radar gemeten zijn, en de
+// lijst mooier laten lijken dan de markt is.
 export const RADAR_MIN = 1;
 
-// Zonder radar laten we de sterkste paar coins zien, als WATCH, zodat het scherm uitlegt waarom
-// het leeg is in plaats van niets te tonen.
+// Zonder radar laten we de sterkste paar coins zien, zodat het scherm uitlegt waarom het leeg is
+// in plaats van niets te tonen.
 const LEGE_RADAR_TOON = 3;
 
-// Aantal slotkoersen voor de sparkline op de kaart.
+// Aantal punten in de sparkline op de kaart.
 const SPARKLINE_DAGEN = 30;
 
 // ponytail: zelfde blokgrootte als analyzer.ts, zie de comment daar.
 const GELIJKTIJDIG = 6;
 
-/**
- * KOOP of WATCH voor een coin op de radar. KOOP vraagt allebei: de uitbraak-niveaus halen de
- * gewone R/R-drempel (MIN_RISK_REWARD, niet verlaagd) en de technische score uit scoorCandles
- * haalt DREMPEL_KOOP. Dat is precies de combinatie uit meting J (radar + score >= 55 + R/R >= 2).
- * Zonder niveaus (koers niet boven de EMA20) valt er geen plan te maken en blijft het WATCH.
- */
-export function radarSignaal(niveaus: RadarNiveaus | null, score: number): { signaal: 'KOOP' | 'WATCH'; voldoetAanRR: boolean } {
-  const voldoetAanRR = niveaus !== null && niveaus.rr >= MIN_RISK_REWARD - 1e-9;
-  return { signaal: voldoetAanRR && score >= DREMPEL_KOOP ? 'KOOP' : 'WATCH', voldoetAanRR };
-}
-
-export interface EffectiefSignaal {
-  signaal: 'KOOP' | 'WATCH';
-  // Haalt het plan MIN_RISK_REWARD met de stop zoals hij bij eToro werkelijk te zetten is?
-  haaltRr: boolean;
-  // De niveaus na de eToro-correctie. Null als er geen plan is (koers niet boven de EMA20).
-  niveaus: EtoroNiveaus | null;
-}
+const DAG_MS = 86_400_000;
 
 /**
- * Het signaal zoals het scherm het mag tonen. eToro accepteert Kaders stop niet altijd (bij BTC
- * minimaal 10% onder de entry); schuift de stop op, dan zakt de R/R mee en kan een KOOP uit de scan
- * er bij eToro onder de drempel uitkomen. Zelfde regel als TradeCard: bij een verschoven stop telt
- * de nieuwe R/R, anders die van de scan zelf. Eén functie voor badge, Koop-knop, carrousel en
- * detailscherm, zodat die nooit uit elkaar lopen. Zonder limiet blijft alles zoals de scan het zei.
+ * Het plan zoals het bij eToro te zetten is. eToro accepteert Kaders stop niet altijd (bij BTC
+ * minimaal 10% onder de entry); schuift de stop op, dan zakt de R/R mee. Eén functie voor kaart,
+ * carrousel en detailscherm, zodat die nooit uit elkaar lopen. Zonder limiet blijft het plan van
+ * Kader staan; zonder plan null.
  */
-export function effectiefSignaal(
-  kans: Pick<Opportunity, 'signaal' | 'niveaus' | 'voldoetAanRR'>,
+export function etoroPlan(
+  kans: Pick<Opportunity, 'niveaus'>,
   limiet: StopLossLimiet | null,
-): EffectiefSignaal {
+): EtoroNiveaus | null {
   const plan = kans.niveaus;
-  if (!plan) return { signaal: 'WATCH', haaltRr: false, niveaus: null };
-  const niveaus = etoroNiveaus(plan.entry, plan.stopLoss, plan.takeProfit, limiet);
-  const haaltRr = niveaus.aangepast ? niveaus.rr >= MIN_RISK_REWARD - 1e-9 : kans.voldoetAanRR;
-  return { signaal: kans.signaal === 'KOOP' && haaltRr ? 'KOOP' : 'WATCH', haaltRr, niveaus };
+  return plan ? etoroNiveaus(plan.entry, plan.stopLoss, plan.takeProfit, limiet) : null;
 }
 
 // Hoogste momentumscore eerst. Die is afgerond, dus bij gelijkspel wint wie dichter bij zijn top
@@ -107,17 +86,27 @@ export function vergelijkKansen(a: Opportunity, b: Opportunity): number {
 /**
  * Van alle gescoorde coins naar de lijst voor het scherm. Staan er genoeg op de radar, dan zijn
  * dat precies de coins met momentumScore >= RADAR_DREMPEL. Anders is `radarLeeg` true en komen de
- * LEGE_RADAR_TOON hoogste scores terug, allemaal als WATCH: ze lopen niet echt voorop, dus er
- * hoort geen koopsignaal bij.
+ * LEGE_RADAR_TOON hoogste scores terug, zodat het scherm kan laten zien hoe ver de rest eraf zit.
  */
 export function bouwRadar(alle: Opportunity[]): { kansen: Opportunity[]; radarLeeg: boolean } {
   const gesorteerd = [...alle].sort(vergelijkKansen);
   const opRadar = gesorteerd.filter(k => k.momentumScore >= RADAR_DREMPEL);
   if (opRadar.length >= RADAR_MIN) return { kansen: opRadar, radarLeeg: false };
-  return {
-    kansen: gesorteerd.slice(0, LEGE_RADAR_TOON).map(k => ({ ...k, signaal: 'WATCH' as const })),
-    radarLeeg: true,
-  };
+  return { kansen: gesorteerd.slice(0, LEGE_RADAR_TOON), radarLeeg: true };
+}
+
+/**
+ * Splitst dagcandles in de afgesloten dagen en de koers van nu. Binance levert de lopende dag als
+ * laatste candle mee; die is nog niet af, dus het volume is te laag en high en slot schuiven nog.
+ * De backtest gooit hem weg (zie scripts/haal-historie.mjs) en mat dus altijd op afgesloten dagen.
+ * De app doet nu hetzelfde: het oordeel valt op de afgesloten dagen, het plan rekent met de koers
+ * van nu. Een candle zonder tijd valt niet te plaatsen en telt als afgesloten.
+ */
+export function splitsLopendeDag(candles: Candle[], nu: number): { gesloten: Candle[]; prijsNu: number | null } {
+  const laatste = candles[candles.length - 1];
+  if (!laatste) return { gesloten: [], prijsNu: null };
+  const loopt = laatste.tijd !== undefined && nu - laatste.tijd < DAG_MS;
+  return { gesloten: loopt ? candles.slice(0, -1) : candles, prijsNu: laatste.close };
 }
 
 /**
@@ -127,7 +116,7 @@ export function bouwRadar(alle: Opportunity[]): { kansen: Opportunity[]; radarLe
  * we terug op het laatste element: dan hoort de laatste candle bij de laatste BTC-candle.
  */
 export function btcUitgelijnd(candles: Candle[], btc: Candle[]): number[] {
-  const dag = (t: number) => Math.floor(t / 86_400_000);
+  const dag = (t: number) => Math.floor(t / DAG_MS);
   if (candles.every(c => c.tijd !== undefined) && btc.every(c => c.tijd !== undefined)) {
     const perDag = new Map<number, number>();
     for (const c of btc) perDag.set(dag(c.tijd!), c.close);
@@ -139,8 +128,10 @@ export function btcUitgelijnd(candles: Candle[], btc: Candle[]): number[] {
 }
 
 /**
- * Eén coin naar een kans, zonder netwerk. Null als er te weinig dagcandles zijn voor de
- * 90-dagen-high of scoorCandles niets geeft: zo'n coin kan niet op de radar.
+ * Eén coin naar een kans, zonder netwerk. `candles` zijn afgesloten dagen (zie splitsLopendeDag);
+ * score, ingrediënten en ATR komen daaruit. `prijsNu` is de koers waarmee het plan rekent; zonder
+ * (de backtest, of een reeks zonder lopende dag) is dat het laatste slot. Null als er te weinig
+ * dagcandles zijn voor de 90-dagen-high of scoorCandles niets geeft: zo'n coin kan niet op de radar.
  */
 export function maakKans(
   symbool: string,
@@ -148,37 +139,45 @@ export function maakKans(
   bron: string,
   btcCloses: number[] | undefined,
   info?: { naam?: string; marktcap?: number },
+  prijsNu?: number | null,
 ): Opportunity | null {
   if (candles.length < 90) return null;
-  // minRR: 0, want de R/R van de Markt-niveaus telt hier niet; het signaal volgt uit de
-  // radar-niveaus hieronder.
+  // minRR: 0, want de niveaus van de Markt tellen hier niet; het plan komt uit radarNiveaus.
   const trade: Trade | null = scoorCandles(symbool, candles, bron, { minRR: 0 });
   if (!trade) return null;
+  const prijs = prijsNu && prijsNu > 0 ? prijsNu : trade.prijs;
   const ingredienten = momentumIngredienten(candles, btcCloses);
-  const niveaus = radarNiveaus(candles, trade.atr, trade.ema20);
-  const { signaal, voldoetAanRR } = radarSignaal(niveaus, trade.score);
+  // De grafiek eindigt op de koers van nu, zodat de stip overeenkomt met de prijs op de kaart.
+  const slotkoersen = candles.map(c => c.close);
+  const sparkline = prijs !== trade.prijs
+    ? [...slotkoersen.slice(-(SPARKLINE_DAGEN - 1)), prijs]
+    : slotkoersen.slice(-SPARKLINE_DAGEN);
   return {
     symbool,
     naam: info?.naam || infoVoor(symbool).naam,
     marktcap: info?.marktcap ?? null,
-    prijs: trade.prijs,
+    prijs,
+    vandaagPct: prijs !== trade.prijs && trade.prijs > 0 ? (prijs / trade.prijs - 1) * 100 : null,
     momentumScore: momentumScore(ingredienten),
     ingredienten,
     redenen: momentumRedenen(ingredienten),
-    sparkline: candles.slice(-SPARKLINE_DAGEN).map(c => c.close),
-    signaal,
-    niveaus,
-    voldoetAanRR,
+    sparkline,
+    niveaus: radarNiveaus(prijs, trade.atr),
     trade,
   };
 }
 
 export interface KansenUitkomst {
   kansen: Opportunity[];
-  // True als er te weinig coins op de radar staan; `kansen` zijn dan de sterkste paar, als WATCH.
+  // True als er te weinig coins op de radar staan; `kansen` zijn dan de sterkste paar.
   radarLeeg: boolean;
   // Van hoeveel coins er bruikbare dagcandles waren.
   gescand: number;
+  // Het klimaat uit bepaalKlimaat, de functie van Markt, maar op de afgesloten dagen: Markt rekent
+  // met de lopende dag erbij, dus rond een omslag kunnen de twee een dag verschillen. Null bij te
+  // weinig historie of zonder BTC. De meting van het plan gold bij een gunstig klimaat; het scherm zegt
+  // het erbij als dat nu anders is.
+  klimaat: Marktklimaat | null;
 }
 
 // Naam en marktcap uit CoinGecko, puur als aanvulling. Faalt het, dan gaat de scan door met de
@@ -219,14 +218,19 @@ export async function zoekKansen(
   // coin definitief is (alleen de eigen candles tellen) en omdat een coin die de radar haalt ook
   // in de eindlijst staat: de tussenstand is altijd een deelverzameling van de uitkomst, in
   // dezelfde volgorde. Een kaart die landt kan dus nog schuiven, maar verdwijnt niet meer. Alleen
-  // radar-coins: of de radar leeg blijft (en welke drie dan als WATCH komen) weet je pas aan het
-  // eind, dus die lijst komt uitsluitend via de returnwaarde.
+  // radar-coins: of de radar leeg blijft (en welke drie dan komen) weet je pas aan het eind, dus
+  // die lijst komt uitsluitend via de returnwaarde.
   onTussenstand?: (kansen: Opportunity[]) => void,
 ): Promise<KansenUitkomst> {
   const universum = STANDAARD_UNIVERSUM;
-  const [btcCandles, marktInfo] = await Promise.all([haalDagcandles('BTC'), haalMarktInfo()]);
+  const nu = Date.now();
+  const [btcRuw, marktInfo] = await Promise.all([haalDagcandles('BTC'), haalMarktInfo()]);
+  const btc = btcRuw ? splitsLopendeDag(btcRuw, nu) : null;
 
   const alle: Opportunity[] = [];
+  // De afgesloten dagen van elke coin, voor de marktbreedte in het klimaat. Zelfde candles als de
+  // scan, dus geen extra requests.
+  const geslotenReeksen: Candle[][] = [];
   let klaar = 0;
   let gescand = 0;
   for (let i = 0; i < universum.length; i += GELIJKTIJDIG) {
@@ -234,13 +238,15 @@ export async function zoekKansen(
     const uitkomsten = await Promise.all(
       blok.map(async sym => {
         // BTC hebben we al; niet nog een keer ophalen.
-        const candles = sym === 'BTC' ? btcCandles : await haalDagcandles(sym);
+        const ruw = sym === 'BTC' ? btcRuw : await haalDagcandles(sym);
         onProgress?.(++klaar, universum.length);
-        if (!candles) return null;
+        if (!ruw) return null;
         gescand++;
+        const { gesloten, prijsNu } = splitsLopendeDag(ruw, nu);
+        geslotenReeksen.push(gesloten);
         // BTC tegen zichzelf is altijd 0 en zegt niets; zonder BTC-reeks blijft rsBtc30d null.
-        const btcCloses = btcCandles && sym !== 'BTC' ? btcUitgelijnd(candles, btcCandles) : undefined;
-        return maakKans(sym, candles, 'Binance', btcCloses, marktInfo.get(sym));
+        const btcCloses = btc && sym !== 'BTC' ? btcUitgelijnd(gesloten, btc.gesloten) : undefined;
+        return maakKans(sym, gesloten, 'Binance', btcCloses, marktInfo.get(sym), prijsNu);
       }),
     );
     for (const k of uitkomsten) if (k) alle.push(k);
@@ -255,28 +261,43 @@ export async function zoekKansen(
   }
 
   if (gescand === 0) throw new Error('Geen marktdata ontvangen van Binance');
-  return { ...bouwRadar(alle), gescand };
+  const klimaat = btc ? bepaalKlimaat(btc.gesloten, geslotenReeksen) : null;
+  return { ...bouwRadar(alle), gescand, klimaat };
 }
 
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/engine/opportunities.ts`
 if (require.main === module) {
-  // radarSignaal: KOOP alleen met R/R >= 2 en score >= DREMPEL_KOOP.
-  const nv = (rr: number): RadarNiveaus => ({ entry: 100, stopLoss: 95, takeProfit: 100 + 5 * rr, rr });
-  console.assert(radarSignaal(nv(2.5), DREMPEL_KOOP).signaal === 'KOOP', 'R/R en score op orde hoort KOOP te zijn');
-  console.assert(radarSignaal(nv(2), 60).signaal === 'KOOP', 'R/R precies 2 hoort mee te tellen');
-  console.assert(radarSignaal(nv(1.9), 90).signaal === 'WATCH', 'R/R onder 2 hoort WATCH te zijn');
-  console.assert(radarSignaal(nv(3), DREMPEL_KOOP - 1).signaal === 'WATCH', 'score onder de drempel hoort WATCH te zijn');
-  console.assert(radarSignaal(null, 90).signaal === 'WATCH' && !radarSignaal(null, 90).voldoetAanRR,
-    'zonder niveaus geen KOOP');
-
   // maakKans: 100 dagen oplopend staat op zijn top, dus score 100. Te weinig historie geeft null.
   const oplopend: Candle[] = Array.from({ length: 100 }, (_, i) => ({
-    open: 100 + i, high: 101 + i, low: 99 + i, close: 100 + i, volume: 1000, tijd: i * 86_400_000,
+    open: 100 + i, high: 101 + i, low: 99 + i, close: 100 + i, volume: 1000, tijd: i * DAG_MS,
   }));
   const k = maakKans('TEST', oplopend, 'Binance', undefined);
   console.assert(k !== null && k.momentumScore >= RADAR_DREMPEL, `een stijgende reeks hoort op de radar: ${k?.momentumScore}`);
   console.assert(k !== null && k.sparkline.length === SPARKLINE_DAGEN && k.sparkline[29] === 199, 'sparkline hoort de laatste 30 closes te zijn');
   console.assert(maakKans('TEST', oplopend.slice(0, 80), 'Binance', undefined) === null, 'onder 90 candles geen kans');
+  // Het plan: stop 3x ATR onder de koers, doel op 3R.
+  console.assert(k !== null && k.niveaus !== null && k.niveaus.entry === 199 && k.niveaus.rr === 3
+    && Math.abs(k.niveaus.entry - k.niveaus.stopLoss - 3 * k.trade.atr) < 1e-9, `plan klopt niet: ${JSON.stringify(k?.niveaus)}`);
+
+  // Met een koers van nu: het oordeel blijft dat van de afgesloten dagen, het plan en de prijs volgen
+  // de koers van nu.
+  const live = maakKans('TEST', oplopend, 'Binance', undefined, undefined, 210);
+  console.assert(live !== null && live.prijs === 210 && live.niveaus?.entry === 210, 'prijs en plan horen de koers van nu te volgen');
+  console.assert(live !== null && Math.abs((live.vandaagPct ?? 0) - (210 / 199 - 1) * 100) < 1e-9 && k!.vandaagPct === null,
+    `de beweging van vandaag klopt niet: ${live?.vandaagPct}`);
+  console.assert(live !== null && live.momentumScore === k!.momentumScore && live.trade.score === k!.trade.score,
+    'de score hoort niet te bewegen met de koers van nu');
+  console.assert(live !== null && live.sparkline.length === SPARKLINE_DAGEN && live.sparkline[29] === 210 && live.sparkline[28] === 199,
+    'de sparkline hoort op de koers van nu te eindigen');
+
+  // splitsLopendeDag: een candle die minder dan een dag oud is loopt nog.
+  const nu = 100 * DAG_MS + 3_600_000;
+  const metLopend = [...oplopend, { open: 200, high: 205, low: 199, close: 204, volume: 10, tijd: 100 * DAG_MS }];
+  const gesplitst = splitsLopendeDag(metLopend, nu);
+  console.assert(gesplitst.gesloten.length === 100 && gesplitst.prijsNu === 204, 'de lopende dag hoort eraf te gaan');
+  const zonderLopend = splitsLopendeDag(oplopend, nu);
+  console.assert(zonderLopend.gesloten.length === 100 && zonderLopend.prijsNu === 199, 'zonder lopende dag blijft alles staan');
+  console.assert(splitsLopendeDag([], nu).prijsNu === null, 'een lege reeks geeft geen koers');
 
   // btcUitgelijnd: op dag uitgelijnd, en zonder tijd op het laatste element.
   const btc: Candle[] = oplopend.slice(10).map(c => ({ ...c, close: c.close * 2 }));
@@ -286,31 +307,23 @@ if (require.main === module) {
   const uit2 = btcUitgelijnd(zonderTijd, btc.slice(0, 50));
   console.assert(uit2.length === 100 && isNaN(uit2[49]) && uit2[99] === btc[49].close, 'zonder tijd hoort het laatste element te kloppen');
 
-  // bouwRadar: sorteert, en een lege radar geeft de drie sterkste als WATCH.
-  const met = (sym: string, score: number, afstand: number, signaal: 'KOOP' | 'WATCH' = 'KOOP'): Opportunity => ({
-    ...k!, symbool: sym, momentumScore: score, signaal, ingredienten: { ...k!.ingredienten, afstandHigh90d: afstand },
+  // bouwRadar: sorteert, en een lege radar geeft de drie sterkste.
+  const met = (sym: string, score: number, afstand: number): Opportunity => ({
+    ...k!, symbool: sym, momentumScore: score, ingredienten: { ...k!.ingredienten, afstandHigh90d: afstand },
   });
   const r = bouwRadar([met('A', 72, -8), met('B', 90, -3), met('C', 72, -7), met('D', 40, -18)]);
   console.assert(!r.radarLeeg && r.kansen.map(x => x.symbool).join() === 'B,C,A', `radar-volgorde klopt niet: ${r.kansen.map(x => x.symbool)}`);
   const leeg = bouwRadar([met('A', 20, -24), met('B', 60, -12), met('C', 50, -15), met('D', 10, -27)]);
   console.assert(leeg.radarLeeg && leeg.kansen.length === 3 && leeg.kansen[0].symbool === 'B', 'lege radar hoort de drie sterkste te geven');
-  console.assert(leeg.kansen.every(x => x.signaal === 'WATCH'), 'op een lege radar is alles WATCH');
 
-  // effectiefSignaal: zonder limiet blijft het signaal staan; schuift eToro de stop zo ver op dat de
-  // R/R onder 2 zakt, dan wordt een KOOP een WATCH.
+  // etoroPlan: zonder limiet het plan van Kader; eist eToro een ruimere stop, dan schuift hij op.
   const plan: RadarNiveaus = { entry: 100, stopLoss: 97, takeProfit: 109, rr: 3 };
-  const koopKans = { signaal: 'KOOP' as const, niveaus: plan, voldoetAanRR: true };
-  const zonder = effectiefSignaal(koopKans, null);
-  console.assert(zonder.signaal === 'KOOP' && zonder.haaltRr && zonder.niveaus?.aangepast === false,
-    `zonder limiet hoort KOOP te blijven: ${JSON.stringify(zonder)}`);
-  // Minimaal 10% stop: risico 10, doel 9 verder, R/R 0,9.
+  const zonder = etoroPlan({ niveaus: plan }, null);
+  console.assert(zonder !== null && zonder.aangepast === false && zonder.stop === 97, `zonder limiet hoort het plan te blijven: ${JSON.stringify(zonder)}`);
   const limiet: StopLossLimiet = { symbool: 'TEST', bewerkbaar: true, minPct: 10, maxPct: 100 };
-  const krap = effectiefSignaal(koopKans, limiet);
-  console.assert(krap.niveaus?.aangepast === true, `een te krappe stop hoort aangepast te worden: ${JSON.stringify(krap.niveaus)}`);
-  console.assert(krap.signaal === 'WATCH' && !krap.haaltRr, `onder 1:2 na de correctie hoort WATCH te zijn: ${JSON.stringify(krap)}`);
-  console.assert(effectiefSignaal({ ...koopKans, signaal: 'WATCH' }, null).signaal === 'WATCH', 'een WATCH wordt nooit KOOP');
-  const geenPlan = effectiefSignaal({ ...koopKans, niveaus: null }, null);
-  console.assert(geenPlan.signaal === 'WATCH' && geenPlan.niveaus === null, 'zonder plan geen KOOP en geen niveaus');
+  const krap = etoroPlan({ niveaus: plan }, limiet);
+  console.assert(krap !== null && krap.aangepast === true && krap.rr < 1, `een te krappe stop hoort aangepast te worden: ${JSON.stringify(krap)}`);
+  console.assert(etoroPlan({ niveaus: null }, null) === null, 'zonder plan geen niveaus');
 
   console.log('opportunities.ts self-check geslaagd');
 }

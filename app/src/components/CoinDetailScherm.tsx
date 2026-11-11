@@ -151,10 +151,9 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const coinInfo = infoVoor(data.symbool);
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
   const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
-  // Vanaf Kansen alleen bij KOOP: een WATCH-kans heeft soms wel een plan, maar Kader zegt er zelf
-  // bij dat het nu niet klopt. Markt en Portfolio geven geen signaal mee en houden de knop zoals
-  // hij was.
-  const kanTraden = !(data.context === 'kansen' && data.signaal !== 'KOOP');
+  // Niet vanaf Kansen: de radar is een volglijst zonder koopsignaal, dus het detailscherm biedt er
+  // geen trade-knop. Markt en Portfolio houden de knop zoals hij was.
+  const kanTraden = data.context !== 'kansen';
   const getradeBron: GetradeBron | null = kanGetrade
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
     : null;
@@ -371,9 +370,14 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                       <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
                         Waarom
                       </Text>
-                      <View style={[styles.pil, { backgroundColor: adviesKleur + '1F' }]}>
-                        <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
-                      </View>
+                      {/* Niet vanaf Kansen: daar geeft Kader geen koopoordeel (zie kanTraden), dus een
+                          label als "Sterke koop" zou de volglijst tegenspreken. De toelichting eronder
+                          beschrijft alleen de indicatoren en blijft staan. */}
+                      {data.context !== 'kansen' && (
+                        <View style={[styles.pil, { backgroundColor: adviesKleur + '1F' }]}>
+                          <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
+                        </View>
+                      )}
                     </View>
                     {advies.uitleg ? (
                       <Text style={[Type.body, styles.lopendeTekst, { color: colors.tekstGedimd }]}>{advies.uitleg}</Text>

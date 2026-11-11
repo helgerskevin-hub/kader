@@ -47,27 +47,30 @@ export interface Trade {
   sparkline?: number[];
 }
 
-// Eén coin op de momentum-radar van het Kansen-scherm, zie engine/opportunities.ts.
+// Eén coin op de momentum-radar van het Kansen-scherm, zie engine/opportunities.ts. Een volglijst:
+// er hoort geen koopsignaal bij (zie meting M in momentum.ts).
 export interface Opportunity {
   symbool: string;
   naam: string;
   // Uit CoinGecko, als aanvulling. Null als die niet bereikbaar was of de coin niet kende.
   marktcap: number | null;
+  // De koers van nu. Score en ingrediënten hieronder komen van de laatste AFGESLOTEN dag.
   prijs: number;
+  // Hoeveel de koers van nu afwijkt van het slot van die afgesloten dag, in procenten. Verklaart
+  // op de kaart waarom de prijs en "x% onder de top" uit elkaar kunnen lopen. Null zonder koers
+  // van nu; ontbreekt in een scan die voor dit veld bewaard is.
+  vandaagPct?: number | null;
   // 0-100, alleen de nabijheid tot de 90-dagen-high (zie momentumScore in momentum.ts).
   momentumScore: number;
   ingredienten: MomentumIngredienten;
   redenen: string[];
-  // De laatste ~30 slotkoersen, oudste eerst.
+  // De laatste ~30 slotkoersen, oudste eerst, met de koers van nu als laatste punt.
   sparkline: number[];
-  // KOOP vraagt R/R >= MIN_RISK_REWARD op de radar-niveaus én trade.score >= DREMPEL_KOOP.
-  signaal: 'KOOP' | 'WATCH';
-  // Het uitbraak-plan (stop op EMA20, doel boven de 90d-high), NIET de niveaus uit trade. Null als
-  // de koers niet boven zijn EMA20 staat: dan is er geen plan en dus geen Koop-knop.
+  // Het plan (stop 3x ATR onder de koers, doel op 3R), NIET de niveaus uit trade. Null zonder
+  // bruikbare ATR.
   niveaus: RadarNiveaus | null;
-  voldoetAanRR: boolean;
   // Het volledige scoorCandles-resultaat, voor RSI, trend, MACD en de technische score. Let op:
-  // de niveaus hierin zijn die van de Markt en horen niet op de Kansen-kaart.
+  // de niveaus en de prijs hierin zijn die van de afgesloten dag en horen niet op de Kansen-kaart.
   trade: Trade;
 }
 

@@ -72,9 +72,13 @@ export function voegSignalenToe(log: GelogdSignaal[], trades: Trade[], nu: numbe
   return samen.length > MAX_SIGNALEN ? samen.slice(samen.length - MAX_SIGNALEN) : samen;
 }
 
+// Wat bepaalUitkomst van een signaal nodig heeft. Ook de volglijst van Kansen
+// (engine/volglijstLog.ts) heeft deze velden en volgt zo precies dezelfde regels.
+export type VolgbaarSignaal = Pick<GelogdSignaal, 'tijd' | 'entry' | 'stop' | 'doel' | 'uitkomst' | 'uitkomstTijd' | 'behaaldeR'>;
+
 // Werkt één open signaal bij met dagcandles van die coin. Geeft het signaal ongewijzigd terug als
 // er nog niets beslist is.
-export function bepaalUitkomst(s: GelogdSignaal, candles: Candle[], nu: number): GelogdSignaal {
+export function bepaalUitkomst<T extends VolgbaarSignaal>(s: T, candles: Candle[], nu: number): T {
   if (s.uitkomst !== 'open') return s;
   const risico = s.entry - s.stop;
   if (risico <= 0) return s;
@@ -83,7 +87,7 @@ export function bepaalUitkomst(s: GelogdSignaal, candles: Candle[], nu: number):
   const startNa = Math.floor(s.tijd / DAG_MS) * DAG_MS + DAG_MS;
   const eind = startNa + LOOPTIJD_DAGEN * DAG_MS;
   const na = candles.filter(c => typeof c.tijd === 'number' && c.tijd >= startNa && c.tijd < eind);
-  const sluit = (uitkomst: SignaalUitkomst, prijs: number, tijd: number): GelogdSignaal => ({
+  const sluit = (uitkomst: SignaalUitkomst, prijs: number, tijd: number): T => ({
     ...s, uitkomst, uitkomstTijd: tijd, behaaldeR: (prijs - s.entry) / risico,
   });
 

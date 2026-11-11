@@ -26,10 +26,9 @@ import { scoorCandles, stopAfstandStructuur, MIN_CANDLES, MIN_RISK_REWARD, REWAR
 import { ema, macd } from '../src/engine/indicators';
 import { drempelBijnaOpDoel } from '../src/state/advies';
 import { voorstelTrailingStop } from '../src/state/afbouw';
-import { momentumIngredienten, momentumScore, radarNiveaus, RADAR_DREMPEL, MomentumIngredienten } from '../src/engine/momentum';
+import { momentumIngredienten, momentumScore, RADAR_DREMPEL, MomentumIngredienten } from '../src/engine/momentum';
 import { Candle, Trade } from '../src/engine/types';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
-import { radarSignaal } from '../src/engine/opportunities';
 
 const HIER = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HIER, '..', '..', 'data', 'historie');
@@ -1087,32 +1086,10 @@ for (const u of top) {
   jaarRegel('  radar + R/R>=2, poort open', draaiNiveaus(s => radarJ(s) && poortOpenNu(s), u.stop, u.doel, 'rr>=2'));
 }
 
-// J3: de gekozen variant zoals de app hem krijgt, via radarNiveaus() uit momentum.ts. Moet exact
-// gelijk zijn aan de roosterregel "EMA20 / 90d-high + 2x ATR"; anders meet de backtest iets anders
-// dan de app straks draait.
-const viaApp = (c: Candle[], s: Signaal) =>
-  radarNiveaus(c.slice(Math.max(0, s.i - VENSTER + 1), s.i + 1), s.atr, s.ema20);
-const appStop: StopRegel = { naam: 'radarNiveaus', afstand: (c, s) => { const n = viaApp(c, s); return n ? n.entry - n.stopLoss : null; } };
-const appDoel: DoelRegel = { naam: 'radarNiveaus', doel: (c, s) => viaApp(c, s)?.takeProfit ?? null };
-const appHoog = draaiNiveaus(radarJ, appStop, appDoel, 'rr>=2');
-const roosterHoog = draaiNiveaus(radarJ, emaStop(0), uitbraakDoel(2), 'rr>=2');
-jaarKop('J3 radarNiveaus() uit momentum.ts, ter controle:');
-jaarRegel('radar + R/R>=2 via radarNiveaus', appHoog);
-// De KOOP-regel zoals de app hem neemt: radarSignaal() uit opportunities.ts op de radarNiveaus, in
-// plaats van de nagebouwde conditie score >= DREMPEL_KOOP plus R/R >= 2. Moet hetzelfde opleveren.
-const appKoop = draaiNiveaus(
-  (s, c) => radarJ(s) && radarSignaal(viaApp(c, s), s.score).signaal === 'KOOP', appStop, appDoel, 'alle',
-);
-const nagebouwdKoop = draaiNiveaus(radarKoopJ, appStop, appDoel, 'rr>=2');
-jaarRegel('radar + score>=55 + R/R>=2', appKoop);
-console.assert(
-  appKoop.length === nagebouwdKoop.length && Math.abs(gem(appKoop.map(x => x.r)) - gem(nagebouwdKoop.map(x => x.r))) < 1e-9,
-  `radarSignaal wijkt af van de nagebouwde KOOP-regel: ${appKoop.length} tegen ${nagebouwdKoop.length} trades`,
-);
-console.assert(
-  appHoog.length === roosterHoog.length && Math.abs(gem(appHoog.map(x => x.r)) - gem(roosterHoog.map(x => x.r))) < 1e-9,
-  `radarNiveaus wijkt af van de roosterregel: ${appHoog.length} tegen ${roosterHoog.length} trades`,
-);
+// J3 (de controle dat de app dezelfde niveaus en dezelfde KOOP-regel gebruikte als dit rooster)
+// is op 11 nov 2026 vervallen: Kansen heeft dat plan en dat koopsignaal niet meer. Het rooster
+// hierboven blijft staan als de meting waar het oude plan op rustte. Wat Kansen nu doet, met
+// kosten en een aparte toetsperiode, staat in scripts/meting-kansen.ts (meting M).
 
 // --- meting K: doel meebewegen ----------------------------------------------------------
 //
