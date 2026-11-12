@@ -46,6 +46,10 @@ nooit gemeten) en bij een gemengd of ongunstig klimaat (waar de meting niet voor
 waren verliesjaren). Aangepast: geen knop op een lege radar (kaart en detailscherm), en buiten een
 gunstig klimaat een gewone knop in plaats van de hoofdknop, op de kaart en in het detailscherm.
 
+**Besluit van Kevin, 12 nov 2026:** de knop blijft ook op een lege radar, als gewone knop. Handelen
+gebeurt vanuit Kader, dus kopen kan bij elke coin met een plan. Koop is alleen de hoofdknop bij een
+radar-coin in een gunstig klimaat.
+
 ### 3. Trailing-stopadvies botst met het nieuwe plan (middel, vervolgpunt #118)
 
 `tradeChecks.ts` en het afbouwadvies stellen bij winst en afvlakkende MACD voor de stop naar

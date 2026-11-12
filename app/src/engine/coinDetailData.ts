@@ -18,12 +18,11 @@ export interface CoinDetailData {
   // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het markt- en
   // het kansenscherm, want daar draaien de scans die het uitrekenen.
   versusBtc?: number;
-  // Alleen vanaf Kansen: geen trade-knop in het detailscherm. Dat geldt als de scan verouderd is
-  // (de koers waar het plan mee rekent kan niet meer kloppen) en op een lege radar (de coin haalt
-  // de drempel niet, dus het plan is voor deze coin nooit gemeten).
+  // Alleen vanaf Kansen: geen trade-knop in het detailscherm, omdat de scan verouderd is en de
+  // koers waar het plan mee rekent dus niet meer kan kloppen.
   zonderKoop?: boolean;
-  // Alleen vanaf Kansen: het klimaat is niet gunstig of onbekend. De trade-knop staat er dan als
-  // gewone knop, net als op de kaart (zie koopRustig in KansKaart.tsx).
+  // Alleen vanaf Kansen: het klimaat is niet gunstig of onbekend, of de radar is leeg. De
+  // trade-knop staat er dan als gewone knop, net als op de kaart (zie koopRustig in KansKaart.tsx).
   koopRustig?: boolean;
   // alleen relevant voor context 'portfolio'
   entryPrijs?: number;

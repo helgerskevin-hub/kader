@@ -39,8 +39,9 @@ interface Props {
   // Ontbreekt zonder koppeling met schrijfrecht. De knop opent alleen de koopsheet, hij plaatst
   // nooit zelf een order.
   onKoop?: (kans: KansMetRang) => void;
-  // Het klimaat is niet gunstig, of onbekend. Het plan is gemeten bij een gunstig klimaat, dus de
-  // Koop-knop staat er dan als gewone knop en niet als hoofdknop. Het scherm legt het klimaat uit.
+  // Het klimaat is niet gunstig of onbekend, of de radar is leeg. Het plan is gemeten voor een
+  // radar-coin bij een gunstig klimaat, dus de Koop-knop staat er dan als gewone knop en niet als
+  // hoofdknop. Het scherm legt het klimaat uit.
   koopRustig?: boolean;
   // De scan is ouder dan KANSEN_COOLDOWN_MS: de koers waar het plan mee rekent kan achterhaald
   // zijn, dus geen Koop-knop tot er ververst is. Het scherm legt dat boven de lijst uit.
@@ -104,10 +105,9 @@ export const KansKaart = memo(function KansKaart({
   // Zoals het bij eToro te zetten is: eist eToro een ruimere stop, dan schuift hij op en zakt de
   // R/R mee. Baan en R/R-chip lezen allebei hieruit.
   const niveaus = etoroPlan(kans, limiet);
-  // Kopen kan bij elke radar-coin met een plan: Kader adviseert hier niet (zie WATCH en
+  // Kopen kan bij elke coin met een plan, net als op Markt: Kader adviseert hier niet (zie WATCH en
   // RADAR_METING_UITLEG), maar wie zelf kiest moet in één tik kunnen kopen met een plan dat de
-  // kosten draagt. Op een lege radar geeft het scherm geen onKoop mee. Het merkje hangt aan dezelfde
-  // voorwaarde als de knop.
+  // kosten draagt. Het merkje hangt aan dezelfde voorwaarde als de knop.
   const platforms = onKoop ? handelbaarOp(kans.symbool) : [];
   const kanKopen = !!(plan && !verouderd && onKoop && !isAlleenBekijken(kans.symbool));
   const afstand = kans.ingredienten.afstandHigh90d;

@@ -364,8 +364,8 @@ Twee kleinere punten uit dezelfde review:
 
 - Kansen is een volglijst: altijd WATCH. De kaart zegt wat het plan na kosten deed. (In #115 ging de
   koopknop eruit; #116 zette hem terug, omdat handelen vanuit Kader het doel is. Sinds de review van
-  12 nov 2026 staat hij niet bij de coins van een lege radar, en buiten een gunstig klimaat niet als
-  hoofdknop.)
+  12 nov 2026 is hij alleen de hoofdknop bij een radar-coin in een gunstig klimaat. Daarbuiten, en
+  bij de coins van een lege radar, is het een gewone knop.)
 - Het plan is stop 3x ATR en doel 3R (`radarNiveaus` in `engine/momentum.ts`).
 - Het oordeel valt op de laatste afgesloten dag; de app rekende tot nu toe met de lopende dag,
   wat de backtest nooit gemeten heeft.
