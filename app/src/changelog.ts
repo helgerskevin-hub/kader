@@ -40,6 +40,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-11-12',
+    punten: [
+      'Kader stelt niet meer voor je stop op te trekken, niet in Portfolio, niet op Vandaag en niet als melding. Het nieuwe plan is gemeten met een ruime stop die blijft staan. Het oude advies haalde die stop soms al bij een kleine winst naar je instap, en dat is precies de krappe stop die de kosten van eToro niet droeg. Zelf je stop verzetten kan nog steeds',
+      'Op Kansen is Koop alleen nog de opvallende hoofdknop waar het plan voor gemeten is: bij een coin op de radar in een gunstig marktklimaat. Is het klimaat niet gunstig, of is de radar leeg en zie je de drie sterkste coins, dan staat Koop er als gewone knop. Kopen kan dus altijd, met hetzelfde plan',
+      'De grote koersgrafiek op het detailscherm van een coin kan nu ook candles tonen. Zet het aan in Instellingen, onder Weergave, bij Grafiek. Een stijgende candle is hol, een dalende gevuld, en tijdens het schuiven over de grafiek zie je ook de hoogste en laagste koers van die candle. Passen er te veel in de breedte, dan voegt Kader er een paar samen, bijvoorbeeld twee dagen in één candle. Geeft de bron alleen slotkoersen, dan blijft het een lijn. De kleine grafiekjes op de kaarten blijven altijd een lijn',
+    ],
+  },
+  {
     versie: '0.4.3',
     datum: '2026-11-12',
     punten: [
