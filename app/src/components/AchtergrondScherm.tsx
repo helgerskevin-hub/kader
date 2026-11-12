@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated';
 import {
   X, ChevronLeft, Search, CircleX, Info,
   Activity, BadgeCheck, Bell, BellRing, ChartCandlestick, Copy, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
-  Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, Users,
+  Layers, Link, Ruler, Scale, Shield, ShieldAlert, ShoppingBasket, ShoppingCart, Store, Thermometer, Users,
   Wallet, Zap,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -33,7 +33,7 @@ interface Props {
 // Statische map van icoonnaam (uit hoofdstukken.ts) naar component; geen dynamische require.
 const ICONEN: Record<string, LucideIcon> = {
   Activity, BadgeCheck, Bell, BellRing, ChartCandlestick, Copy, ChartPie, ChartSpline, CloudRain, CloudSun, Gauge, History,
-  Layers, Link, Scale, Shield, ShieldAlert, ShoppingCart, Store, Thermometer, Users,
+  Layers, Link, Ruler, Scale, Shield, ShieldAlert, ShoppingBasket, ShoppingCart, Store, Thermometer, Users,
   Wallet, Zap,
 };
 
