@@ -172,7 +172,8 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
               <Animated.View entering={kaartLandt(1, reduceMotion)} style={[styles.ijkpunt, { backgroundColor: colors.verhoogd }]}>
                 <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 19 }]}>
                   Na de kosten van eToro. De meting over 2023 t/m 2026 gaf{' '}
-                  <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.11 R</Text> per signaal, niet aantoonbaar meer dan nul.
+                  <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.11 R</Text> per signaal: gemiddeld 11% van wat je
+                  per trade riskeert, dus ongeveer 2,20 euro bij 20 euro risico. Dat is niet aantoonbaar meer dan nul.
                   Daarom toont Kader deze signalen nu niet als koopadvies; hier loopt het trackrecord door.
                 </Text>
               </Animated.View>
@@ -280,15 +281,15 @@ function VolglijstGroep({ stand }: { stand: VolglijstSamenvatting }) {
 function NaloopGroep({ stand }: { stand: NaloopSamenvatting }) {
   return (
     <LijstGroep
-      titel={`Naloop: de ${NALOOP_PLEKKEN} rustigste coins`}
+      titel={`Kader-mandje: de ${NALOOP_PLEKKEN} rustigste coins`}
       lijnInspringing={spacing.base}
-      voetnoot={`Geen koopadvies. Bij een gunstig klimaat koopt deze papieren portefeuille de ${NALOOP_PLEKKEN} coins die het minst bewegen, zonder doel, met een stop die elke dag meeloopt met het laagste punt van de laatste 20 dagen. Na 1% kosten bij kopen en bij verkopen. In de meting won deze regel van de huidige signalen, niet aantoonbaar van BTC houden.${stand.sinds ? ` Loopt sinds ${korteDatum(stand.sinds)}.` : ''}`}
+      voetnoot={`Een proef op papier: Kader koopt niets. Bij een gunstig klimaat zitten hier de ${NALOOP_PLEKKEN} coins in die het minst bewegen, elk voor een vijfde van het geld. Er is geen doel: een coin blijft tot zijn stop geraakt wordt, en die stop schuift elke dag mee omhoog. De kosten van eToro zijn er al af. Meer uitleg staat in Informatie, onder Het Kader-mandje.${stand.sinds ? ` Loopt sinds ${korteDatum(stand.sinds)}.` : ''}`}
     >
-      <StatRij label="Papieren portefeuille" sub="sinds de eerste aankoop" waarde={stand.sinds ? stand.rendement * 100 : null} format={p => fmtPct(p)} />
+      <StatRij label="Mandje op papier" sub="sinds de eerste aankoop" waarde={stand.sinds ? stand.rendement * 100 : null} format={p => fmtPct(p)} />
       <StatRij label="BTC houden" sub="zelfde periode, na kosten" waarde={stand.btcRendement === null ? null : stand.btcRendement * 100} format={p => fmtPct(p)} />
-      <StatRij label="Afgesloten" sub={stand.afgesloten === 1 ? '1 positie, gemiddeld na kosten' : `${stand.afgesloten} posities, gemiddeld na kosten`} waarde={stand.gemNettoR} format={r => fmtR(r)} />
+      <StatRij label="Afgesloten" sub={stand.afgesloten === 1 ? '1 coin verkocht, in R na kosten' : `${stand.afgesloten} coins verkocht, gemiddeld in R na kosten`} waarde={stand.gemNettoR} format={r => fmtR(r)} />
       <StatRij
-        label="Nu in bezit"
+        label="Nu in het mandje"
         sub={stand.open.length ? stand.open.map(p => p.symbool).join(', ') : stand.sinds ? 'niets, wacht op een gunstig klimaat' : 'nog niets, begint bij het eerste gunstige klimaat'}
         waarde={stand.open.length}
         format={n => String(n)}
