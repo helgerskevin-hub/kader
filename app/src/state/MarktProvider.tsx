@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useReducer } from 'react';
 import { Trade } from '../engine/types';
 import { analyseerMarkt } from '../engine/analyzer';
-import { Marktklimaat } from '../engine/marktklimaat';
+import { Marktklimaat, poortOpen } from '../engine/marktklimaat';
 import { RelatieveSterkte } from '../engine/relatieveSterkte';
 import { bijwerkenBearModus, BearModusStand } from './bearModus';
 import { registreerSignalen, werkSignalenBij } from './signaalBoek';
+import { registreerNaloop, werkNaloopBij } from './naloopBoek';
 
 type Progress = { current: number; total: number; symbool: string };
 
@@ -124,6 +125,9 @@ export function MarktProvider({ children }: { children: React.ReactNode }) {
       // Het signaalboek loopt na de dispatch en zonder await: de Markt hoeft daar niet op te
       // wachten, en beide functies vangen hun eigen fouten.
       registreerSignalen(alle).then(() => werkSignalenBij());
+      // De naloop van regel C (meting O): eerst de stops, dan de vrije plekken. Zonder klimaat telt
+      // de poort als dicht, net als bij het ruwe signaal in analyzer.ts.
+      werkNaloopBij().then(() => registreerNaloop(alle, klimaat !== null && poortOpen(klimaat)));
     } catch (e) {
       if (!stil) dispatch({ type: 'FOUT', melding: (e as Error)?.message ?? 'Onbekende fout' });
     }
