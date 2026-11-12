@@ -1,6 +1,6 @@
 # Coinlogo's: bron en licentie
 
-De 103 logo's in deze map horen bij `STANDAARD_UNIVERSUM` in `src/engine/analyzer.ts`. Ze gaan mee in de app (geen netwerkverzoek per coin) via `scripts/genereer-coinlogos.mjs`, dat `src/components/coinLogos.ts` schrijft. Bestandsnaam = Kader-symbool in kleine letters.
+De 148 logo's in deze map horen bij `STANDAARD_UNIVERSUM` in `src/engine/analyzer.ts`. Ze gaan mee in de app (geen netwerkverzoek per coin) via `scripts/genereer-coinlogos.mjs`, dat `src/components/coinLogos.ts` schrijft. Bestandsnaam = Kader-symbool in kleine letters.
 
 De logo's zijn merken van de projecten zelf. Kader gebruikt ze alleen om een coin te herkennen, niet om een band met het project te suggereren.
 
@@ -16,7 +16,7 @@ Bewerkt (mag onder CC0), omdat react-native-svg SVG-filters niet betrouwbaar tek
 
 Erbij op 12 nov 2026 (uitbreiding van het universum), ongewijzigd: `ankr ape band bnt cvc gno knc ksm lpt neo qnt ray skl stx uma zen`
 
-## 2. web3icons (`@web3icons/core` 4.0.56): MIT (48 logo's)
+## 2. web3icons (`@web3icons/core` 4.0.56 en 4.0.59): MIT (55 logo's)
 
 Bron: npm-pakket `@web3icons/core@4.0.56` (https://github.com/0xa3k5/web3icons), variant `background` (logo op een vlak in de merkkleur; Kader snijdt het rond af). INJ komt uit `networks/background/injective`, de rest uit `tokens/background/<SYMBOOL>`.
 
@@ -52,9 +52,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Coins zonder logo
+Erbij uit 4.0.59, variant `networks/background`, omdat er geen token-logo was. Het netwerklogo is hier het merk van de coin: `bera` (berachain), `gram` (ton: eToro voert Gram als het hernoemde Toncoin), `hype` (hyper-evm, Hyperliquid), `plume`, `wld` (world, Worldcoin), `xpl` (plasma), `zk` (zksync).
 
-45 coins hebben geen logo en tonen een monogram (`CoinLogo.tsx`). Voor de meeste bestaat er geen logo in de twee pakketten hierboven. Vier zijn er bewust uit gelaten omdat het logo onder dezelfde ticker bij een ander project hoort: AMP (HyperSpace in plaats van Amp), MET (Metronome in plaats van Meteora), JUP (het oude Jupiter Project in plaats van Jupiter op Solana) en GRAM (niet zeker dat het de Gram van eToro is). Een verkeerd logo is erger dan geen.
+## Kader-badges (38 logo's)
+
+Voor 38 coins bestond er geen logo onder een licentie die we mogen meeleveren, of hoorde het logo onder dezelfde ticker bij een ander project (AMP, MET, JUP). Die hebben een eigen badge, door Kader getekend: een cirkel in de merkkleur van het project (bij benadering) met de ticker erin. Het is bewust geen namaak van het echte logo.
+
+`0g aero amp api3 aster avnt bico bonk eigen ena ethfi floki jto jup kaito kite kmno me met morpho newt night not ondo orca pengu pnut pump qi super sxt syrup trump virtual w wif wlfi zro`
+
+Vervang een badge door het echte logo zodra dat onder een vrije licentie te vinden is.
 
 ## 3. SOL: hertekend voor Kader (1 logo)
 
