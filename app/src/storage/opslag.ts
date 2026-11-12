@@ -121,6 +121,9 @@ export const SLEUTELS = {
   // Elke coin die op de radar van Kansen kwam, met zijn plan en wat ermee gebeurde. Los van het
   // signaalboek: de volglijst geeft geen koopsignaal. Zie engine/volglijstLog.ts.
   volglijstBoek: 'volglijst_boek',
+  // De live naloop van regel C uit meting O: een papieren portefeuille van de vijf rustigste coins
+  // met een meelopende stop. Geen koopadvies. Zie engine/naloopRustig.ts en state/naloopBoek.ts.
+  naloopBoek: 'naloop_boek',
   // Risico per trade in procent van je handelskapitaal: '0.5', '1' of '2'. Zie state/useRisicoPct.ts.
   risicoPct: 'risico_pct',
   // Staat het weekrapport op zondag aan? 'aan' of 'uit', ontbreekt = aan.

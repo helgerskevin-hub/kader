@@ -733,7 +733,7 @@ export function kiesInstrumentTreffer(treffers: ZoekTreffer[], symbool: string):
 
 // Geeft null bij elke twijfel, en dan is kopen geblokkeerd.
 //
-// Zes coins voert eToro onder een andere naam (zie engine/etoroSymbolen.ts), dus we zoeken op het
+// Acht coins voert eToro onder een andere naam (zie engine/etoroSymbolen.ts), dus we zoeken op het
 // eToro-symbool, in eToro's exacte schrijfwijze (bijv. SHIBxM, niet SHIBXM): kiesInstrumentTreffer
 // vergelijkt zelf al hoofdletterongevoelig, maar de query naar eToro moet de precieze schrijfwijze
 // zijn, anders levert de zoekopdracht niets op.
@@ -872,7 +872,7 @@ export interface NiveauWijziging {
   // Een niveau weghalen in plaats van verzetten.
   clearStopLoss?: boolean;
   clearTakeProfit?: boolean;
-  // Zie KooporderInvoer.koersFactor: dezelfde omrekening, voor dezelfde zes coins.
+  // Zie KooporderInvoer.koersFactor: dezelfde omrekening, voor dezelfde acht coins.
   koersFactor?: number;
 }
 
@@ -1072,19 +1072,25 @@ export async function haalStopLossLimieten(
 ): Promise<Record<string, StopLossLimiet>> {
   // eToro verwacht hier zijn eigen schrijfwijze (bijv. SHIBxM), dus niet zomaar uppercasen zoals de
   // rest van dit bestand doet: naarEtoroSymbool levert de exacte schrijfwijze, en ontdubbelt daarop.
-  const uniek = [...new Set(symbolen.map(s => naarEtoroSymbool(s)))].slice(0, MAX_SYMBOLEN);
+  const uniek = [...new Set(symbolen.map(s => naarEtoroSymbool(s)))];
   if (uniek.length === 0) return {};
 
-  const data = await etoroFetch<EligibilityRespons>('/trading/info/eligibility', sleutels, {
-    versie: 'v2',
-    body: { symbols: uniek, currency: 'USD' },
-  });
+  // In blokken van 100, na elkaar: twee of drie aanroepen blijven ruim binnen het quotum van 20 per
+  // minuut. Vroeger viel alles na het honderdste symbool stil weg.
+  const eligibilities: EtoroEligibility[] = [];
+  for (let i = 0; i < uniek.length; i += MAX_SYMBOLEN) {
+    const data = await etoroFetch<EligibilityRespons>('/trading/info/eligibility', sleutels, {
+      versie: 'v2',
+      body: { symbols: uniek.slice(i, i + MAX_SYMBOLEN), currency: 'USD' },
+    });
+    eligibilities.push(...(data.eligibilities ?? []));
+  }
 
   // Grenzen zijn percentages van de inleg, dus geen koers om om te rekenen; wel moet het symbool
   // zelf terug naar Kaders eigen naam, anders staat de grens onder SHIBxM in de kaart terwijl
   // de rest van de app onder SHIB zoekt, en komt hij ook zo in uitlegteksten terecht.
   const kaart: Record<string, StopLossLimiet> = {};
-  for (const item of data.eligibilities ?? []) {
+  for (const item of eligibilities) {
     const ruw = kiesLimiet(item);
     if (!ruw) continue;
     const limiet: StopLossLimiet = { ...ruw, symbool: vanEtoroSymbool(ruw.symbool) };

@@ -13,6 +13,9 @@
 //
 // Zet een schakelaar alleen op true als het label de lat uit docs/markt-kosten-plan.md (paragraaf
 // 5) haalt op data die bij het afstellen niet gebruikt is. Niet omdat een scherm er leeg uitziet.
+// Die data is niet meer 2023 t/m 2026: die jaren zijn in meting M en N al als toets bekeken, en
+// elke nieuwe regel die daarop "slaagt" is mede daarop gekozen. Het bewijs moet komen uit signalen
+// van na 11 nov 2026: het signaalboek (netto, versie 2) of een backtest die alleen die dagen toetst.
 //
 // Voor je er een aanzet, eerst nalopen (gevonden bij de review van nov 2026):
 //   - teksten die nu zonder voorwaarde "AFWACHTEN" of "geen kooplabel" zeggen: informatie/

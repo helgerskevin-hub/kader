@@ -1,10 +1,8 @@
 import { Candle, Opportunity, Trade } from './types';
 import { haalData, haalCoingeckoMarkten } from './marketData';
-import { STANDAARD_UNIVERSUM, scoorCandles, splitsLopendeDag } from './analyzer';
+import { STANDAARD_UNIVERSUM, KLIMAAT_UNIVERSUM, scoorCandles, splitsLopendeDag } from './analyzer';
 
-// Staat in analyzer.ts omdat Markt hem ook gebruikt; hier opnieuw geëxporteerd voor wie hem bij
-// de Kansen-scan zoekt.
-export { splitsLopendeDag };
+const KLIMAAT_SET = new Set<string>(KLIMAAT_UNIVERSUM);
 import { infoVoor } from './coinInfo';
 import { StopLossLimiet, EtoroNiveaus, etoroNiveaus } from './etoroLimieten';
 import { bepaalKlimaat, Marktklimaat } from './marktklimaat';
@@ -22,8 +20,8 @@ import {
 // STANDAARD_UNIVERSUM moet een deelverzameling van deze lijst zijn; scripts/check-universum.mjs
 // bewaakt dat.
 //
-// Zes coins hier voert eToro onder een andere naam of in een andere eenheid (SHIB en PEPE per
-// miljoen munten, MATIC/FTM/MKR/RNDR onder POL/S/SKY/RENDER); zie engine/etoroSymbolen.ts.
+// Acht coins hier voert eToro onder een andere naam of in een andere eenheid (SHIB, PEPE, BONK en
+// FLOKI per miljoen munten, MATIC/FTM/MKR/RNDR onder POL/S/SKY/RENDER); zie engine/etoroSymbolen.ts.
 export const ETORO_TRADABLE = new Set([
   'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
   'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',
@@ -37,6 +35,15 @@ export const ETORO_TRADABLE = new Set([
   'FET', 'RNDR',
   'FIL', 'THETA', 'BAT',
   'TIA',
+  // Erbij op 12 nov 2026, zie STANDAARD_UNIVERSUM in analyzer.ts.
+  'NEO', 'CELR', 'ANKR', 'CVC', 'BAND', 'STX', 'KAVA', 'OGN', 'BNT', 'COTI', 'CTSI', 'KNC',
+  'ZEN', 'JST', 'RSR', 'TRB', 'RUNE', 'KSM', 'UMA', 'SKL', 'CELO', 'CAKE', 'SUPER', 'AR',
+  'LPT', 'C98', 'QNT', 'RAY', 'GNO', 'DYDX', 'ILV', 'ENS', 'QI', 'JASMY', 'AMP', 'BICO',
+  'ACH', 'API3', 'APE', 'LDO', 'OSMO', 'LQTY', 'PENDLE', 'JTO', 'JUP', 'PYTH', 'STRK', 'AXL',
+  'METIS', 'ETHFI', 'ENA', 'W', 'TAO', 'ZK', 'ZRO', 'EIGEN', 'COW', 'ORCA', 'ME', 'PENGU',
+  'KAITO', 'ONDO', 'VIRTUAL', 'SYRUP', 'KMNO', 'SXT', 'A', 'NEWT', 'AVNT', '0G', 'MORPHO', 'EUL',
+  'KITE', 'MET', 'GRAM', 'AERO',
+  'ASTER', 'BERA', 'BONK', 'FLOKI', 'HYPE', 'NIGHT', 'NOT', 'PLUME', 'PNUT', 'PUMP', 'TRUMP', 'WIF', 'WLD', 'WLFI', 'XPL',
 ]);
 
 // De Kansen-scan is een momentum-radar over hetzelfde universum als de Markt: welke coins staan
@@ -233,7 +240,8 @@ export async function zoekKansen(
         if (!ruw) return null;
         gescand++;
         const { gesloten, prijsNu } = splitsLopendeDag(ruw, nu);
-        geslotenReeksen.push(gesloten);
+        // Alleen de coins van KLIMAAT_UNIVERSUM, net als op Markt: het klimaat is op die 57 gemeten.
+        if (KLIMAAT_SET.has(sym)) geslotenReeksen.push(gesloten);
         // BTC tegen zichzelf is altijd 0 en zegt niets; zonder BTC-reeks blijft rsBtc30d null.
         const btcCloses = btc && sym !== 'BTC' ? btcUitgelijnd(gesloten, btc.gesloten) : undefined;
         return maakKans(sym, gesloten, 'Binance', btcCloses, marktInfo.get(sym), prijsNu);

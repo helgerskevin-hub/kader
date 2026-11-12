@@ -489,3 +489,112 @@ op de afgesloten dag, en het signaalboek volgt het ruwe signaal na kosten. De ko
   is dan een andere. De uitkomst van "elke coin" staat ernaast.
 - Verder gelden de kanttekeningen van meting M: de minimale stop is alleen voor BTC gemeten, de
   live spread komt nog boven de 1%, en het universum bestaat uit coins die nu op eToro staan.
+
+## Meting O: het Markt-algoritme als portefeuille, met nieuwe toetscoins (12 nov 2026)
+
+Script: `app/scripts/meting-algoritme.ts`. Draaien vanuit `app/`:
+`npx tsx scripts/meting-algoritme.ts ijk|uitstap|instap|selectie|combinatie`, en één keer `toets`.
+Holdout-data: `node scripts/haal-holdout.mjs` vanuit de repo-root. Beslisregels vooraf vast in
+`docs/algoritme-plan.md`, met aanvulling 6a na de review en vóór de toets. Het rapport met het
+voorstel staat in `docs/review-markt-algoritme.md`.
+
+Drie dingen zijn nieuw ten opzichte van meting M en N:
+
+- **Geld in plaats van R.** Een portefeuille van 10 plekken (of 3 of 5), 1% per kant, instap op de
+  open na het signaal, cash rendeert niets. Jaarrendement (CAGR), grootste terugval, per jaar.
+  Periode 15 nov 2019 (vanaf dan is de poort te bepalen) t/m 11 nov 2026.
+- **Uitstappen zonder vast doel**: een stop die meeloopt, of verkopen op een regel.
+- **Een nieuwe toetsset**: 359 coinreeksen van Binance die nooit in een meting zaten (352 coins,
+  118 gedelist, geknipt bij redenominaties). Afstellen op de 57, één keer toetsen op de holdout.
+
+Controles: Nu als losse trades geeft exact meting N4 (1780 trades, +0,133 R), BTC houden geeft
+exact de koersverhouding min de kosten. Een onafhankelijke review vond geen vooruitkijken; wel
+ongecorrigeerde redenominaties in de holdout, die vóór de toets zijn weggeknipt.
+
+### O1: hoe Nu ervoor staat als portefeuille (57 coins)
+
+| strategie | CAGR | max terugval | 20 | 21 | 22 | 23 | 24 | 25 | 26 |
+|---|---|---|---|---|---|---|---|---|---|
+| BTC houden | +36% | -77% | +302% | +60% | -64% | +156% | +121% | -6% | -16% |
+| BTC met de poort | -2% | -76% | +44% | +20% | -49% | -21% | +19% | +5% | 0% |
+| BTC boven EMA200 | +20% | -64% | +154% | -6% | -10% | +42% | +50% | -21% | 0% |
+| **Nu** (score 55+, poort, stop 3x ATR, doel 3R, 30d) | **+11%** | **-89%** | +151% | +299% | -59% | +39% | -38% | -28% | -19% |
+| Nu, zonder kosten | +35% | -77% | | | | | | | |
+
+Nu verliest sinds 2024 elk jaar, en de poort als aan/uit-knop voor BTC zelf kost geld: hij wisselt
+16 keer per jaar en elke wissel kost 2%.
+
+### O2: uitstap, instap, selectie (57 coins)
+
+Uitstap, met de instap van Nu:
+
+| uitstap | CAGR | max terugval | netto R | mediane R |
+|---|---|---|---|---|
+| U0 doel 3R, 30d (Nu) | +11% | -89% | +0,18 | -0,22 |
+| U1 doel 3R, 90d | +9% | -94% | +0,29 | |
+| U2 stop mee, hoogste slot min 3x ATR | +20% | -71% | +0,35 | |
+| U3 verkopen na slot onder EMA50 | +48% | -68% | +0,44 | |
+| **U4 stop mee, laagste 20 dagen** | **+78%** | -69% | +1,33 | -0,39 |
+| U5 vast tot +3R, daarna stop mee | +18% | -90% | +0,61 | |
+| U6 verkopen als de poort dicht is | 0% | -86% | +0,17 | |
+
+Instap, met U4: score 55+ +77,8%, elke coin +77,5%, uitbraak 50d +47%, uitbraak 100d +37%, EMA50
+boven EMA200 +76% (terugval -56%), 90d-rendement positief +66%. De score kiest ook hier niet; volgens
+de regel ging "elke coin" door.
+
+Selectie, elke coin + U4: bij te veel signalen de **laagste volatiliteit eerst** wint met elk aantal
+plekken (3: +102%, 5: +103%, 10: +88%). Score eerst +40 tot +78%, hoogste 90d-rendement +19 tot
++43%, achterblijver +32 tot +75%, willekeur +47 tot +66%. Gelijk risico in plaats van gelijk
+gewicht maakt de terugval kleiner (-36% bij 3 plekken) maar het rendement ook (+27%).
+
+### O3: de toets op de holdout, één keer
+
+| regel | 57 coins | holdout | terugval holdout | trades | netto R holdout | 90%-interval |
+|---|---|---|---|---|---|---|
+| Nu | +11% | **-5%** | -96% | 660 | +0,09 | -0,11 tot +0,29 |
+| A: Nu-instap + U4 | +78% | +3% | -96% | 493 | +0,47 | -0,04 tot +1,14 |
+| B: elke coin + U4 | +78% | +3% | -96% | 493 | +0,47 | -0,04 tot +1,14 |
+| **C: elke coin + U4, 5 plekken, rustigste eerst** | +103% | **+51%** | -68% | 259 | **+1,55** | **+0,37 tot +3,09** |
+
+Per jaar op de holdout, C tegen Nu: 2020 +56% / +133%, 2021 +1368% / +341%, 2022 -46% / -56%,
+2023 +19% / +50%, 2024 +13% / -63%, 2025 -8% / -55%, 2026 +14% / -38%.
+
+Tegen de lat: **A en B halen hem niet** (maandverschil niet aantoonbaar, beter in 2 van 7 jaren,
+terugval -96%). **C haalt alle vijf de eisen**: 259 trades, CAGR hoger, maandverschil +3,9% met
+interval +0,7% tot +7,5%, beter in 5 van 7 jaren, terugval -68% tegen -77% voor BTC houden.
+
+Gevoeligheid op C (holdout): 1,5% per kant +40%, stop minimaal 10% +51%, crashcandles slechter
+gevuld +48%. Zonder de coin met de grootste bijdrage blijft de netto R aantoonbaar boven nul
+(57 coins zonder DOGE +1,58, holdout zonder WRX +1,13).
+
+### Hoe het te lezen
+
+- **De meelopende stop is het grootste winpunt, maar alleen samen met de keuze voor rustige coins.**
+  Op de holdout redt de stop alleen Nu niet (+3%, terugval -96%): wie willekeurige altcoins koopt
+  verliest dat geld in 2022 en 2024 tot 2026 alsnog.
+- **De score kiest niet, ook niet als portefeuille.** Score 55+ en "elke coin" doen exact hetzelfde
+  op de holdout.
+- **Rustig eerst is wat kiest.** Op de 57 coins betekent dat vooral BTC, BNB, TRX, ETH, XLM en XRP.
+- **C wint van Nu, niet aantoonbaar van BTC houden.** Zonder 2021 haalt C op de 57 coins +36% per
+  jaar en op de holdout +3%, tegen +32,5% voor BTC houden. C zakt wel minder diep (-60% en -68%
+  tegen -77%). 2021 is echte historie (de review heeft de DOGE-trade nagerekend), maar het is één
+  jaar.
+
+### Kanttekeningen
+
+- De holdout is nieuw in coins, niet in tijd: dezelfde jaren en dezelfde poort uit BTC en de 57
+  coins. Dat de poort werkt is hiermee niet opnieuw bewezen.
+- Op de holdout kiest "rustig eerst" vaak Tron-tokens (SUN, JST, WIN, BTTC) en XMR, die op eToro
+  waarschijnlijk niet te koop zijn. Het effect geldt voor de doorsnede, niet voor die coins.
+- De meelopende stop wordt op het dagslot gezet en geldt de dag erna. eToro moet de stop dan elke
+  dag laten verzetten; of en hoe snel dat kan is niet gemeten.
+- In de afstelronde zijn op de 57 coins zo'n dertig varianten bekeken. Daarom ging er maar één
+  combinatie naar de holdout, met drie regels ernaast.
+
+## Meting P: het klimaat op 148 coins (12 nov 2026)
+
+Na het uitbreiden van het universum naar 148 coins: de marktbreedte in de poort over alle 148 of over de
+57 gemeten coins? Beslisregel vooraf en volledige uitkomst in `docs/universum-uitbreiding.md`. Kort: de
+twee poorten zeggen op 98% van de dagen hetzelfde, en de brede poort is in alle vier de combinaties (Nu
+en regel C, handelen in 57 of in 148 coins) iets slechter, met 1,5 tot 3 procentpunt minder CAGR. De
+breedte blijft op de 57 (`KLIMAAT_UNIVERSUM` in `analyzer.ts`).

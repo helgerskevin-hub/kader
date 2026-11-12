@@ -1,10 +1,10 @@
 # Coinlogo's: bron en licentie
 
-De 57 logo's in deze map horen bij `STANDAARD_UNIVERSUM` in `src/engine/analyzer.ts`. Ze gaan mee in de app (geen netwerkverzoek per coin) via `scripts/genereer-coinlogos.mjs`, dat `src/components/coinLogos.ts` schrijft. Bestandsnaam = Kader-symbool in kleine letters.
+De 148 logo's in deze map horen bij `STANDAARD_UNIVERSUM` in `src/engine/analyzer.ts`. Ze gaan mee in de app (geen netwerkverzoek per coin) via `scripts/genereer-coinlogos.mjs`, dat `src/components/coinLogos.ts` schrijft. Bestandsnaam = Kader-symbool in kleine letters.
 
 De logo's zijn merken van de projecten zelf. Kader gebruikt ze alleen om een coin te herkennen, niet om een band met het project te suggereren.
 
-## 1. cryptocurrency-icons 0.18.1: CC0 1.0 (38 logo's)
+## 1. cryptocurrency-icons 0.18.1: CC0 1.0 (54 logo's)
 
 Bron: npm-pakket `cryptocurrency-icons@0.18.1`, map `svg/color/`. Licentie: Creative Commons Zero v1.0 Universal (publiek domein), https://creativecommons.org/publicdomain/zero/1.0/. Geen naamsvermelding verplicht; staat hier voor de volledigheid.
 
@@ -14,11 +14,15 @@ Bewerkt (mag onder CC0), omdat react-native-svg SVG-filters niet betrouwbaar tek
 - `ada.svg`: de schaduwkopie onder het logo en de bijbehorende filter weggehaald.
 - `grt.svg`, `mana.svg`: de filter die de vorm wit kleurde vervangen door een witte vulling. Zelfde beeld.
 
-## 2. web3icons (`@web3icons/core` 4.0.56): MIT (18 logo's)
+Erbij op 12 nov 2026 (uitbreiding van het universum), ongewijzigd: `ankr ape band bnt cvc gno knc ksm lpt neo qnt ray skl stx uma zen`
+
+## 2. web3icons (`@web3icons/core` 4.0.56 en 4.0.59): MIT (55 logo's)
 
 Bron: npm-pakket `@web3icons/core@4.0.56` (https://github.com/0xa3k5/web3icons), variant `background` (logo op een vlak in de merkkleur; Kader snijdt het rond af). INJ komt uit `networks/background/injective`, de rest uit `tokens/background/<SYMBOOL>`.
 
 `apt arb axs fet flow ftm gala hbar imx inj near op pepe rndr sei shib sui tia`
+
+Erbij op 12 nov 2026, ongewijzigd, gecontroleerd tegen de projectnaam in `@web3icons/common`: `a ach ar axl c98 cake celo celr coti cow ctsi dydx ens eul ilv jasmy jst kava ldo lqty metis ogn osmo pendle pyth rsr rune strk tao trb`
 
 FTM toont het Fantom-logo: Kader noemt de coin FTM, eToro voert hem als S (Sonic), zie `src/engine/etoroSymbolen.ts`.
 
@@ -47,6 +51,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+Erbij uit 4.0.59, variant `networks/background`, omdat er geen token-logo was. Het netwerklogo is hier het merk van de coin: `bera` (berachain), `gram` (ton: eToro voert Gram als het hernoemde Toncoin), `hype` (hyper-evm, Hyperliquid), `plume`, `wld` (world, Worldcoin), `xpl` (plasma), `zk` (zksync).
+
+## Kader-badges (38 logo's)
+
+Voor 38 coins bestond er geen logo onder een licentie die we mogen meeleveren, of hoorde het logo onder dezelfde ticker bij een ander project (AMP, MET, JUP). Die hebben een eigen badge, door Kader getekend: een cirkel in de merkkleur van het project (bij benadering) met de ticker erin. Het is bewust geen namaak van het echte logo.
+
+`0g aero amp api3 aster avnt bico bonk eigen ena ethfi floki jto jup kaito kite kmno me met morpho newt night not ondo orca pengu pnut pump qi super sxt syrup trump virtual w wif wlfi zro`
+
+Vervang een badge door het echte logo zodra dat onder een vrije licentie te vinden is.
 
 ## 3. SOL: hertekend voor Kader (1 logo)
 
