@@ -152,8 +152,9 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
   const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
   // Traden kan vanaf elk scherm, ook vanaf de volglijst van Kansen: Kader adviseert daar niet, maar
-  // wie zelf kiest moet het hier kunnen doen. Alleen niet met een plan uit een verouderde scan.
-  const kanTraden = !data.planVerouderd;
+  // wie zelf kiest moet het hier kunnen doen. Niet met een plan uit een verouderde scan, en niet bij
+  // een coin van een lege radar (zie zonderKoop in coinDetailData.ts).
+  const kanTraden = !data.zonderKoop;
   const getradeBron: GetradeBron | null = kanGetrade
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
     : null;
@@ -523,7 +524,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                       <PilKnop
                         label="Trade via eToro"
                         icoon={ShoppingCart}
-                        variant="cta"
+                        variant={data.koopRustig ? 'tweede' : 'cta'}
                         onPress={openHandel}
                         accessibilityLabel={`${data.symbool} kopen via eToro`}
                       />

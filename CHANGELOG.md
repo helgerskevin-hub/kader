@@ -6,6 +6,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
 ## Nog niet uitgebracht
 
+- Op Kansen staat de knop Koop niet meer bij de drie coins die verschijnen als de radar leeg is: die halen de drempel niet en het plan is voor hen nooit gemeten. Is het marktklimaat niet gunstig, dan staat Koop er als gewone knop en niet meer als opvallende hoofdknop, want het plan is gemeten bij een gunstig klimaat
 - Kansen is nu een volglijst en geeft geen koopsignaal meer. Kader heeft de radar voor het eerst doorgerekend met de kosten van eToro: 1% bij kopen en 1% bij verkopen. Met het oude plan verloor een koopsignaal op Kansen dan gemiddeld geld. Het plan op elke kaart is daarom ruimer geworden: de stop 3x ATR onder de koers en het doel op drie keer dat risico. Dat hield na kosten wel iets over, maar welke coin de radar kiest bleek niet aantoonbaar beter dan een willekeurige coin op dezelfde dag. Daarom staat er WATCH en geen KOOP. Kopen kan nog steeds met de knop Koop op de kaart
 - De score op Kansen kijkt nu naar de laatste afgesloten dag en verspringt dus niet meer in de loop van de dag. De prijs en het plan volgen wel de koers van nu
 - Kansen kijkt nu ook naar het marktklimaat. Is dat gemengd of ongunstig, dan staat het boven de lijst

@@ -18,9 +18,13 @@ export interface CoinDetailData {
   // Rendement over 30 dagen min dat van BTC, in procentpunten. Alleen bekend vanaf het markt- en
   // het kansenscherm, want daar draaien de scans die het uitrekenen.
   versusBtc?: number;
-  // Alleen vanaf Kansen: de scan is verouderd, dus de koers waar het plan mee rekent kan niet meer
-  // kloppen. Het detailscherm biedt dan geen trade-knop tot er ververst is.
-  planVerouderd?: boolean;
+  // Alleen vanaf Kansen: geen trade-knop in het detailscherm. Dat geldt als de scan verouderd is
+  // (de koers waar het plan mee rekent kan niet meer kloppen) en op een lege radar (de coin haalt
+  // de drempel niet, dus het plan is voor deze coin nooit gemeten).
+  zonderKoop?: boolean;
+  // Alleen vanaf Kansen: het klimaat is niet gunstig of onbekend. De trade-knop staat er dan als
+  // gewone knop, net als op de kaart (zie koopRustig in KansKaart.tsx).
+  koopRustig?: boolean;
   // alleen relevant voor context 'portfolio'
   entryPrijs?: number;
   bedragUsd?: number;
@@ -46,7 +50,7 @@ export function vanTrade(trade: Trade, versusBtc?: number): CoinDetailData {
   };
 }
 
-export function vanOpportunity(kans: Opportunity, planVerouderd = false): CoinDetailData {
+export function vanOpportunity(kans: Opportunity, zonderKoop = false, koopRustig = false): CoinDetailData {
   return {
     symbool: kans.symbool,
     naam: kans.naam || infoVoor(kans.symbool).naam,
@@ -59,7 +63,8 @@ export function vanOpportunity(kans: Opportunity, planVerouderd = false): CoinDe
     rr: kans.niveaus?.rr,
     score: kans.trade.score,
     versusBtc: kans.ingredienten.rsBtc30d ?? undefined,
-    planVerouderd,
+    zonderKoop,
+    koopRustig,
   };
 }
 

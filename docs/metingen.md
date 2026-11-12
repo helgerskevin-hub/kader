@@ -238,7 +238,7 @@ Vier dingen zijn anders dan in de metingen hierboven:
   daarna. `backtest.ts` stapt in op het slot van de signaaldag zelf.
 - **Afstellen en toetsen gescheiden.** Kiezen op t/m november 2022, toetsen op 2023 t/m 2026, één
   keer. Signalen uit december 2022 tellen bij geen van beide: hun trade loopt de toetsjaren in.
-- **Excess R.** De uitkomst min die van een willekeurige coin op dezelfde dag met dezelfde niveaus.
+- **Excess R.** De uitkomst min het gemiddelde van alle coins op dezelfde dag met dezelfde niveaus.
   Dat scheidt "deze regel kiest goed" van "het was een goede dag".
 
 De beslisregels lagen vast voordat het script draaide, zie `docs/kansen-analyse-plan.md`,
@@ -334,9 +334,38 @@ komt uit de opzet: de ruime stop, het grote doel en de poort. Welke coin de rada
 weinig aantoonbaars bovenop. Een coin van voor 2019 doet het niet beter dan willekeurig, dus een
 deel van het effect in de afsteljaren leunde op nieuwkomers.
 
+**Aanvulling na review (12 nov 2026).** De zin "dat komt uit de opzet" klopt maar half. Met
+hetzelfde plan en dezelfde poort, in dezelfde toetsjaren, en zonder iets bij te stellen:
+
+| toetsjaren, 1% per kant, stop 3x ATR, doel 3R, poort open | n | netto | basis van de dag | excess | doel / stop / tijd om |
+|---|---|---|---|---|---|
+| elke coin | 1952 | +0,099 | +0,110 | -0,010 | 15% / 41% / 45% |
+| radar 70 (Kansen nieuw) | 691 | +0,290 | +0,250 | +0,040 | 21% / 41% / 38% |
+
+"Basis van de dag" is het gemiddelde van alle coins op de instapdag (netto min excess). Opzet en
+poort samen geven +0,10 R (huidige poort; N4 noemt +0,08 R met de strengere EMA200-poort); de
+radar zit daar +0,19 R boven (90%-interval -0,10 tot +0,45, bootstrap per instapmaand). Dat
+verschil zit vooral in *wanneer* de radar iets toont (+0,14 R aan betere dagen) en weinig in
+*welke* coin (+0,05 R: excess +0,04 tegen -0,01 voor elke coin). Excess R meet alleen het tweede,
+dus de lat kon het eerste niet zien. Het besluit verandert niet: ook dit verschil is niet aantoonbaar, en de
+toetsjaren zijn na meting M en N twee keer bekeken, dus een nieuwe regel hierop toetsen kan niet
+meer eerlijk. Of de radar een goed moment aanwijst, moet het live trackrecord laten zien.
+
+Twee kleinere punten uit dezelfde review:
+
+- Eis 3b ("wint van Markt KOOP met poort") vergeleek Kansen nieuw met Markts KOOP op Markts eigen,
+  oude plan. Dat meet plan en keuze samen, dus het "ja" zegt weinig. Met hetzelfde plan haalde Markts
+  KOOP +0,13 R (meting N4), en dan wint de radar nog steeds.
+- Het doel ligt bij een mediane stop van 17% zo'n 50% boven de instap. Bijna acht van de tien trades
+  in de toets haalden het doel niet en liepen op de stop of op de 30 dagen af. Lees het doel dus als een
+  plafond, niet als de verwachte uitkomst.
+
 ### Wat er in de app veranderd is
 
-- Kansen is een volglijst: altijd WATCH, geen koopknop. De kaart zegt wat het plan na kosten deed.
+- Kansen is een volglijst: altijd WATCH. De kaart zegt wat het plan na kosten deed. (In #115 ging de
+  koopknop eruit; #116 zette hem terug, omdat handelen vanuit Kader het doel is. Sinds de review van
+  12 nov 2026 staat hij niet bij de coins van een lege radar, en buiten een gunstig klimaat niet als
+  hoofdknop.)
 - Het plan is stop 3x ATR en doel 3R (`radarNiveaus` in `engine/momentum.ts`).
 - Het oordeel valt op de laatste afgesloten dag; de app rekende tot nu toe met de lopende dag,
   wat de backtest nooit gemeten heeft.

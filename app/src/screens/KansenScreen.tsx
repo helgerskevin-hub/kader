@@ -118,11 +118,21 @@ export function KansenScreen() {
     handleVervers();
   }
 
+  const radarLeeg = state.status === 'success' && state.radarLeeg;
+  const klimaat = state.status === 'success' ? state.klimaat : null;
+  // Op een lege radar staan de drie sterkste coins er alleen om te laten zien hoe ver de rest van de
+  // top af zit. Ze halen de drempel niet en het plan is voor ze nooit gemeten, dus geen koopknop.
+  const kopenKan = magHandelen && !radarLeeg;
+  // Het plan is gemeten bij een gunstig klimaat (meting M). Daarbuiten blijft de knop, maar niet
+  // als hoofdknop: de kaart moet dan niet tot kopen uitnodigen.
+  const koopRustig = klimaat?.klimaat !== 'gunstig';
+
   // Stabiele callbacks, zodat de gememoiseerde kaarten niet bij elke scan-tik opnieuw tekenen.
-  // Het detailscherm biedt dezelfde koopknop als de kaart, dus ook daar niet bij een verouderd plan.
+  // Het detailscherm biedt dezelfde koopknop als de kaart, dus ook daar niet bij een verouderd plan
+  // of een lege radar.
   const opOpenDetail = useCallback(
-    (k: KansMetRang) => openDetail(vanOpportunity(k, verouderd)),
-    [openDetail, verouderd],
+    (k: KansMetRang) => openDetail(vanOpportunity(k, verouderd || radarLeeg, koopRustig)),
+    [openDetail, verouderd, radarLeeg, koopRustig],
   );
   // Het plan van de radar, niet de Markt-niveaus: k.niveaus heeft entry, stopLoss, takeProfit, rr.
   const opGetrade = useCallback(
@@ -168,8 +178,6 @@ export function KansenScreen() {
     return uit;
   }, [lijstSymbolen, bezit, koersen]);
 
-  const radarLeeg = state.status === 'success' && state.radarLeeg;
-  const klimaat = state.status === 'success' ? state.klimaat : null;
   const top = useMemo(
     () => (state.status === 'success' && !state.radarLeeg && state.kansen.length >= TOP_AANTAL
       ? [...state.kansen].sort((a, b) => b.momentumScore - a.momentumScore).slice(0, TOP_AANTAL)
@@ -268,7 +276,8 @@ export function KansenScreen() {
                 favoriet={isFavoriet(item.symbool)}
                 onToggleFavoriet={wisselFavoriet}
                 limiet={limietVoor(stopLimieten, item.symbool)}
-                onKoop={magHandelen ? setKoopKans : undefined}
+                onKoop={kopenKan ? setKoopKans : undefined}
+                koopRustig={koopRustig}
                 verouderd={verouderd}
                 inBezit={bezit.includes(item.symbool)}
                 beweegtMeeMet={meeMet[item.symbool]}
