@@ -15,7 +15,7 @@ import { vatSamen, type GelogdSignaal, type SignaalUitkomst } from '../engine/si
 import { useSignaalBoek } from '../state/signaalBoek';
 import { vatVolglijstSamen, type VolglijstSamenvatting } from '../engine/volglijstLog';
 import { useVolglijstBoek } from '../state/volglijstBoek';
-import { vatNaloopSamen, NALOOP_PLEKKEN, type NaloopSamenvatting } from '../engine/naloopRustig';
+import { vatNaloopSamen, latStatus, NALOOP_PLEKKEN, type NaloopSamenvatting, type LatStatus } from '../engine/naloopRustig';
 import { useNaloopBoek } from '../state/naloopBoek';
 import { RADAR_METING_NETTO_R } from '../engine/momentum';
 import { LABEL_KOOP_BEWEZEN } from '../engine/drempels';
@@ -67,6 +67,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
   // De naloop van regel C (meting O): ook een eigen logboek, los van de signalen hierboven.
   const naloopBoek = useNaloopBoek(zichtbaar);
   const naloop = useMemo(() => (naloopBoek ? vatNaloopSamen(naloopBoek) : null), [naloopBoek]);
+  const lat = useMemo(() => (naloopBoek ? latStatus(naloopBoek, Date.now()) : null), [naloopBoek]);
 
   const samenvatting = useMemo(() => (signalen ? vatSamen(signalen) : null), [signalen]);
   const recent = useMemo(
@@ -150,7 +151,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
               )}
               {naloop && (
                 <Animated.View entering={kaartLandt(5, reduceMotion)}>
-                  <NaloopGroep stand={naloop} />
+                  <NaloopGroep stand={naloop} lat={lat} />
                 </Animated.View>
               )}
             </ScrollView>
@@ -232,7 +233,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
 
               {naloop && (
                 <Animated.View entering={kaartLandt(5, reduceMotion)}>
-                  <NaloopGroep stand={naloop} />
+                  <NaloopGroep stand={naloop} lat={lat} />
                 </Animated.View>
               )}
 
@@ -275,14 +276,17 @@ function VolglijstGroep({ stand }: { stand: VolglijstSamenvatting }) {
   );
 }
 
-// De naloop van regel C uit meting O. Een papieren portefeuille, geen koopadvies: hier staat of de
-// regel die op ongeziene coins de toets haalde het live ook doet, naast gewoon BTC houden.
-function NaloopGroep({ stand }: { stand: NaloopSamenvatting }) {
+// Het Kader-mandje op papier (regel C uit meting O). Dit is wat de lat meet (docs/mandje-lat.md):
+// hier staat of het advies het live doet, naast gewoon BTC houden, en of de lat nog gehaald wordt.
+function NaloopGroep({ stand, lat }: { stand: NaloopSamenvatting; lat: LatStatus | null }) {
+  const latTekst = !lat ? ''
+    : !lat.actief ? ` Het advies staat uit: ${lat.reden}.`
+    : lat.volgendIjkmoment ? ` Volgend ijkmoment ${korteDatum(lat.volgendIjkmoment)}: dan moet het mandje hoger staan dan -10%. Noodrem bij een terugval van meer dan 60%.` : '';
   return (
     <LijstGroep
-      titel={`Naloop: de ${NALOOP_PLEKKEN} rustigste coins`}
+      titel={`Kader-mandje: de ${NALOOP_PLEKKEN} rustigste coins`}
       lijnInspringing={spacing.base}
-      voetnoot={`Geen koopadvies. Bij een gunstig klimaat koopt deze papieren portefeuille de ${NALOOP_PLEKKEN} coins die het minst bewegen, zonder doel, met een stop die elke dag meeloopt met het laagste punt van de laatste 20 dagen. Na 1% kosten bij kopen en bij verkopen. In de meting won deze regel van de huidige signalen, niet aantoonbaar van BTC houden.${stand.sinds ? ` Loopt sinds ${korteDatum(stand.sinds)}.` : ''}`}
+      voetnoot={`Het mandje op papier. Bij een gunstig klimaat koopt het de ${NALOOP_PLEKKEN} coins die het minst bewegen, zonder doel, met een stop die elke dag meeloopt met het laagste punt van de laatste 20 dagen. Na 1,5% kosten bij kopen en bij verkopen. In de meting won deze regel van de oude signalen, niet aantoonbaar van BTC houden.${stand.sinds ? ` Loopt sinds ${korteDatum(stand.sinds)}.` : ''}${latTekst}`}
     >
       <StatRij label="Papieren portefeuille" sub="sinds de eerste aankoop" waarde={stand.sinds ? stand.rendement * 100 : null} format={p => fmtPct(p)} />
       <StatRij label="BTC houden" sub="zelfde periode, na kosten" waarde={stand.btcRendement === null ? null : stand.btcRendement * 100} format={p => fmtPct(p)} />

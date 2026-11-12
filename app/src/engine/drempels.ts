@@ -11,20 +11,9 @@
 // niet. De drempels hieronder blijven bestaan voor de kleur van de score en voor het trackrecord,
 // dat het ruwe signaal blijft volgen zodat een label terug kan komen.
 //
-// Zet een schakelaar alleen op true als het label de lat uit docs/markt-kosten-plan.md (paragraaf
-// 5) haalt op data die bij het afstellen niet gebruikt is. Niet omdat een scherm er leeg uitziet.
-// Die data is niet meer 2023 t/m 2026: die jaren zijn in meting M en N al als toets bekeken, en
-// elke nieuwe regel die daarop "slaagt" is mede daarop gekozen. Het bewijs moet komen uit signalen
-// van na 11 nov 2026: het signaalboek (netto, versie 2) of een backtest die alleen die dagen toetst.
-//
-// Voor je er een aanzet, eerst nalopen (gevonden bij de review van nov 2026):
-//   - teksten die nu zonder voorwaarde "AFWACHTEN" of "geen kooplabel" zeggen: informatie/
-//     hoofdstukken.ts (score, advies, analyse, klimaat, meldingen), MarktBalk, BearModusKaart,
-//     OnboardingScreen en het ijkpunt in SignaalScorebordScherm;
-//   - coinInfo.ts geeft "Sterke koop" vanaf score 72 zonder LABEL_STERK_BEWEZEN te kennen, en
-//     signaalLog.adviesVan groepeert het trackrecord ook op 72;
-//   - gemisteKansen.ts telt bruto R, terwijl Signaalresultaat netto toont;
-//   - de R/R is nu altijd 3: de takken en het filter die op "R/R onder 1 : 2" letten doen niets.
+// Sinds 12 nov 2026 definitief uit (docs/mandje-lat.md): het koopadvies is het Kader-mandje
+// (engine/naloopRustig.ts), met een eigen lat. Deze schakelaars blijven alleen bestaan zodat de
+// takken die erop letten niet allemaal tegelijk weg hoeven; zet ze niet meer aan.
 export const LABEL_KOOP_BEWEZEN: boolean = false;
 // STERK KOOP en BEVESTIGD. Kan alleen aan als LABEL_KOOP_BEWEZEN aan staat.
 export const LABEL_STERK_BEWEZEN: boolean = false;
