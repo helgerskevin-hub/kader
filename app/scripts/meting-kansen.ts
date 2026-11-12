@@ -21,7 +21,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scoorCandles, STANDAARD_UNIVERSUM, MIN_CANDLES, MIN_RISK_REWARD } from '../src/engine/analyzer';
+import { scoorCandles, KLIMAAT_UNIVERSUM, MIN_CANDLES, MIN_RISK_REWARD } from '../src/engine/analyzer';
 import { ema } from '../src/engine/indicators';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
 import { momentumIngredienten, momentumScore, radarNiveaus as appNiveaus, RADAR_DREMPEL, RADAR_STOP_ATR, RADAR_DOEL_R, RADAR_HOUDTIJD_DAGEN, ETORO_KOSTEN_PER_KANT } from '../src/engine/momentum';
@@ -45,7 +45,7 @@ const DAGEN_HIGH = 90;
 const beschikbaar = new Set(
   readdirSync(DATA).filter(f => f.endsWith('.json') && !f.startsWith('_')).map(f => f.replace('.json', '')),
 );
-export const coins = STANDAARD_UNIVERSUM.filter(s => beschikbaar.has(s));
+export const coins = KLIMAAT_UNIVERSUM.filter(s => beschikbaar.has(s));
 if (coins.length === 0) {
   console.error('Geen data. Draai eerst `node scripts/haal-historie.mjs 9` vanuit de repo-root.');
   process.exit(1);

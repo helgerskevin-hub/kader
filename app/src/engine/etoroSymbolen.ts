@@ -1,4 +1,4 @@
-// Zes coins voert eToro onder een andere naam of in een andere eenheid dan Kader. Dit bestand is de
+// Acht coins voert eToro onder een andere naam of in een andere eenheid dan Kader. Dit bestand is de
 // enige plek die dat weet; de rest van de app blijft in Kader-symbolen en Kader-koersen (per coin)
 // en vertaalt alleen aan de grens met eToro (zoeken, orders, import). Bewust puur, geen imports van
 // netwerk of storage.
@@ -13,6 +13,10 @@
 export const ETORO_ALIAS: Record<string, { symbool: string; factor: number }> = {
   SHIB: { symbool: 'SHIBxM', factor: 1_000_000 },
   PEPE: { symbool: 'PEPExM', factor: 1_000_000 },
+  // Erbij op 12 nov 2026, zelfde eenheid als SHIB en PEPE: eToro-koers gedeeld door Binance-koers
+  // gemeten op 9,96e5 (BONK) en 9,99e5 (FLOKI).
+  BONK: { symbool: 'BONKxM', factor: 1_000_000 },
+  FLOKI: { symbool: 'FLOKIxM', factor: 1_000_000 },
   MATIC: { symbool: 'POL', factor: 1 },
   FTM: { symbool: 'S', factor: 1 },
   MKR: { symbool: 'SKY', factor: 1 },
