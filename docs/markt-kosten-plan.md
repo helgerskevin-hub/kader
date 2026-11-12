@@ -223,3 +223,9 @@ haalt op data die bij het afstellen niet gebruikt is.
 - Meten en het voorstel: het sterkste model, hoge inspanning.
 - De bouw daarna: het sterkste model voor de engine en de meldingen, het standaardmodel voor de
   schermen, en de review in een aparte sessie.
+
+## 12. Nieuwe lat voor het advies (12 nov 2026)
+
+De lat uit paragraaf 5 blijft staan als geschiedenis, maar geldt niet meer voor het advies op
+Markt. De kooplabels zijn definitief weg; het advies wordt het Kader-mandje (regel C uit meting O)
+met een eigen, praktische lat. Zie `docs/mandje-lat.md` en meting Q in `docs/metingen.md`.

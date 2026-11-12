@@ -627,3 +627,52 @@ Na het uitbreiden van het universum naar 148 coins: de marktbreedte in de poort 
 twee poorten zeggen op 98% van de dagen hetzelfde, en de brede poort is in alle vier de combinaties (Nu
 en regel C, handelen in 57 of in 148 coins) iets slechter, met 1,5 tot 3 procentpunt minder CAGR. De
 breedte blijft op de 57 (`KLIMAAT_UNIVERSUM` in `analyzer.ts`).
+
+## Meting Q: de lat voor het Kader-mandje (12 nov 2026)
+
+Script: `app/scripts/meting-algoritme.ts lat`. Doel: de noodrem en het ijkmoment uit
+`docs/mandje-lat.md` narekenen voordat het mandje (regel C) als advies in de app komt. Regel C op
+de 148 coins (142 met historie), 1,5% per kant, poort over de 57. Per startmaand een verse
+papieren portefeuille van 24 maanden, zoals de live naloop die leeg begint: 61 startmaanden, nov
+2019 t/m nov 2024. Dit is een beschrijving van de historie, geen toets: de jaren en de coins zijn
+al bekeken.
+
+### Q1: haalt regel C op 148 coins met 1,5% nog wat meting O zei?
+
+| strategie | CAGR | max terugval | 20 | 21 | 22 | 23 | 24 | 25 | 26 |
+|---|---|---|---|---|---|---|---|---|---|
+| BTC houden | +36% | -77% | +302% | +60% | -64% | +156% | +121% | -6% | -16% |
+| C, 148 coins, 1,5% | +79% | -70% | +206% | +1880% | -43% | +17% | +36% | -2% | +8% |
+| C, 148 coins, 1% | +89% | -64% | +221% | +1950% | -39% | +26% | +47% | +3% | +14% |
+| C, 57 coins, 1,5% | +92% | -65% | +206% | +2074% | -44% | +26% | +97% | +15% | -9% |
+
+Ja, dezelfde orde van grootte. Maar vrijwel de hele voorsprong op BTC komt uit 2020 en 2021; van
+2023 t/m 2026 deed BTC houden het elk jaar beter of gelijk.
+
+### Q2: hoe vaak gaat de lat af, en kost of spaart dat geld?
+
+"Met lat": na het afgaan alles verkopen en cash tot het einde van de 24 maanden. Mediaan
+eindvermogen na 24 maanden; de gemiddelden worden bepaald door de starts in 2020 (+3000% en meer).
+
+| regel | gaat af, alle starts | mediaan 24m zonder / met | gaat af, starts vanaf 2022 | mediaan 24m zonder / met |
+|---|---|---|---|---|
+| ijkmoment: -10% na 6 of 12 mnd | 34% | +29% / +29% | 43% | +22% / +22% |
+| noodrem -30% | 100% | +29% / +10% | 100% | +22% / +4% |
+| noodrem -40% | 93% | +29% / -1% | 89% | +22% / -8% |
+| noodrem -50% | 43% | +29% / +30% | 3% | +22% / +22% |
+| noodrem -60% | 13% | +29% / +29% | 0% | +22% / +22% |
+
+- **Een noodrem op -40% is onbruikbaar**: regel C zakt binnen twee jaar bijna altijd 40% van zijn
+  top, en de rem had dan het herstel gemist. Gekozen: **-60%**.
+- **Het ijkmoment gaat vaak af** en spaart geen geld: de starts waar het afging eindigden sinds 2022
+  mediaan op -12% zonder lat en -21% met. Het blijft staan als eerlijkheidsschakelaar: wie na een
+  half jaar op -10% staat, krijgt dat te horen en geen advies meer.
+- Er is een reële kans (ongeveer 4 op 10) dat het advies op 12 mei 2027 uitgaat door een slechte
+  marktfase, niet door een kapotte regel. Dat is vooraf geaccepteerd.
+
+### Kanttekeningen
+
+- Overlappende startmaanden: de 61 vensters zijn niet onafhankelijk. De percentages zijn een
+  indruk, geen kans.
+- Verkopen na het afgaan rekent 1,5% over het belegde deel, geschat uit het aantal open plekken.
+- 6 van de 148 coins hebben geen historie in `data/historie/` en tellen niet mee.
