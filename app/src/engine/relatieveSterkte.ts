@@ -89,6 +89,10 @@ export function berekenRelatieveSterkte(
 // bullish MACD, dus een coin die daarbovenop veel harder steeg dan BTC heeft het makkelijke deel
 // gehad. Dezelfde coin die juist achterbleef is een terugval binnen een opgaande trend.
 //
+// LET OP (nov 2026): meting M en N keken naar hetzelfde met kosten erbij en tegen de andere coins op
+// dezelfde dag. Het voordeel van achterblijvers bleek een markteffect: die signalen vielen op dagen
+// dat alles steeg. De uitleg bij het cijfer beweert daarom niets meer over wat beter presteert.
+//
 // Dit oordeel is puur informatief. Het telt niet mee in de 0-100 score en filtert niets weg: die
 // score is met de backtest gekalibreerd en er een component in mengen verschuift stilzwijgend alle
 // drempels in drempels.ts. Zie de openstaande keuze in TODO.md.
@@ -110,9 +114,9 @@ export function oordeelRs(versusBtc: number): RsOordeel {
 export function rsUitleg(versusBtc: number): string {
   switch (oordeelRs(versusBtc)) {
     case 'achterblijver':
-      return `Deze coin bleef ${Math.abs(versusBtc).toFixed(0)}% achter op bitcoin in 30 dagen. In de backtest deden koopsignalen op achterblijvers het beter dan op coins die al voorliepen: een terugval binnen een opgaande trend, in plaats van een beweging die al grotendeels geweest is.`;
+      return `Deze coin bleef ${Math.abs(versusBtc).toFixed(0)}% achter op bitcoin in 30 dagen. Dit weegt niet mee in de score.`;
     case 'voorloper':
-      return `Deze coin liep ${versusBtc.toFixed(0)}% voor op bitcoin in 30 dagen. In de backtest deden koopsignalen op zulke voorlopers het gemiddeld slechter dan op achterblijvers: het makkelijke deel van de beweging is dan vaak geweest. Dit weegt niet mee in de score.`;
+      return `Deze coin liep ${versusBtc.toFixed(0)}% voor op bitcoin in 30 dagen. Dit weegt niet mee in de score.`;
     default:
       return '';
   }
@@ -180,8 +184,9 @@ if (require.main === module) {
 
   console.assert(rsUitleg(-5) === '', 'de middenmoot krijgt geen uitleg');
   console.assert(rsUitleg(-30).includes('30%'), `de uitleg noemt het cijfer, was: ${rsUitleg(-30)}`);
-  console.assert(rsUitleg(-30).includes('beter'), 'bij een achterblijver hoort de gemeten uitkomst te staan');
-  console.assert(rsUitleg(40).includes('slechter'), 'bij een voorloper ook, maar dan andersom');
+  // Geen belofte meer over wat beter presteert: dat bleek in meting M en N een markteffect.
+  console.assert(!rsUitleg(-30).includes('beter') && !rsUitleg(40).includes('slechter'), 'de uitleg beweert niets over de uitkomst');
+  console.assert(rsUitleg(40).includes('40%') && rsUitleg(40).includes('weegt niet mee'), `de uitleg bij een voorloper klopt niet: ${rsUitleg(40)}`);
   // Geen minteken in de tekst bij een achterblijver: die staat er al in het woord "achter".
   console.assert(!rsUitleg(-30).includes('-30'), `dubbel minteken leest raar, was: ${rsUitleg(-30)}`);
 

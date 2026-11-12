@@ -46,8 +46,7 @@ export function BearModusKaart({ stand }: Props) {
       </View>
 
       <Text style={[Type.body, styles.lopendeTekst, { color: colors.tekstPrimair }]}>
-        Kader geeft nu geen koopsignalen. De markt daalt breed, en in dat soort periodes verloren
-        koopsignalen historisch gemiddeld geld.
+        De markt daalt breed, en in dat soort periodes verloor kopen historisch gemiddeld geld.
       </Text>
 
       {toonTeller && (
@@ -57,7 +56,7 @@ export function BearModusKaart({ stand }: Props) {
             <Text style={[Type.titel, { color: colors.tekstPrimair }]}>
               {stand.dagen} {stand.dagen === 1 ? 'dag' : 'dagen'}
             </Text>
-            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>geen koopsignaal</Text>
+            <Text style={[Type.caption, { color: colors.tekstGedimd }]}>in bear-modus</Text>
           </View>
           <View style={[styles.teller, { backgroundColor: colors.verhoogd }]}>
             <Text style={[Type.overline, { color: colors.tekstGedimd }]}>MARKT SINDSDIEN</Text>

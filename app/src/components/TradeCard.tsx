@@ -1,3 +1,4 @@
+import { RADAR_PLAN_UITLEG } from '../engine/momentum';
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -15,7 +16,7 @@ import { AdviceBadge } from './AdviceBadge';
 import { BevestigdKeurmerk } from './BevestigdKeurmerk';
 import { Bevestigingen } from './Bevestigingen';
 import { bevestigingen } from '../engine/bevestigingen';
-import { DREMPEL_STERK_KOOP } from '../engine/drempels';
+import { DREMPEL_STERK_KOOP, LABEL_STERK_BEWEZEN } from '../engine/drempels';
 import { StopLossLimiet, etoroNiveaus } from '../engine/etoroLimieten';
 import { oordeelRs, rsUitleg } from '../engine/relatieveSterkte';
 import { useValutaStand } from '../state/useValuta';
@@ -63,7 +64,8 @@ function adviesLabel(trade: Trade, haaltRr: boolean): AdviesLabel {
   if (trade.signaal !== 'KOOP') return 'AFWACHTEN';
   // Schuift eToro de stop zo op dat de R/R onder de drempel zakt, dan is het geen koopsignaal meer.
   if (!haaltRr) return 'AFWACHTEN';
-  if (trade.highConviction || trade.score >= DREMPEL_STERK_KOOP) return 'STERK KOOP';
+  // Alleen als STERK KOOP zich bewezen heeft; anders is elk koopsignaal KOOPZONE.
+  if (LABEL_STERK_BEWEZEN && (trade.highConviction || trade.score >= DREMPEL_STERK_KOOP)) return 'STERK KOOP';
   return 'KOOPZONE';
 }
 
@@ -271,9 +273,14 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
             {/* De drempel in dezelfde opmaak als de waarde erboven, en dat is de hele reden dat fmtRR
                 hier staat. Er stond "onder 1:2" onder een waarde van "1 : 1.3", en dat las als
                 "onder 1,2": een grens die het getal erboven ruim haalde. */}
+            {/* Waarom de stop zo ruim ligt. Zonder deze regel leest een stop van 20 tot 40% onder de
+                koers als een fout; het is juist wat de kosten draagt (meting M en N). */}
+            <Text style={[Type.caption, styles.notitie, { color: colors.tekstGedimd }]}>
+              {RADAR_PLAN_UITLEG}
+            </Text>
             {!haaltRr && (
               <Text style={[Type.caption, styles.notitie, { color: colors.letOp }]}>
-                Onder {fmtRR(MIN_RISK_REWARD)}: Kader geeft hier geen koopsignaal.
+                Onder {fmtRR(MIN_RISK_REWARD)}, doordat eToro een ruimere stop eist dan het plan.
               </Text>
             )}
           </Animated.View>

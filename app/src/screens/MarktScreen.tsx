@@ -33,6 +33,7 @@ import { BearModusKaart } from '../components/BearModusKaart';
 import { RemKaart } from '../components/RemKaart';
 import { EenDingKaart } from '../components/EenDingKaart';
 import { GemisteKansenRij } from '../components/GemisteKansenRij';
+import { LABEL_KOOP_BEWEZEN, LABEL_STERK_BEWEZEN } from '../engine/drempels';
 import { GemisteKansenScherm } from '../components/GemisteKansenScherm';
 import { EenDing, kiesEenDing } from '../state/eenDing';
 import { useVerliesRem } from '../state/useVerliesRem';
@@ -330,7 +331,8 @@ export function MarktScreen() {
               {/* De rem na verliezen gaat boven alles: die zegt iets over jou, niet over de markt. */}
               <RemKaart />
               {eenDing && <EenDingKaart ding={eenDing} onActie={opEenDingActie} />}
-              <GemisteKansenRij onOpen={() => setGemistOpen(true)} />
+              {/* Zonder bewezen kooplabel gaf Kader geen advies, dus valt er niets te "missen". */}
+              {LABEL_KOOP_BEWEZEN && <GemisteKansenRij onOpen={() => setGemistOpen(true)} />}
               {!bearModus && state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
                 <RrWaarschuwing bekeken={state.bekeken} />
               )}
@@ -339,9 +341,12 @@ export function MarktScreen() {
                   neemt die plek in en vertelt wat er wél te doen is. */}
               {bearModus ? (
                 <BearModusKaart stand={state.bearModus} />
-              ) : (
+              ) : LABEL_STERK_BEWEZEN ? (
+                // "Wat moet ik nu kopen" licht de BEVESTIGDE coin uit. Zolang dat keurmerk zijn lat niet
+                // haalt (meting N) is er niets om uit te lichten, en "wacht op een sterker signaal" zou
+                // dan een belofte zijn die nooit komt.
                 <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))} />
-              )}
+              ) : null}
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
                   al waar de kracht zit en zou deze lijst er een tweede rangschikking naast zetten. */}

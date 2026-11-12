@@ -36,7 +36,7 @@ const STAPPEN: Stap[] = [
   {
     Icon: TrendingUp as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Hoe werkt\nde analyse?',
-    body: 'De app scant de markt met RSI, voortschrijdende gemiddelden (EMA) en ATR. Staan trend, MACD, volume en R/R allemaal mee bij een score van 75 of hoger, dan krijgt STERK KOOP het keurmerk BEVESTIGD. Werkt het marktklimaat niet mee, dan toont Kader bewust geen koopsignalen, ook niet bij een hoge score.',
+    body: 'De app scant de markt met RSI, voortschrijdende gemiddelden (EMA) en ATR. Elke coin krijgt een score en een plan met stop en doel dat rekening houdt met de kosten van eToro. Een kooplabel toont Kader alleen als het zich na die kosten bewezen heeft. Op dit moment is dat nergens zo, dus Kader helpt je met het plan en jij kiest.',
   },
   {
     Icon: Target as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,

@@ -257,7 +257,7 @@ export const CopyTradeKaart = React.memo(function CopyTradeKaart({
             <Animated.View entering={uitklapInGestaffeld(2, reduceMotion)}>
               <Text style={[Type.caption, styles.regelHoogte, { color: colors.tekstPrimair }]}>
                 <Text style={{ fontFamily: Fonts.monoMedium }}>Kader {kaderCheck.score}</Text>
-                {kaderCheck.signaal === 'KOOP' ? ', zelf ook een koopsignaal' : ', zelf geen koopsignaal'}
+                {kaderCheck.signaal === 'KOOP' ? ', zelf ook een koopsignaal' : kaderCheck.signaal === 'WATCH' ? ', zelf geen koopsignaal' : ''}
                 {kaderCheck.reden ? ` · ${kaderCheck.reden}` : ''}. De ring om het logo is Kaders eigen score voor
                 deze coin, los van de trader.
               </Text>
