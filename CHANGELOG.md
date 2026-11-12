@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.4.3
 
 - Kader kijkt nu naar 148 coins in plaats van 57: elke coin die je op eToro kunt kopen en die een handelspaar op Binance heeft, zoals Bittensor, Ethena, Jupiter, Worldcoin, Dogwifhat en Bonk. Het marktklimaat rekent nog op de 57 coins waarop het gemeten is. Een scan duurt daardoor ongeveer twee keer zo lang. Coins waarvan geen vrij logo bestaat, hebben een eigen badge in hun merkkleur
 - Signaalresultaat loopt nu ook een nieuwe regel na: een papieren portefeuille van de vijf rustigste coins. Bij een gunstig klimaat koopt hij de coins die het minst bewegen, zonder doel, met een stop die elke dag meeloopt met het laagste punt van de laatste twintig dagen. In een meting op coins die Kader nooit eerder had bekeken deed deze regel het beter dan de huidige signalen. Hier zie je of hij dat live ook doet, naast wat bitcoin houden in dezelfde tijd opleverde. Geen koopadvies, er gaan geen echte orders uit
