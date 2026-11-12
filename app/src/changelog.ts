@@ -40,7 +40,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: '0.5.0',
+    versie: '0.4.3',
     datum: '2026-11-12',
     punten: [
       'Kader kijkt nu naar 148 coins in plaats van 57: elke coin die je op eToro kunt kopen en die een handelspaar op Binance heeft, zoals Bittensor, Ethena, Jupiter, Worldcoin, Dogwifhat en Bonk. Het marktklimaat rekent nog op de 57 coins waarop het gemeten is. Een scan duurt daardoor ongeveer twee keer zo lang. Coins waarvan geen vrij logo bestaat, hebben een eigen badge in hun merkkleur',

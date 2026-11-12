@@ -3,7 +3,7 @@
     "name": "Kader",
     "slug": "kader",
     "scheme": "kader",
-    "version": "0.5.0",
+    "version": "0.4.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
