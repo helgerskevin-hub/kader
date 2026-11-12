@@ -95,6 +95,10 @@ const breedteNiveau: Record<string, number> = {};
 }
 // Exact de poort van bepaalKlimaat(): BTC boven zijn EMA50 en de breedte hoger dan 20 dagen terug.
 export const poortOpen = (datum: string) => btcBovenEma50[datum] === true && breedteStijgt[datum] === true;
+// Of de poort op die dag überhaupt te bepalen is (meting O): daarvoor staat hij als "dicht", wat
+// voor een vermogenscurve iets anders is dan "het klimaat was slecht".
+export const poortBekend = (datum: string) => datum in btcBovenEma50 && datum in breedteStijgt;
+export const btcBoven200 = (datum: string) => btcBovenEma200[datum] === true;
 
 // --- kenmerken per bar -------------------------------------------------------------------
 //
