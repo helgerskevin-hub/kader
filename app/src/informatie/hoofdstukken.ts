@@ -141,9 +141,9 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     titel: 'Zo komt de analyse tot stand',
     icoon: 'ChartCandlestick',
     nieuw: true,
-    kort: 'Van 57 coins naar de lijst op Markt, stap voor stap.',
+    kort: 'Van 148 coins naar de lijst op Markt, stap voor stap.',
     zie: 'De lijst op Markt toont standaard de 20 coins die er na de analyse het best voor staan, met je favorieten erbij. Met één tik zie je alle geanalyseerde coins. Elke coin heeft een score, een label en drie niveaus: entry, stop en doel.',
-    reken: 'Kader kijkt naar 57 coins: allemaal handelbaar op eToro en met een USDT-paar op Binance. Per coin komen er 200 dagcandles van Binance, of van CoinGecko als Binance geen data geeft. Daar is geen account of sleutel voor nodig. Op die candles rekent Kader de indicatoren uit en daaruit de score van 0 tot 100. De score rekent op de laatste afgesloten dag, zodat hij in de loop van de dag niet verspringt. Het plan rekent met de koers van nu: de stop 3x de ATR eronder, het doel op drie keer dat risico. Daarna bepaalt Kader het klimaat. Tot slot sorteert Kader de coins op score en houdt de eerste 20 over.',
+    reken: 'Kader kijkt naar 148 coins: allemaal koopbaar op eToro en met een USDT-paar op Binance. Het marktklimaat rekent op de 57 coins waarop het gemeten is. Per coin komen er 200 dagcandles van Binance, of van CoinGecko als Binance geen data geeft. Daar is geen account of sleutel voor nodig. Op die candles rekent Kader de indicatoren uit en daaruit de score van 0 tot 100. De score rekent op de laatste afgesloten dag, zodat hij in de loop van de dag niet verspringt. Het plan rekent met de koers van nu: de stop 3x de ATR eronder, het doel op drie keer dat risico. Daarna bepaalt Kader het klimaat. Tot slot sorteert Kader de coins op score en houdt de eerste 20 over.',
     doe: 'De analyse start met de knop Start analyse of als je op Markt omlaag veegt. Er loopt geen timer: de lijst is zo vers als je laatste scan. De radar op Kansen is een aparte scan, die opnieuw loopt als hij ouder is dan 30 minuten. In de achtergrond controleert Kader je open posities, zie Meldingen.',
     detail: [
       'Indicatoren: RSI (14), EMA20 en EMA50, MACD (12/26/9), ATR (14) en het volume tegenover het gemiddelde van 20 dagen; zie De indicatoren',

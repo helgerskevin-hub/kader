@@ -12,7 +12,7 @@ import { radarNiveaus } from './momentum';
 // een alias, zie BINANCE_ALIAS in marketData.ts). Dit is dus een deelverzameling van ETORO_TRADABLE
 // in opportunities.ts, niet dezelfde lijst: TON kun je op eToro aanhouden maar niet op Binance
 // uitlezen, dus die analyseren we niet. `node scripts/check-universum.mjs` controleert allebei.
-// Zes coins hier (SHIB, PEPE, MATIC, FTM, MKR, RNDR) voert eToro onder een andere naam of in een
+// Acht coins hier (SHIB, PEPE, BONK, FLOKI, MATIC, FTM, MKR, RNDR) voert eToro onder een andere naam of in een
 // andere eenheid; zie engine/etoroSymbolen.ts voor de vertaling en de omrekening.
 export const STANDAARD_UNIVERSUM = [
   'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
@@ -27,7 +27,40 @@ export const STANDAARD_UNIVERSUM = [
   'FET', 'RNDR',
   'FIL', 'THETA', 'BAT',
   'TIA',
+  // Erbij op 12 nov 2026: elke coin die volgens de publieke handelsdata van eToro koopbaar is (AllowBuy,
+  // niet delisted, niet beperkt), met een Binance-USDT-paar en dezelfde koers op beide (factor 1).
+  // Zie docs/universum-uitbreiding.md. Ze tellen niet mee in het marktklimaat, zie KLIMAAT_UNIVERSUM.
+  'NEO', 'CELR', 'ANKR', 'CVC', 'BAND', 'STX', 'KAVA', 'OGN', 'BNT', 'COTI', 'CTSI', 'KNC',
+  'ZEN', 'JST', 'RSR', 'TRB', 'RUNE', 'KSM', 'UMA', 'SKL', 'CELO', 'CAKE', 'SUPER', 'AR',
+  'LPT', 'C98', 'QNT', 'RAY', 'GNO', 'DYDX', 'ILV', 'ENS', 'QI', 'JASMY', 'AMP', 'BICO',
+  'ACH', 'API3', 'APE', 'LDO', 'OSMO', 'LQTY', 'PENDLE', 'JTO', 'JUP', 'PYTH', 'STRK', 'AXL',
+  'METIS', 'ETHFI', 'ENA', 'W', 'TAO', 'ZK', 'ZRO', 'EIGEN', 'COW', 'ORCA', 'ME', 'PENGU',
+  'KAITO', 'ONDO', 'VIRTUAL', 'SYRUP', 'KMNO', 'SXT', 'A', 'NEWT', 'AVNT', '0G', 'MORPHO', 'EUL',
+  'KITE', 'MET', 'GRAM', 'AERO',
+  'ASTER', 'BERA', 'BONK', 'FLOKI', 'HYPE', 'NIGHT', 'NOT', 'PLUME', 'PNUT', 'PUMP', 'TRUMP', 'WIF', 'WLD', 'WLFI', 'XPL',
 ];
+
+// De 57 coins waarop de klimaatpoort en alle metingen (C t/m O, docs/metingen.md) gemeten zijn. De
+// marktbreedte in het klimaat telt alleen deze coins: met meer coins zou de breedte iets anders
+// meten dan de poort die getoetst is. De meetscripts gebruiken deze lijst ook, zodat hun uitkomsten
+// reproduceerbaar blijven.
+export const KLIMAAT_UNIVERSUM = [
+  'BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ETC',
+  'ADA', 'SOL', 'DOT', 'AVAX', 'ATOM', 'BNB', 'TRX', 'XLM',
+  'ALGO', 'VET', 'HBAR', 'XTZ', 'NEAR', 'FTM', 'ICP', 'FLOW',
+  'APT', 'SUI', 'INJ', 'SEI',
+  'MATIC', 'OP', 'ARB',
+  'LINK', 'UNI', 'AAVE', 'COMP', 'MKR', 'SNX', 'YFI', 'CRV', 'SUSHI',
+  '1INCH', 'ZRX', 'GRT', 'ENJ', 'MANA', 'SAND',
+  'AXS', 'CHZ', 'GALA', 'IMX',
+  'DOGE', 'SHIB', 'PEPE',
+  'FET', 'RNDR',
+  'FIL', 'THETA', 'BAT',
+  'TIA',
+];
+const KLIMAAT_SET = new Set<string>(KLIMAAT_UNIVERSUM);
+// Alleen de reeksen van KLIMAAT_UNIVERSUM, voor de marktbreedte.
+export const klimaatReeksen = <T extends { symbool: string }>(lijst: T[]): T[] => lijst.filter(o => KLIMAAT_SET.has(o.symbool));
 
 export const REWARD_MULTIPLIER = 3.0;
 export const MIN_RISK_REWARD = 2.0;
@@ -270,7 +303,7 @@ export async function analyseerCoin(symbool: string): Promise<Trade | null> {
   return scoorCandles(symbool, result.candles, result.bron);
 }
 
-// ponytail: blokken van 6 i.p.v. een worker-pool. 57 coins x weight 2 = 114 van
+// ponytail: blokken van 6 i.p.v. een worker-pool. 148 coins x weight 2 = 296 van
 // Binance' 6000/min, ruim binnen budget. Verhoog als de scan traag blijft aanvoelen.
 const GELIJKTIJDIG = 6;
 
@@ -397,7 +430,7 @@ function voorlopigeTop(
   topN: number,
 ): Trade[] {
   const btc = opgehaald.find(o => o.symbool === 'BTC');
-  const klimaat = btc ? bepaalKlimaat(btc.candles, opgehaald.map(o => o.candles)) : null;
+  const klimaat = btc ? bepaalKlimaat(btc.candles, klimaatReeksen(opgehaald).map(o => o.candles)) : null;
   const open = klimaat !== null && poortOpen(klimaat);
   const lijst = gescoord.map(t => metLabels(t, open));
   lijst.sort(vergelijkLongs);
@@ -456,7 +489,7 @@ export async function analyseerMarkt(options?: {
   }
 
   const btc = opgehaald.find(o => o.symbool === 'BTC');
-  const klimaat = btc ? bepaalKlimaat(btc.candles, opgehaald.map(o => o.candles)) : null;
+  const klimaat = btc ? bepaalKlimaat(btc.candles, klimaatReeksen(opgehaald).map(o => o.candles)) : null;
 
   // Hergebruikt dezelfde candles als de scan hierboven, dus dit kost geen extra requests.
   const relatieveSterkte = berekenRelatieveSterkte(opgehaald);
