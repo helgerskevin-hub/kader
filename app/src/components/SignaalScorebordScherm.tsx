@@ -10,11 +10,13 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { staggerVertraging } from '../theme/beweging';
 import { useBeweging, useReduceMotion } from '../theme/useReduceMotion';
 import { kaartLandt, schuifOvergang, uitklapIn, uitklapInGestaffeld, uitklapUit } from '../theme/lijstBeweging';
-import { fmtR } from '../engine/format';
+import { fmtR, fmtPct } from '../engine/format';
 import { vatSamen, type GelogdSignaal, type SignaalUitkomst } from '../engine/signaalLog';
 import { useSignaalBoek } from '../state/signaalBoek';
 import { vatVolglijstSamen, type VolglijstSamenvatting } from '../engine/volglijstLog';
 import { useVolglijstBoek } from '../state/volglijstBoek';
+import { vatNaloopSamen, NALOOP_PLEKKEN, type NaloopSamenvatting } from '../engine/naloopRustig';
+import { useNaloopBoek } from '../state/naloopBoek';
 import { RADAR_METING_NETTO_R } from '../engine/momentum';
 import { LABEL_KOOP_BEWEZEN } from '../engine/drempels';
 import { nettoR } from '../engine/signaalLog';
@@ -62,6 +64,9 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
   // De volglijst van Kansen heeft een eigen logboek en telt nergens hierboven in mee.
   const gevolgd = useVolglijstBoek(zichtbaar);
   const volglijst = useMemo(() => (gevolgd && gevolgd.length > 0 ? vatVolglijstSamen(gevolgd) : null), [gevolgd]);
+  // De naloop van regel C (meting O): ook een eigen logboek, los van de signalen hierboven.
+  const naloopBoek = useNaloopBoek(zichtbaar);
+  const naloop = useMemo(() => (naloopBoek ? vatNaloopSamen(naloopBoek) : null), [naloopBoek]);
 
   const samenvatting = useMemo(() => (signalen ? vatSamen(signalen) : null), [signalen]);
   const recent = useMemo(
@@ -143,6 +148,11 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                   <VolglijstGroep stand={volglijst} />
                 </Animated.View>
               )}
+              {naloop && (
+                <Animated.View entering={kaartLandt(5, reduceMotion)}>
+                  <NaloopGroep stand={naloop} />
+                </Animated.View>
+              )}
             </ScrollView>
           ) : (
             <ScrollView
@@ -220,6 +230,12 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                 </Animated.View>
               )}
 
+              {naloop && (
+                <Animated.View entering={kaartLandt(5, reduceMotion)}>
+                  <NaloopGroep stand={naloop} />
+                </Animated.View>
+              )}
+
               <Animated.View entering={kaartLandt(6, reduceMotion)} layout={schuifOvergang(reduceMotion)}>
                 <LijstGroep
                   titel="Recente signalen"
@@ -255,6 +271,29 @@ function VolglijstGroep({ stand }: { stand: VolglijstSamenvatting }) {
       <StatRij label="Bij gunstig klimaat" sub={coinsTekst(stand.gunstig.aantal)} waarde={stand.gunstig.gemNettoR} format={r => fmtR(r)} />
       <StatRij label="Bij ander klimaat" sub={coinsTekst(stand.overig.aantal)} waarde={stand.overig.gemNettoR} format={r => fmtR(r)} />
       <StatRij label="Loopt nog" sub="hoogstens 30 dagen per coin" waarde={stand.lopend} format={n => String(n)} kleurOpTeken={false} />
+    </LijstGroep>
+  );
+}
+
+// De naloop van regel C uit meting O. Een papieren portefeuille, geen koopadvies: hier staat of de
+// regel die op ongeziene coins de toets haalde het live ook doet, naast gewoon BTC houden.
+function NaloopGroep({ stand }: { stand: NaloopSamenvatting }) {
+  return (
+    <LijstGroep
+      titel={`Naloop: de ${NALOOP_PLEKKEN} rustigste coins`}
+      lijnInspringing={spacing.base}
+      voetnoot={`Geen koopadvies. Bij een gunstig klimaat koopt deze papieren portefeuille de ${NALOOP_PLEKKEN} coins die het minst bewegen, zonder doel, met een stop die elke dag meeloopt met het laagste punt van de laatste 20 dagen. Na 1% kosten bij kopen en bij verkopen. In de meting won deze regel van de huidige signalen, niet aantoonbaar van BTC houden.${stand.sinds ? ` Loopt sinds ${korteDatum(stand.sinds)}.` : ''}`}
+    >
+      <StatRij label="Papieren portefeuille" sub="sinds de eerste aankoop" waarde={stand.sinds ? stand.rendement * 100 : null} format={p => fmtPct(p)} />
+      <StatRij label="BTC houden" sub="zelfde periode, na kosten" waarde={stand.btcRendement === null ? null : stand.btcRendement * 100} format={p => fmtPct(p)} />
+      <StatRij label="Afgesloten" sub={stand.afgesloten === 1 ? '1 positie, gemiddeld na kosten' : `${stand.afgesloten} posities, gemiddeld na kosten`} waarde={stand.gemNettoR} format={r => fmtR(r)} />
+      <StatRij
+        label="Nu in bezit"
+        sub={stand.open.length ? stand.open.map(p => p.symbool).join(', ') : stand.sinds ? 'niets, wacht op een gunstig klimaat' : 'nog niets, begint bij het eerste gunstige klimaat'}
+        waarde={stand.open.length}
+        format={n => String(n)}
+        kleurOpTeken={false}
+      />
     </LijstGroep>
   );
 }

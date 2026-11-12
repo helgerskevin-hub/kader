@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 import { checkOpenTrades, checkPrijsalerts } from './tradeChecks';
 import { checkEtoroSluitingen, checkNiveausGeraakt } from './sluitingen';
 import { werkSignalenBij } from '../state/signaalBoek';
+import { werkNaloopBij } from '../state/naloopBoek';
 import { checkWeekrapport } from './weekrapport';
 import { checkFavorieteTraders } from './traderChecks';
 import { ververWidgetMetVerseKoersen } from '../widget/widgetVerversen';
@@ -59,6 +60,8 @@ TaskManager.defineTask(TRADE_CHECK_TAAK, async () => {
     }
     // Het signaalboek remt zichzelf (een paar keer per dag) en vangt zijn eigen fouten.
     await werkSignalenBij();
+    // De naloop van regel C: alleen de stops, aanvullen gebeurt na een analyse. Remt en vangt zelf.
+    await werkNaloopBij();
     // Na het signaalboek, zodat het rapport de laatste uitkomsten meeneemt. Eigen vangnet: een
     // mislukt rapport mag de trade-check niet tegenhouden.
     try {

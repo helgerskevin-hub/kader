@@ -4,7 +4,7 @@
 
 <p align="center"><strong>Structuur in crypto. Geen hype, gewoon data.</strong></p>
 
-Kader is een persoonlijke Android-app die publieke marktdata van 57 crypto's analyseert en daar technische signalen uit haalt. Bij elk signaal staat het plan er meteen bij: een entry, een stop-loss net onder de recente bodem en een doel, met minimaal twee keer zoveel opbrengst als risico. Je kunt je eToro-account koppelen om je posities te volgen en, als je dat wilt, orders te plaatsen. Alles wordt op je telefoon berekend; er is geen server.
+Kader is een persoonlijke Android-app die publieke marktdata van 148 crypto's analyseert en daar technische signalen uit haalt. Bij elk signaal staat het plan er meteen bij: een entry, een stop-loss net onder de recente bodem en een doel, met minimaal twee keer zoveel opbrengst als risico. Je kunt je eToro-account koppelen om je posities te volgen en, als je dat wilt, orders te plaatsen. Alles wordt op je telefoon berekend; er is geen server.
 
 > [!WARNING]
 > **Geen financieel advies. De koers op eToro kan afwijken.**
@@ -14,7 +14,7 @@ Kader is een persoonlijke Android-app die publieke marktdata van 57 crypto's ana
 
 De app heeft vier schermen, bereikbaar via de tabbalk onderin. Je wisselt met een tik of door opzij te vegen.
 
-**Markt.** Kader scant de 57 coins die ook op eToro verhandelbaar zijn en toont de beste twintig als kaarten. Elke kaart heeft de score als ring rond het coinlogo, de koers, een grafiek van 30 dagen en het oordeel. Tik op een kaart en hij klapt uit: stop, entry en doel op één baan, de risico/opbrengst-verhouding en welke bevestigingen meestaan. Bovenaan staat het marktklimaat.
+**Markt.** Kader scant de 148 coins die ook op eToro te koop zijn en toont de beste twintig als kaarten. Elke kaart heeft de score als ring rond het coinlogo, de koers, een grafiek van 30 dagen en het oordeel. Tik op een kaart en hij klapt uit: stop, entry en doel op één baan, de risico/opbrengst-verhouding en welke bevestigingen meestaan. Bovenaan staat het marktklimaat.
 
 <p align="center">
   <img src="docs/readme/markt-kaart.svg" alt="Voorbeeld van een kaart op Markt voor een verzonnen munt: score 64 als ring rond het logo, koers 100 dollar, plus 6,9 procent over 30 dagen, een koersgrafiek, de badge KOOPZONE en R/R 1 : 2.4." width="460">

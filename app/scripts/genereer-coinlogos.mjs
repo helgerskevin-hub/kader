@@ -5,7 +5,7 @@
  *
  * Bestandsnaam = Kader-symbool in kleine letters (btc.svg, 1inch.svg). De volgorde en de
  * verzameling komen uit STANDAARD_UNIVERSUM in src/engine/analyzer.ts: het script faalt hard als
- * een coin geen logo heeft of als er een logo is dat bij geen enkele coin hoort.
+ * er een logo is dat bij geen enkele coin hoort. Een coin zonder logo krijgt een monogram.
  *
  * Elke SVG wordt compact gemaakt voor SvgXml (react-native-svg): width/height/class weg van het
  * <svg>-element (viewBox blijft, de grootte komt van de component), <?xml?> en commentaar weg,
@@ -59,15 +59,17 @@ const bestanden = readdirSync(COINS).filter((f) => f.toLowerCase().endsWith('.sv
 const perSymbool = new Map();
 for (const f of bestanden) perSymbool.set(f.slice(0, -4).toUpperCase(), f);
 
+// Een coin zonder logo mag: CoinLogo toont dan een monogram. Niet elke coin heeft een logo onder een
+// licentie die we mogen meeleveren (zie LICENTIES.md), en een verkeerd logo is erger dan geen.
 const ontbreekt = universum.filter((s) => !perSymbool.has(s));
-if (ontbreekt.length > 0) faal(`geen logo in assets/coins/ voor: ${ontbreekt.join(', ')}`);
+if (ontbreekt.length > 0) console.log(`Zonder logo (monogram): ${ontbreekt.join(', ')}`);
 
 const teveel = [...perSymbool.keys()].filter((s) => !universum.includes(s));
 if (teveel.length > 0) {
   faal(`logo's die niet in STANDAARD_UNIVERSUM staan: ${teveel.map((s) => perSymbool.get(s)).join(', ')}`);
 }
 
-const regels = universum.map((symbool) => {
+const regels = universum.filter((s) => perSymbool.has(s)).map((symbool) => {
   const svg = maakCompact(readFileSync(resolve(COINS, perSymbool.get(symbool)), 'utf8'));
   const sleutel = /^[A-Z_$][A-Z0-9_$]*$/.test(symbool) ? symbool : JSON.stringify(symbool);
   return `  ${sleutel}: ${JSON.stringify(svg)},`;
@@ -87,20 +89,16 @@ if (require.main === module) {
   // wel, maar analyzer.ts zit via MarktProvider toch al in de bundel.
   const { STANDAARD_UNIVERSUM } = require('../engine/analyzer') as { STANDAARD_UNIVERSUM: string[] };
 
-  for (const symbool of STANDAARD_UNIVERSUM) {
-    const logo = COIN_LOGOS[symbool];
-    console.assert(typeof logo === 'string', \`\${symbool} moet een logo hebben\`);
-    console.assert(logo?.startsWith('<svg'), \`het logo van \${symbool} moet met <svg beginnen\`);
-    console.assert(logo?.includes('viewBox'), \`het logo van \${symbool} moet een viewBox hebben\`);
+  // Een coin zonder logo mag (monogram); een logo zonder coin niet.
+  for (const [symbool, logo] of Object.entries(COIN_LOGOS)) {
+    console.assert(STANDAARD_UNIVERSUM.includes(symbool), \`\${symbool} heeft een logo maar staat niet in het universum\`);
+    console.assert(logo.startsWith('<svg'), \`het logo van \${symbool} moet met <svg beginnen\`);
+    console.assert(logo.includes('viewBox'), \`het logo van \${symbool} moet een viewBox hebben\`);
   }
-  console.assert(
-    Object.keys(COIN_LOGOS).length === STANDAARD_UNIVERSUM.length,
-    \`er moeten precies \${STANDAARD_UNIVERSUM.length} logo's zijn, gevonden: \${Object.keys(COIN_LOGOS).length}\`,
-  );
 
   console.log('coinLogos.ts self-check geslaagd');
 }
 `;
 
 writeFileSync(UIT, uitvoer);
-console.log(`${universum.length} logo's geschreven naar src/components/coinLogos.ts`);
+console.log(`${regels.length} logo's geschreven naar src/components/coinLogos.ts`);
