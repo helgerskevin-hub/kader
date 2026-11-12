@@ -11,6 +11,7 @@
 
 import type { Candle, Trade } from './types';
 import { DREMPEL_HOOG, DREMPEL_KOOP, DREMPEL_STERK_KOOP } from './drempels';
+import { ETORO_KOSTEN_PER_KANT } from './momentum';
 
 export type SignaalUitkomst = 'open' | 'doel' | 'stop' | 'verlopen';
 export type SignaalAdvies = 'STERK KOOP' | 'KOOPZONE';
@@ -38,10 +39,23 @@ export const LOOPTIJD_DAGEN = 30;
 export const MAX_SIGNALEN = 500;
 const DAG_MS = 24 * 60 * 60 * 1000;
 
-// Hetzelfde label dat de Markt-kaart toont (TradeCard.adviesLabel), alleen voor KOOP-signalen.
+// Het label dat de score en het klimaat aanwijzen, ook als Kader het niet toont. Het boek volgt het
+// RUWE signaal (zie ruwSignaal in types.ts): zolang een label zijn lat niet haalt staat het niet op
+// de kaart, maar hier loopt het door, zodat het zich live kan bewijzen. Een Trade zonder ruwe
+// velden (niet uit analyseerMarkt) valt terug op wat hij toont.
 export function adviesVan(t: Trade): SignaalAdvies | null {
-  if (t.signaal !== 'KOOP') return null;
-  return t.highConviction || t.score >= DREMPEL_STERK_KOOP ? 'STERK KOOP' : 'KOOPZONE';
+  if ((t.ruwSignaal ?? t.signaal) !== 'KOOP') return null;
+  return (t.ruwHighConviction ?? t.highConviction) || t.score >= DREMPEL_STERK_KOOP ? 'STERK KOOP' : 'KOOPZONE';
+}
+
+// Het resultaat na eToro's kosten over het aankoop- en het verkoopbedrag, in R. Zelfde formule als
+// simuleer() in scripts/meting-kansen.ts. Null zolang het signaal loopt.
+export function nettoR(s: Pick<GelogdSignaal, 'entry' | 'stop' | 'behaaldeR'>): number | null {
+  if (typeof s.behaaldeR !== 'number') return null;
+  const risico = s.entry - s.stop;
+  if (!(risico > 0)) return null;
+  const uitstap = s.entry + s.behaaldeR * risico;
+  return s.behaaldeR - (ETORO_KOSTEN_PER_KANT * (s.entry + uitstap)) / risico;
 }
 
 // Nieuwe signalen erbij. Een coin met een signaal dat nog loopt krijgt geen tweede: anders telt
@@ -124,15 +138,16 @@ export interface SignaalSamenvatting {
   perAdvies: { id: SignaalAdvies; label: string; stand: Groepsstand }[];
 }
 
+// Alle cijfers hieronder zijn NA kosten: bruto zegt niets over wat je overhoudt (meting M en N).
 function stand(lijst: GelogdSignaal[]): Groepsstand {
-  const r = lijst.map(s => s.behaaldeR).filter((x): x is number => typeof x === 'number');
+  const r = lijst.map(nettoR).filter((x): x is number => x !== null);
   return { aantal: r.length, gemR: r.length ? r.reduce((a, b) => a + b, 0) / r.length : null };
 }
 
 export function vatSamen(log: GelogdSignaal[]): SignaalSamenvatting {
-  const af = log.filter(s => s.uitkomst !== 'open' && typeof s.behaaldeR === 'number');
+  const af = log.filter(s => s.uitkomst !== 'open' && nettoR(s) !== null);
   const totaal = stand(af);
-  const raak = af.filter(s => (s.behaaldeR as number) > 0).length;
+  const raak = af.filter(s => (nettoR(s) as number) > 0).length;
   const midden = Math.round((DREMPEL_KOOP + DREMPEL_HOOG) / 2);
   return {
     afgesloten: af.length,
@@ -189,7 +204,15 @@ if (require.main === module) {
 
   const sam = vatSamen([r1, r2, r4, sig]);
   console.assert(sam.afgesloten === 3 && sam.lopend === 1, `drie af, één lopend, was ${sam.afgesloten}/${sam.lopend}`);
-  console.assert(Math.abs((sam.gemR ?? 0) - 0.8) < 1e-9, `gemiddeld (3 - 1 + 0.4) / 3 = 0.8, was ${sam.gemR}`);
+  // Netto: +3 R kost 1% over 100 en 130 op een risico van 10 (0,23 R), -1 R kost 0,19 R, en +0,4 R
+  // kost 0,204 R.
+  console.assert(Math.abs((nettoR(r1) ?? 0) - (3 - 0.23)) < 1e-9, `netto bij doel klopt niet: ${nettoR(r1)}`);
+  console.assert(Math.abs((sam.gemR ?? 0) - ((3 - 0.23) + (-1 - 0.19) + (0.4 - 0.204)) / 3) < 1e-9, `gemiddelde na kosten klopt niet: ${sam.gemR}`);
+  console.assert(nettoR(sig) === null, 'een lopend signaal heeft geen resultaat');
+  // Het ruwe signaal telt, ook als de kaart WATCH toont.
+  const ruw = { ...trade, signaal: 'WATCH', ruwSignaal: 'KOOP', ruwHighConviction: true } as Trade;
+  console.assert(voegSignalenToe([], [ruw], dag0)[0]?.advies === 'STERK KOOP', 'het ruwe signaal hoort gelogd te worden');
+  console.assert(voegSignalenToe([], [{ ...ruw, ruwSignaal: 'WATCH' } as Trade], dag0).length === 0, 'zonder ruw signaal geen regel');
 
   console.log('signaalLog.ts self-check geslaagd');
 }

@@ -74,7 +74,7 @@ export async function stelDagelijkseMeldingIn(uur = 9, minuut = 0): Promise<bool
 export async function zorgVoorTradeKanaal(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync(KANAAL_TRADES, {
-    name: 'Trades en koopsignalen',
+    name: 'Trades en posities',
     importance: Notifications.AndroidImportance.HIGH,
   });
 }

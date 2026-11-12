@@ -127,7 +127,7 @@ export function kiesEenDing(inv: EenDingInvoer): EenDing {
     soort: 'niets', sleutel: 'niets', prio: 9,
     titel: 'Niets te doen vandaag',
     tekst: n === 0
-      ? 'Geen open posities en geen sterk signaal. Ook dat is een plan.'
+      ? 'Geen open posities. Ook dat is een plan.'
       : `Je ${n === 1 ? 'positie loopt' : `${n} posities lopen`} binnen ${n === 1 ? 'zijn' : 'hun'} kader en er is geen sterk signaal. Ook dat is een plan.`,
   };
 }

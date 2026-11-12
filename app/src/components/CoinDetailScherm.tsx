@@ -11,6 +11,8 @@ import { CoinDetailData, VerseIndicatoren, berekenVerseIndicatoren } from '../en
 import { haalData, haalIntraday } from '../engine/marketData';
 import type { IntradayId } from '../engine/grafiekBereik';
 import { infoVoor, genereerKoopadvies } from '../engine/coinInfo';
+import { LABEL_KOOP_BEWEZEN } from '../engine/drempels';
+import { splitsLopendeDag } from '../engine/analyzer';
 import { fmtPrijs, fmtRR, fmtPct, fmtResultaatUsd } from '../engine/format';
 import { bepaalAdvies } from '../state/advies';
 import { useTheme } from '../theme/ThemeProvider';
@@ -135,7 +137,10 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   async function laadData(symbool: string) {
     setStatus('loading');
     const result = await haalData(symbool);
-    const verse = result ? berekenVerseIndicatoren(result.candles) : null;
+    // Dezelfde afgesloten dagen als de score op de kaart, anders toont dit scherm halverwege de dag
+    // een andere RSI en vooral een veel te laag volume. De grafiek krijgt wel alle candles.
+    const basis = result && result.bron === 'Binance' ? splitsLopendeDag(result.candles, Date.now()).gesloten : result?.candles;
+    const verse = basis ? berekenVerseIndicatoren(basis) : null;
     if (!result || !verse) {
       setFoutTijd(new Date());
       setStatus('error');
@@ -370,10 +375,10 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                       <Text style={[Type.sectiekop, { color: colors.tekstPrimair }]}>
                         Waarom
                       </Text>
-                      {/* Niet vanaf Kansen: daar geeft Kader geen koopoordeel (zie kanTraden), dus een
-                          label als "Sterke koop" zou de volglijst tegenspreken. De toelichting eronder
-                          beschrijft alleen de indicatoren en blijft staan. */}
-                      {data.context !== 'kansen' && (
+                      {/* Alleen als het kooplabel bewezen is (drempels.ts), en nooit vanaf Kansen: anders
+                          zou "Sterke koop" hier iets beloven wat de kaart niet meer zegt. De toelichting
+                          eronder beschrijft alleen de indicatoren en blijft staan. */}
+                      {LABEL_KOOP_BEWEZEN && data.context !== 'kansen' && (
                         <View style={[styles.pil, { backgroundColor: adviesKleur + '1F' }]}>
                           <Text style={[Type.caption, { color: adviesKleur, fontWeight: '700' }]}>{advies.label}</Text>
                         </View>

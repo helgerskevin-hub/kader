@@ -22,7 +22,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scoorCandles, stopAfstandStructuur, MIN_CANDLES, MIN_RISK_REWARD, REWARD_MULTIPLIER, STANDAARD_UNIVERSUM } from '../src/engine/analyzer';
+import { scoorCandles, stopAfstandStructuur, MIN_CANDLES, MIN_RISK_REWARD, REWARD_MULTIPLIER, KLIMAAT_UNIVERSUM } from '../src/engine/analyzer';
 import { ema, macd } from '../src/engine/indicators';
 import { drempelBijnaOpDoel } from '../src/state/advies';
 import { voorstelTrailingStop } from '../src/state/afbouw';
@@ -115,7 +115,7 @@ function simuleer(
 const beschikbaar = new Set(
   readdirSync(DATA).filter(f => f.endsWith('.json') && !f.startsWith('_')).map(f => f.replace('.json', '')),
 );
-const coins = STANDAARD_UNIVERSUM.filter(s => beschikbaar.has(s));
+const coins = KLIMAAT_UNIVERSUM.filter(s => beschikbaar.has(s));
 if (coins.length === 0) {
   console.error('Geen data gevonden. Draai eerst `node scripts/haal-historie.mjs` vanuit de repo-root.');
   process.exit(1);

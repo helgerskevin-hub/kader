@@ -25,7 +25,7 @@ const POSITIE: Record<Marktklimaat['klimaat'], number> = {
   gunstig: 5 / 6,
 };
 
-const UITLEG = 'Deze balk toont het marktklimaat: staat BTC boven zijn 50-daags gemiddelde, en stijgt het aandeel coins dat boven zijn eigen 50-daags gemiddelde staat? Beide gunstig is GUNSTIG: in dat klimaat presteerden koopsignalen historisch het best. Beide ongunstig is ONGUNSTIG: in dat soort periodes (2018, 2022, begin 2026) verloren koopsignalen historisch gemiddeld geld. Daarom toont Kader alleen bij GUNSTIG koopsignalen: bij GEMENGD en ONGUNSTIG staat elke coin op AFWACHTEN, hoe hoog de score ook is.';
+const UITLEG = 'Deze balk toont het marktklimaat: staat BTC boven zijn 50-daags gemiddelde, en stijgt het aandeel coins dat boven zijn eigen 50-daags gemiddelde staat? Beide gunstig is GUNSTIG: in dat klimaat deed kopen het historisch het best. Beide ongunstig is ONGUNSTIG: in dat soort periodes (2018, 2022, begin 2026) verloor kopen historisch gemiddeld geld. Een kooplabel toont Kader op dit moment bij geen enkel klimaat, omdat geen label zich na de kosten van eToro bewezen heeft. Het klimaat blijft wel de belangrijkste achtergrond bij elke trade.';
 
 export function MarktBalk({ klimaat }: Props) {
   const { colors } = useTheme();
@@ -85,7 +85,7 @@ export function MarktBalk({ klimaat }: Props) {
         <View style={[styles.waarschuwing, { backgroundColor: colors.verlies + '1A' }]}>
           <TriangleAlert size={14} color={colors.verlies} strokeWidth={1.75} />
           <Text style={[Type.caption, styles.waarschuwingTekst, { color: colors.verlies }]}>
-            In dit klimaat verloren koopsignalen historisch gemiddeld geld. Kader toont daarom nu geen KOOP-signalen.
+            In dit klimaat verloor kopen historisch gemiddeld geld.
           </Text>
         </View>
       )}

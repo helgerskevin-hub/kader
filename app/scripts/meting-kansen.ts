@@ -21,7 +21,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scoorCandles, STANDAARD_UNIVERSUM, MIN_CANDLES, MIN_RISK_REWARD } from '../src/engine/analyzer';
+import { scoorCandles, KLIMAAT_UNIVERSUM, MIN_CANDLES, MIN_RISK_REWARD } from '../src/engine/analyzer';
 import { ema } from '../src/engine/indicators';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
 import { momentumIngredienten, momentumScore, radarNiveaus as appNiveaus, RADAR_DREMPEL, RADAR_STOP_ATR, RADAR_DOEL_R, RADAR_HOUDTIJD_DAGEN, ETORO_KOSTEN_PER_KANT } from '../src/engine/momentum';
@@ -45,7 +45,7 @@ const DAGEN_HIGH = 90;
 const beschikbaar = new Set(
   readdirSync(DATA).filter(f => f.endsWith('.json') && !f.startsWith('_')).map(f => f.replace('.json', '')),
 );
-export const coins = STANDAARD_UNIVERSUM.filter(s => beschikbaar.has(s));
+export const coins = KLIMAAT_UNIVERSUM.filter(s => beschikbaar.has(s));
 if (coins.length === 0) {
   console.error('Geen data. Draai eerst `node scripts/haal-historie.mjs 9` vanuit de repo-root.');
   process.exit(1);
@@ -63,14 +63,19 @@ const datumVan = (tijd: number | undefined) => {
 const btc = reeksen['BTC'];
 const btcClose: Record<string, number> = {};
 const btcBovenEma50: Record<string, boolean> = {};
+const btcBovenEma200: Record<string, boolean> = {};
 {
   const e50 = ema(btc.map(c => c.close), 50);
+  const e200 = ema(btc.map(c => c.close), 200);
   btc.forEach((c, i) => {
     btcClose[datumVan(c.tijd)] = c.close;
     if (i >= 50) btcBovenEma50[datumVan(c.tijd)] = c.close > e50[i];
+    // Voor 200 bars is een EMA200 nog niet ingelopen; dan blijft hij leeg en telt hij als "nee".
+    if (i >= 200) btcBovenEma200[datumVan(c.tijd)] = c.close > e200[i];
   });
 }
 const breedteStijgt: Record<string, boolean> = {};
+const breedteNiveau: Record<string, number> = {};
 {
   const tel: Record<string, { boven: number; totaal: number }> = {};
   for (const s of coins) {
@@ -84,12 +89,16 @@ const breedteStijgt: Record<string, boolean> = {};
     }
   }
   const breedte: Record<string, number> = {};
-  for (const [d, t] of Object.entries(tel)) if (t.totaal >= 20) breedte[d] = t.boven / t.totaal;
+  for (const [d, t] of Object.entries(tel)) if (t.totaal >= 20) breedte[d] = breedteNiveau[d] = t.boven / t.totaal;
   const dagen = Object.keys(breedte).sort();
   for (let i = 20; i < dagen.length; i++) breedteStijgt[dagen[i]] = breedte[dagen[i]] > breedte[dagen[i - 20]];
 }
 // Exact de poort van bepaalKlimaat(): BTC boven zijn EMA50 en de breedte hoger dan 20 dagen terug.
 export const poortOpen = (datum: string) => btcBovenEma50[datum] === true && breedteStijgt[datum] === true;
+// Of de poort op die dag überhaupt te bepalen is (meting O): daarvoor staat hij als "dicht", wat
+// voor een vermogenscurve iets anders is dan "het klimaat was slecht".
+export const poortBekend = (datum: string) => datum in btcBovenEma50 && datum in breedteStijgt;
+export const btcBoven200 = (datum: string) => btcBovenEma200[datum] === true;
 
 // --- kenmerken per bar -------------------------------------------------------------------
 //
@@ -107,6 +116,9 @@ export interface Bar {
   ema50: number;
   radar: number;                 // momentumScore() van de app, op dit venster
   score: number;                 // de technische score van Markt
+  hc: boolean;                   // high conviction (BEVESTIGD) volgens scoorCandles, zonder R/R-eis
+  rsi: number;
+  macdBullish: boolean;
   rrMarkt: number;               // R/R van Markts eigen niveaus
   stopMarkt: number;
   volumeRatio: number;
@@ -118,9 +130,15 @@ export interface Bar {
   // Onder 1 = de schommelingen zijn kleiner dan gebruikelijk.
   atrKrimp: number | null;
   poort: boolean;
+  // De losse bouwstenen van de poort, voor de varianten in meting N. Een dag zonder gegeven telt
+  // als "nee", net als in poortOpen.
+  btc50: boolean;
+  btc200: boolean;
+  breedteStijgt: boolean;
+  breedte: number | null;        // aandeel coins boven de eigen EMA50, 0 tot 1
 }
 
-const mediaan = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+export const mediaan = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 
 function bouwBars(sym: string): Bar[] {
   const c = reeksen[sym];
@@ -148,10 +166,15 @@ function bouwBars(sym: string): Bar[] {
       atr: t.atr, ema20: t.ema20, ema50: t.ema50,
       radar: momentumScore(momentumIngredienten(venster)),
       score: t.score, rrMarkt: t.rr, stopMarkt: t.stopLoss,
+      // highConviction eist in scoorCandles ook de R/R van Markts eigen niveaus. Met minRR 0 valt
+      // die eis weg, en dat is hier de bedoeling: het plan is een ander.
+      hc: t.highConviction, rsi: t.rsi, macdBullish: t.macdBullish,
       volumeRatio: t.volumeRatio,
       top90, top90Voor, low20, rs30,
       atrKrimp: vorige.length >= 40 ? n / mediaan(vorige) : null,
       poort: poortOpen(datum),
+      btc50: btcBovenEma50[datum] === true, btc200: btcBovenEma200[datum] === true,
+      breedteStijgt: breedteStijgt[datum] === true, breedte: breedteNiveau[datum] ?? null,
     });
   }
   return uit;
@@ -212,7 +235,18 @@ export interface Regel {
 }
 
 export interface TradeUit { r: number; bruto: number; datum: string; sym: string; stopPct: number; excess: number | null }
-export interface Opties { kosten?: number; minStop?: number }
+export interface Opties {
+  kosten?: number;
+  minStop?: number;
+  // De tegenstander voor excess R. Standaard elke coin op die dag; met `ijkKiest` alleen de coins
+  // die aan die voorwaarde voldoen (meting N, trap 2: beter dan de gewone KOOP-coins). `ijkNaam`
+  // moet per voorwaarde uniek zijn, het is de sleutel van de cache.
+  ijkKiest?: (b: Bar) => boolean;
+  ijkNaam?: string;
+  // Zoveel coins moet de tegenstander op een dag minstens tellen.
+  ijkMin?: number;
+}
+type OptiesVol = { kosten: number; minStop: number; ijkKiest?: (b: Bar) => boolean; ijkNaam: string; ijkMin: number };
 
 // Gemiddelde netto R per dag van ELKE coin met dezelfde niveaus, ongeacht of de regel hem koos.
 // Dat is de tegenstander voor excess R: kiest de regel beter dan blind dezelfde niveaus nemen?
@@ -220,13 +254,14 @@ const ijkCache = new Map<string, Record<string, number>>();
 // Op de niveaus-functie zelf en niet op de naam: twee regels met dezelfde niveaus delen hun ijk,
 // en twee regels die toevallig hetzelfde heten kunnen elkaars ijk nooit krijgen.
 const fnId = new Map<Regel['niveaus'], number>();
-function ijkPerDag(regel: Regel, o: Required<Opties>): Record<string, number> {
+function ijkPerDag(regel: Regel, o: OptiesVol): Record<string, number> {
   if (!fnId.has(regel.niveaus)) fnId.set(regel.niveaus, fnId.size);
-  const sleutel = `${fnId.get(regel.niveaus)}|${regel.maxBars ?? 30}|${o.kosten}|${o.minStop}`;
+  const sleutel = `${fnId.get(regel.niveaus)}|${regel.maxBars ?? 30}|${o.kosten}|${o.minStop}|${o.ijkNaam}`;
   const al = ijkCache.get(sleutel);
   if (al) return al;
   const som: Record<string, { s: number; n: number }> = {};
   for (const b of alleBars) {
+    if (o.ijkKiest && !o.ijkKiest(b)) continue;
     const ruw = regel.niveaus(b, b.instap);
     if (!ruw) continue;
     const u = simuleer(reeksen[b.sym], b.i, b.instap, metEtoroStop(b.instap, ruw, o.minStop), regel.maxBars ?? 30, o.kosten);
@@ -235,14 +270,18 @@ function ijkPerDag(regel: Regel, o: Required<Opties>): Record<string, number> {
     som[b.datum].n++;
   }
   const uit: Record<string, number> = {};
-  for (const [d, x] of Object.entries(som)) if (x.n >= 15) uit[d] = x.s / x.n;
+  for (const [d, x] of Object.entries(som)) if (x.n >= o.ijkMin) uit[d] = x.s / x.n;
   ijkCache.set(sleutel, uit);
   return uit;
 }
 
 // Draait een regel als echte strategie: per coin geen overlappende trades.
 export function draai(regel: Regel, opties: Opties = {}): TradeUit[] {
-  const o = { kosten: opties.kosten ?? KOSTEN_ETORO, minStop: opties.minStop ?? 0 };
+  if (opties.ijkKiest && !opties.ijkNaam) throw new Error('ijkKiest vraagt een ijkNaam');
+  const o: OptiesVol = {
+    kosten: opties.kosten ?? KOSTEN_ETORO, minStop: opties.minStop ?? 0,
+    ijkKiest: opties.ijkKiest, ijkNaam: opties.ijkNaam ?? 'alle', ijkMin: opties.ijkMin ?? 15,
+  };
   const ijk = ijkPerDag(regel, o);
   const uit: TradeUit[] = [];
   for (const sym of coins) {
@@ -271,9 +310,9 @@ export function draai(regel: Regel, opties: Opties = {}): TradeUit[] {
 // --- statistiek --------------------------------------------------------------------------
 
 export const gem = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
-const jaarVan = (d: string) => d.slice(0, 4);
+export const jaarVan = (d: string) => d.slice(0, 4);
 export const jaren = [...new Set(alleBars.map(b => jaarVan(b.datum)))].sort();
-const toetsJaren = jaren.filter(j => `${j}-12-31` >= TOETS_VANAF);
+export const toetsJaren = jaren.filter(j => `${j}-12-31` >= TOETS_VANAF);
 
 // Vaste reeks, zodat twee runs hetzelfde interval geven.
 function lcg(zaad: number) {
@@ -302,7 +341,7 @@ export function interval(trades: { r: number; datum: string }[], waarde: (t: any
   return [gemiddelden[Math.floor(0.05 * gemiddelden.length)], gemiddelden[Math.floor(0.95 * gemiddelden.length)]];
 }
 
-const f = (x: number, d = 3) => (isNaN(x) ? '.' : (x >= 0 ? '+' : '') + x.toFixed(d));
+export const f = (x: number, d = 3) => (isNaN(x) ? '.' : (x >= 0 ? '+' : '') + x.toFixed(d));
 
 export function kop() {
   console.log(
@@ -396,7 +435,9 @@ const WILLEKEURIG: Regel = { naam: 'elke bar, Markt-niveaus', kiest: () => true,
 
 // --- uitvoer -----------------------------------------------------------------------------
 
-const onderdeel = process.argv[2] ?? 'basis';
+// Alleen als dit bestand zelf gestart is. meting-markt.ts importeert de kern hierboven en mag de
+// onderdelen hieronder niet meedraaien.
+const onderdeel = (process.argv[1] ?? '').endsWith('meting-kansen.ts') ? (process.argv[2] ?? 'basis') : '';
 
 if (onderdeel === 'basis') {
   console.log(`Kansen-meting over ${coins.length} coins, ${alleBars.length} bars, ${jaren[0]} t/m ${jaren[jaren.length - 1]}.`);
@@ -423,7 +464,7 @@ if (onderdeel === 'basis') {
 // Alles hieronder toont uitsluitend de afsteljaren. De toetsjaren komen pas in beeld bij het
 // onderdeel 'toets', één keer, met de regels die hier gekozen zijn.
 
-const afstelJaren = jaren.filter(j => `${j}-01-01` < AFSTEL_TOT);
+export const afstelJaren = jaren.filter(j => `${j}-01-01` < AFSTEL_TOT);
 
 function afstelKop() {
   console.log(
@@ -452,7 +493,7 @@ function afstelRegel(naam: string, alle: TradeUit[]) {
 // Niveaus als bouwstenen. De stop is een veelvoud van de ATR of een structuurniveau, het doel een
 // veelvoud van het eigen risico. Zo is de R/R per constructie vast en zegt een R/R-filter niets
 // meer: de keuze zit in de regel, niet in een toevallig krappe stop.
-const atrStop = (k: number, m: number) => (b: Bar, instap: number): Niveaus => ({ stop: instap - k * b.atr, doel: instap + m * k * b.atr });
+export const atrStop = (k: number, m: number) => (b: Bar, instap: number): Niveaus => ({ stop: instap - k * b.atr, doel: instap + m * k * b.atr });
 const structuurStop = (m: number) => (b: Bar, instap: number): Niveaus | null => {
   const stop = Math.min(b.low20, b.ema50) - 0.1 * b.atr;
   const risico = instap - stop;

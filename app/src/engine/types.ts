@@ -32,8 +32,15 @@ export interface Trade {
   volumeRatio: number;
   score: number;
   redenen: string[];
+  // Wat de kaart toont. Alleen KOOP als het label bewezen is (LABEL_KOOP_BEWEZEN in drempels.ts);
+  // anders altijd WATCH, ook bij een hoge score en een gunstig klimaat.
   signaal: 'KOOP' | 'WATCH';
+  // Idem voor STERK KOOP en BEVESTIGD (LABEL_STERK_BEWEZEN).
   highConviction: boolean;
+  // Wat de score en het klimaat zeggen, los van of het label getoond mag worden. Alleen gezet door
+  // analyseerMarkt. Het signaalboek volgt dit, zodat een label zich live kan bewijzen.
+  ruwSignaal?: 'KOOP' | 'WATCH';
+  ruwHighConviction?: boolean;
   // Haalt deze coin de minimale risk/reward (MIN_RISK_REWARD)? Zo niet, dan blijft de analyse
   // gewoon zichtbaar maar wordt het signaal nooit KOOP. Vroeger liet scoorCandles zo'n coin
   // helemaal vallen, waardoor de Markt in een brede markt een leeg scherm gaf zonder uitleg.

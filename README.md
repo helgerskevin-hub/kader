@@ -4,7 +4,7 @@
 
 <p align="center"><strong>Structuur in crypto. Geen hype, gewoon data.</strong></p>
 
-Kader is een persoonlijke Android-app die publieke marktdata van 57 crypto's analyseert en daar technische signalen uit haalt. Bij elk signaal staat het plan er meteen bij: een entry, een stop-loss net onder de recente bodem en een doel, met minimaal twee keer zoveel opbrengst als risico. Je kunt je eToro-account koppelen om je posities te volgen en, als je dat wilt, orders te plaatsen. Alles wordt op je telefoon berekend; er is geen server.
+Kader is een persoonlijke Android-app die publieke marktdata van 148 crypto's analyseert en daar technische signalen uit haalt. Bij elk signaal staat het plan er meteen bij: een entry, een stop-loss net onder de recente bodem en een doel, met minimaal twee keer zoveel opbrengst als risico. Je kunt je eToro-account koppelen om je posities te volgen en, als je dat wilt, orders te plaatsen. Alles wordt op je telefoon berekend; er is geen server.
 
 > [!WARNING]
 > **Geen financieel advies. De koers op eToro kan afwijken.**
@@ -14,7 +14,7 @@ Kader is een persoonlijke Android-app die publieke marktdata van 57 crypto's ana
 
 De app heeft vier schermen, bereikbaar via de tabbalk onderin. Je wisselt met een tik of door opzij te vegen.
 
-**Markt.** Kader scant de 57 coins die ook op eToro verhandelbaar zijn en toont de beste twintig als kaarten. Elke kaart heeft de score als ring rond het coinlogo, de koers, een grafiek van 30 dagen en het oordeel. Tik op een kaart en hij klapt uit: stop, entry en doel op één baan, de risico/opbrengst-verhouding en welke bevestigingen meestaan. Bovenaan staat het marktklimaat.
+**Markt.** Kader scant de 148 coins die ook op eToro te koop zijn en toont de beste twintig als kaarten. Elke kaart heeft de score als ring rond het coinlogo, de koers, een grafiek van 30 dagen en het oordeel. Tik op een kaart en hij klapt uit: stop, entry en doel op één baan, de risico/opbrengst-verhouding en welke bevestigingen meestaan. Bovenaan staat het marktklimaat.
 
 <p align="center">
   <img src="docs/readme/markt-kaart.svg" alt="Voorbeeld van een kaart op Markt voor een verzonnen munt: score 64 als ring rond het logo, koers 100 dollar, plus 6,9 procent over 30 dagen, een koersgrafiek, de badge KOOPZONE en R/R 1 : 2.4." width="460">
@@ -59,6 +59,8 @@ De score gaat nooit boven 100.
 <p align="center">
   <img src="docs/readme/score-ring.svg" alt="Voorbeeld: een scorering loopt op tot 80 van 100, met de badge STERK KOOP, het keurmerk BEVESTIGD en de vier bevestigingen trend, MACD, volume en R/R." width="760">
 </p>
+
+> **Stand november 2026:** Kader toont op dit moment geen kooplabels. Met de kosten van eToro erbij (1% bij kopen, 1% bij verkopen) haalde geen enkel label de lat: een koopsignaal hield gemiddeld +0,11 R per trade over, maar niet aantoonbaar meer dan nul. Elke coin staat daarom op AFWACHTEN. Het plan bij elke coin is nu stop 3x ATR en doel op drie keer dat risico, en kopen kan altijd met de knop Koop. De labels hieronder komen terug als ze zich bewijzen; zie meting M en N in `docs/metingen.md`.
 
 - **AFWACHTEN:** geen koopsignaal. De score is lager dan 55, de risico/opbrengst haalt 1:2 niet, of het marktklimaat houdt het signaal tegen.
 - **KOOPZONE:** koopsignaal met een score vanaf 55.

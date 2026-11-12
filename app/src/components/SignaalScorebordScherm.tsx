@@ -10,12 +10,16 @@ import { spacing, radii, shadow } from '../theme/tokens';
 import { staggerVertraging } from '../theme/beweging';
 import { useBeweging, useReduceMotion } from '../theme/useReduceMotion';
 import { kaartLandt, schuifOvergang, uitklapIn, uitklapInGestaffeld, uitklapUit } from '../theme/lijstBeweging';
-import { fmtR } from '../engine/format';
+import { fmtR, fmtPct } from '../engine/format';
 import { vatSamen, type GelogdSignaal, type SignaalUitkomst } from '../engine/signaalLog';
 import { useSignaalBoek } from '../state/signaalBoek';
 import { vatVolglijstSamen, type VolglijstSamenvatting } from '../engine/volglijstLog';
 import { useVolglijstBoek } from '../state/volglijstBoek';
+import { vatNaloopSamen, NALOOP_PLEKKEN, type NaloopSamenvatting } from '../engine/naloopRustig';
+import { useNaloopBoek } from '../state/naloopBoek';
 import { RADAR_METING_NETTO_R } from '../engine/momentum';
+import { LABEL_KOOP_BEWEZEN } from '../engine/drempels';
+import { nettoR } from '../engine/signaalLog';
 import { PodiumScherm } from './PodiumScherm';
 import { LegeStaatBeeld, Opkomst } from './LegeStaatBeeld';
 import { AnimatedGetal } from './AnimatedGetal';
@@ -60,6 +64,9 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
   // De volglijst van Kansen heeft een eigen logboek en telt nergens hierboven in mee.
   const gevolgd = useVolglijstBoek(zichtbaar);
   const volglijst = useMemo(() => (gevolgd && gevolgd.length > 0 ? vatVolglijstSamen(gevolgd) : null), [gevolgd]);
+  // De naloop van regel C (meting O): ook een eigen logboek, los van de signalen hierboven.
+  const naloopBoek = useNaloopBoek(zichtbaar);
+  const naloop = useMemo(() => (naloopBoek ? vatNaloopSamen(naloopBoek) : null), [naloopBoek]);
 
   const samenvatting = useMemo(() => (signalen ? vatSamen(signalen) : null), [signalen]);
   const recent = useMemo(
@@ -130,7 +137,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                   <LijstGroep
                     titel="Lopende signalen"
                     lijnInspringing={62}
-                    voetnoot="Kader houdt elk koopsignaal vanaf nu bij. Na een paar weken zie je hier of de signalen werken."
+                    voetnoot="Kader volgt elk signaal van de score en het klimaat, met het plan van de kaart en na kosten. Na een paar weken zie je hier of ze werken."
                   >
                     {lopend.map((s, i) => <SignaalRij key={s.id} s={s} index={i} />)}
                   </LijstGroep>
@@ -139,6 +146,11 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
               {volglijst && (
                 <Animated.View entering={kaartLandt(4, reduceMotion)}>
                   <VolglijstGroep stand={volglijst} />
+                </Animated.View>
+              )}
+              {naloop && (
+                <Animated.View entering={kaartLandt(5, reduceMotion)}>
+                  <NaloopGroep stand={naloop} />
                 </Animated.View>
               )}
             </ScrollView>
@@ -159,8 +171,9 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
 
               <Animated.View entering={kaartLandt(1, reduceMotion)} style={[styles.ijkpunt, { backgroundColor: colors.verhoogd }]}>
                 <Text style={[Type.caption, { color: colors.tekstGedimd, lineHeight: 19 }]}>
-                  Backtest over negen jaar: <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.08 R</Text> per signaal,{' '}
-                  <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.15 R</Text> bij sterk koop. Live hoort Kader daar in de buurt te zitten.
+                  Na de kosten van eToro. De meting over 2023 t/m 2026 gaf{' '}
+                  <Text style={[styles.ijkGetal, { color: colors.tekstPrimair }]}>+0.11 R</Text> per signaal, niet aantoonbaar meer dan nul.
+                  Daarom toont Kader deze signalen nu niet als koopadvies; hier loopt het trackrecord door.
                 </Text>
               </Animated.View>
 
@@ -188,7 +201,7 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                 </LijstGroep>
               </Animated.View>
 
-              {gemist && gemist.gemist.aantal + gemist.ontweken.aantal > 0 && (
+              {LABEL_KOOP_BEWEZEN && gemist && gemist.gemist.aantal + gemist.ontweken.aantal > 0 && (
                 <Animated.View entering={kaartLandt(4, reduceMotion)}>
                   <LijstGroep
                     titel="Gemiste kansen"
@@ -217,11 +230,17 @@ export function SignaalScorebordScherm({ zichtbaar, onSluiten }: Props) {
                 </Animated.View>
               )}
 
+              {naloop && (
+                <Animated.View entering={kaartLandt(5, reduceMotion)}>
+                  <NaloopGroep stand={naloop} />
+                </Animated.View>
+              )}
+
               <Animated.View entering={kaartLandt(6, reduceMotion)} layout={schuifOvergang(reduceMotion)}>
                 <LijstGroep
                   titel="Recente signalen"
                   lijnInspringing={62}
-                  voetnoot="Dit zijn de signalen die Kader zelf gaf, niet je eigen trades. Kader telt een signaal als raak bij een positief resultaat."
+                  voetnoot="Dit zijn de signalen die de score en het klimaat aanwezen, niet je eigen trades en nu ook geen koopadvies. Resultaten zijn na kosten; raak is een positief resultaat."
                 >
                   {recent.map((s, i) => <SignaalRij key={s.id} s={s} index={i} />)}
                 </LijstGroep>
@@ -252,6 +271,29 @@ function VolglijstGroep({ stand }: { stand: VolglijstSamenvatting }) {
       <StatRij label="Bij gunstig klimaat" sub={coinsTekst(stand.gunstig.aantal)} waarde={stand.gunstig.gemNettoR} format={r => fmtR(r)} />
       <StatRij label="Bij ander klimaat" sub={coinsTekst(stand.overig.aantal)} waarde={stand.overig.gemNettoR} format={r => fmtR(r)} />
       <StatRij label="Loopt nog" sub="hoogstens 30 dagen per coin" waarde={stand.lopend} format={n => String(n)} kleurOpTeken={false} />
+    </LijstGroep>
+  );
+}
+
+// De naloop van regel C uit meting O. Een papieren portefeuille, geen koopadvies: hier staat of de
+// regel die op ongeziene coins de toets haalde het live ook doet, naast gewoon BTC houden.
+function NaloopGroep({ stand }: { stand: NaloopSamenvatting }) {
+  return (
+    <LijstGroep
+      titel={`Naloop: de ${NALOOP_PLEKKEN} rustigste coins`}
+      lijnInspringing={spacing.base}
+      voetnoot={`Geen koopadvies. Bij een gunstig klimaat koopt deze papieren portefeuille de ${NALOOP_PLEKKEN} coins die het minst bewegen, zonder doel, met een stop die elke dag meeloopt met het laagste punt van de laatste 20 dagen. Na 1% kosten bij kopen en bij verkopen. In de meting won deze regel van de huidige signalen, niet aantoonbaar van BTC houden.${stand.sinds ? ` Loopt sinds ${korteDatum(stand.sinds)}.` : ''}`}
+    >
+      <StatRij label="Papieren portefeuille" sub="sinds de eerste aankoop" waarde={stand.sinds ? stand.rendement * 100 : null} format={p => fmtPct(p)} />
+      <StatRij label="BTC houden" sub="zelfde periode, na kosten" waarde={stand.btcRendement === null ? null : stand.btcRendement * 100} format={p => fmtPct(p)} />
+      <StatRij label="Afgesloten" sub={stand.afgesloten === 1 ? '1 positie, gemiddeld na kosten' : `${stand.afgesloten} posities, gemiddeld na kosten`} waarde={stand.gemNettoR} format={r => fmtR(r)} />
+      <StatRij
+        label="Nu in bezit"
+        sub={stand.open.length ? stand.open.map(p => p.symbool).join(', ') : stand.sinds ? 'niets, wacht op een gunstig klimaat' : 'nog niets, begint bij het eerste gunstige klimaat'}
+        waarde={stand.open.length}
+        format={n => String(n)}
+        kleurOpTeken={false}
+      />
     </LijstGroep>
   );
 }
@@ -350,7 +392,8 @@ export function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
   }[s.uitkomst];
   const pilAchter = s.uitkomst === 'open' ? colors.verhoogd : kleur + '1F';
   const Icoon = { open: Clock, doel: Check, stop: X, verlopen: Minus }[s.uitkomst];
-  const r = s.behaaldeR;
+  // Na kosten, zoals alle cijfers op dit scherm.
+  const r = nettoR(s);
   const datum = s.uitkomstTijd ? `${korteDatum(s.tijd)} → ${korteDatum(s.uitkomstTijd)}` : `sinds ${korteDatum(s.tijd)}`;
 
   return (
@@ -358,7 +401,7 @@ export function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
       entering={uitklapInGestaffeld(index, reduceMotion)}
       style={styles.rij}
       accessible
-      accessibilityLabel={`${s.symbool}, ${s.advies.toLowerCase()}, ${UITKOMST_LABEL[s.uitkomst]}${typeof r === 'number' ? `, ${fmtR(r)}` : ''}`}
+      accessibilityLabel={`${s.symbool}, ${s.advies.toLowerCase()}, ${UITKOMST_LABEL[s.uitkomst]}${r !== null ? `, ${fmtR(r)}` : ''}`}
     >
       <CoinLogo symbool={s.symbool} grootte={36} />
       <View style={styles.rijMidden}>
@@ -373,7 +416,7 @@ export function SignaalRij({ s, index }: { s: GelogdSignaal; index: number }) {
           {datum} · score {s.score}
         </Text>
       </View>
-      {typeof r === 'number' && (
+      {r !== null && (
         <Text style={[styles.rijR, { color: fmtR(r).startsWith('−') ? colors.verlies : colors.winst }]}>{fmtR(r)}</Text>
       )}
     </Animated.View>
