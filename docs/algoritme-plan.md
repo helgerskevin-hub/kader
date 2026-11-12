@@ -122,6 +122,23 @@ aantoonbaar geld over? Netto R per trade met een 90%-interval boven nul.
 
 Gevoeligheid op de gekozen regel (geen extra eisen): 1,5% per kant, en stop minimaal 10%.
 
+### 6a. Aanvulling na de review, vóór de toets (12 nov 2026)
+
+Een onafhankelijke review van het script vond, zonder rendementen op de holdout te berekenen,
+ongecorrigeerde redenominaties en datagaten in de holdout-data (COCOS x1000, SUN /1000, BNX /100,
+VIDT, STRAX en BTCST /10, LUNA met een hergebruikte ticker, FTT met 311 dagen zonder candles).
+Daarom, vastgelegd voordat de toets draait:
+
+- Een reeks wordt geknipt waar twee candles meer dan 3 dagen uit elkaar liggen of waar de open
+  buiten 0,2 tot 5 keer het slot ervoor ligt. Elk stuk telt als een eigen coin; een positie gaat
+  uit op het laatste slot van zijn stuk, zoals bij een delisting. Stukken korter dan 400 candles
+  vallen af. Dezelfde regel geldt voor de 57 coins (daar knipt hij niets).
+- Eis 1 en de netto R per trade tellen de trades die de portefeuille werkelijk nam, niet alle
+  signalen per coin. Bij 5 plekken is dat een ander getal dan bij 10.
+- Een signaal telt alleen als de volgende candle de dag erna is.
+- Extra gevoeligheid (geen eis): een stop die op een crashcandle geraakt wordt vult op het midden
+  van stop en dagbodem als de bodem meer dan 20% onder de stop ligt.
+
 ## 7. Wat er niet in zit
 
 - Geen shorts (in okt 2026 uit de app gehaald) en geen hefboom.

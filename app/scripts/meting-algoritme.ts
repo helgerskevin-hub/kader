@@ -51,8 +51,7 @@ interface Coin {
   laatsteDatum: string;
 }
 
-function laadCoin(map: string, sym: string): Coin {
-  const c: Candle[] = JSON.parse(readFileSync(join(map, `${sym}.json`), 'utf8'));
+function laadCoin(sym: string, c: Candle[]): Coin {
   const closes = c.map(x => x.close);
   const e50 = ema(closes, 50), e200 = ema(closes, 200);
   const datum = c.map(x => datumVan(x.tijd));
@@ -60,6 +59,8 @@ function laadCoin(map: string, sym: string): Coin {
   const bars: Bar[] = [];
   // Zelfde startpunt als meting-kansen.ts, zodat Nu op de 57 coins exact meting N reproduceert.
   for (let i = Math.max(MIN_CANDLES - 1, 90); i < c.length - 1; i++) {
+    // Alleen als de volgende candle de dag erna is: anders koop je na een gat op een oud signaal.
+    if ((c[i + 1].tijd as number) - (c[i].tijd as number) !== DAG_MS) continue;
     const venster = c.slice(Math.max(0, i - VENSTER + 1), i + 1);
     const t = scoorCandles(sym, venster, 'Binance', { minRR: 0 });
     if (!t || !(t.atr > 0)) continue;
@@ -80,7 +81,23 @@ function laadSet(map: string, alleen?: string[]): Coin[] {
   const bestanden = readdirSync(map).filter(x => x.endsWith('.json') && !x.startsWith('_')).map(x => x.replace('.json', ''));
   const syms = alleen ? alleen.filter(s => bestanden.includes(s)) : bestanden.sort();
   console.error(`Kenmerken berekenen voor ${syms.length} coins uit ${map.split('/').slice(-1)[0]}...`);
-  return syms.map(s => laadCoin(map, s));
+  return syms.flatMap(s => stukken(JSON.parse(readFileSync(join(map, `${s}.json`), 'utf8')))
+    .map((c, k, alle) => laadCoin(alle.length > 1 ? `${s}#${k + 1}` : s, c)));
+}
+
+// Plan 6a: knippen bij een gat van meer dan 3 dagen of een open buiten 0,2 tot 5 keer het slot
+// ervoor (een redenominatie of een hergebruikte ticker). Elk stuk is een eigen coin; stukken
+// korter dan 400 candles vallen af.
+const MIN_STUK = 400;
+function stukken(c: Candle[]): Candle[][] {
+  const uit: Candle[][] = [];
+  let begin = 0;
+  for (let i = 1; i <= c.length; i++) {
+    const breuk = i === c.length || (c[i].tijd as number) - (c[i - 1].tijd as number) > 3 * DAG_MS ||
+      !(c[i].open / c[i - 1].close >= 0.2 && c[i].open / c[i - 1].close <= 5);
+    if (breuk) { if (i - begin >= MIN_STUK) uit.push(c.slice(begin, i)); begin = i; }
+  }
+  return uit;
 }
 
 // --- uitstap -------------------------------------------------------------------------------
@@ -109,7 +126,7 @@ interface Trade {
 // Eén trade vanaf de open van candle i+1. Gap- en kostenregels als simuleer() in meting-kansen.ts:
 // een gap rekent met de open, raakt een candle stop en doel allebei dan telt de stop. Een
 // meelopende stop en een verkoopregel worden op het slot bepaald en gelden vanaf de volgende dag.
-function handel(coin: Coin, b: Bar, u: Uitstap, kosten: number, minStop: number, eindDatum: string): Trade | null {
+function handel(coin: Coin, b: Bar, u: Uitstap, kosten: number, minStop: number, eindDatum: string, crash = false): Trade | null {
   const { c } = coin;
   const i = b.i;
   const nv = radarNiveaus(b.instap, b.atr);
@@ -131,7 +148,8 @@ function handel(coin: Coin, b: Bar, u: Uitstap, kosten: number, minStop: number,
     if (j > i + 1) {
       if (verkoop || k.open <= stop || k.open >= doel) return uit(k.open, j, true);
     }
-    if (k.low <= stop) return uit(stop, j, false);
+    // Gevoeligheid (plan 6a): op een crashcandle ver onder de stop vult de stop slechter.
+    if (k.low <= stop) return uit(crash && k.low < 0.8 * stop ? (stop + k.low) / 2 : stop, j, false);
     if (k.high >= doel) return uit(doel, j, false);
     // Het slot van dag j: wat geldt er vanaf morgen?
     hoogsteSlot = Math.max(hoogsteSlot, k.close);
@@ -172,7 +190,7 @@ export const RANGORDES: Record<string, (b: Bar) => number> = {
 interface Strategie {
   naam: string; instap: Instap; uitstap: Uitstap;
   rang?: keyof typeof RANGORDES; plekken?: number; grootte?: 'gelijk' | 'risico';
-  kosten?: number; minStop?: number;
+  kosten?: number; minStop?: number; crash?: boolean;
 }
 
 // --- per coin, als losse trades (zoals meting M en N) ------------------------------------------
@@ -184,7 +202,7 @@ function losseTrades(set: Coin[], s: Strategie, eind: string): Trade[] {
     let bezetTot = -1;
     for (const b of coin.bars) {
       if (b.i <= bezetTot || !s.instap.kiest(b)) continue;
-      const t = handel(coin, b, s.uitstap, kosten, minStop, eind);
+      const t = handel(coin, b, s.uitstap, kosten, minStop, eind, s.crash);
       if (!t || !t.af) continue;
       uit.push(t);
       bezetTot = t.uitIdx;
@@ -233,7 +251,7 @@ function portefeuille(set: Coin[], s: Strategie, datums: string[]): Curve {
     if (k > 0) for (const { coin, b } of signalen.get(datums[k - 1]) ?? []) {
       if (open.size >= N) break;
       if (open.has(coin.sym) || b.i <= (vrijNa.get(coin.sym) ?? -1) || coin.datum[b.i + 1] !== d) continue;
-      const t = handel(coin, b, s.uitstap, kosten, minStop, eind);
+      const t = handel(coin, b, s.uitstap, kosten, minStop, eind, s.crash);
       if (!t) continue;
       let bedrag = vorigVermogen / N;
       if (s.grootte === 'risico') bedrag = Math.min(bedrag, (0.02 * vorigVermogen) / (t.risico / t.instap));
@@ -261,12 +279,13 @@ function portefeuille(set: Coin[], s: Strategie, datums: string[]): Curve {
 // Eén munt aan of uit op een regel van het slot ervoor, handel op de open. Voor de ijklijnen.
 function eenMunt(coin: Coin, aan: (d: string) => boolean, datums: string[], kosten = KOSTEN_ETORO): Curve {
   const per = new Map(coin.datum.map((d, j) => [d, coin.c[j]]));
-  let kas = 1, stuks = 0;
+  let kas = 1, stuks = 0, laatsteSlot = 0;
   const vermogen: number[] = [], belegd: number[] = [];
   let wissels = 0;
   for (let k = 0; k < datums.length; k++) {
     const c = per.get(datums[k]);
-    if (!c) { vermogen.push(kas + stuks * 0); belegd.push(stuks > 0 ? 1 : 0); continue; }
+    if (!c) { vermogen.push(kas + stuks * laatsteSlot); belegd.push(stuks > 0 ? 1 : 0); continue; }
+    laatsteSlot = c.close;
     const wil = k > 0 && aan(datums[k - 1]);
     if (wil && stuks === 0) { stuks = kas / (c.open * (1 + kosten)); kas = 0; wissels++; }
     else if (!wil && stuks > 0) { kas = stuks * c.open * (1 - kosten); stuks = 0; wissels++; }
@@ -312,7 +331,7 @@ function maandVerschil(a: Uitslag, b: Uitslag): [number, number, number] {
   const g: number[] = [];
   for (let k = 0; k < 2000; k++) { let t = 0; for (let x = 0; x < verschil.length; x++) t += verschil[Math.floor(rnd() * verschil.length)]; g.push(t / verschil.length); }
   g.sort((x, y) => x - y);
-  return [gem(verschil), g[100], g[1899]];
+  return [gem(verschil), g[100], g[1900]];
 }
 
 // --- uitvoer -------------------------------------------------------------------------------
@@ -424,14 +443,19 @@ if (onderdeel) {
     const uit = REGELS.map(s => {
       const cv = portefeuille(set, s, datums);
       const u = uitslag(cv);
-      const losse = losseTrades(set, s, eind);
+      // Plan 6a: de trades die de portefeuille werkelijk nam.
+      const losse = cv.trades.filter(t => t.af);
       rij(s.naam, u, jaren, losse);
       return { s, u, losse };
     });
-    if (onderdeel === 'combinatie') {
+    // Gevoeligheid op de gekozen regel (plan 6 en 6a), geen eisen.
+    {
       const c = REGELS[3];
-      rij('C, 1,5% per kant', uitslag(portefeuille(set, { ...c, kosten: 0.015 }, datums)), jaren, losseTrades(set, { ...c, kosten: 0.015 }, eind));
-      rij('C, stop minimaal 10%', uitslag(portefeuille(set, { ...c, minStop: MIN_STOP_BTC }, datums)), jaren, losseTrades(set, { ...c, minStop: MIN_STOP_BTC }, eind));
+      for (const [naam, v] of [['C, 1,5% per kant', { kosten: 0.015 }], ['C, stop minimaal 10%', { minStop: MIN_STOP_BTC }], ['C, crashcandles vullen slechter', { crash: true }], ['Nu, crashcandles vullen slechter', { crash: true }]] as [string, Partial<Strategie>][]) {
+        const basis = naam.startsWith('Nu') ? NU : c;
+        const cv = portefeuille(set, { ...basis, ...v }, datums);
+        rij(naam, uitslag(cv), jaren, cv.trades.filter(t => t.af));
+      }
     }
     console.log('\n  Jaarrendement zonder 2021 (informatie): ' + [['BTC houden', btcHouden], ...uit.map(x => [x.s.naam.split(':')[0], x.u])].map(([n, u]) => `${n} ${pct(zonder2021(u as Uitslag), 1)}`).join(', '));
     console.log('  Mediane netto R per trade: ' + uit.map(x => `${x.s.naam.split(':')[0]} ${f([...x.losse.map(t => t.r)].sort((a, b) => a - b)[Math.floor(x.losse.length / 2)], 2)}`).join(', '));
