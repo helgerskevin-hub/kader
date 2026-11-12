@@ -29,6 +29,15 @@ export const LABEL_KOOP_BEWEZEN: boolean = false;
 // STERK KOOP en BEVESTIGD. Kan alleen aan als LABEL_KOOP_BEWEZEN aan staat.
 export const LABEL_STERK_BEWEZEN: boolean = false;
 
+// Het advies om je stop op te trekken (naar je instap of 1x ATR onder de koers), in Portfolio, op
+// Vandaag en als melding. Uit sinds 12 nov 2026. Het plan sinds meting M en N is een stop op 3x ATR
+// die blijft staan: zo is het gemeten, en een krappe stop droeg de kosten van eToro niet. Dit advies
+// maakte van die ruime stop alsnog een krappe (op de emulator al bij +0,2 R naar de instap), en dat
+// samenspel is nooit gemeten. Zet hem alleen op true na een meting die laat zien dat het plan met
+// een meelopende stop na kosten beter doet dan het plan zonder, op signalen van na 11 nov 2026.
+// Zie docs/markt-kosten-plan.md, paragraaf 10.
+export const STOP_OPTREKKEN_BEWEZEN: boolean = false;
+
 // Vanaf hier krijgt een coin het signaal KOOP. Gemeten: ±0,06 R gemiddeld per trade.
 export const DREMPEL_KOOP = 55;
 

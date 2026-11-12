@@ -1,5 +1,6 @@
 import { Trade } from '../engine/types';
 import { Klimaat } from '../engine/marktklimaat';
+import { STOP_OPTREKKEN_BEWEZEN } from '../engine/drempels';
 import { PortfolioTrade } from './portfolioTypes';
 
 // Wat te doen met posities die je al hebt, als de markt draait.
@@ -15,11 +16,9 @@ import { PortfolioTrade } from './portfolioTypes';
  * Geeft null als het voorstel de stop niet echt richting winst brengt, of als het voorstel aan de
  * verkeerde kant van de koers zou liggen (dan zou je jezelf onmiddellijk uitstoppen).
  *
- * Gedeeld met notifications/tradeChecks.ts. Twee kopieën van deze berekening zouden uiteen lopen en
- * dan zou de melding een ander niveau voorstellen dan het scherm, wat het vertrouwen in allebei
- * kost.
+ * Alleen de berekening. Of Kader het voorstel ook doet, beslist voorstelTrailingStop hieronder.
  */
-export function voorstelTrailingStop(
+export function rekenTrailingStop(
   entryPrijs: number,
   koers: number,
   atr: number,
@@ -29,6 +28,27 @@ export function voorstelTrailingStop(
   const voorstel = Math.max(entryPrijs, koers - atr);
   if (voorstel <= huidigeStop || voorstel >= koers) return null;
   return voorstel;
+}
+
+/**
+ * Het voorstel dat Kader doet om de stop op te trekken, of null als het er geen doet.
+ *
+ * Geeft altijd null zolang STOP_OPTREKKEN_BEWEZEN uit staat (zie drempels.ts): het plan is gemeten
+ * met een stop die blijft staan. Het afbouwadvies, de kaart op Vandaag en de meldingen halen hun
+ * voorstel allemaal hier, dus met de schakelaar uit noemt geen van drie nog een nieuwe stop.
+ *
+ * Gedeeld met notifications/tradeChecks.ts en state/eenDing.ts. Meerdere kopieën van deze
+ * berekening zouden uiteen lopen en dan zou de melding een ander niveau voorstellen dan het scherm,
+ * wat het vertrouwen in allebei kost.
+ */
+export function voorstelTrailingStop(
+  entryPrijs: number,
+  koers: number,
+  atr: number,
+  huidigeStop: number,
+): number | null {
+  if (!STOP_OPTREKKEN_BEWEZEN) return null;
+  return rekenTrailingStop(entryPrijs, koers, atr, huidigeStop);
 }
 
 export type AfbouwNiveau = 'houden' | 'letOp' | 'afbouwen';
@@ -165,15 +185,19 @@ if (require.main === module) {
     rr: 3, datum: '', status: 'open', ...over,
   });
 
-  console.assert(voorstelTrailingStop(100, 110, 5, 90) === 105, 'een ATR onder de koers, want dat is hoger dan break-even');
-  console.assert(voorstelTrailingStop(100, 102, 5, 90) === 100, 'te dicht bij entry: break-even is dan het voorstel');
-  console.assert(voorstelTrailingStop(100, 110, 5, 106) === null, 'een voorstel onder de bestaande stop is geen voorstel');
-  console.assert(voorstelTrailingStop(100, 95, 5, 90) === null, 'onder water valt er geen winst vast te zetten');
+  console.assert(rekenTrailingStop(100, 110, 5, 90) === 105, 'een ATR onder de koers, want dat is hoger dan break-even');
+  console.assert(rekenTrailingStop(100, 102, 5, 90) === 100, 'te dicht bij entry: break-even is dan het voorstel');
+  console.assert(rekenTrailingStop(100, 110, 5, 106) === null, 'een voorstel onder de bestaande stop is geen voorstel');
+  console.assert(rekenTrailingStop(100, 95, 5, 90) === null, 'onder water valt er geen winst vast te zetten');
 
   // In winst, onder EMA50, dalende markt: het geval waarin winst teruggeven het vaakst gebeurt.
   const a = bepaalAfbouwAdvies(trade(), 110, markt({ ema50: 120 }), 'ongunstig');
   console.assert(a?.niveau === 'afbouwen', `afbouwen verwacht, was ${a?.niveau}`);
-  console.assert(a?.trailingStop === 105, `trailing stop 105 verwacht, was ${a?.trailingStop}`);
+  // Het voorstel voor een nieuwe stop hangt aan de schakelaar: uit betekent geen voorstel.
+  const verwachtA = STOP_OPTREKKEN_BEWEZEN ? 105 : undefined;
+  console.assert(a?.trailingStop === verwachtA, `trailing stop ${verwachtA} verwacht, was ${a?.trailingStop}`);
+  console.assert(STOP_OPTREKKEN_BEWEZEN || !a?.tekst.includes('stop op te trekken'), 'zonder voorstel noemt de tekst het optrekken niet');
+  console.assert(STOP_OPTREKKEN_BEWEZEN || voorstelTrailingStop(100, 110, 5, 90) === null, 'schakelaar uit: geen voorstel');
 
   // Onder water in een dalende markt: plan volgen, geen afbouwadvies.
   const b = bepaalAfbouwAdvies(trade(), 95, markt({ ema50: 120 }), 'ongunstig');

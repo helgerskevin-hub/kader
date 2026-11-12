@@ -276,10 +276,10 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     reken: 'Bij een gunstig klimaat is er geen plafond, bij gemengd de helft, bij ongunstig een vijfde. Met een eToro-koppeling haalt Kader je handelskapitaal bij elke sync zelf uit eToro: vrij saldo, posities, copies en open resultaat samen. Zonder koppeling vul je het zelf in, en dan blijft dat bedrag op je telefoon.',
     doe: 'Boven het plafond zitten is geen verkoopopdracht, wel een reden om niet bij te kopen. Onder een positie kan een afbouwadvies staan, maar alleen als er iets te melden is.',
     detail: [
-      'In winst, maar onder de eigen EMA50 in een dalende markt: winst nemen of de stop optrekken',
+      'In winst, maar onder de eigen EMA50 in een dalende markt: overweeg (deels) winst te nemen',
       'Onder je entry en onder de EMA50 in een dalende markt: niets doen, de stop niet verlagen en niet bijkopen',
       'Houdt een coin stand terwijl de rest daalt: niets hoeft te gebeuren',
-      'Ook buiten een dalende markt: in winst maar onder de EMA50, dan stelt Kader voor de stop op te trekken',
+      'Kader stelt niet meer voor je stop op te trekken. Het plan is gemeten met een stop die blijft staan; een stop die je vroeg naar je instap haalt is weer de krappe stop die de kosten niet droeg',
       'Het plafond is een risicorichtlijn, geen uitkomst van de backtest',
     ],
   },
@@ -291,7 +291,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
     nieuw: true,
     kort: 'Wanneer Kader je een melding stuurt.',
     zie: 'Kader stuurt alleen een melding als je iets moet weten of doen. Je vindt ze terug onder Meldingen in het menu; tik daar op een melding om naar de positie of coin te gaan.',
-    reken: 'Dat zijn er vijf: elke ochtend om 9:00 "Het kader van vandaag staat klaar"; een geraakte stop of een geraakt doel, bij eigen trades en bij eToro-posities; je eigen prijsalerts; "stop aantrekken" of "winst vastzetten" als je stop naar break-even kan; en een afbouwadvies per positie, alleen als Kader echt adviseert (deels) winst te nemen. Een tik op de stop-melding opent het stopvenster met het voorstel al ingevuld. Jij bevestigt.',
+    reken: 'Dat zijn er vier: elke ochtend om 9:00 "Het kader van vandaag staat klaar"; een geraakte stop of een geraakt doel, bij eigen trades en bij eToro-posities; je eigen prijsalerts; en een afbouwadvies per positie, alleen als Kader echt adviseert (deels) winst te nemen. De melding om je stop op te trekken staat uit: het plan is gemeten met een stop die blijft staan.',
     doe: 'Dezelfde melding over dezelfde positie komt hooguit één keer per zes uur. Een geraakte stop, een geraakt doel en je prijsalerts komen meteen; de overige trade-meldingen bundelt Kader tot hooguit één per uur. Een melding dat het marktklimaat omslaat, dat een doel hoger kan of dat meerdere posities zwak staan, stuurt Kader niet meer.',
     detail: [
       'Terwijl de app open is: controle elke 5 minuten',
