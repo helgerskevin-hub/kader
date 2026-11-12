@@ -460,6 +460,18 @@ if (onderdeel) {
     console.log('\n  Jaarrendement zonder 2021 (informatie): ' + [['BTC houden', btcHouden], ...uit.map(x => [x.s.naam.split(':')[0], x.u])].map(([n, u]) => `${n} ${pct(zonder2021(u as Uitslag), 1)}`).join(', '));
     console.log('  Mediane netto R per trade: ' + uit.map(x => `${x.s.naam.split(':')[0]} ${f([...x.losse.map(t => t.r)].sort((a, b) => a - b)[Math.floor(x.losse.length / 2)], 2)}`).join(', '));
 
+    // Beschrijvend, geen eis: welke coins dragen C? Winst per coin in procent van de inleg.
+    {
+      const c = uit[3];
+      const per = new Map<string, { n: number; som: number }>();
+      for (const t of c.losse) { const x = per.get(t.sym) ?? { n: 0, som: 0 }; x.n++; x.som += t.uitPrijs / t.instap - 1; per.set(t.sym, x); }
+      const lijst = [...per.entries()].sort((x, y) => y[1].som - x[1].som);
+      console.log(`  C handelde ${per.size} coins. Grootste bijdragen: ` + lijst.slice(0, 8).map(([k, x]) => `${k} ${x.n}x ${pct(x.som)}`).join(', '));
+      console.log('  Meest verhandeld: ' + [...per.entries()].sort((x, y) => y[1].n - x[1].n).slice(0, 8).map(([k, x]) => `${k} ${x.n}x`).join(', '));
+      const zonderBeste = c.losse.filter(t => t.sym !== lijst[0][0]);
+      console.log(`  Netto R per trade zonder ${lijst[0][0]}: ${f(gem(zonderBeste.map(t => t.r)))}, interval [${interval(zonderBeste).map(x => f(x, 2)).join(', ')}]`);
+    }
+
     // De lat uit paragraaf 6, voor elke regel tegen Nu.
     const nu = uit[0];
     for (const x of uit.slice(1)) {
