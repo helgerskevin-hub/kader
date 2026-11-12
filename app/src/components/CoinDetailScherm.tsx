@@ -39,6 +39,7 @@ import { useValutaStand } from '../state/useValuta';
 import { etoroNiveaus } from '../engine/etoroLimieten';
 import { rsUitleg } from '../engine/relatieveSterkte';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
+import { useGrafiekSoort } from '../state/useGrafiekSoort';
 import { PodiumScherm } from './PodiumScherm';
 
 interface Props {
@@ -110,6 +111,8 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const [handelReden, setHandelReden] = useState('');
   const { magHandelen, omgeving } = usePortfolio();
   const stopLimiet = useStopLossLimiet(data ? data.symbool : null);
+  // Lijn of candles, uit Instellingen. Wisselt live mee als je het daar omzet.
+  const { soort: grafiekSoort } = useGrafiekSoort();
 
   useEffect(() => {
     if (dataProp && !vorigeDataProp.current) binnenkomstGehad.current = false;
@@ -335,7 +338,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
             {status === 'success' && indicatoren && (
               <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
                 <Animated.View entering={binnenkomst()} style={kaart}>
-                  <PrijsGrafiek candles={candles} niveaus={niveaus} laadIntraday={laadIntraday} />
+                  <PrijsGrafiek candles={candles} niveaus={niveaus} laadIntraday={laadIntraday} soort={grafiekSoort} />
                 </Animated.View>
 
                 {heeftNiveaus && (
