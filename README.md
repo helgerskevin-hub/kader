@@ -22,7 +22,7 @@ De app heeft vier schermen, bereikbaar via de tabbalk onderin. Je wisselt met ee
 
 **Kansen.** De momentum-radar scant dezelfde coins met een andere vraag: welke staan dicht bij hun hoogste koers van de afgelopen 90 dagen? Het is een volglijst, geen koopadvies: na de kosten van eToro bleek de keuze van de coin niet aantoonbaar beter dan willekeurig (meting M in `docs/metingen.md`). Elke coin krijgt wel een plan dat die kosten draagt (stop 3x ATR onder de koers, doel op drie keer dat risico). Staat er niets dicht bij zijn top, dan zegt het scherm dat en toont het de coins die er het dichtst bij zitten.
 
-**Portfolio.** Je open posities, uit eToro of handmatig ingevoerd, met je resultaat groot in beeld en een stip op de stop-doel-baan voor de live koers. Uitgeklapt zie je een afbouwadvies (bijvoorbeeld WINST BESCHERMEN, STOP OPTREKKEN of HOUDT STAND). Kader controleert je posities ook op de achtergrond en stuurt een melding als een positie de rand van je kader nadert of als eToro een positie voor je sluit.
+**Portfolio.** Je open posities, uit eToro of handmatig ingevoerd, met je resultaat groot in beeld en een stip op de stop-doel-baan voor de live koers. Uitgeklapt zie je een afbouwadvies (bijvoorbeeld WINST BESCHERMEN of HOUDT STAND). Kader controleert je posities ook op de achtergrond en stuurt een melding als een positie de rand van je kader nadert of als eToro een positie voor je sluit.
 
 **Traders.** Beoordeel een eToro Popular Investor op consistentie, risico en spreiding. Je krijgt een score van 0 tot 100, een oordeel GROEN, GEEL of ROOD en een aanbevolen Copy Stop Loss.
 

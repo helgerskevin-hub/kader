@@ -15,6 +15,7 @@ import { PortfolioTrade, risicoStop } from './portfolioTypes';
 import { drempelBijnaOpDoel } from './advies';
 import { bepaalAfbouwAdvies, voorstelTrailingStop } from './afbouw';
 import { PLAFOND_PCT, fmtPctKort } from './openRisico';
+import { STOP_OPTREKKEN_BEWEZEN } from '../engine/drempels';
 
 export type EenDingSoort = 'doelBereikt' | 'stopOptrekken' | 'bijnaDoel' | 'signaal' | 'niets';
 
@@ -165,10 +166,15 @@ if (typeof require !== 'undefined' && require.main === module) {
   console.assert(kiesEenDing({ ...basis, signalen: [sterk], remActief: true }).soort === 'niets', 'rem blokkeert signaal');
   console.assert(kiesEenDing({ ...basis, signalen: [sterk], openRisicoPct: 5.2 }).soort === 'niets', 'boven plafond geen signaal');
 
-  // +1.2 R in winst in een gunstige markt: stop optrekken, voor het signaal.
+  // +1.2 R in winst in een gunstige markt: stop optrekken, voor het signaal. Staat het advies uit
+  // (STOP_OPTREKKEN_BEWEZEN in drempels.ts), dan is er geen voorstel en wint het signaal.
   const stopInv = { ...basis, open: [trade()], livePrijzen: { SOL: 112 }, marktPerSymbool: { SOL: markt() }, signalen: [sterk] };
   const s = kiesEenDing(stopInv);
-  console.assert(s.soort === 'stopOptrekken' && s.voorstelStop === 107, `stop optrekken naar 107, was ${s.soort} ${s.voorstelStop}`);
+  if (STOP_OPTREKKEN_BEWEZEN) {
+    console.assert(s.soort === 'stopOptrekken' && s.voorstelStop === 107, `stop optrekken naar 107, was ${s.soort} ${s.voorstelStop}`);
+  } else {
+    console.assert(s.soort === 'signaal', `advies uit: het signaal wint, was ${s.soort}`);
+  }
   // Stop staat al op de instap: geen optrekadvies meer.
   console.assert(kiesEenDing({ ...stopInv, open: [trade({ stopLoss: 100 })] }).soort === 'signaal', 'stop op instap: niets op te trekken');
   // Doel gehaald gaat voor alles.

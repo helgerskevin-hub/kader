@@ -206,6 +206,12 @@ Niet gewijzigd, bewust:
   dat volgt, handelt met een krappe stop die meting M en N juist hebben afgewezen (de kosten wegen
   dan weer zwaar), en met een plan dat nooit gemeten is: de metingen trekken de stop niet bij. Tot
   dat gemeten is: het trailing-advies niet geven bij een trade met dit plan, of het meten.
+  **Besluit van Kevin, 12 nov 2026:** het advies staat uit, achter de schakelaar
+  `STOP_OPTREKKEN_BEWEZEN` in `engine/drempels.ts`. `voorstelTrailingStop` geeft dan geen voorstel,
+  dus het afbouwadvies in Portfolio, de kaart op Vandaag en de meldingen noemen geen nieuwe stop
+  meer. Het geldt voor elke open positie, ook een oude met het vorige plan: het verschil is aan een
+  positie niet betrouwbaar te zien, en ook daar is het advies nooit gemeten. Zelf je stop verzetten
+  kan nog steeds. Terugzetten kan na een meting op signalen van na 11 nov 2026.
 - De animatie bij het hoofdstuk Advieslabels toont nog de drie labels.
 - De poort: ongewijzigd, de variant met EMA200 was op de toets niet beter.
 
