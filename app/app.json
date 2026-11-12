@@ -3,7 +3,7 @@
     "name": "Kader",
     "slug": "kader",
     "scheme": "kader",
-    "version": "0.4.3",
+    "version": "0.4.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.kader.app",
       "allowBackup": false,
-      "versionCode": 45
+      "versionCode": 46
     },
     "web": {
       "favicon": "./assets/favicon.png"
