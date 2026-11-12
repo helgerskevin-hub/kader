@@ -13,7 +13,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scoorCandles, STANDAARD_UNIVERSUM, MIN_CANDLES } from '../src/engine/analyzer';
+import { scoorCandles, KLIMAAT_UNIVERSUM, MIN_CANDLES } from '../src/engine/analyzer';
 import { ema, atr as atrReeks } from '../src/engine/indicators';
 import { radarNiveaus } from '../src/engine/momentum';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
@@ -357,7 +357,7 @@ const onderdeel = (process.argv[1] ?? '').endsWith('meting-algoritme.ts') ? (pro
 if (onderdeel) {
   const holdout = onderdeel === 'toets';
   if (holdout && !existsSync(MAP_HOLDOUT)) { console.error('Geen holdout. Draai eerst node scripts/haal-holdout.mjs vanuit de repo-root.'); process.exit(1); }
-  const set57 = laadSet(MAP_57, STANDAARD_UNIVERSUM);
+  const set57 = laadSet(MAP_57, KLIMAAT_UNIVERSUM);
   const btc = set57.find(c => c.sym === 'BTC')!;
   // De periode: vanaf de eerste dag dat de poort te bepalen is, t/m de laatste BTC-dag.
   const datums = btc.datum.filter(poortBekend);

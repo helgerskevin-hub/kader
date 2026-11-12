@@ -1,4 +1,4 @@
-// Haalt de dagcandles op van Binance-USDT-paren die NIET in STANDAARD_UNIVERSUM staan, en dumpt
+// Haalt de dagcandles op van Binance-USDT-paren die NIET in KLIMAAT_UNIVERSUM (de 57 gemeten coins) staan, en dumpt
 // die naar data/holdout/. Dat is de toetsset van meting O (docs/algoritme-plan.md): de 57 coins
 // van de app en de jaren 2023 t/m 2026 zijn in meting M en N al bekeken, dus een nieuwe regel
 // kan alleen nog eerlijk getoetst worden op coins die nooit in een meting hebben gezeten.
@@ -33,7 +33,7 @@ function extractArray(src, name) {
   if (!m) throw new Error(`Kon ${name} niet vinden`);
   return [...m[1].matchAll(/'([A-Z0-9]+)'/g)].map(x => x[1]);
 }
-const universum = new Set(extractArray(lees('../app/src/engine/analyzer.ts'), 'STANDAARD_UNIVERSUM'));
+const universum = new Set(extractArray(lees('../app/src/engine/analyzer.ts'), 'KLIMAAT_UNIVERSUM'));
 
 // Oude en nieuwe tickers van coins die al in het universum zitten.
 const ZELFDE_COIN = new Set(['POL', 'S', 'SKY', 'RENDER', 'BCC', 'BCHABC', 'VEN', 'LEND', 'BTCB', 'BNSOL']);
