@@ -1,4 +1,5 @@
-import { Trade } from '../engine/types';
+import { Trade, Candle } from '../engine/types';
+import { NALOOP_LOW_DAGEN } from '../engine/naloopRustig';
 import { Klimaat } from '../engine/marktklimaat';
 import { STOP_OPTREKKEN_BEWEZEN } from '../engine/drempels';
 import { PortfolioTrade } from './portfolioTypes';
@@ -49,6 +50,21 @@ export function voorstelTrailingStop(
 ): number | null {
   if (!STOP_OPTREKKEN_BEWEZEN) return null;
   return rekenTrailingStop(entryPrijs, koers, atr, huidigeStop);
+}
+
+/**
+ * De stop voor een coin uit het Kader-mandje: het laagste punt van de laatste 20 afgesloten
+ * dagcandles, alleen omhoog (docs/mandje-lat.md, zelfde regel als volg() in engine/naloopRustig.ts).
+ * Los van STOP_OPTREKKEN_BEWEZEN: die gaat over het oude plan met een vast doel; deze meelopende
+ * stop is gemeten in meting O. Geeft null als er niets te verhogen valt of de stop boven de koers
+ * zou komen.
+ */
+export function voorstelMandjeStop(candles: Candle[], huidigeStop: number, koers: number, nu: number): number | null {
+  const af = candles.filter(c => typeof c.tijd === 'number' && (c.tijd as number) + 86_400_000 <= nu);
+  if (af.length < NALOOP_LOW_DAGEN) return null;
+  const laagste = Math.min(...af.slice(-NALOOP_LOW_DAGEN).map(c => c.low));
+  if (!(laagste > huidigeStop) || !(laagste < koers)) return null;
+  return laagste;
 }
 
 export type AfbouwNiveau = 'houden' | 'letOp' | 'afbouwen';
@@ -198,6 +214,12 @@ if (require.main === module) {
   console.assert(a?.trailingStop === verwachtA, `trailing stop ${verwachtA} verwacht, was ${a?.trailingStop}`);
   console.assert(STOP_OPTREKKEN_BEWEZEN || !a?.tekst.includes('stop op te trekken'), 'zonder voorstel noemt de tekst het optrekken niet');
   console.assert(STOP_OPTREKKEN_BEWEZEN || voorstelTrailingStop(100, 110, 5, 90) === null, 'schakelaar uit: geen voorstel');
+  // Mandje-stop: 21 afgesloten dagen, laagste van de laatste 20 is 95.
+  const dag = (n: number) => Date.UTC(2027, 0, 1 + n);
+  const kaarsen = Array.from({ length: 21 }, (_, i) => ({ open: 100, high: 105, low: i === 0 ? 80 : 95 + (i % 3), close: 100, volume: 0, tijd: dag(i) }));
+  console.assert(voorstelMandjeStop(kaarsen, 90, 100, dag(21)) === 95, 'mandje-stop: laagste van 20 dagen');
+  console.assert(voorstelMandjeStop(kaarsen, 96, 100, dag(21)) === null, 'mandje-stop: alleen omhoog');
+  console.assert(voorstelMandjeStop(kaarsen, 90, 94, dag(21)) === null, 'mandje-stop: niet boven de koers');
 
   // Onder water in een dalende markt: plan volgen, geen afbouwadvies.
   const b = bepaalAfbouwAdvies(trade(), 95, markt({ ema50: 120 }), 'ongunstig');

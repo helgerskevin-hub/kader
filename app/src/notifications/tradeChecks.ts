@@ -1,5 +1,6 @@
 import { PortfolioTrade, risicoStop } from '../state/portfolioTypes';
-import { voorstelTrailingStop, bepaalAfbouwAdvies } from '../state/afbouw';
+import { voorstelTrailingStop, voorstelMandjeStop, bepaalAfbouwAdvies } from '../state/afbouw';
+import { laadMandjeSymbolen } from '../state/naloopBoek';
 import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { haalData, haalLaatstePrijzen } from '../engine/marketData';
 import { scoorCandles, analyseerMarkt } from '../engine/analyzer';
@@ -14,7 +15,7 @@ import { isGenegeerd } from '../state/positieSleutel';
 // 'verhoogTP', 'klimaat' en 'portfolioRisico' bestonden tot deze versie. Ze worden niet meer
 // verstuurd; oude regels in het meldingenlog blijven gewoon leesbaar (het log bewaart titel en tekst,
 // niet het type), en oude suppressie-sleutels ruimt snoei na zes uur vanzelf op.
-type TriggerType = 'trekStopAan' | 'sterkeKoop' | 'afbouwen';
+type TriggerType = 'trekStopAan' | 'sterkeKoop' | 'afbouwen' | 'mandjeStop';
 
 // Per trade + trigger het epoch-ms van de laatst verstuurde melding.
 type SuppressieState = Record<string, number>;
@@ -134,7 +135,8 @@ export async function loggeMeldingen(meldingen: Melding[], nu: number): Promise<
 
 // Beoordeelt één open trade op verse candles. Retourneert de meldingen die op grond van de markt
 // terecht zijn; de suppressie beslist daarna pas of ze ook echt verstuurd worden.
-async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
+async function beoordeelTrade(trade: PortfolioTrade, mandje: Set<string>): Promise<Melding[]> {
+  if (mandje.has(trade.symbool)) return beoordeelMandjeTrade(trade);
   if (trade.stopLoss <= 0 || trade.takeProfit <= 0) return [];
 
   // Vormcontrole: stop < entry < doel. Klopt dat niet, dan is de trade niet te beoordelen en
@@ -205,6 +207,30 @@ async function beoordeelTrade(trade: PortfolioTrade): Promise<Melding[]> {
   }
 
   return meldingen;
+}
+
+// Een positie in een coin uit het Kader-mandje: geen doel, alleen de stop die elke dag meeschuift
+// naar het laagste punt van 20 dagen (docs/mandje-lat.md). Eén melding als hij omhoog kan; de
+// suppressie van zes uur houdt dat op hoogstens een paar keer per dag, en in de praktijk verandert
+// het niveau maar één keer per dagslot.
+async function beoordeelMandjeTrade(trade: PortfolioTrade): Promise<Melding[]> {
+  if (!(trade.stopLoss > 0)) return [];
+  const data = await haalData(trade.symbool);
+  // Alleen dagcandles: de CoinGecko-terugval levert vier-uurs candles.
+  if (!data || data.bron !== 'Binance' || data.candles.length === 0) return [];
+  const koers = data.candles[data.candles.length - 1].close;
+  const voorstel = voorstelMandjeStop(data.candles, trade.stopLoss, koers, Date.now());
+  if (voorstel === null) return [];
+  const bevestigbaar = trade.bron === 'etoro';
+  return [{
+    sleutel: sleutelVoor(trade.id, 'mandjeStop'),
+    doel: bevestigbaar
+      ? { soort: 'trade', tradeId: trade.id, symbool: trade.symbool, voorstelStop: voorstel }
+      : { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
+    titel: `${trade.symbool}: stop omhoog`,
+    tekst: `Mandje-plan: zet je stop van ${fmtPrijs(trade.stopLoss)} naar ${fmtPrijs(voorstel)}, het laagste punt van de laatste 20 dagen.`
+      + (bevestigbaar ? ' Tik om te bekijken en te bevestigen.' : ' Pas de stop aan via Aanpassen bij de trade.'),
+  }];
 }
 
 // Eén marktronde: haalt de scan één keer op en leidt daar alle marktbrede meldingen uit af. Bewust
@@ -359,9 +385,10 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   const state = leesSuppressie(await laadObject<Record<string, unknown>>(SLEUTELS.meldingSuppressie));
 
   const kandidaten: Melding[] = [];
+  const mandje = await laadMandjeSymbolen();
   for (const trade of open) {
     try {
-      kandidaten.push(...await beoordeelTrade(trade));
+      kandidaten.push(...await beoordeelTrade(trade, mandje));
     } catch {
       // Eén coin die geen data geeft mag de rest van de ronde niet meeslepen.
     }
@@ -407,7 +434,7 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   }
 
   const levend = new Set(
-    open.flatMap(t => [sleutelVoor(t.id, 'trekStopAan'), sleutelVoor(t.id, 'afbouwen')]),
+    open.flatMap(t => [sleutelVoor(t.id, 'trekStopAan'), sleutelVoor(t.id, 'afbouwen'), sleutelVoor(t.id, 'mandjeStop')]),
   );
   await bewaarObject(SLEUTELS.meldingSuppressie, snoei(bijgewerkt, levend, nu));
 
