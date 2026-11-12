@@ -31,7 +31,7 @@ eToro's spread kan daar boven de 1% per kant uitkomen waarmee de metingen rekene
 - Markt, Kansen, de naloop van regel C en de Copy-tab kijken naar 148 coins. Een scan duurt ongeveer twee
   keer zo lang (blokken van 6).
 - `haalStopLossLimieten` vroeg eToro maximaal 100 symbolen en liet de rest stil vallen; nu in blokken van 100.
-- 45 coins hebben geen logo en tonen een monogram, zie `app/assets/coins/LICENTIES.md`.
+- 38 coins hebben geen vrij te gebruiken logo en krijgen een eigen badge (cirkel in de merkkleur met de ticker), zie `app/assets/coins/LICENTIES.md`.
 
 ## Opgevallen
 
@@ -41,3 +41,20 @@ eToro's spread kan daar boven de 1% per kant uitkomen waarmee de metingen rekene
   over.
 - De nieuwe coins hebben geen naam of uitleg in `coinInfo.ts`; de app toont dan de ticker en "Onbekend",
   net als bij de meeste van de oorspronkelijke 57.
+
+## Meting P: het klimaat op 148 coins (beslisregel vooraf, 12 nov 2026)
+
+De vraag: moet de marktbreedte in het klimaat over alle 148 coins gaan in plaats van over de 57?
+Zelfde poort (BTC boven EMA50 en de breedte hoger dan 20 dagen terug, minstens 20 coins met historie),
+alleen een andere set voor de breedte. Script: `app/scripts/meting-algoritme.ts klimaat`.
+
+Gemeten, met de portefeuille-simulatie van meting O (1% per kant, 15 nov 2019 t/m nu):
+
+- op hoeveel dagen de twee poorten hetzelfde zeggen;
+- Nu (score 55+, stop 3x ATR, doel 3R) en regel C, elk met de poort op 57 en de poort op 148;
+- dat allebei op de 57 coins als handelsset (vergelijkbaar met meting O) en op alle 148 (wat de app nu doet).
+
+Overstappen op 148 alleen als, op beide handelssets en voor zowel Nu als regel C, de poort op 148:
+een hogere CAGR geeft, een max drawdown die niet slechter is, en in de meerderheid van de jaren beter
+is. Anders blijft de breedte op de 57. Er is hier geen ongeziene toetsdata: de jaren en BTC zijn in
+meting M, N en O al bekeken. Daarom een strenge lat; het signaalboek moet het daarna live bevestigen.
