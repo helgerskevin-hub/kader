@@ -58,3 +58,27 @@ Overstappen op 148 alleen als, op beide handelssets en voor zowel Nu als regel C
 een hogere CAGR geeft, een max drawdown die niet slechter is, en in de meerderheid van de jaren beter
 is. Anders blijft de breedte op de 57. Er is hier geen ongeziene toetsdata: de jaren en BTC zijn in
 meting M, N en O al bekeken. Daarom een strenge lat; het signaalboek moet het daarna live bevestigen.
+
+### Uitkomst meting P
+
+142 van de 148 coins hebben genoeg historie. De breedte op de 57 geeft exact `poortOpen()` (0 van 2554
+dagen anders).
+
+- **De twee poorten zeggen op 98% van de dagen hetzelfde** (2496 van 2554), per jaar 95 tot 100%. Open op
+  853 dagen (57) tegen 863 dagen (148).
+- **Op 148 is in alle vier de combinaties iets slechter**:
+
+| handelsset, regel | poort op 57 | poort op 148 | beter in jaren |
+|---|---|---|---|
+| 57 coins, Nu | +11,1%, terugval -89% | +9,0%, -92% | 3 van 7 |
+| 57 coins, regel C | +103,0%, -60% | +99,9%, -57% | 2 van 7 |
+| 148 coins, Nu | +30,6%, -89% | +28,2%, -90% | 4 van 7 |
+| 148 coins, regel C | +89,3%, -64% | +87,7%, -61% | 4 van 7 |
+
+**Oordeel: de breedte blijft op de 57.** De lat vroeg een hogere CAGR in alle vier, en die haalt de brede
+poort nergens. Het verschil is klein; de keuze doet er weinig toe, en dan wint de versie die gemeten is.
+
+Terzijde, geen besluit: handelen in alle 148 coins in plaats van de 57 gaf voor Nu een hoger rendement
+(+30,6% tegen +11,1%) en voor regel C een lager (+89% tegen +103%), met regel C sinds 2025 wel beter.
+Dat is op jaren die al bekeken zijn, en de 148 coins zijn coins die er nu nog zijn: overlevingsbias
+maakt dit cijfer te mooi.

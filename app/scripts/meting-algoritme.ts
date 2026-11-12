@@ -13,7 +13,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scoorCandles, KLIMAAT_UNIVERSUM, MIN_CANDLES } from '../src/engine/analyzer';
+import { scoorCandles, KLIMAAT_UNIVERSUM, STANDAARD_UNIVERSUM, MIN_CANDLES } from '../src/engine/analyzer';
 import { ema, atr as atrReeks } from '../src/engine/indicators';
 import { radarNiveaus } from '../src/engine/momentum';
 import { DREMPEL_KOOP } from '../src/engine/drempels';
@@ -436,6 +436,68 @@ if (onderdeel) {
     const dagen = (Date.parse(eind) - Date.parse(datums[0])) / DAG_MS - 365;
     return Math.pow(groei, 365 / dagen) - 1;
   };
+
+  // Meting P: dezelfde poort als poortOpen() in meting-kansen.ts, maar met de breedte over een
+// andere set coins. Op de 57 moet hij exact poortOpen() geven (controle hieronder).
+function breedtePoort(set: Coin[], btc: Coin): (d: string) => boolean {
+  const tel: Record<string, { boven: number; totaal: number }> = {};
+  for (const coin of set) for (let i = 50; i < coin.c.length; i++) {
+    const t = (tel[coin.datum[i]] ??= { boven: 0, totaal: 0 });
+    t.totaal++;
+    if (coin.c[i].close > coin.ema50[i]) t.boven++;
+  }
+  const breedte: Record<string, number> = {};
+  for (const [d, t] of Object.entries(tel)) if (t.totaal >= 20) breedte[d] = t.boven / t.totaal;
+  const dagen = Object.keys(breedte).sort();
+  const stijgt = new Set<string>();
+  for (let i = 20; i < dagen.length; i++) if (breedte[dagen[i]] > breedte[dagen[i - 20]]) stijgt.add(dagen[i]);
+  const btc50 = new Set<string>();
+  for (let i = 50; i < btc.c.length; i++) if (btc.c[i].close > btc.ema50[i]) btc50.add(btc.datum[i]);
+  return d => btc50.has(d) && stijgt.has(d);
+}
+const metPoort = (set: Coin[], poort: (d: string) => boolean): Coin[] =>
+  set.map(c => ({ ...c, bars: c.bars.map(b => ({ ...b, poort: poort(b.datum) })) }));
+
+  if (onderdeel === 'klimaat') {
+    // De 148 coins staan na node scripts/haal-historie.mjs 9 ook in data/historie/.
+    const set148 = [...set57, ...laadSet(MAP_57, STANDAARD_UNIVERSUM.filter(s => !KLIMAAT_UNIVERSUM.includes(s)))];
+    console.log(`  ${set148.length} coins met historie voor de brede set.\n`);
+    const p57 = breedtePoort(set57, btc), p148 = breedtePoort(set148, btc);
+    const fout = datums.filter(d => p57(d) !== poortOpen(d)).length;
+    console.log(`  controle: breedte op de 57 wijkt op ${fout} van ${datums.length} dagen af van poortOpen() (verwacht 0)`);
+    const gelijk = datums.filter(d => p57(d) === p148(d)).length;
+    console.log(`  zelfde oordeel op ${gelijk} van ${datums.length} dagen (${pct(gelijk / datums.length)}); open: 57 op ${datums.filter(p57).length} dagen, 148 op ${datums.filter(p148).length} dagen`);
+    const perJaar = jaren.map(j => { const ds = datums.filter(d => d.startsWith(j)); return `${j} ${pct(ds.filter(d => p57(d) === p148(d)).length / ds.length)}`; });
+    console.log(`  zelfde oordeel per jaar: ${perJaar.join(', ')}\n`);
+    kop(jaren);
+    ijk();
+    rij('BTC met poort op 148', uitslag(eenMunt(btc, p148, datums)), jaren);
+    const C: Strategie = { naam: 'C', instap: INSTAPPEN.I1, uitstap: UITSTAPPEN.U4, plekken: 5, rang: 'rustig' };
+    const uitkomst: Record<string, Uitslag> = {};
+    for (const [handelNaam, basis] of [['57', set57], ['148', set148]] as [string, Coin[]][]) {
+      for (const [poortNaam, poort] of [['57', p57], ['148', p148]] as [string, (d: string) => boolean][]) {
+        const sp = metPoort(basis, poort);
+        for (const r of [NU, C]) {
+          const cv = portefeuille(sp, r, datums);
+          const u = uitslag(cv);
+          uitkomst[`${handelNaam}|${r.naam === 'C' ? 'C' : 'Nu'}|${poortNaam}`] = u;
+          rij(`handel ${handelNaam}, ${r.naam === 'C' ? 'C' : 'Nu'}, poort ${poortNaam}`, u, jaren, cv.trades.filter(t => t.af));
+        }
+      }
+      console.log('');
+    }
+    // De lat uit docs/universum-uitbreiding.md.
+    let alles = true;
+    for (const h of ['57', '148']) for (const r of ['Nu', 'C']) {
+      const a = uitkomst[`${h}|${r}|57`], b = uitkomst[`${h}|${r}|148`];
+      const js = jaren.filter(j => j !== jaren[0]);
+      const beter = js.filter(j => b.perJaar[j] > a.perJaar[j]).length;
+      const ok = b.cagr > a.cagr && b.dd >= a.dd && beter > js.length / 2;
+      alles &&= ok;
+      console.log(`  handel ${h}, ${r}: poort 148 ${ok ? 'BETER' : 'niet beter'} (CAGR ${pct(b.cagr, 1)} tegen ${pct(a.cagr, 1)}, DD ${pct(b.dd)} tegen ${pct(a.dd)}, beter in ${beter} van ${js.length} jaren)`);
+    }
+    console.log(`\n  Oordeel: ${alles ? 'overstappen op de breedte over 148 coins' : 'de breedte blijft op de 57'}`);
+  }
 
   if (onderdeel === 'combinatie' || onderdeel === 'toets') {
     kop(jaren);

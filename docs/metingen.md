@@ -590,3 +590,11 @@ gevuld +48%. Zonder de coin met de grootste bijdrage blijft de netto R aantoonba
   dag laten verzetten; of en hoe snel dat kan is niet gemeten.
 - In de afstelronde zijn op de 57 coins zo'n dertig varianten bekeken. Daarom ging er maar één
   combinatie naar de holdout, met drie regels ernaast.
+
+## Meting P: het klimaat op 148 coins (12 nov 2026)
+
+Na het uitbreiden van het universum naar 148 coins: de marktbreedte in de poort over alle 148 of over de
+57 gemeten coins? Beslisregel vooraf en volledige uitkomst in `docs/universum-uitbreiding.md`. Kort: de
+twee poorten zeggen op 98% van de dagen hetzelfde, en de brede poort is in alle vier de combinaties (Nu
+en regel C, handelen in 57 of in 148 coins) iets slechter, met 1,5 tot 3 procentpunt minder CAGR. De
+breedte blijft op de 57 (`KLIMAAT_UNIVERSUM` in `analyzer.ts`).
