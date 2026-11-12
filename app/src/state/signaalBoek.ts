@@ -72,9 +72,11 @@ export function werkSignalenBij(forceer = false): Promise<void> {
     }
     // Opnieuw laden: tijdens het ophalen kan er een nieuw signaal bij zijn gekomen.
     const vers = await laadBoek();
+    // Alleen op dagcandles van Binance: bepaalUitkomst rekent in dagen, de CoinGecko-terugval levert
+    // vier-uurs candles. Zelfde regel als het volglijstboek.
     const signalen = vers.signalen.map(s => {
       const c = candles[s.symbool];
-      return c ? bepaalUitkomst(s, c.candles, nu) : s;
+      return c && c.bron === 'Binance' ? bepaalUitkomst(s, c.candles, nu) : s;
     });
     await bewaar({ ...vers, signalen, laatstBijgewerkt: nu });
   }).catch(() => undefined);

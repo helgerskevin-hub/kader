@@ -200,6 +200,12 @@ Niet gewijzigd, bewust:
 - De checks op je open posities (`tradeChecks.ts`) en het afbouwadvies rekenen nog met de oude
   niveaus uit `scoorCandles`. Die gaan over posities die je al hebt; een nieuw plan daarvoor is
   een eigen meting waard.
+  **Review 12 nov 2026, vervolgpunt met voorrang:** dit botst met het nieuwe plan. Staat een trade
+  die met stop 3x ATR is geopend in winst en vlakt de MACD af (ongeveer de helft van de dagen), dan
+  stelt `voorstelTrailingStop` voor de stop op break-even of 1x ATR onder de koers te zetten. Wie
+  dat volgt, handelt met een krappe stop die meting M en N juist hebben afgewezen (de kosten wegen
+  dan weer zwaar), en met een plan dat nooit gemeten is: de metingen trekken de stop niet bij. Tot
+  dat gemeten is: het trailing-advies niet geven bij een trade met dit plan, of het meten.
 - De animatie bij het hoofdstuk Advieslabels toont nog de drie labels.
 - De poort: ongewijzigd, de variant met EMA200 was op de toets niet beter.
 

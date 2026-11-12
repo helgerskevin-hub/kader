@@ -1,10 +1,6 @@
 import { Candle, Opportunity, Trade } from './types';
 import { haalData, haalCoingeckoMarkten } from './marketData';
 import { STANDAARD_UNIVERSUM, scoorCandles, splitsLopendeDag } from './analyzer';
-
-// Staat in analyzer.ts omdat Markt hem ook gebruikt; hier opnieuw geëxporteerd voor wie hem bij
-// de Kansen-scan zoekt.
-export { splitsLopendeDag };
 import { infoVoor } from './coinInfo';
 import { StopLossLimiet, EtoroNiveaus, etoroNiveaus } from './etoroLimieten';
 import { bepaalKlimaat, Marktklimaat } from './marktklimaat';

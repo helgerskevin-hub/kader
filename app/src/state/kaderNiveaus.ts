@@ -20,7 +20,10 @@ export async function haalKaderNiveaus(symbool: string): Promise<KaderNiveaus | 
       ? splitsLopendeDag(data.candles, Date.now())
       : { gesloten: data.candles, prijsNu: null };
     const ruw = scoorCandles(symbool, gesloten, data.bron, { minRR: 0 });
-    const trade = ruw ? metPlan(ruw, prijsNu) : null;
+    // Het plan alleen op dagcandles van Binance, zoals scoorVoorMarkt in analyzer.ts: op de
+    // vier-uurs candles van de CoinGecko-terugval is 3x ATR ongeveer 1,2x de dag-ATR, precies de
+    // krappe stop die de kosten niet draagt. Dan blijven de niveaus van scoorCandles staan.
+    const trade = ruw ? (data.bron === 'Binance' ? metPlan(ruw, prijsNu) : ruw) : null;
     if (!trade || !(trade.prijs > 0) || !(trade.stopLoss > 0) || !(trade.takeProfit > 0)) return null;
     return { koers: trade.prijs, stop: trade.stopLoss, doel: trade.takeProfit };
   } catch {
