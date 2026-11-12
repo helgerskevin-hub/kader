@@ -128,7 +128,7 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
   // Prijs en R/R staan op de kaart maar zaten niet in het label: de ring en de chip zijn hier
   // niet apart voorleesbaar (ze zitten binnen het tikvlak), dus zonder deze twee mist TalkBack ze.
   const kaartLabel =
-    `${trade.symbool}, ${info.naam}, ${advies}${uitkomst.bevestigd ? ', BEVESTIGD' : ''}, score ${Math.round(trade.score)}`
+    `${trade.symbool}, ${info.naam}${advies !== 'AFWACHTEN' ? `, ${advies}` : ''}${uitkomst.bevestigd ? ', BEVESTIGD' : ''}, score ${Math.round(trade.score)}`
     + `, prijs ${fmtPrijs(trade.prijs)}, R/R ${fmtRR(niveaus.rr)}`;
 
   return (
@@ -211,7 +211,9 @@ export const TradeCard = memo(function TradeCard({ trade, onGetrade, onOpenDetai
         {/* Wrap: met een grotere systeemletter passen badge, keurmerk en R/R op 360 dp niet altijd
             naast elkaar. De pijl blijft dan rechts op de laatste regel. */}
         <View style={styles.voet}>
-          <AdviceBadge advies={advies} score={trade.score} />
+          {/* AFWACHTEN stond sinds meting N op elke coin en zei daarmee niets. Het advies is nu het
+              Kader-mandje bovenaan Markt; de kaart toont de score als informatie. */}
+          {advies !== 'AFWACHTEN' && <AdviceBadge advies={advies} score={trade.score} />}
           {uitkomst.bevestigd && <BevestigdKeurmerk animeer={animeerKeurmerk} />}
           {/* Onder de drempel kleurt de verhouding: de coin blijft zichtbaar, maar dit is precies
               de reden dat hij geen KOOP wordt. Zonder markering lijkt het een willekeurig getal. */}
