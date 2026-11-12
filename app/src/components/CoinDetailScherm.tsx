@@ -39,6 +39,7 @@ import { useValutaStand } from '../state/useValuta';
 import { etoroNiveaus } from '../engine/etoroLimieten';
 import { rsUitleg } from '../engine/relatieveSterkte';
 import { useStopLossLimiet } from '../state/useStopLossLimiet';
+import { useGrafiekSoort } from '../state/useGrafiekSoort';
 import { PodiumScherm } from './PodiumScherm';
 
 interface Props {
@@ -110,6 +111,8 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const [handelReden, setHandelReden] = useState('');
   const { magHandelen, omgeving } = usePortfolio();
   const stopLimiet = useStopLossLimiet(data ? data.symbool : null);
+  // Lijn of candles, uit Instellingen. Wisselt live mee als je het daar omzet.
+  const { soort: grafiekSoort } = useGrafiekSoort();
 
   useEffect(() => {
     if (dataProp && !vorigeDataProp.current) binnenkomstGehad.current = false;
@@ -157,8 +160,9 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
   const heeftNiveaus = data.entry !== undefined && data.stopLoss !== undefined && data.takeProfit !== undefined;
   const kanGetrade = heeftNiveaus && data.context !== 'portfolio';
   // Traden kan vanaf elk scherm, ook vanaf de volglijst van Kansen: Kader adviseert daar niet, maar
-  // wie zelf kiest moet het hier kunnen doen. Alleen niet met een plan uit een verouderde scan.
-  const kanTraden = !data.planVerouderd;
+  // wie zelf kiest moet het hier kunnen doen. Alleen niet met een plan uit een verouderde scan (zie
+  // zonderKoop in coinDetailData.ts).
+  const kanTraden = !data.zonderKoop;
   const getradeBron: GetradeBron | null = kanGetrade
     ? { symbool: data.symbool, entry: data.entry!, stopLoss: data.stopLoss!, takeProfit: data.takeProfit!, rr: data.rr ?? 0 }
     : null;
@@ -334,7 +338,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
             {status === 'success' && indicatoren && (
               <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
                 <Animated.View entering={binnenkomst()} style={kaart}>
-                  <PrijsGrafiek candles={candles} niveaus={niveaus} laadIntraday={laadIntraday} />
+                  <PrijsGrafiek candles={candles} niveaus={niveaus} laadIntraday={laadIntraday} soort={grafiekSoort} />
                 </Animated.View>
 
                 {heeftNiveaus && (
@@ -528,7 +532,7 @@ export function CoinDetailScherm({ data: dataProp, onSluiten }: Props) {
                       <PilKnop
                         label="Trade via eToro"
                         icoon={ShoppingCart}
-                        variant="cta"
+                        variant={data.koopRustig ? 'tweede' : 'cta'}
                         onPress={openHandel}
                         accessibilityLabel={`${data.symbool} kopen via eToro`}
                       />

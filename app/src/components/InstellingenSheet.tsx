@@ -29,6 +29,7 @@ import { Valuta } from '../engine/valuta';
 import { meldingenAan } from '../state/meldingVoorkeur';
 import { zetMeldingen } from '../state/meldingSchakelaar';
 import { useRisicoPct, type RisicoPct } from '../state/useRisicoPct';
+import { useGrafiekSoort, type GrafiekSoort } from '../state/useGrafiekSoort';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
 import { weekrapportAan, zetWeekrapport } from '../notifications/weekrapport';
 import { useWidgetWeergave, type WidgetHoofdgetal, type WidgetIndeling } from '../state/widgetWeergave';
@@ -76,6 +77,11 @@ const RISICOS: SegmentOptie<RisicoPct>[] = [
 const VALUTAS: SegmentOptie<Valuta>[] = [
   { id: 'USD', label: 'Dollar', uitleg: 'Bedragen in dollar' },
   { id: 'EUR', label: 'Euro', uitleg: 'Bedragen in euro' },
+];
+
+const GRAFIEKSOORTEN: SegmentOptie<GrafiekSoort>[] = [
+  { id: 'lijn', label: 'Lijn', uitleg: 'Koersgrafiek als lijn' },
+  { id: 'candles', label: 'Candles', uitleg: 'Koersgrafiek als candles' },
 ];
 
 const OMGEVINGEN: SegmentOptie<EtoroOmgeving>[] = [
@@ -135,6 +141,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const [meldingen, setMeldingen] = useState(true);
   const [weekrapport, setWeekrapport] = useState(true);
   const { pct: risico, pctGetal: risicoGetal, kiesPct } = useRisicoPct();
+  const { soort: grafiekSoort, kiesSoort: kiesGrafiekSoort } = useGrafiekSoort();
   const { kapitaal } = useHandelskapitaal();
   const [bezigMeldingen, setBezigMeldingen] = useState(false);
   const { weergave: widget, kies: kiesWidget } = useWidgetWeergave(tekenWidgets);
@@ -357,6 +364,9 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                     <Text style={[Type.caption, styles.voetnootVervolg, { color: colors.tekstGedimd }]}>
                       Orders reken je bij eToro altijd in dollars af, dus de ordervensters blijven in dollars.
                     </Text>
+                    <Text style={[Type.caption, styles.voetnootVervolg, { color: colors.tekstGedimd }]}>
+                      Candles gelden voor de grote grafiek op het detailscherm van een coin: hol als de koers in die periode steeg, gevuld als hij daalde. De kleine grafiekjes op de kaarten blijven een lijn.
+                    </Text>
                   </>
                 }
               >
@@ -367,6 +377,10 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                 <View style={styles.segmentRij}>
                   <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Valuta</Text>
                   <SegmentKnop opties={VALUTAS} actief={valuta} onKies={kiesValuta} />
+                </View>
+                <View style={styles.segmentRij}>
+                  <Text style={[Type.body, styles.rijLabel, { color: colors.tekstPrimair }]}>Grafiek</Text>
+                  <SegmentKnop opties={GRAFIEKSOORTEN} actief={grafiekSoort} onKies={kiesGrafiekSoort} />
                 </View>
               </LijstGroep>
 

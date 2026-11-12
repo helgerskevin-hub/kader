@@ -206,6 +206,12 @@ Niet gewijzigd, bewust:
   dat volgt, handelt met een krappe stop die meting M en N juist hebben afgewezen (de kosten wegen
   dan weer zwaar), en met een plan dat nooit gemeten is: de metingen trekken de stop niet bij. Tot
   dat gemeten is: het trailing-advies niet geven bij een trade met dit plan, of het meten.
+  **Besluit van Kevin, 12 nov 2026:** het advies staat uit, achter de schakelaar
+  `STOP_OPTREKKEN_BEWEZEN` in `engine/drempels.ts`. `voorstelTrailingStop` geeft dan geen voorstel,
+  dus het afbouwadvies in Portfolio, de kaart op Vandaag en de meldingen noemen geen nieuwe stop
+  meer. Het geldt voor elke open positie, ook een oude met het vorige plan: het verschil is aan een
+  positie niet betrouwbaar te zien, en ook daar is het advies nooit gemeten. Zelf je stop verzetten
+  kan nog steeds. Terugzetten kan na een meting op signalen van na 11 nov 2026.
 - De animatie bij het hoofdstuk Advieslabels toont nog de drie labels.
 - De poort: ongewijzigd, de variant met EMA200 was op de toets niet beter.
 
@@ -217,3 +223,9 @@ haalt op data die bij het afstellen niet gebruikt is.
 - Meten en het voorstel: het sterkste model, hoge inspanning.
 - De bouw daarna: het sterkste model voor de engine en de meldingen, het standaardmodel voor de
   schermen, en de review in een aparte sessie.
+
+## 12. Nieuwe lat voor het advies (12 nov 2026)
+
+De lat uit paragraaf 5 blijft staan als geschiedenis, maar geldt niet meer voor het advies op
+Markt. De kooplabels zijn definitief weg; het advies wordt het Kader-mandje (regel C uit meting O)
+met een eigen, praktische lat. Zie `docs/mandje-lat.md` en meting Q in `docs/metingen.md`.
