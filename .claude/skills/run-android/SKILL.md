@@ -110,7 +110,7 @@ first: `cd app/android && ./gradlew.bat --stop` (Windows) or
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.x.x-hotspot"
 $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-Set-Location C:\dev\app
+Set-Location D:\dev\Kader\app
 npx expo run:android
 ```
 

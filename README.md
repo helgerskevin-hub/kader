@@ -100,7 +100,7 @@ Kader staat niet in de Play Store. Je installeert de app zelf (sideloaden):
 
 ### Zelf bouwen
 
-De app staat in `app/` (React Native en Expo SDK 56, TypeScript). Je hebt nodig: Node.js, JDK 17 of nieuwer (de JBR van Android Studio volstaat) en de Android SDK (platform 35 of nieuwer). Zet `JAVA_HOME` en `ANDROID_HOME` en zet het project op een lokale schijf zonder spaties in het pad (bijvoorbeeld `C:\dev`).
+De app staat in `app/` (React Native en Expo SDK 56, TypeScript). Je hebt nodig: Node.js, precies JDK 17 (niet de JBR van Android Studio, die is nieuwer) en de Android SDK (platform 36, NDK 27.1.12297006). Zet `JAVA_HOME` en `ANDROID_HOME` en zet het project op een lokale schijf zonder spaties in het pad (bijvoorbeeld `D:\dev`).
 
 ```bash
 cd app
