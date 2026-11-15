@@ -923,6 +923,9 @@ export function PortfolioScreen() {
         }
         ListHeaderComponent={
           <>
+            {/* De groep bezit de ruimte tussen de kaarten (gap), zodat die ook klopt als een kaart zichzelf
+                niet rendert. Een kaart die null teruggeeft telt niet mee in de gap. */}
+            <View style={portfolioStyles.kaartGroep}>
             <PortfolioStatusKaart
               waarde={statusWaarde}
               trades={trades}
@@ -957,6 +960,7 @@ export function PortfolioScreen() {
               livePrijzen={livePrijzen}
               onOpenDetail={() => setVerdelingOpen(true)}
             />
+            </View>
 
             {/* Uitkomst van orders die Kader zelf plaatste: geweigerd, geannuleerd of verlopen.
                 Gevuld geeft hier geen melding, die positie verschijnt vanzelf in de lijst hieronder. */}
@@ -1168,6 +1172,7 @@ export function PortfolioScreen() {
 }
 
 const portfolioStyles = StyleSheet.create({
+  kaartGroep: { gap: spacing.md, marginBottom: spacing.base },
   root: { flex: 1 },
   laadWrapper: { paddingTop: spacing.md },
   onbevestigd: {

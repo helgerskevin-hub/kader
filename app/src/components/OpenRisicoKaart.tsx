@@ -91,7 +91,6 @@ export function OpenRisicoKaart({ stand, kapitaal }: { stand: OpenRisico; kapita
 const styles = StyleSheet.create({
   kaart: {
     marginHorizontal: spacing.base,
-    marginTop: spacing.md,
     borderRadius: radii.kaart,
     padding: spacing.base,
     gap: spacing.md,
