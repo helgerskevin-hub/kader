@@ -262,6 +262,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.kaart,
     padding: spacing.base,
     marginHorizontal: spacing.base,
+    marginTop: spacing.md,
     marginBottom: spacing.base,
   },
   kop: {
