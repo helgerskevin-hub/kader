@@ -4,9 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.4.5
 
 - De melding Winst beschermen komt nu één keer per situatie, niet meer elke zes uur. Zolang je coin in winst onder zijn 50-daags gemiddelde blijft in een dalende markt, blijft Kader stil. Pas als dat voorbij is en daarna opnieuw ontstaat, krijg je weer een melding
+- Het scherm Nieuw in Kader, de rondleiding langs wat er nieuw is, opent na een update weer. In 0.4.3 en 0.4.4 viel het terug op de oude lijst met wijzigingen
 
 ## 0.4.4
 

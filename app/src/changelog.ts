@@ -40,10 +40,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.4.5',
     datum: '2026-11-18',
+    nieuweFeatures: [
+      {
+        icoon: 'melding',
+        kleur: 'cta',
+        titel: 'Rustigere meldingen',
+        tekst: 'Winst beschermen komt nu één keer per situatie, niet meer elke zes uur. Pas als de situatie voorbij is en opnieuw ontstaat, meldt Kader het weer.',
+        plek: 'Meldingen, bij je open posities',
+      },
+    ],
     punten: [
       'De melding Winst beschermen komt nu één keer per situatie, niet meer elke zes uur. Zolang je coin in winst onder zijn 50-daags gemiddelde blijft in een dalende markt, blijft Kader stil. Pas als dat voorbij is en daarna opnieuw ontstaat, krijg je weer een melding',
+      'Het scherm Nieuw in Kader, de rondleiding langs wat er nieuw is, opent na een update weer. In 0.4.3 en 0.4.4 viel het terug op de oude lijst met wijzigingen',
     ],
   },
   {

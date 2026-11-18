@@ -53,6 +53,9 @@ time.
    on someone's phone — check `CHANGELOG.md` and prior GitHub release
    assets if unsure, don't just increment from `app.json`'s previous
    value, since past releases have drifted from it before).
+   The newest entry in `app/src/changelog.ts` must have the same version
+   and a non-empty `nieuweFeatures` (the "Nieuw in Kader" tour); the release
+   script refuses to build otherwise.
 2. Run the release script.
 
    Windows:
