@@ -378,7 +378,6 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
 
   // Oude installaties hadden voor 'afbouwen' een tijdstip in de suppressie-state. Dat telt als
   // "al gemeld", zodat de update geen extra melding oplevert, en gaat over naar de aparte lijst.
-  const openIds = new Set(open.map(t => t.id));
   const afbouwGemeld = new Set((await laadLijst<string>(SLEUTELS.afbouwGemeld)).map(String));
   for (const sleutel of Object.keys(state)) {
     if (!sleutel.endsWith(AFBOUW_SUFFIX)) continue;
@@ -431,6 +430,9 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
         else bijgewerkt[melding.sleutel] = nu;
       }
       verstuurd = teVersturen.length;
+      // Direct bewaren, vóór het loggen: gooit het loggen, dan staat een verstuurde melding anders
+      // niet als gemeld en komt hij de volgende ronde nog eens.
+      await bewaarLijst(SLEUTELS.afbouwGemeld, werkAfbouwGemeldBij(afbouwGemeld, alle, [], afbouwVerstuurd));
       await loggeMeldingen(teVersturen, nu);
     }
   }
@@ -446,7 +448,7 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   // uit, anders blijft een trade na herstel voor altijd stil.
   await bewaarLijst(
     SLEUTELS.afbouwGemeld,
-    werkAfbouwGemeldBij(afbouwGemeld, openIds, hersteld, afbouwVerstuurd),
+    werkAfbouwGemeldBij(afbouwGemeld, alle, hersteld, afbouwVerstuurd),
   );
 
   const levend = new Set(open.map(t => sleutelVoor(t.id, 'trekStopAan')));

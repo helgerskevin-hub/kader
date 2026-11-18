@@ -165,17 +165,24 @@ export function beoordeelPortfolioRisico(
  * Wat `verstuurd` is geworden telt als gemeld; een kandidaat die niet is verstuurd (mislukt of door
  * de cooldown tegengehouden) staat daar niet in en blijft dus kandidaat. Trades die niet meer open
  * staan vallen weg, zodat de lijst niet eeuwig groeit.
+ *
+ * Opruimen gebeurt alleen als de trade echt weg is: in `alle` met een andere status dan open, of
+ * niet in `alle` terwijl die lijst gevuld is. Een lege of gedeeltelijke lijst (leesfout in de
+ * achtergrondtaak, verouderde lijst op de voorgrond, een weggefilterde eToro-positie) mag de
+ * gemeld-stand niet wissen, anders komt dezelfde melding gewoon terug.
  */
 export function werkAfbouwGemeldBij(
   gemeld: Iterable<string>,
-  openIds: ReadonlySet<string>,
+  alle: ReadonlyArray<{ id: string; status: string }>,
   hersteld: Iterable<string>,
   verstuurd: Iterable<string>,
 ): string[] {
   const uit = new Set(gemeld);
   for (const id of verstuurd) uit.add(id);
   for (const id of hersteld) uit.delete(id);
-  return [...uit].filter(id => openIds.has(id));
+  if (alle.length === 0) return [...uit];
+  const status = new Map(alle.map(t => [t.id, t.status]));
+  return [...uit].filter(id => status.get(id) === 'open');
 }
 
 // ponytail: self-check ipv testframework, run met `npx tsx app/src/state/afbouw.ts`
@@ -228,14 +235,19 @@ if (require.main === module) {
   console.assert(risico.onderEntry === 1, `alleen SOL staat onder entry, was ${risico.onderEntry}`);
   console.assert(risico.dichtBijStop === 1, `SOL staat op 5 boven zijn stop met ATR 10, was ${risico.dichtBijStop}`);
 
-  const w1 = werkAfbouwGemeldBij([], new Set(['1', '2']), [], ['1']);
+  const open = (...ids: string[]) => ids.map(id => ({ id, status: 'open' }));
+  const w1 = werkAfbouwGemeldBij([], open('1', '2'), [], ['1']);
   console.assert(w1.join() === '1', `verstuurd telt als gemeld, was ${w1}`);
-  const w2 = werkAfbouwGemeldBij(['1'], new Set(['1']), [], []);
+  const w2 = werkAfbouwGemeldBij(['1'], open('1'), [], []);
   console.assert(w2.join() === '1', 'zonder herstel blijft gemeld staan, hoe lang ook');
-  const w3 = werkAfbouwGemeldBij(['1', '2'], new Set(['1', '2']), ['1'], []);
+  const w3 = werkAfbouwGemeldBij(['1', '2'], open('1', '2'), ['1'], []);
   console.assert(w3.join() === '2', `herstel zet alleen die trade weer klaar, was ${w3}`);
-  const w4 = werkAfbouwGemeldBij(['1', '2'], new Set(['2']), [], []);
-  console.assert(w4.join() === '2', 'gesloten trades vallen weg');
+  const w4 = werkAfbouwGemeldBij(['1', '2'], open('2'), [], []);
+  console.assert(w4.join() === '2', 'een trade die uit een gevulde lijst verdwenen is, valt weg');
+  const w5 = werkAfbouwGemeldBij(['1', '2'], [{ id: '1', status: 'gesloten' }, ...open('2')], [], []);
+  console.assert(w5.join() === '2', `gesloten trade valt weg, was ${w5}`);
+  const w6 = werkAfbouwGemeldBij(['1', '2'], [], [], []);
+  console.assert(w6.join() === '1,2', 'een lege lijst wist niets');
 
   console.log('afbouw.ts self-check geslaagd');
 }
