@@ -6,13 +6,14 @@
 
 import { tsImport } from 'tsx/esm/api';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const APP_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 
 export async function controleerChangelog(versionName) {
-  const { CHANGELOG } = await tsImport(join(APP_DIR, 'src', 'changelog.ts'), import.meta.url);
-  const nieuwste = CHANGELOG[0];
+  const { CHANGELOG } = await tsImport(pathToFileURL(join(APP_DIR, 'src', 'changelog.ts')).href, import.meta.url);
+  const nieuwste = CHANGELOG?.[0];
+  if (!nieuwste) return 'De changelog is leeg. Voeg een entry voor deze versie toe in app/src/changelog.ts.';
   if (nieuwste.versie !== versionName) {
     return `De nieuwste changelog-entry (${nieuwste.versie}) hoort bij versie ${versionName} uit app.json te staan. Pas app/src/changelog.ts aan.`;
   }
