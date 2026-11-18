@@ -9,6 +9,7 @@ import { existsSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { controleerChangelog } from './controleer-changelog.mjs';
 
 // Thom en Kevin bouwen allebei, de een op Windows en de ander op macOS. De namen van de
 // SDK-tools en de Gradle-wrapper verschillen per platform, en dit script moet op allebei
@@ -66,6 +67,11 @@ function leesAppJson() {
 console.log('== Kader release-build ==');
 const { versionName, versionCode } = leesAppJson();
 console.log(`app.json zegt: version=${versionName} versionCode=${versionCode}`);
+
+// Eerst de changelog controleren, voor de dure prebuild: zie controleer-changelog.mjs.
+const changelogFout = await controleerChangelog(versionName);
+if (changelogFout) fout(changelogFout);
+console.log('OK: changelog heeft een rondleiding voor deze versie.');
 
 const buildTools = vindBuildTools();
 const aapt2 = join(buildTools, OP_WINDOWS ? 'aapt2.exe' : 'aapt2');
