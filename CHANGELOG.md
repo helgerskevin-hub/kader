@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- De melding Winst beschermen komt nu één keer per situatie, niet meer elke zes uur. Zolang je coin in winst onder zijn 50-daags gemiddelde blijft in een dalende markt, blijft Kader stil. Pas als dat voorbij is en daarna opnieuw ontstaat, krijg je weer een melding
+
 ## 0.4.4
 
 - Markt heeft weer een koopadvies: het Kader-mandje, bovenaan het scherm. Bij een gunstig marktklimaat vult Kader het met de vijf coins die het minst bewegen. Er is geen doel, en de stop schuift elke dag mee naar het laagste punt van de laatste twintig dagen. Koop je een coin uit het mandje, dan gaat de order zonder doel en meldt Kader wanneer je stop omhoog kan; dat is de enige plek waar Kader nog voorstelt je stop te verzetten. Het mandje heeft een eerlijke lat: staat het op 12 mei of 12 november 2027 meer dan 10% lager dan bij de start, of zakt het meer dan 60% onder zijn hoogste stand, dan stopt het advies. Signaalresultaat laat zien hoe het ervoor staat, naast bitcoin houden. De kooplabels KOOPZONE, STERK KOOP en BEVESTIGD zijn definitief weg, en AFWACHTEN staat niet meer op elke kaart

@@ -1,5 +1,5 @@
 import { PortfolioTrade, risicoStop } from '../state/portfolioTypes';
-import { voorstelTrailingStop, voorstelMandjeStop, bepaalAfbouwAdvies } from '../state/afbouw';
+import { voorstelTrailingStop, voorstelMandjeStop, bepaalAfbouwAdvies, werkAfbouwGemeldBij } from '../state/afbouw';
 import { laadMandjeSymbolen } from '../state/naloopBoek';
 import { laadLijst, bewaarLijst, laadObject, bewaarObject, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { haalData, haalLaatstePrijzen } from '../engine/marketData';
@@ -39,13 +39,16 @@ function leesSuppressie(ruw: Record<string, unknown> | null): SuppressieState {
   return schoon;
 }
 
-// Dezelfde melding hooguit eens per zes uur. Hier zat eerder een uitzondering op: verschoof het
+// Dezelfde melding hooguit eens per zes uur (geldt voor 'trekStopAan' en 'sterkeKoop'; 'afbouwen'
+// werkt niet met dit venster maar met een aan/uit-stand per trade, zie SLEUTELS.afbouwGemeld). Hier zat eerder een uitzondering op: verschoof het
 // voorgestelde niveau meer dan 2%, dan mocht de melding er binnen dat venster tóch door, want dan
 // zou het nieuws materieel veranderd zijn. In de praktijk deed die uitzondering dat niet. Het
 // niveau is afgeleid van de live koers (doel = koers + 3xATR, stop = koers - ATR) en crypto beweegt
 // routineus 2% per uur, dus de suppressie herlaadde zichzelf op ruis en meldde dezelfde trade elke
 // ronde opnieuw. Het venster is nu hard.
 const HERHAAL_VENSTER_MS = 6 * 60 * 60 * 1000;
+
+const AFBOUW_SUFFIX = ':afbouwen';
 
 // Eén trade-melding per uur, over alle open trades en koopsignalen heen. De suppressie hierboven
 // voorkomt dat dezelfde melding zich herhaalt; deze rem voorkomt een stapel verschillende. Wordt
@@ -239,12 +242,21 @@ async function beoordeelMandjeTrade(trade: PortfolioTrade): Promise<Melding[]> {
 // De koopsignalen leunen op analyseerMarkt en niet op een eigen scan, zodat de marktklimaat-poort
 // er al op zit: in een ongunstig klimaat zwijgen ze vanzelf, net als het Marktscherm. De lat is high
 // conviction, de sterkste bucket uit de backtest.
+//
+// `afbouwGemeld` zijn de trade-id's waarvoor "winst beschermen" al gemeld is: die worden niet eens
+// als kandidaat voorgesteld, anders eet een melding die toch niet uitgaat de uur-cooldown op of
+// duikt hij op in een bundel. `hersteld` zijn de trade-id's die deze ronde wél beoordeeld zijn
+// (klimaat, marktdata en live koers aanwezig) en geen afbouwadvies meer hebben; alleen die zetten
+// de melding weer klaar. Een overgeslagen of mislukte scan geeft een lege lijst, dus telt nooit als
+// herstel.
 async function beoordeelMarkt(
   open: PortfolioTrade[],
   nu: number,
-): Promise<Melding[]> {
+  afbouwGemeld: ReadonlySet<string>,
+): Promise<{ meldingen: Melding[]; hersteld: string[] }> {
+  const hersteld: string[] = [];
   const laatst = await laadTijdstip(SLEUTELS.laatsteSterkeKoopScan);
-  if (nu - laatst < STERKE_KOOP_SCAN_VENSTER_MS) return [];
+  if (nu - laatst < STERKE_KOOP_SCAN_VENSTER_MS) return { meldingen: [], hersteld };
   // Claimen vóór de scan, niet erna: een mislukte scan brandt het venster op, maar zo kan een
   // tweede aanroeper er niet naast gaan draaien.
   await bewaarTekst(SLEUTELS.laatsteSterkeKoopScan, String(nu));
@@ -263,7 +275,7 @@ async function beoordeelMarkt(
       tekst: `${t.symbool} scoort ${t.score} van de 100. Trend, MACD en volume staan mee. Entry ${fmtPrijs(t.entry)}, stop ${fmtPrijs(t.stopLoss)}, doel ${fmtPrijs(t.takeProfit)}.`,
     }));
 
-  if (!klimaat) return meldingen;
+  if (!klimaat) return { meldingen, hersteld };
 
   // De scan levert voor elke coin een verse koers en EMA50/ATR, dus het afbouwadvies over de open
   // posities kost hier geen enkel extra verzoek. De achtergrondtaak heeft ook geen andere prijsbron:
@@ -276,8 +288,14 @@ async function beoordeelMarkt(
   const marktPerSymbool = Object.fromEntries(alle.map(t => [t.symbool, t]));
   for (const trade of open) {
     const markt = marktPerSymbool[trade.symbool];
-    const advies = bepaalAfbouwAdvies(trade, markt?.prijs, markt, klimaat.klimaat);
-    if (advies?.niveau !== 'afbouwen') continue;
+    // Zonder marktdata of live koers valt er niets te beoordelen: dan is het ook geen herstel.
+    if (!markt || !Number.isFinite(markt.prijs)) continue;
+    const advies = bepaalAfbouwAdvies(trade, markt.prijs, markt, klimaat.klimaat);
+    if (advies?.niveau !== 'afbouwen') {
+      hersteld.push(trade.id);
+      continue;
+    }
+    if (afbouwGemeld.has(trade.id)) continue;
     meldingen.push({
       sleutel: sleutelVoor(trade.id, 'afbouwen'),
       doel: { soort: 'trade', tradeId: trade.id, symbool: trade.symbool },
@@ -290,7 +308,7 @@ async function beoordeelMarkt(
   // de vervallen portefeuillemelding en staat er alleen nog voor de vorm.
   await bewaarObject(SLEUTELS.laatsteKlimaat, { klimaat: klimaat.klimaat, zwakGemeld: 0 });
 
-  return meldingen;
+  return { meldingen, hersteld };
 }
 
 /**
@@ -384,7 +402,17 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
 
   const state = leesSuppressie(await laadObject<Record<string, unknown>>(SLEUTELS.meldingSuppressie));
 
+  // Oude installaties hadden voor 'afbouwen' een tijdstip in de suppressie-state. Dat telt als
+  // "al gemeld", zodat de update geen extra melding oplevert, en gaat over naar de aparte lijst.
+  const afbouwGemeld = new Set((await laadLijst<string>(SLEUTELS.afbouwGemeld)).map(String));
+  for (const sleutel of Object.keys(state)) {
+    if (!sleutel.endsWith(AFBOUW_SUFFIX)) continue;
+    afbouwGemeld.add(sleutel.slice(0, -AFBOUW_SUFFIX.length));
+    delete state[sleutel];
+  }
+
   const kandidaten: Melding[] = [];
+  let hersteld: string[] = [];
   const mandje = await laadMandjeSymbolen();
   for (const trade of open) {
     try {
@@ -395,7 +423,9 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   }
 
   try {
-    kandidaten.push(...await beoordeelMarkt(open, nu));
+    const markt = await beoordeelMarkt(open, nu, afbouwGemeld);
+    kandidaten.push(...markt.meldingen);
+    hersteld = markt.hersteld;
   } catch {
     // Een mislukte marktscan is geen reden om de trade-meldingen hierboven te laten vallen.
   }
@@ -408,6 +438,7 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   const teVersturen = kandidaten.filter(m => magSturen(state, m.sleutel, nu));
 
   let verstuurd = 0;
+  const afbouwVerstuurd: string[] = [];
   const bijgewerkt: SuppressieState = { ...state };
   if (teVersturen.length > 0) {
     // Eén gebundelde melding in plaats van een stapel losse: dat voorkomt de waslijst en blijft
@@ -420,8 +451,15 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
     // Alleen een losse melding krijgt een doel mee voor de tik: een bundel gaat over meerdere
     // trades, die opent gewoon de app en staat per regel in het meldingenlog.
     if (await stuurTradeMelding(titel, tekst, teVersturen.length === 1 ? eerste.doel : undefined)) {
-      for (const melding of teVersturen) bijgewerkt[melding.sleutel] = nu;
+      for (const melding of teVersturen) {
+        // 'afbouwen' heeft geen tijdvenster: die gaat naar de gemeld-lijst hieronder.
+        if (melding.sleutel.endsWith(AFBOUW_SUFFIX)) afbouwVerstuurd.push(melding.sleutel.slice(0, -AFBOUW_SUFFIX.length));
+        else bijgewerkt[melding.sleutel] = nu;
+      }
       verstuurd = teVersturen.length;
+      // Direct bewaren, vóór het loggen: gooit het loggen, dan staat een verstuurde melding anders
+      // niet als gemeld en komt hij de volgende ronde nog eens.
+      await bewaarLijst(SLEUTELS.afbouwGemeld, werkAfbouwGemeldBij(afbouwGemeld, alle, [], afbouwVerstuurd));
       await loggeMeldingen(teVersturen, nu);
     }
   }
@@ -432,6 +470,13 @@ export async function checkOpenTrades(opties?: { trades?: PortfolioTrade[] }): P
   if (verstuurd === 0) {
     await bewaarTekst(SLEUTELS.laatsteMelding, String(laatsteMelding));
   }
+
+  // Ook bewaard als er niets verstuurd is: een herstel of een gesloten trade moet er hoe dan ook
+  // uit, anders blijft een trade na herstel voor altijd stil.
+  await bewaarLijst(
+    SLEUTELS.afbouwGemeld,
+    werkAfbouwGemeldBij(afbouwGemeld, alle, hersteld, afbouwVerstuurd),
+  );
 
   const levend = new Set(
     open.flatMap(t => [sleutelVoor(t.id, 'trekStopAan'), sleutelVoor(t.id, 'afbouwen'), sleutelVoor(t.id, 'mandjeStop')]),
