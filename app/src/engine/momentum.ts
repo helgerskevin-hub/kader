@@ -110,6 +110,8 @@ export function momentumIngredienten(candles: Candle[], btcCloses?: number[]): M
 // trade met het plan uit radarNiveaus hieronder, maar niet aantoonbaar meer dan een willekeurige
 // coin op dezelfde dag met hetzelfde plan (+0,04 R, interval -0,01 tot +0,09, positief in 2 van de
 // 4 jaren). De radar is dus een volglijst van wie voorop loopt. Zie docs/metingen.md, meting M.
+// Wel deed de radar +0,19 R beter dan elke coin met hetzelfde plan en dezelfde poort, vooral door
+// op betere dagen iets te tonen; ook dat is niet aantoonbaar (aanvulling na review onder M4).
 const AFSTAND_NUL = -30;
 
 export function momentumScore(m: MomentumIngredienten): number {

@@ -9,6 +9,7 @@
 // Gebruik (vanuit app/):
 //   npx tsx scripts/meting-algoritme.ts ijk|uitstap|instap|selectie|combinatie   (alleen de 57 coins)
 //   npx tsx scripts/meting-algoritme.ts toets                                     (één keer, holdout)
+//   npx tsx scripts/meting-algoritme.ts lat                                       (meting Q, de lat van het mandje, 148 coins)
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -497,6 +498,72 @@ const metPoort = (set: Coin[], poort: (d: string) => boolean): Coin[] =>
       console.log(`  handel ${h}, ${r}: poort 148 ${ok ? 'BETER' : 'niet beter'} (CAGR ${pct(b.cagr, 1)} tegen ${pct(a.cagr, 1)}, DD ${pct(b.dd)} tegen ${pct(a.dd)}, beter in ${beter} van ${js.length} jaren)`);
     }
     console.log(`\n  Oordeel: ${alles ? 'overstappen op de breedte over 148 coins' : 'de breedte blijft op de 57'}`);
+  }
+
+  // Meting Q: de lat voor het Kader-mandje (docs/mandje-lat.md). Regel C op de 148 coins met
+  // 1,5% per kant, zoals de app hem gaat volgen. Per startmaand een verse papieren portefeuille van
+  // 24 maanden, zoals de live naloop die leeg begint. Vraag: hoe vaak gaat de lat af (-10% na 6 of
+  // 12 maanden, noodrem bij een terugval voorbij -30/-40/-50/-60%), en kost of spaart dat geld?
+  if (onderdeel === 'lat') {
+    const set148 = [...set57, ...laadSet(MAP_57, STANDAARD_UNIVERSUM.filter(s => !KLIMAAT_UNIVERSUM.includes(s)))];
+    const KOSTEN = 0.015;
+    const C: Strategie = { naam: 'C', instap: INSTAPPEN.I1, uitstap: UITSTAPPEN.U4, plekken: 5, rang: 'rustig', kosten: KOSTEN };
+    console.log(`  ${set148.length} coins, 1,5% per kant.\n`);
+    kop(jaren);
+    ijk();
+    rij('C, 148 coins, 1,5%', uitslag(portefeuille(set148, C, datums)), jaren);
+    rij('C, 148 coins, 1%', uitslag(portefeuille(set148, { ...C, kosten: KOSTEN_ETORO }, datums)), jaren);
+    rij('C, 57 coins, 1,5%', uitslag(portefeuille(set57, C, datums)), jaren);
+    console.log('');
+
+    const VENSTER_DAGEN = 730, D6 = 182, D12 = 365;
+    const REMMEN = [-0.3, -0.4, -0.5, -0.6];
+    // Startdagen: de eerste dag van elke maand met 24 maanden data erna.
+    const starts = datums.map((d, k) => [d, k] as const).filter(([d, k], j, a) => (j === 0 || a[j - 1][0].slice(0, 7) !== d.slice(0, 7)) && k + VENSTER_DAGEN < datums.length);
+    interface Run { start: string; v: number[]; belegd: number[] }
+    const runs: Run[] = starts.map(([d, k]) => {
+      const cv = portefeuille(set148, C, datums.slice(k, k + VENSTER_DAGEN + 1));
+      return { start: d, v: cv.vermogen, belegd: cv.belegd };
+    });
+    // Waar gaat de lat af? Eerste dag waarop een regel faalt; -1 als nooit binnen 24 maanden.
+    const ijkFaalt = (r: Run) => (r.v[D6] < 0.9 ? D6 : r.v[D12] < 0.9 ? D12 : -1);
+    const remFaalt = (r: Run, g: number) => { let piek = 1; for (let k = 0; k < r.v.length; k++) { piek = Math.max(piek, r.v[k]); if (r.v[k] / piek - 1 < g) return k; } return -1; };
+    // Na het afgaan: alles verkopen tegen die dag (kosten over het belegde deel) en in cash blijven.
+    const metLat = (r: Run, k: number) => (k < 0 ? r.v[r.v.length - 1] : r.v[k] * (1 - KOSTEN * Math.min(1, r.belegd[k] / 5)));
+    const eind24 = (r: Run) => r.v[r.v.length - 1];
+
+    console.log(`  ${runs.length} startmaanden (${runs[0].start} t/m ${runs[runs.length - 1].start}), elk 24 maanden.\n`);
+    console.log('  Per startmaand: vermogen na 6, 12, 24 maanden en de diepste terugval binnen 24 maanden');
+    for (const r of runs) {
+      let piek = 1, dd = 0; for (const x of r.v) { piek = Math.max(piek, x); dd = Math.min(dd, x / piek - 1); }
+      console.log(`    ${r.start}  6m ${pct(r.v[D6] - 1).padStart(6)}  12m ${pct(r.v[D12] - 1).padStart(6)}  24m ${pct(eind24(r) - 1).padStart(7)}  terugval ${pct(dd).padStart(5)}`);
+    }
+
+    const samen = (naam: string, faalt: (r: Run) => number) => {
+      const af = runs.filter(r => faalt(r) >= 0);
+      // Mediaan, niet gemiddelde: de starts in 2020 met +3000% zouden elk gemiddelde bepalen.
+      const med = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : NaN; };
+      const zonder = med(runs.map(eind24)), met = med(runs.map(r => metLat(r, faalt(r))));
+      const afZonder = med(af.map(eind24)), afMet = med(af.map(r => metLat(r, faalt(r))));
+      console.log(`    ${naam.padEnd(34)} gaat af bij ${String(af.length).padStart(2)} van ${runs.length} starts (${pct(af.length / runs.length)})`
+        + `  24m mediaan: zonder lat ${pct(zonder - 1)}, met lat ${pct(met - 1)}`
+        + (af.length ? `  | alleen die starts: zonder ${pct(afZonder - 1)}, met ${pct(afMet - 1)}` : ''));
+    };
+    console.log('\n  De lat per onderdeel en samen, over alle starts en apart over de starts vanaf 2022 (na de grote opleving). "Met lat": na het afgaan alles verkopen en cash tot het einde van de 24 maanden.');
+    const alleRuns = [...runs];
+    for (const [deel, filter] of [['alle starts', () => true], ['starts vanaf 2022', (r: Run) => r.start >= '2022']] as [string, (r: Run) => boolean][]) {
+    runs.splice(0, runs.length, ...alleRuns.filter(filter));
+    console.log(`\n   ${deel} (${runs.length}):`);
+    samen('ijkmoment: -10% na 6 of 12 mnd', ijkFaalt);
+    for (const g of REMMEN) samen(`noodrem ${pct(g)}`, r => remFaalt(r, g));
+    for (const g of REMMEN) samen(`ijkmoment + noodrem ${pct(g)}`, r => { const a = ijkFaalt(r), b = remFaalt(r, g); return a < 0 ? b : b < 0 ? a : Math.min(a, b); });
+    }
+    runs.splice(0, runs.length, ...alleRuns);
+    // Hoe vroeg gaat de noodrem af, als hij afgaat?
+    for (const g of REMMEN) {
+      const dagen = runs.map(r => remFaalt(r, g)).filter(k => k >= 0).sort((a, b) => a - b);
+      if (dagen.length) console.log(`    noodrem ${pct(g)}: mediaan na ${dagen[Math.floor(dagen.length / 2)]} dagen, vroegst na ${dagen[0]}`);
+    }
   }
 
   if (onderdeel === 'combinatie' || onderdeel === 'toets') {

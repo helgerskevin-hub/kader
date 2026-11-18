@@ -40,6 +40,8 @@ import { useBeweging } from '../theme/useReduceMotion';
 import { useTabZichtbaar } from '../state/tabZichtbaar';
 import { haptiek, haptiekVanUI } from '../theme/haptiek';
 import { bemonster, fractiesVoor, metAlfa, unieFracties } from './grafiek/morph';
+import { bundelCandles, heeftEchteOhlc } from '../engine/kaarsen';
+import type { GrafiekSoort } from '../state/useGrafiekSoort';
 
 interface Niveau {
   waarde: number;
@@ -65,6 +67,9 @@ interface Props {
   // Altijd de hele reeks tonen, ook zonder periodeknoppen. Anders valt de grafiek terug op het
   // standaardbereik (3M) zodra de reeks langer is, en dat knipt een jaar maandpunten af.
   heleReeks?: boolean;
+  // Lijn of candles. Alleen het detailscherm van een coin geeft dit mee; elders blijft het een lijn.
+  // Zonder echte open, hoog en laag in de data (de CoinGecko-fallback) tekent hij toch een lijn.
+  soort?: GrafiekSoort;
 }
 
 const GEEN_NIVEAUS: Niveau[] = [];
@@ -77,6 +82,25 @@ const TOOLTIP_BREEDTE = 130;
 const TEKEN_DUUR = 700;
 // Hoe lang je stil moet houden voordat de aanwijzer verschijnt zonder dat je al zijwaarts beweegt.
 const VASTHOUDEN_MS = 150;
+// Candles: lege ruimte tussen de laatste candle en de stip van de koers van nu, anders valt de
+// stip over het lijf van de laatste candle.
+const KAARS_RUIMTE = 6;
+// Zoveel breedte krijgt een candle minstens, inclusief de tussenruimte. Smaller en het lijf wordt zo
+// dun dat je hol en gevuld niet meer uit elkaar houdt; dan bundelen we candles (engine/kaarsen.ts).
+const MIN_KAARS_SLOT = 6;
+// Bij weinig candles (1M) worden ze anders blokken.
+const MAX_LIJF = 12;
+// Het scrublabel krijgt bij candles twee regels erbij (hoog en laag) en iets meer breedte.
+const TOOLTIP_BREEDTE_KAARS = 150;
+
+const PERIODE_VOORGELEZEN: Record<BereikId, string> = {
+  '24U': 'de laatste 24 uur',
+  '7D': 'de laatste 7 dagen',
+  '1M': 'de laatste maand',
+  '3M': 'de laatste 3 maanden',
+  '6M': 'de laatste 6 maanden',
+  alles: 'de hele periode',
+};
 
 // Wat de UI-thread nodig heeft om de lijn te tekenen: één x-raster (fracties 0..1) met de y's van
 // waar de morph vandaan komt en waar hij heen gaat, in schermpixels.
@@ -97,6 +121,32 @@ interface Punten {
   ys: number[];
   hoogsteI: number;
   laagsteI: number;
+  // Candles staan elk midden in een eigen vak; een lijn loopt van rand tot rand.
+  kaarsen: boolean;
+}
+
+// Waar punt i horizontaal staat. Een lijn begint op 0 en eindigt op de volle breedte; candle i
+// staat midden in het i-de vak, en de vakken laten rechts ruimte voor de stip.
+function xVoorIndex(p: Punten, i: number, breedte: number): number {
+  'worklet';
+  const w = Math.max(breedte - RECHTS, 0);
+  if (!p.kaarsen) return (i / (p.ys.length - 1)) * w;
+  return ((i + 0.5) / p.ys.length) * Math.max(w - KAARS_RUIMTE, 0);
+}
+
+// Het omgekeerde: welk punt hoort bij deze vingerpositie? -1 als er nog niets te scrubben is.
+function indexVoorX(p: Punten | null, x: number, breedte: number): number {
+  'worklet';
+  const w = breedte - RECHTS;
+  if (!p || p.ys.length < 2 || w <= 0) return -1;
+  const n = p.ys.length;
+  if (!p.kaarsen) {
+    const fractie = Math.min(Math.max(x / w, 0), 1);
+    return Math.round(fractie * (n - 1));
+  }
+  const gebied = w - KAARS_RUIMTE;
+  if (gebied <= 0) return -1;
+  return Math.min(Math.max(Math.floor((x / gebied) * n), 0), n - 1);
 }
 
 // Bij 24U telt alleen het tijdstip, bij 7D de dag plus het uur, en daarboven de datum.
@@ -114,7 +164,7 @@ function fmtDatumKort(tijd?: number, bereik?: BereikId): string {
   return d.toLocaleDateString('nl-NL', anderJaar ? { day: 'numeric', month: 'short', year: '2-digit' } : { day: 'numeric', month: 'short' });
 }
 
-export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs, vergelijk, heleReeks = false }: Props) {
+export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180, toonPeriodes = true, laadIntraday, formatWaarde = fmtPrijs, vergelijk, heleReeks = false, soort = 'lijn' }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -149,7 +199,21 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
   // Binnen een dag of week beweegt de koers een paar procent, en een stop 10% lager drukt die
   // beweging dan plat onderin. Daar laten we de niveaulijnen weg; het plan staat eronder.
   const niveaus = isIntraday(getoond.bereik) ? GEEN_NIVEAUS : alleNiveaus;
-  const sluitkoersen = useMemo(() => reeks.map(c => c.close), [reeks]);
+
+  // Candles alleen als de data echte open, hoog en laag heeft; anders blijft het een lijn in
+  // plaats van verzonnen candles. Hoeveel candles er passen hangt van de breedte af, dus tot die
+  // bekend is staat er nog niets (een frame het lege vlak).
+  const echteOhlc = useMemo(() => heeftEchteOhlc(reeks), [reeks]);
+  const metKaarsen = soort === 'candles' && echteOhlc;
+  const kaarsGebied = Math.max(breedte - RECHTS - KAARS_RUIMTE, 0);
+  const kaarsen = useMemo(
+    () => (metKaarsen && kaarsGebied > 0 ? bundelCandles(reeks, Math.floor(kaarsGebied / MIN_KAARS_SLOT)) : null),
+    [metKaarsen, reeks, kaarsGebied],
+  );
+  const wachtOpBreedte = metKaarsen && kaarsen === null;
+  // Wat er getekend en gescrubd wordt: de gebundelde candles, of de reeks zelf.
+  const getekend = kaarsen ?? reeks;
+  const sluitkoersen = useMemo(() => getekend.map(c => c.close), [getekend]);
 
   // De aanroepers bouwen `niveaus` bij elke render opnieuw als array. Op de waarden sleutelen
   // voorkomt dat elke render een morph naar exact dezelfde lijn start.
@@ -157,26 +221,35 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
 
   // Alles in schermpixels, één keer per reeks. Het gebaar en de animatie lezen hier alleen uit.
   const geometrie = useMemo(() => {
-    if (sluitkoersen.length < 2) return null;
+    if (wachtOpBreedte || sluitkoersen.length < 2) return null;
     const niveauWaarden = niveaus.map(n => n.waarde);
     // De grafiek kan de reeks inkorten tot de laatste periode (reeksVoorBereik). Dan het staartstuk
     // nemen en het laten beginnen op hetzelfde punt als de hoofdlijn, zodat je het verloop vergelijkt.
-    const staart = vergelijk && vergelijk.length >= sluitkoersen.length
+    // Niet bij candles: die zijn gebundeld en lopen dan niet meer een op een met de vergelijking.
+    const staart = !kaarsen && vergelijk && vergelijk.length >= sluitkoersen.length
       ? vergelijk.slice(vergelijk.length - sluitkoersen.length)
       : null;
     const tweede = staart ? staart.map(v => v - staart[0] + sluitkoersen[0]) : null;
-    const alleWaarden = [...sluitkoersen, ...niveauWaarden, ...(tweede ?? [])];
+    // Bij candles bepalen de lonten de schaal, niet de slotkoersen, anders steekt een lont boven
+    // of onder het doek uit.
+    const hoogtes = kaarsen ? kaarsen.map(k => k.high) : sluitkoersen;
+    const laagtes = kaarsen ? kaarsen.map(k => k.low) : sluitkoersen;
+    const alleWaarden = kaarsen
+      ? [...hoogtes, ...laagtes, ...niveauWaarden]
+      : [...sluitkoersen, ...niveauWaarden, ...(tweede ?? [])];
     const min = Math.min(...alleWaarden);
     const max = Math.max(...alleWaarden);
     const bereik = max - min || 1;
     const yVoor = (v: number) => hoogte - PAD - ((v - min) / bereik) * (hoogte - PAD * 2);
 
+    // Bij candles voel je de tik op de hoogste top en het laagste dal, bij een lijn op de hoogste
+    // en laagste slotkoers.
     let hoogsteI = 0;
     let laagsteI = 0;
-    sluitkoersen.forEach((c, i) => {
-      if (c > sluitkoersen[hoogsteI]) hoogsteI = i;
-      if (c < sluitkoersen[laagsteI]) laagsteI = i;
-    });
+    for (let i = 0; i < sluitkoersen.length; i++) {
+      if (hoogtes[i] > hoogtes[hoogsteI]) hoogsteI = i;
+      if (laagtes[i] < laagtes[laagsteI]) laagsteI = i;
+    }
 
     return {
       min,
@@ -185,12 +258,17 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
       ys: sluitkoersen.map(yVoor),
       niveauYs: niveauWaarden.map(yVoor),
       vergelijkYs: tweede ? tweede.map(yVoor) : null,
+      kaarsYs: kaarsen
+        ? kaarsen.map(k => ({ open: yVoor(k.open), high: yVoor(k.high), low: yVoor(k.low), close: yVoor(k.close) }))
+        : null,
       hoogsteI,
       laagsteI,
+      hoogste: hoogtes[hoogsteI],
+      laagste: laagtes[laagsteI],
       stijgend: sluitkoersen[sluitkoersen.length - 1] >= sluitkoersen[0],
     };
     // niveaus zit via niveauSleutel in de afhankelijkheden, zie hierboven.
-  }, [sluitkoersen, niveauSleutel, hoogte, vergelijk]);
+  }, [sluitkoersen, kaarsen, wachtOpBreedte, niveauSleutel, hoogte, vergelijk]);
 
   const lijnKleur = geometrie?.stijgend === false ? colors.verlies : colors.winst;
 
@@ -265,7 +343,12 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
     vormRef.current = nieuw;
     vorigDoelRef.current = { xs: doel.xs, ys: doel.naar };
 
-    const nieuwePunten: Punten = { ys: geometrie.ys, hoogsteI: geometrie.hoogsteI, laagsteI: geometrie.laagsteI };
+    const nieuwePunten: Punten = {
+      ys: geometrie.ys,
+      hoogsteI: geometrie.hoogsteI,
+      laagsteI: geometrie.laagsteI,
+      kaarsen: geometrie.kaarsYs !== null,
+    };
     const vervagen = vorige !== null && reduceMotion;
     // In één worklet, zodat de UI-thread nooit een frame tekent met de nieuwe vorm op de oude
     // morph-stand (dan flitst de eindlijn even voor de animatie begint).
@@ -286,6 +369,48 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
       }
     });
   }, [geometrie, lijnKleur, reduceMotion]);
+
+  // De candles, op de JS-thread gebouwd: ze morphen niet, dus alleen opnieuw bij een nieuwe reeks of
+  // breedte. Stijgend is hol (alleen de rand), dalend gevuld, zodat het verschil ook zonder kleur te
+  // zien is. De lonten van een holle candle stoppen bij het lijf, anders loopt er een streep door.
+  const kaarsPaden = useMemo(() => {
+    const ks = geometrie?.kaarsYs;
+    if (!ks || ks.length === 0 || breedte <= 0) return null;
+    const slot = Math.max(breedte - RECHTS - KAARS_RUIMTE, 0) / ks.length;
+    const lijf = Math.max(Math.min(slot * 0.7, MAX_LIJF), 1);
+    const hol = Skia.PathBuilder.Make();
+    const holLont = Skia.PathBuilder.Make();
+    const gevuld = Skia.PathBuilder.Make();
+    const gevuldLont = Skia.PathBuilder.Make();
+    ks.forEach((k, i) => {
+      const x = (i + 0.5) * slot;
+      const boven = Math.min(k.open, k.close);
+      const onder = Math.max(k.open, k.close);
+      // Schermpixels lopen omlaag: een slot boven de open (kleinere y) is een stijging.
+      if (k.close <= k.open) {
+        // De rand ligt een halve pixel binnen het lijf; minstens twee hoog, zodat een candle die
+        // vlak sloot nog als streepje te zien is.
+        const h = Math.max(onder - boven, 2);
+        hol.addRect(Skia.XYWHRect(x - lijf / 2 + 0.5, boven + 0.5, Math.max(lijf - 1, 0), h - 1));
+        holLont.moveTo(x, k.high).lineTo(x, boven);
+        holLont.moveTo(x, boven + h).lineTo(x, k.low);
+      } else {
+        gevuld.addRect(Skia.XYWHRect(x - lijf / 2, boven, lijf, Math.max(onder - boven, 1)));
+        gevuldLont.moveTo(x, k.high).lineTo(x, k.low);
+      }
+    });
+    return { hol: hol.detach(), holLont: holLont.detach(), gevuld: gevuld.detach(), gevuldLont: gevuldLont.detach() };
+  }, [geometrie, breedte]);
+
+  // Nieuwe candles na een periodewissel of het omzetten in Instellingen: een korte fade, ook bij
+  // Minder beweging. Niet bij het allereerste tekenen, dat doet het intekenen hieronder. Staat
+  // bewust voor dat effect: dan is `teken` bij de eerste keer nog 0.
+  const kaarsZicht = useSharedValue(1);
+  useEffect(() => {
+    if (!kaarsPaden || teken.value < 1) return;
+    kaarsZicht.value = 0;
+    kaarsZicht.value = vervaag(1, duur.midden);
+  }, [kaarsPaden]);
 
   // Intekenen bij de eerste keer dat er een lijn en een breedte is. Bij Minder beweging vervaagt de
   // hele grafiek in plaats van te groeien.
@@ -394,13 +519,16 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
   const haloStraal = useDerivedValue(() => 3.5 + 6 * puls.value);
   const haloDekking = useDerivedValue(() => 0.3 * (1 - puls.value) * stipDekking.value);
 
+  // Candles verschijnen bij het intekenen van links naar rechts, zoals de lijn groeit.
+  const kaarsKlip = useDerivedValue(() => Skia.XYWHRect(0, 0, breedteSV.value * teken.value, hoogte));
+
   // ---------- Scrubben ----------
 
   const cursorX = useDerivedValue(() => {
     const p = punten.value;
     const i = scrubI.value;
     if (!p || i < 0 || p.ys.length < 2) return 0;
-    return (i / (p.ys.length - 1)) * Math.max(breedteSV.value - RECHTS, 0);
+    return xVoorIndex(p, i, breedteSV.value);
   });
   const cursorBoven = useDerivedValue(() => vec(cursorX.value, 0));
   const cursorOnder = useDerivedValue(() => vec(cursorX.value, hoogte));
@@ -416,11 +544,7 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
   const scrub = useMemo(() => {
     function indexVoor(x: number): number {
       'worklet';
-      const p = punten.value;
-      const w = breedteSV.value - RECHTS;
-      if (!p || p.ys.length < 2 || w <= 0) return -1;
-      const fractie = Math.min(Math.max(x / w, 0), 1);
-      return Math.round(fractie * (p.ys.length - 1));
+      return indexVoorX(punten.value, x, breedteSV.value);
     }
 
     function pakOp(x: number) {
@@ -534,6 +658,17 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
     return <View style={[styles.leeg, { height: hoogte, backgroundColor: colors.verhoogd }]} onLayout={opLayout} />;
   }
 
+  // De grafiek als geheel voor een schermlezer: welke periode, lijn of candles, en waar de koers
+  // begon, eindigde en zijn uitersten had.
+  const vormVoorgelezen = kaarsen
+    ? `in ${kaarsen.length} candles, hol bij een stijging en gevuld bij een daling`
+    : soort === 'candles'
+      ? 'als lijn, want voor deze periode zijn alleen slotkoersen beschikbaar'
+      : 'als lijn';
+  const grafiekLabel = `Grafiek over ${PERIODE_VOORGELEZEN[getoond.bereik]} ${vormVoorgelezen}. `
+    + `Van ${formatWaarde(sluitkoersen[0])} naar ${formatWaarde(sluitkoersen[sluitkoersen.length - 1])}, `
+    + `hoogste ${formatWaarde(geometrie.hoogste)}, laagste ${formatWaarde(geometrie.laagste)}.`;
+
   return (
     <View>
       {/* Een eigen root voor gesture-handler. Binnen de app-root of een scherm dat er zelf één
@@ -541,13 +676,21 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
           zouden de gebaren zonder hem niet aankomen. */}
       <GestureHandlerRootView style={{ height: hoogte }}>
         <GestureDetector gesture={scrub}>
-          <View style={{ height: hoogte }} onLayout={opLayout}>
+          <View
+            style={{ height: hoogte }}
+            onLayout={opLayout}
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel={grafiekLabel}
+          >
             {breedte > 0 && (
               <Canvas style={{ width: breedte, height: hoogte }} pointerEvents="none">
                 <Group opacity={zicht}>
-                  <Path path={vlakPad} opacity={vlakDekking}>
-                    <LinearGradient start={vec(0, 0)} end={vec(0, hoogte)} colors={vlakKleuren} />
-                  </Path>
+                  {!kaarsPaden && (
+                    <Path path={vlakPad} opacity={vlakDekking}>
+                      <LinearGradient start={vec(0, 0)} end={vec(0, hoogte)} colors={vlakKleuren} />
+                    </Path>
+                  )}
                   {niveaus.map((n, i) => (
                     <NiveauLijn
                       key={i}
@@ -559,21 +702,32 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
                       reduceMotion={reduceMotion}
                     />
                   ))}
-                  {vergelijkPad && (
-                    <Path path={vergelijkPad} style="stroke" strokeWidth={1.5} strokeJoin="round" color={colors.tekstGedimd} start={0} end={teken}>
-                      <DashPathEffect intervals={[3, 4]} />
-                    </Path>
+                  {kaarsPaden ? (
+                    <Group clip={kaarsKlip} opacity={kaarsZicht}>
+                      <Path path={kaarsPaden.gevuldLont} style="stroke" strokeWidth={1} color={colors.verlies} />
+                      <Path path={kaarsPaden.gevuld} color={colors.verlies} />
+                      <Path path={kaarsPaden.holLont} style="stroke" strokeWidth={1} color={colors.winst} />
+                      <Path path={kaarsPaden.hol} style="stroke" strokeWidth={1} color={colors.winst} />
+                    </Group>
+                  ) : (
+                    <>
+                      {vergelijkPad && (
+                        <Path path={vergelijkPad} style="stroke" strokeWidth={1.5} strokeJoin="round" color={colors.tekstGedimd} start={0} end={teken}>
+                          <DashPathEffect intervals={[3, 4]} />
+                        </Path>
+                      )}
+                      <Path
+                        path={lijnPad}
+                        style="stroke"
+                        strokeWidth={2}
+                        strokeCap="round"
+                        strokeJoin="round"
+                        color={lijnKleurSV}
+                        start={0}
+                        end={teken}
+                      />
+                    </>
                   )}
-                  <Path
-                    path={lijnPad}
-                    style="stroke"
-                    strokeWidth={2}
-                    strokeCap="round"
-                    strokeJoin="round"
-                    color={lijnKleurSV}
-                    start={0}
-                    end={teken}
-                  />
                   <Circle c={laatstePunt} r={haloStraal} color={lijnKleurSV} opacity={haloDekking} />
                   <Circle c={laatstePunt} r={3.5} color={lijnKleurSV} opacity={stipDekking} />
                 </Group>
@@ -593,7 +747,8 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
             <Text style={[Type.label, styles.prijsLabelOnder, { color: colors.tekstGedimd, backgroundColor: colors.achtergrond }]}>{formatWaarde(geometrie.min)}</Text>
 
             <ScrubLabel
-              reeks={reeks}
+              reeks={getekend}
+              metKaarsen={kaarsen !== null}
               bereik={getoond.bereik}
               formatWaarde={formatWaarde}
               scrubI={scrubI}
@@ -607,6 +762,10 @@ export function PrijsGrafiek({ candles, niveaus: alleNiveaus = [], hoogte = 180,
 
       <View style={styles.datumRij}>
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[0].tijd, getoond.bereik)}</Text>
+        {/* Candles gekozen, maar de bron gaf alleen slotkoersen: zeggen waarom er een lijn staat. */}
+        {soort === 'candles' && !metKaarsen && (
+          <Text style={[Type.overline, { color: colors.tekstGedimd }]}>Alleen slotkoersen</Text>
+        )}
         <Text style={[Type.overline, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[reeks.length - 1].tijd, getoond.bereik)}</Text>
       </View>
 
@@ -709,6 +868,7 @@ function NiveauLijn({ index, kleur, vorm, morph, breedte, reduceMotion }: Niveau
 
 interface ScrubLabelProps {
   reeks: Candle[];
+  metKaarsen: boolean;
   bereik: BereikId;
   formatWaarde: (n: number) => string;
   scrubI: SharedValue<number>;
@@ -721,9 +881,10 @@ interface ScrubLabelProps {
 // UI-thread mee met de vinger; alleen de tekst gaat via React, en dan uitsluitend als de vinger
 // een ander punt aanwijst. Dat zijn er hooguit een paar honderd per veeg, niet één per frame, en
 // alleen dit kleine label rendert opnieuw, niet de hele grafiek.
-function ScrubLabel({ reeks, bereik, formatWaarde, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelProps) {
+function ScrubLabel({ reeks, metKaarsen, bereik, formatWaarde, scrubI, scrubZicht, cursorX, breedte }: ScrubLabelProps) {
   const { colors } = useTheme();
   const [actief, setActief] = useState<number | null>(null);
+  const labelBreedte = metKaarsen ? TOOLTIP_BREEDTE_KAARS : TOOLTIP_BREEDTE;
 
   useAnimatedReaction(
     () => scrubI.value,
@@ -734,8 +895,8 @@ function ScrubLabel({ reeks, bereik, formatWaarde, scrubI, scrubZicht, cursorX, 
 
   const stijl = useAnimatedStyle(() => {
     const links = Math.min(
-      Math.max(cursorX.value - TOOLTIP_BREEDTE / 2, 0),
-      Math.max(breedte.value - TOOLTIP_BREEDTE, 0),
+      Math.max(cursorX.value - labelBreedte / 2, 0),
+      Math.max(breedte.value - labelBreedte, 0),
     );
     return { opacity: scrubZicht.value, transform: [{ translateX: links }] };
   });
@@ -747,12 +908,23 @@ function ScrubLabel({ reeks, bereik, formatWaarde, scrubI, scrubZicht, cursorX, 
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.tooltip, { backgroundColor: colors.kaart, borderColor: colors.rand }, stijl]}
+      style={[styles.tooltip, { width: labelBreedte, backgroundColor: colors.kaart, borderColor: colors.rand }, stijl]}
     >
       {actiefVeilig !== null && (
         <>
           <Text style={[Type.caption, { color: colors.tekstGedimd }]}>{fmtDatumKort(reeks[actiefVeilig].tijd, bereik)}</Text>
           <Text style={[Type.prijs, { color: colors.tekstPrimair }]}>{formatWaarde(reeks[actiefVeilig].close)}</Text>
+          {/* Bij candles ook de uitersten van die candle; open en slot lees je af aan het lijf. */}
+          {metKaarsen && (
+            <>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[Type.caption, { color: colors.tekstGedimd }]}>
+                Hoog {formatWaarde(reeks[actiefVeilig].high)}
+              </Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[Type.caption, { color: colors.tekstGedimd }]}>
+                Laag {formatWaarde(reeks[actiefVeilig].low)}
+              </Text>
+            </>
+          )}
         </>
       )}
     </Animated.View>

@@ -238,7 +238,7 @@ Vier dingen zijn anders dan in de metingen hierboven:
   daarna. `backtest.ts` stapt in op het slot van de signaaldag zelf.
 - **Afstellen en toetsen gescheiden.** Kiezen op t/m november 2022, toetsen op 2023 t/m 2026, één
   keer. Signalen uit december 2022 tellen bij geen van beide: hun trade loopt de toetsjaren in.
-- **Excess R.** De uitkomst min die van een willekeurige coin op dezelfde dag met dezelfde niveaus.
+- **Excess R.** De uitkomst min het gemiddelde van alle coins op dezelfde dag met dezelfde niveaus.
   Dat scheidt "deze regel kiest goed" van "het was een goede dag".
 
 De beslisregels lagen vast voordat het script draaide, zie `docs/kansen-analyse-plan.md`,
@@ -334,9 +334,38 @@ komt uit de opzet: de ruime stop, het grote doel en de poort. Welke coin de rada
 weinig aantoonbaars bovenop. Een coin van voor 2019 doet het niet beter dan willekeurig, dus een
 deel van het effect in de afsteljaren leunde op nieuwkomers.
 
+**Aanvulling na review (12 nov 2026).** De zin "dat komt uit de opzet" klopt maar half. Met
+hetzelfde plan en dezelfde poort, in dezelfde toetsjaren, en zonder iets bij te stellen:
+
+| toetsjaren, 1% per kant, stop 3x ATR, doel 3R, poort open | n | netto | basis van de dag | excess | doel / stop / tijd om |
+|---|---|---|---|---|---|
+| elke coin | 1952 | +0,099 | +0,110 | -0,010 | 15% / 41% / 45% |
+| radar 70 (Kansen nieuw) | 691 | +0,290 | +0,250 | +0,040 | 21% / 41% / 38% |
+
+"Basis van de dag" is het gemiddelde van alle coins op de instapdag (netto min excess). Opzet en
+poort samen geven +0,10 R (huidige poort; N4 noemt +0,08 R met de strengere EMA200-poort); de
+radar zit daar +0,19 R boven (90%-interval -0,10 tot +0,45, bootstrap per instapmaand). Dat
+verschil zit vooral in *wanneer* de radar iets toont (+0,14 R aan betere dagen) en weinig in
+*welke* coin (+0,05 R: excess +0,04 tegen -0,01 voor elke coin). Excess R meet alleen het tweede,
+dus de lat kon het eerste niet zien. Het besluit verandert niet: ook dit verschil is niet aantoonbaar, en de
+toetsjaren zijn na meting M en N twee keer bekeken, dus een nieuwe regel hierop toetsen kan niet
+meer eerlijk. Of de radar een goed moment aanwijst, moet het live trackrecord laten zien.
+
+Twee kleinere punten uit dezelfde review:
+
+- Eis 3b ("wint van Markt KOOP met poort") vergeleek Kansen nieuw met Markts KOOP op Markts eigen,
+  oude plan. Dat meet plan en keuze samen, dus het "ja" zegt weinig. Met hetzelfde plan haalde Markts
+  KOOP +0,13 R (meting N4), en dan wint de radar nog steeds.
+- Het doel ligt bij een mediane stop van 17% zo'n 50% boven de instap. Bijna acht van de tien trades
+  in de toets haalden het doel niet en liepen op de stop of op de 30 dagen af. Lees het doel dus als een
+  plafond, niet als de verwachte uitkomst.
+
 ### Wat er in de app veranderd is
 
-- Kansen is een volglijst: altijd WATCH, geen koopknop. De kaart zegt wat het plan na kosten deed.
+- Kansen is een volglijst: altijd WATCH. De kaart zegt wat het plan na kosten deed. (In #115 ging de
+  koopknop eruit; #116 zette hem terug, omdat handelen vanuit Kader het doel is. Sinds de review van
+  12 nov 2026 is hij alleen de hoofdknop bij een radar-coin in een gunstig klimaat. Daarbuiten, en
+  bij de coins van een lege radar, is het een gewone knop.)
 - Het plan is stop 3x ATR en doel 3R (`radarNiveaus` in `engine/momentum.ts`).
 - Het oordeel valt op de laatste afgesloten dag; de app rekende tot nu toe met de lopende dag,
   wat de backtest nooit gemeten heeft.
@@ -598,3 +627,52 @@ Na het uitbreiden van het universum naar 148 coins: de marktbreedte in de poort 
 twee poorten zeggen op 98% van de dagen hetzelfde, en de brede poort is in alle vier de combinaties (Nu
 en regel C, handelen in 57 of in 148 coins) iets slechter, met 1,5 tot 3 procentpunt minder CAGR. De
 breedte blijft op de 57 (`KLIMAAT_UNIVERSUM` in `analyzer.ts`).
+
+## Meting Q: de lat voor het Kader-mandje (12 nov 2026)
+
+Script: `app/scripts/meting-algoritme.ts lat`. Doel: de noodrem en het ijkmoment uit
+`docs/mandje-lat.md` narekenen voordat het mandje (regel C) als advies in de app komt. Regel C op
+de 148 coins (142 met historie), 1,5% per kant, poort over de 57. Per startmaand een verse
+papieren portefeuille van 24 maanden, zoals de live naloop die leeg begint: 61 startmaanden, nov
+2019 t/m nov 2024. Dit is een beschrijving van de historie, geen toets: de jaren en de coins zijn
+al bekeken.
+
+### Q1: haalt regel C op 148 coins met 1,5% nog wat meting O zei?
+
+| strategie | CAGR | max terugval | 20 | 21 | 22 | 23 | 24 | 25 | 26 |
+|---|---|---|---|---|---|---|---|---|---|
+| BTC houden | +36% | -77% | +302% | +60% | -64% | +156% | +121% | -6% | -16% |
+| C, 148 coins, 1,5% | +79% | -70% | +206% | +1880% | -43% | +17% | +36% | -2% | +8% |
+| C, 148 coins, 1% | +89% | -64% | +221% | +1950% | -39% | +26% | +47% | +3% | +14% |
+| C, 57 coins, 1,5% | +92% | -65% | +206% | +2074% | -44% | +26% | +97% | +15% | -9% |
+
+Ja, dezelfde orde van grootte. Maar vrijwel de hele voorsprong op BTC komt uit 2020 en 2021; van
+2023 t/m 2026 deed BTC houden het elk jaar beter of gelijk.
+
+### Q2: hoe vaak gaat de lat af, en kost of spaart dat geld?
+
+"Met lat": na het afgaan alles verkopen en cash tot het einde van de 24 maanden. Mediaan
+eindvermogen na 24 maanden; de gemiddelden worden bepaald door de starts in 2020 (+3000% en meer).
+
+| regel | gaat af, alle starts | mediaan 24m zonder / met | gaat af, starts vanaf 2022 | mediaan 24m zonder / met |
+|---|---|---|---|---|
+| ijkmoment: -10% na 6 of 12 mnd | 34% | +29% / +29% | 43% | +22% / +22% |
+| noodrem -30% | 100% | +29% / +10% | 100% | +22% / +4% |
+| noodrem -40% | 93% | +29% / -1% | 89% | +22% / -8% |
+| noodrem -50% | 43% | +29% / +30% | 3% | +22% / +22% |
+| noodrem -60% | 13% | +29% / +29% | 0% | +22% / +22% |
+
+- **Een noodrem op -40% is onbruikbaar**: regel C zakt binnen twee jaar bijna altijd 40% van zijn
+  top, en de rem had dan het herstel gemist. Gekozen: **-60%**.
+- **Het ijkmoment gaat vaak af** en spaart geen geld: de starts waar het afging eindigden sinds 2022
+  mediaan op -12% zonder lat en -21% met. Het blijft staan als eerlijkheidsschakelaar: wie na een
+  half jaar op -10% staat, krijgt dat te horen en geen advies meer.
+- Er is een reële kans (ongeveer 4 op 10) dat het advies op 12 mei 2027 uitgaat door een slechte
+  marktfase, niet door een kapotte regel. Dat is vooraf geaccepteerd.
+
+### Kanttekeningen
+
+- Overlappende startmaanden: de 61 vensters zijn niet onafhankelijk. De percentages zijn een
+  indruk, geen kans.
+- Verkopen na het afgaan rekent 1,5% over het belegde deel, geschat uit het aantal open plekken.
+- 6 van de 148 coins hebben geen historie in `data/historie/` en tellen niet mee.

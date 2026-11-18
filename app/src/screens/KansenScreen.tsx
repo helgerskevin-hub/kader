@@ -118,11 +118,19 @@ export function KansenScreen() {
     handleVervers();
   }
 
+  const radarLeeg = state.status === 'success' && state.radarLeeg;
+  const klimaat = state.status === 'success' ? state.klimaat : null;
+  // De koopknop blijft bij elke coin met een plan: handelen gebeurt vanuit Kader. Hij is alleen de
+  // hoofdknop waar het plan voor gemeten is (meting M): een radar-coin bij een gunstig klimaat.
+  // Daarbuiten is het een gewone knop, zodat de kaart niet tot kopen uitnodigt. Dat geldt ook voor
+  // de drie coins van een lege radar: die halen de drempel niet, het plan is voor ze nooit gemeten.
+  const koopRustig = klimaat?.klimaat !== 'gunstig' || radarLeeg;
+
   // Stabiele callbacks, zodat de gememoiseerde kaarten niet bij elke scan-tik opnieuw tekenen.
   // Het detailscherm biedt dezelfde koopknop als de kaart, dus ook daar niet bij een verouderd plan.
   const opOpenDetail = useCallback(
-    (k: KansMetRang) => openDetail(vanOpportunity(k, verouderd)),
-    [openDetail, verouderd],
+    (k: KansMetRang) => openDetail(vanOpportunity(k, verouderd, koopRustig)),
+    [openDetail, verouderd, koopRustig],
   );
   // Het plan van de radar, niet de Markt-niveaus: k.niveaus heeft entry, stopLoss, takeProfit, rr.
   const opGetrade = useCallback(
@@ -168,8 +176,6 @@ export function KansenScreen() {
     return uit;
   }, [lijstSymbolen, bezit, koersen]);
 
-  const radarLeeg = state.status === 'success' && state.radarLeeg;
-  const klimaat = state.status === 'success' ? state.klimaat : null;
   const top = useMemo(
     () => (state.status === 'success' && !state.radarLeeg && state.kansen.length >= TOP_AANTAL
       ? [...state.kansen].sort((a, b) => b.momentumScore - a.momentumScore).slice(0, TOP_AANTAL)
@@ -269,6 +275,7 @@ export function KansenScreen() {
                 onToggleFavoriet={wisselFavoriet}
                 limiet={limietVoor(stopLimieten, item.symbool)}
                 onKoop={magHandelen ? setKoopKans : undefined}
+                koopRustig={koopRustig}
                 verouderd={verouderd}
                 inBezit={bezit.includes(item.symbool)}
                 beweegtMeeMet={meeMet[item.symbool]}

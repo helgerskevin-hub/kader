@@ -29,12 +29,10 @@ import { OfflineMelding } from '../components/OfflineMelding';
 import { Laadbalk } from '../components/Laadbalk';
 import { AngstHebzucht } from '../components/AngstHebzucht';
 import { WatKopenNu } from '../components/WatKopenNu';
+import { poortOpen } from '../engine/marktklimaat';
 import { BearModusKaart } from '../components/BearModusKaart';
 import { RemKaart } from '../components/RemKaart';
 import { EenDingKaart } from '../components/EenDingKaart';
-import { GemisteKansenRij } from '../components/GemisteKansenRij';
-import { LABEL_KOOP_BEWEZEN, LABEL_STERK_BEWEZEN } from '../engine/drempels';
-import { GemisteKansenScherm } from '../components/GemisteKansenScherm';
 import { EenDing, kiesEenDing } from '../state/eenDing';
 import { useVerliesRem } from '../state/useVerliesRem';
 import { useHandelskapitaal } from '../state/useHandelskapitaal';
@@ -63,7 +61,6 @@ export function MarktScreen() {
   const { isFavoriet, wisselFavoriet } = useFavorieten();
   const [getradeteTrade, setGetradeteTrade] = useState<Trade | null>(null);
   const [koopTrade, setKoopTrade] = useState<Trade | null>(null);
-  const [gemistOpen, setGemistOpen] = useState(false);
   const { openDetail, detailScherm } = useCoinDetail();
   // Geen schrijfrecht in de actieve omgeving betekent geen koopknop. De kaart is dan identiek
   // aan hoe hij altijd was.
@@ -331,22 +328,21 @@ export function MarktScreen() {
               {/* De rem na verliezen gaat boven alles: die zegt iets over jou, niet over de markt. */}
               <RemKaart />
               {eenDing && <EenDingKaart ding={eenDing} onActie={opEenDingActie} />}
-              {/* Zonder bewezen kooplabel gaf Kader geen advies, dus valt er niets te "missen". */}
-              {LABEL_KOOP_BEWEZEN && <GemisteKansenRij onOpen={() => setGemistOpen(true)} />}
               {!bearModus && state.trades.length > 0 && !state.trades.some(t => t.voldoetAanRR) && (
                 <RrWaarschuwing bekeken={state.bekeken} />
               )}
               {/* In een dalende markt is "wat moet ik nu kopen" de verkeerde vraag: het antwoord is
                   dan maandenlang hetzelfde lege "wacht op een sterker signaal". De bear-modus-kaart
                   neemt die plek in en vertelt wat er wél te doen is. */}
-              {bearModus ? (
-                <BearModusKaart stand={state.bearModus} />
-              ) : LABEL_STERK_BEWEZEN ? (
-                // "Wat moet ik nu kopen" licht de BEVESTIGDE coin uit. Zolang dat keurmerk zijn lat niet
-                // haalt (meting N) is er niets om uit te lichten, en "wacht op een sterker signaal" zou
-                // dan een belofte zijn die nooit komt.
-                <WatKopenNu trades={weergegevenTrades} onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))} />
-              ) : null}
+              {/* Het Kader-mandje is het koopadvies (docs/mandje-lat.md). Het staat er ook in een
+                  dalende markt: het houdt dan zijn posities met de meelopende stop, of staat leeg en
+                  zegt waarom. De bear-kaart vertelt daaronder wat er met je eigen posities te doen is. */}
+              <WatKopenNu
+                trades={weergegevenTrades}
+                klimaatOpen={state.klimaat !== null && poortOpen(state.klimaat)}
+                onOpenDetail={t => openDetail(vanTrade(t, rsPerSymbool[t.symbool]))}
+              />
+              {bearModus && <BearModusKaart stand={state.bearModus} />}
               {state.klimaat && <MarktBalk klimaat={state.klimaat} />}
               {/* Alleen als het klimaat niet gunstig is. In een stijgende markt zegt de gewone score
                   al waar de kracht zit en zou deze lijst er een tweede rangschikking naast zetten. */}
@@ -432,7 +428,6 @@ export function MarktScreen() {
         onSluiten={() => setGetradeteTrade(null)}
       />
 
-      <GemisteKansenScherm zichtbaar={gemistOpen} onSluiten={() => setGemistOpen(false)} />
       {koopTrade && (
         <KooporderSheet
           zichtbaar

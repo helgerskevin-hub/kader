@@ -67,9 +67,12 @@ export function werkVolglijstBij(forceer = false): Promise<void> {
     }
     // Opnieuw laden: tijdens het ophalen kan er een regel bij zijn gekomen.
     const vers = await laadBoek();
+    // Alleen op dagcandles van Binance. De CoinGecko-terugval levert vier-uurs candles, en
+    // bepaalUitkomst rekent in dagen: de looptijd van 30 dagen en het slot bij "verlopen" kloppen
+    // daar niet op. Liever wachten tot Binance weer antwoordt dan een verkeerde uitkomst vastleggen.
     const regels = vers.regels.map(s => {
       const c = candles[s.symbool];
-      return c ? bepaalUitkomst(s, c.candles, nu) : s;
+      return c && c.bron === 'Binance' ? bepaalUitkomst(s, c.candles, nu) : s;
     });
     await bewaar({ ...vers, regels, laatstBijgewerkt: nu });
   }).catch(() => undefined);

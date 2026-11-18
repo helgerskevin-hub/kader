@@ -39,6 +39,10 @@ interface Props {
   // Ontbreekt zonder koppeling met schrijfrecht. De knop opent alleen de koopsheet, hij plaatst
   // nooit zelf een order.
   onKoop?: (kans: KansMetRang) => void;
+  // Het klimaat is niet gunstig of onbekend, of de radar is leeg. Het plan is gemeten voor een
+  // radar-coin bij een gunstig klimaat, dus de Koop-knop staat er dan als gewone knop en niet als
+  // hoofdknop. Het scherm legt het klimaat uit.
+  koopRustig?: boolean;
   // De scan is ouder dan KANSEN_COOLDOWN_MS: de koers waar het plan mee rekent kan achterhaald
   // zijn, dus geen Koop-knop tot er ververst is. Het scherm legt dat boven de lijst uit.
   verouderd?: boolean;
@@ -83,7 +87,7 @@ export function RangLabel({ verschil }: { verschil: RangVerschil }) {
 // tekenden alle al gelande kaarten mee (en startten hun balkjes en sparkline opnieuw op).
 export const KansKaart = memo(function KansKaart({
   kans, volgorde = 0, onOpenDetail, onGetrade, onKoop, favoriet, onToggleFavoriet, limiet = null,
-  verouderd = false, inBezit = false, beweegtMeeMet = GEEN_SYMBOLEN,
+  koopRustig = false, verouderd = false, inBezit = false, beweegtMeeMet = GEEN_SYMBOLEN,
 }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
@@ -279,7 +283,7 @@ export const KansKaart = memo(function KansKaart({
                     <PilKnop
                       label="Koop"
                       icoon={ShoppingCart}
-                      variant="cta"
+                      variant={koopRustig ? 'tweede' : 'cta'}
                       onPress={() => onKoop(kans)}
                       accessibilityLabel={`${kans.symbool} kopen via eToro`}
                     />

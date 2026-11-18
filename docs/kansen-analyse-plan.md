@@ -222,6 +222,8 @@ Uitgevoerd op dezelfde dag. De volledige cijfers staan in `docs/metingen.md`, me
 - **Toets.** De ene regel die overbleef haalt +0,29 R netto in 2023 t/m 2026 (het oude plan
   -0,19), maar haalt de lat niet: geen aantoonbare excess R en positief in maar 2 van de 4 jaren.
 - **Besluit van Kevin:** het plan volgen. Kansen is een volglijst zonder KOOP en zonder koopknop.
+  De koopknop kwam in #116 terug; zie de aanvulling na review onder meting M4 in
+  `docs/metingen.md`.
 - **Review.** Een aparte beoordelaar las de code en het meetscript. Geen blokkerende fouten; de
   punten (het klimaat op Kansen rekent op de afgesloten dag en Markt niet, regel 4 stond niet
   volledig in het script, verouderde teksten, twee aanscherpingen in de meting) zijn verwerkt.

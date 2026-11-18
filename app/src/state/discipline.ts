@@ -4,7 +4,8 @@
 // Puur (geen React Native, geen opslag), met een self-check onderaan, net als sluitReden.ts.
 //
 // Het plan is: stop en doel staan vast bij opening, en de trade eindigt op een van de twee. Een stop
-// optrekken (break-even, winst vastzetten) volgt het plan juist, want daar adviseert Kader zelf toe.
+// optrekken (break-even, winst vastzetten) telt niet als afwijking: het verkleint je risico. Kader
+// adviseert het zelf niet meer (STOP_OPTREKKEN_BEWEZEN in engine/drempels.ts).
 // Bewust weggelaten: hoeveel "eerder gesloten" kostte. Daarvoor zou je moeten weten waar de koers
 // daarna heen ging, en een oordeel op een gok is erger dan geen oordeel.
 

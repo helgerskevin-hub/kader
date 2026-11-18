@@ -11,20 +11,23 @@ import { fmtPrijs } from '../engine/format';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
-import { isAlleenBekijken } from '../engine/platforms';
 import { Drukbaar } from './Drukbaar';
 import { useValutaStand } from '../state/useValuta';
+import { useNaloopBoek } from '../state/naloopBoek';
+import { latStatus, NALOOP_PLEKKEN, type NaloopPositie } from '../engine/naloopRustig';
 
 interface Props {
   trades: Trade[];
+  klimaatOpen: boolean;
   onOpenDetail: (trade: Trade) => void;
 }
 
-// Hoeveel kandidaten er maximaal in de carrousel komen. Meer dan dit swipen is geen overzicht meer,
-// en de lijst eronder toont ze toch allemaal.
-const MAX_KAARTEN = 5;
+const fmtDag = (ms: number) => new Date(ms).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
 
-export function WatKopenNu({ trades, onOpenDetail }: Props) {
+// Het Kader-mandje: het enige koopadvies in Kader (docs/mandje-lat.md). Wat hier staat is wat de
+// papieren naloop van regel C (engine/naloopRustig.ts) nu vasthoudt: bij open klimaat de 5
+// rustigste coins, geen doel, een stop die meeschuift. Zo is het advies precies wat de lat meet.
+export function WatKopenNu({ trades, klimaatOpen, onOpenDetail }: Props) {
   // De formatters lezen de gekozen valuta uit een gewone module, dus zonder dit abonnement
   // blijft dit scherm na het omzetten in de oude valuta staan.
   useValutaStand();
@@ -36,21 +39,25 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
   const laatste = useRef(0);
   const strookGebaar = useMemo(() => Gesture.Native().disallowInterruption(true), []);
 
-  // Alleen high conviction: gemeten +0,16 R gemiddeld, de sterkste bucket uit de backtest.
-  // Een lagere score kan hier ook nog KOOP zijn, maar is niet sterk genoeg voor dit uitgelichte advies.
-  const kandidaten = [...trades]
-    // Een coin waar eToro niet in laat handelen is geen advies om nu te kopen.
-    .filter(t => t.signaal === 'KOOP' && t.highConviction && !isAlleenBekijken(t.symbool))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_KAARTEN);
+  const boek = useNaloopBoek(true);
+  if (!boek) return null;
+  const lat = latStatus(boek, Date.now());
+  const perSymbool = new Map(trades.map(t => [t.symbool, t]));
+  const kandidaten = boek.posities
+    .filter(p => p.uitkomst === 'open')
+    .sort((a, b) => a.tijd - b.tijd)
+    .map(p => ({ p, trade: perSymbool.get(p.symbool) }));
 
-  if (kandidaten.length === 0) {
+  if (!lat.actief || kandidaten.length === 0) {
+    const tekst = !lat.actief
+      ? `Het mandje staat uit: ${lat.reden}. Kader volgt het op papier verder, maar geeft er geen koopadvies meer uit tot een nieuwe meting het bewijst.`
+      : klimaatOpen
+        ? 'Het mandje vult zich bij de volgende scan met de rustigste coins.'
+        : 'Het klimaat is niet gunstig, dus het mandje koopt nu niets. Wachten is hier het advies.';
     return (
       <View style={[styles.wrapper, styles.leeg, { backgroundColor: colors.kaart }]}>
-        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>WAT MOET IK NU KOPEN?</Text>
-        <Text style={[Type.body, { color: colors.tekstGedimd }]}>
-          Nu geen duidelijke koopkans. Wacht op een sterker signaal.
-        </Text>
+        <Text style={[Type.overline, { color: colors.tekstGedimd }]}>KADER-MANDJE</Text>
+        <Text style={[Type.body, { color: colors.tekstPrimair }]}>{tekst}</Text>
       </View>
     );
   }
@@ -62,7 +69,7 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
   if (kandidaten.length === 1) {
     return (
       <View style={[styles.wrapper, styles.enkele]}>
-        <Kaart trade={kandidaten[0]} onOpenDetail={onOpenDetail} breedte={width - spacing.base * 2} />
+        <Kaart p={kandidaten[0].p} trade={kandidaten[0].trade} plek={1} onOpenDetail={onOpenDetail} breedte={width - spacing.base * 2} />
       </View>
     );
   }
@@ -97,10 +104,12 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
           decelerationRate="fast"
           contentContainerStyle={styles.spoor}
         >
-          {kandidaten.map(trade => (
+          {kandidaten.map(({ p, trade }, i) => (
             <Kaart
-              key={trade.symbool}
+              key={p.id}
+              p={p}
               trade={trade}
+              plek={i + 1}
               onOpenDetail={onOpenDetail}
               breedte={kaartBreedte}
             />
@@ -112,11 +121,11 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
       <View
         style={styles.puntenRij}
         accessibilityRole="adjustable"
-        accessibilityLabel={`Koopkans ${actief + 1} van ${kandidaten.length}`}
+        accessibilityLabel={`Mandje-coin ${actief + 1} van ${kandidaten.length}`}
       >
-        {kandidaten.map((trade, i) => (
+        {kandidaten.map(({ p }, i) => (
           <View
-            key={trade.symbool}
+            key={p.id}
             style={[
               styles.punt,
               { backgroundColor: i === actief ? colors.primair : colors.rand },
@@ -129,33 +138,37 @@ export function WatKopenNu({ trades, onOpenDetail }: Props) {
   );
 }
 
-function Kaart({ trade, onOpenDetail, breedte }: {
-  trade: Trade;
+function Kaart({ p, trade, plek, onOpenDetail, breedte }: {
+  p: NaloopPositie;
+  trade: Trade | undefined;
+  plek: number;
   onOpenDetail: (trade: Trade) => void;
   breedte: number;
 }) {
-  const naam = infoVoor(trade.symbool).naam;
-  const reden = trade.redenen[0] ?? `sterk signaal (score ${Math.round(trade.score)})`;
+  const naam = infoVoor(p.symbool).naam;
   const { colors } = useTheme();
+  const prijs = trade?.prijs;
+  const tekst = `Stop ${fmtPrijs(p.stop)}, schuift elke dag mee naar het laagste punt van 20 dagen. Geen doel.`;
 
   return (
     <Drukbaar
-      onPress={() => onOpenDetail(trade)}
+      onPress={() => trade && onOpenDetail(trade)}
+      disabled={!trade}
       bron={{ kleur: colors.primair, radius: radii.kaart }}
       style={[styles.kaart, { width: breedte, backgroundColor: colors.primair }]}
       accessibilityRole="button"
-      accessibilityLabel={`Bekijk ${trade.symbool}, aanbevolen koopkans: ${reden}`}
+      accessibilityLabel={`Kader-mandje, plek ${plek} van ${NALOOP_PLEKKEN}: ${p.symbool}. ${tekst}`}
     >
-      <Text style={[Type.overline, styles.kopWit]}>WAT MOET IK NU KOPEN?</Text>
+      <Text style={[Type.overline, styles.kopWit]}>KADER-MANDJE · {plek} VAN {NALOOP_PLEKKEN}</Text>
       <View style={styles.rij}>
-        <Text style={[Type.titel, styles.symbool]}>{trade.symbool}</Text>
+        <Text style={[Type.titel, styles.symbool]}>{p.symbool}</Text>
         <Text style={[Type.caption, styles.naam]} numberOfLines={1}>{naam}</Text>
-        <Text style={[Type.prijs, styles.prijs]}>{fmtPrijs(trade.prijs)}</Text>
+        {prijs !== undefined && <Text style={[Type.prijs, styles.prijs]}>{fmtPrijs(prijs)}</Text>}
       </View>
-      <Text style={[Type.body, styles.reden]} numberOfLines={2}>{reden}</Text>
+      <Text style={[Type.body, styles.reden]} numberOfLines={3}>{tekst}</Text>
       <View style={styles.hintRij}>
-        <Text style={[Type.caption, styles.hintTekst]}>Tik voor meer info</Text>
-        <ChevronRight size={13} color="rgba(255,255,255,0.75)" strokeWidth={2} />
+        <Text style={[Type.caption, styles.hintTekst]}>In het mandje sinds {fmtDag(p.tijd)}</Text>
+        {trade && <ChevronRight size={13} color="rgba(255,255,255,0.75)" strokeWidth={2} />}
       </View>
     </Drukbaar>
   );

@@ -8,7 +8,7 @@
 //   - Instap op de open van de dag NA het signaal. Het oordeel valt op een afgesloten dag, kopen
 //     kan pas daarna. backtest.ts stapt in op het slot van de signaaldag zelf.
 //   - Afstellen en toetsen gescheiden: t/m 2022 afstellen, 2023 en later toetsen.
-//   - Excess R tegen dezelfde niveaus op een willekeurige coin op dezelfde dag.
+//   - Excess R tegen het gemiddelde van alle coins op dezelfde dag, met dezelfde niveaus.
 //   - Betrouwbaarheidsinterval via bootstrap per kalendermaand van instap.
 //
 // De beslisregels staan in docs/kansen-analyse-plan.md, paragraaf 5, en lagen vast voordat dit

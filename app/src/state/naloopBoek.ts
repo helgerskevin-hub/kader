@@ -1,4 +1,5 @@
-// Opslag en bijwerken van de naloop van regel C (engine/naloopRustig.ts). Draait vanuit
+// Opslag en bijwerken van de naloop van regel C (engine/naloopRustig.ts), en daarmee van het
+// Kader-mandje op Markt. Draait vanuit
 // MarktProvider na elke analyse en vanuit de achtergrondtaak. Net als het signaalboek mag hier geen
 // fout een analyse of melding laten mislukken, dus alles vangt zijn eigen fouten.
 
@@ -6,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { laadObject, bewaarObject, SLEUTELS } from '../storage/opslag';
 import { haalData } from '../engine/marketData';
 import type { Trade } from '../engine/types';
-import { leegBoek, volg, vulAan, type NaloopBoek } from '../engine/naloopRustig';
+import { leegBoek, volg, vulAan, migreer, controleerLat, type NaloopBoek } from '../engine/naloopRustig';
 
 // Dagcandles veranderen alleen nog in de lopende dag; een stop wordt op het slot gezet. Een paar
 // keer per dag kijken is genoeg en kost per open positie een request.
@@ -22,8 +23,8 @@ function opRij<T>(stap: () => Promise<T>): Promise<T> {
 const luisteraars = new Set<() => void>();
 
 async function laadBoek(): Promise<NaloopBoek> {
-  const b = await laadObject<NaloopBoek>(SLEUTELS.naloopBoek);
-  return b && b.versie === 1 && Array.isArray(b.posities) ? b : leegBoek();
+  const b = await laadObject<Parameters<typeof migreer>[0]>(SLEUTELS.naloopBoek);
+  return b && (b.versie === 1 || b.versie === 2) && Array.isArray(b.posities) ? migreer(b) : leegBoek();
 }
 
 async function bewaar(b: NaloopBoek): Promise<void> {
@@ -35,7 +36,8 @@ async function bewaar(b: NaloopBoek): Promise<void> {
 export function registreerNaloop(trades: Trade[], poortIsOpen: boolean): Promise<void> {
   return opRij(async () => {
     const b = await laadBoek();
-    const na = vulAan(b, trades, poortIsOpen, Date.now());
+    const nu = Date.now();
+    const na = controleerLat(vulAan(b, trades, poortIsOpen, nu), nu);
     if (na !== b) await bewaar(na);
   }).catch(() => undefined);
 }
@@ -68,8 +70,19 @@ export function werkNaloopBij(forceer = false): Promise<void> {
       kas += opbrengst;
       return nieuw;
     });
-    await bewaar({ ...vers, posities, kas, laatstePrijs, laatstBijgewerkt: nu });
+    await bewaar(controleerLat({ ...vers, posities, kas, laatstePrijs, laatstBijgewerkt: nu }, nu));
   }).catch(() => undefined);
+}
+
+// De coins die nu in het mandje zitten, voor de stop-meldingen. Leeg als de lat afging.
+export async function laadMandjeSymbolen(): Promise<Set<string>> {
+  try {
+    const b = await laadBoek();
+    if (b.latAf) return new Set();
+    return new Set(b.posities.filter(p => p.uitkomst === 'open').map(p => p.symbool));
+  } catch {
+    return new Set();
+  }
 }
 
 export function useNaloopBoek(actief: boolean): NaloopBoek | null {

@@ -98,7 +98,7 @@ function regelVoor(symbool: string, r: number | null): string {
 }
 
 const styles = StyleSheet.create({
-  kaart: { marginHorizontal: spacing.base, marginTop: spacing.md, borderRadius: radii.kaart, padding: spacing.base, gap: spacing.md },
+  kaart: { marginHorizontal: spacing.base, borderRadius: radii.kaart, padding: spacing.base, gap: spacing.md },
   kop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2 },
   tegel: { width: 30, height: 30, borderRadius: radii.veld, alignItems: 'center', justifyContent: 'center' },
   getalRij: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },

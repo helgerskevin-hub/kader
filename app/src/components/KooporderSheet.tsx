@@ -5,6 +5,7 @@
 // bedrag niet in je saldo, dan is bevestigen simpelweg uitgeschakeld. En na een onbekende uitkomst
 // verschijnt er nergens een knop die het verzoek opnieuw verstuurt.
 import React, { useEffect, useRef, useState } from 'react';
+import { useNaloopBoek } from '../state/naloopBoek';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Pause, Wallet } from 'lucide-react-native';
@@ -180,6 +181,12 @@ export function KooporderSheet({
     return () => { actief = false; };
   }, [zichtbaar]);
 
+  // Een coin uit het Kader-mandje koopt zonder doel: de winst zit in de staart, en de stop schuift
+  // elke dag mee (docs/mandje-lat.md). Kader meldt dan wanneer de stop omhoog kan.
+  const mandje = useNaloopBoek(zichtbaar);
+  const inMandje = !!mandje && !mandje.latAf && mandje.posities.some(p => p.uitkomst === 'open' && p.symbool === symbool);
+  const planDoel = inMandje ? undefined : doel;
+
   const advies: StopAdvies = bepaalStop(entry, stop, stopLimiet);
   const getoondeStop = advies.soort === 'aangepast' ? advies.stop : stop;
 
@@ -199,7 +206,7 @@ export function KooporderSheet({
     instrumentId: instrumentId ?? 0,
     bedragUsd: heeftBedrag ? bedragGetal : 0,
     stopLossRate,
-    takeProfitRate: doel,
+    takeProfitRate: planDoel,
     // Sommige coins voert eToro in een andere eenheid (SHIB en PEPE per miljoen munten); de body
     // rekent dat om, maar op dit scherm blijft alles in Kaders eigen koers per coin staan.
     koersFactor: koersFactor(symbool),
@@ -211,12 +218,12 @@ export function KooporderSheet({
   const body = bouwKooporderBody(invoer);
   const niveaus: string[] = [];
   if (typeof body.stopLossRate === 'number' && typeof stopLossRate === 'number') niveaus.push(`stop-loss ${fmtPrijs(stopLossRate, DOLLARS)}`);
-  if (typeof body.takeProfitRate === 'number') niveaus.push(`doel ${fmtPrijs(doel, DOLLARS)}`);
+  if (typeof body.takeProfitRate === 'number' && planDoel !== undefined) niveaus.push(`doel ${fmtPrijs(planDoel, DOLLARS)}`);
   const niveauZin = niveaus.length > 0
     ? ` ${niveaus.join(', ').replace(/^./, t => t.toUpperCase())}.`
     : '';
   const samenvatting = heeftBedrag
-    ? `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}`
+    ? `Je koopt voor ${fmtBedrag(bedragGetal, DOLLARS)} aan ${symbool} tegen de marktprijs.${niveauZin}${inMandje ? ' Geen doel: dit is een mandje-coin, Kader meldt wanneer je stop omhoog kan.' : ''}`
     : '';
 
   // Wat er van je saldo vastzit in orders die nog wachten. Staat er niets in de wacht, dan komt er
@@ -425,12 +432,12 @@ export function KooporderSheet({
   // er geen bedrag bij de stop te noemen. De R/R hangt niet van het bedrag af, dus zonder geldig
   // bedrag rekenen we met 1 dollar zodat de R/R blijft staan, en blijven de tegels leeg.
   const planStop = advies.soort === 'vast' ? undefined : getoondeStop;
-  const plan = planInGeld({ bedrag: heeftBedrag ? bedragGetal : 1, entry, stop: planStop, doel });
+  const plan = planInGeld({ bedrag: heeftBedrag ? bedragGetal : 1, entry, stop: planStop, doel: planDoel });
   const verliesBijStop = heeftBedrag && plan?.bijStop != null && plan.bijStop < 0 ? -plan.bijStop : null;
   const bestaandRisico = berekenOpenRisico(trades, omgeving).risicoUsd;
   const bezit = [...new Set(trades.filter(t => t.status === 'open' && inOmgeving(t, omgeving)).map(t => t.symbool))];
   const spreadR = koers && planStop !== undefined ? spreadInR(koers, entry, planStop) : null;
-  const rrNetto = koers && planStop !== undefined ? nettoRR(koers, entry, planStop, doel) : null;
+  const rrNetto = koers && planStop !== undefined && planDoel !== undefined ? nettoRR(koers, entry, planStop, planDoel) : null;
 
   // Het bedrag in de samenvatting vet, zonder de zin zelf te veranderen.
   const bedragTekst = heeftBedrag ? fmtBedrag(bedragGetal, DOLLARS) : '';
@@ -520,7 +527,7 @@ export function KooporderSheet({
         <PlanInGeldKaart
           entry={entry}
           stop={planStop}
-          doel={doel}
+          doel={planDoel}
           bijStop={heeftBedrag ? plan?.bijStop ?? null : null}
           bijDoel={heeftBedrag ? plan?.bijDoel ?? null : null}
           rr={plan?.rr ?? null}
