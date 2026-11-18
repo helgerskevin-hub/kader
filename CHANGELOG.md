@@ -4,6 +4,10 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## Nog niet uitgebracht
+
+- De melding Winst beschermen komt nu één keer per situatie, niet meer elke zes uur. Zolang je coin in winst onder zijn 50-daags gemiddelde blijft in een dalende markt, blijft Kader stil. Pas als dat voorbij is en daarna opnieuw ontstaat, krijg je weer een melding
+
 ## 0.4.3
 
 - Kader kijkt nu naar 148 coins in plaats van 57: elke coin die je op eToro kunt kopen en die een handelspaar op Binance heeft, zoals Bittensor, Ethena, Jupiter, Worldcoin, Dogwifhat en Bonk. Het marktklimaat rekent nog op de 57 coins waarop het gemeten is. Een scan duurt daardoor ongeveer twee keer zo lang. Coins waarvan geen vrij logo bestaat, hebben een eigen badge in hun merkkleur

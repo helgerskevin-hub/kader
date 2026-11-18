@@ -60,6 +60,9 @@ export const SLEUTELS = {
   // melding opnieuw sturen. Gedeeld door de voorgrond-check en de achtergrondtaak, zodat die twee
   // elkaar niet dubbelen.
   meldingSuppressie: 'melding_suppressie',
+  // Trade-id's waarvoor "winst beschermen" al gemeld is en de situatie nog geldt. Geen tijdvenster
+  // maar een aan/uit-stand: de melding komt één keer per situatie, zie werkAfbouwGemeldBij.
+  afbouwGemeld: 'afbouw_gemeld',
   // Tijdstip van de laatst verstuurde trade-melding. Eén globale rem over alle triggers heen: de
   // suppressie hierboven voorkomt herhaling van dezelfde melding, dit voorkomt een stapel losse.
   laatsteMelding: 'laatste_melding_tijd',
