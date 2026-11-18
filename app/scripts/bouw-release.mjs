@@ -9,6 +9,7 @@ import { existsSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { controleerChangelog } from './controleer-changelog.mjs';
 
 // Thom en Kevin bouwen allebei, de een op Windows en de ander op macOS. De namen van de
 // SDK-tools en de Gradle-wrapper verschillen per platform, en dit script moet op allebei
@@ -63,37 +64,11 @@ function leesAppJson() {
   };
 }
 
-// 0.4.3 en 0.4.4 zijn uitgebracht zonder `nieuweFeatures`, waardoor gebruikers na de update de
-// oude changelog-melding zagen in plaats van de rondleiding "Nieuw in Kader". Deze check laat een
-// release die dat opnieuw zou doen niet eens beginnen. De TS-bron wordt met esbuild (zit in de
-// dependencies van Expo) naar een data-URL-module omgezet, zodat we het echte object lezen en niet
-// de tekst parsen.
-export async function controleerChangelog(versionName) {
-  const { buildSync } = await import('esbuild');
-  const code = buildSync({
-    entryPoints: [join(APP_DIR, 'src', 'changelog.ts')],
-    bundle: true,
-    write: false,
-    format: 'esm',
-    platform: 'node',
-  }).outputFiles[0].text;
-  const { CHANGELOG } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
-  const nieuwste = CHANGELOG[0];
-  if (nieuwste.versie !== versionName) {
-    return `De nieuwste changelog-entry (${nieuwste.versie}) hoort bij versie ${versionName} uit app.json te staan. Pas app/src/changelog.ts aan.`;
-  }
-  if (!Array.isArray(nieuwste.nieuweFeatures) || nieuwste.nieuweFeatures.length === 0) {
-    return `De changelog-entry voor ${versionName} heeft geen nieuweFeatures. Zonder die pagina's krijgen gebruikers de oude wijzigingenlijst in plaats van de rondleiding "Nieuw in Kader". Voeg minstens een pagina toe in app/src/changelog.ts.`;
-  }
-  return null;
-}
-
-// Alleen uitvoeren als dit bestand zelf gestart wordt, zodat de check ook los te testen is.
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 console.log('== Kader release-build ==');
 const { versionName, versionCode } = leesAppJson();
 console.log(`app.json zegt: version=${versionName} versionCode=${versionCode}`);
 
+// Eerst de changelog controleren, voor de dure prebuild: zie controleer-changelog.mjs.
 const changelogFout = await controleerChangelog(versionName);
 if (changelogFout) fout(changelogFout);
 console.log('OK: changelog heeft een rondleiding voor deze versie.');
@@ -176,4 +151,3 @@ console.log('OK: handtekening komt overeen met de bekende debug-key.');
 const doelPad = join(APP_DIR, `kader-${versionName}.apk`);
 copyFileSync(apkPad, doelPad);
 console.log(`\nKlaar. APK gekopieerd naar: ${doelPad}`);
-}
