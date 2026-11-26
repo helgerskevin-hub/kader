@@ -874,13 +874,14 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
     // Eerst de omgeving naar demo, dan de sleutels weg. Andersom vuurt wisSleutels via
     // opSleutelWijziging een verversing (PortfolioProvider) die de oude omgeving 'real' kan
     // teruglezen nadat demo al gezet is.
-    // Beide in de try: SlotScherm toont e.message, en dat moet altijd deze melding zijn.
+    // SlotScherm toont e.message, en dat moet altijd deze melding zijn. wisSleutels gooit hem al
+    // zelf (met de oorzaak erin); alleen een fout van zetOmgeving wordt hier ingepakt.
     try {
       await zetOmgeving('demo');
-      await wisSleutels();
     } catch (e) {
       throw new Error(MELDING_KOPPELING_NIET_WEG, { cause: e });
     }
+    await wisSleutels();
     // Opnieuw lezen: mislukte het wissen (of is de kluis nu onleesbaar, dat telt als gekoppeld),
     // dan niet openen. De status blijft 'setupVerplicht' en SlotScherm toont de melding.
     if (await leesEtoro()) throw new Error(MELDING_KOPPELING_NIET_WEG);

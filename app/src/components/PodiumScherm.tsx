@@ -128,6 +128,9 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
   const gestart = useRef(false);
   const onSluitenRef = useRef(onSluiten);
   const noodrem = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Voor de noodrem: een net heropend scherm mag hij niet dichtdoen.
+  const zichtbaarRef = useRef(zichtbaar);
+  zichtbaarRef.current = zichtbaar;
   const stopNoodrem = useCallback(() => {
     if (noodrem.current) clearTimeout(noodrem.current);
     noodrem.current = null;
@@ -154,6 +157,9 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
     stopNoodrem();
     noodrem.current = setTimeout(() => {
       noodrem.current = null;
+      // Heropend (zichtbaar) en geen eigen sluiting: dat is geen hangende sluiting maar een open
+      // scherm. Een eigen sluiting (X, swipe-terug) rondt wel af, ook als de ouder zichtbaar laat.
+      if (zichtbaarRef.current && !interneSluiting.current) return;
       rondAf();
     }, SLUIT_NOODREM_MS);
   }, [rondAf, stopNoodrem]);

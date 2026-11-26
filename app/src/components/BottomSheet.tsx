@@ -56,8 +56,8 @@ const DICHT_SNELHEID = 800;
 // de uitleg daar). Met 180ms animatie plus een render is deze Modal op tijd weg.
 const SLUIT_MS = 180;
 const SLUIT_MIN_MS = 110;
-// Noodrem voor het sluiten: is de Modal na deze tijd nog open terwijl hij dicht hoort, dan gaat hij
-// alsnog weg. De afronding hangt aan de klaar-callback van een animatie; wordt die onderbroken
+// Noodrem voor het sluiten: is de sluiting na deze tijd niet afgerond, dan rondt hij alsnog af
+// (Modal weg, of terug omhoog als de ouder de sheet open hield). De afronding hangt aan de klaar-callback van een animatie; wordt die onderbroken
 // (afgerond false) of vuurt hij niet terwijl een prompt de activity pauzeert, dan bleef er een scrim
 // of een onzichtbaar vel staan dat elke aanraking opving.
 const SLUIT_NOODREM_MS = SLUIT_MS + 300;
@@ -122,6 +122,14 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
   reduceRef.current = reduceMotion;
   const sluitendRef = useRef(false);
   const wachtOpMaat = useRef(false);
+  // Zie SLUIT_NOODREM_MS. Gezet bij elke sluitendRef = true, opgeruimd bij elke afronding of
+  // heropening en bij unmount.
+  const noodrem = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopNoodrem = useCallback(() => {
+    if (noodrem.current) clearTimeout(noodrem.current);
+    noodrem.current = null;
+  }, []);
+  useEffect(() => stopNoodrem, [stopNoodrem]);
 
   // Tijdens het wegschuiven houden we de laatste inhoud vast. Veel sheets halen hun inhoud uit iets
   // dat bij het sluiten meteen null wordt (een sheet die een `trade` toont die bij sluiten null wordt), en dan zou het vel
@@ -130,6 +138,7 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
   if (zichtbaar) laatsteKinderen.current = children;
 
   const startOpen = useCallback(() => {
+    stopNoodrem();
     sluitendRef.current = false;
     sluitendUI.value = false;
     if (reduceRef.current) {
@@ -139,10 +148,28 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
     }
     zicht.value = 1;
     y.value = withSpring(0, veer.standaard);
-  }, [y, zicht, sluitendUI]);
+  }, [y, zicht, sluitendUI, stopNoodrem]);
+
+  // Vuurt de klaar-callback van de sluitanimatie niet, dan rondt dit alsnog af zoals naSluiten dat
+  // zou doen: hield de ouder de sheet open, dan terug omhoog, anders de Modal weg. Zonder dit bleef
+  // sluitendRef true en ving een onzichtbaar vel (of een scrim) elke aanraking op.
+  const startNoodrem = useCallback(() => {
+    stopNoodrem();
+    noodrem.current = setTimeout(() => {
+      noodrem.current = null;
+      if (!sluitendRef.current) return;
+      if (zichtbaarRef.current) {
+        startOpen();
+        return;
+      }
+      sluitendRef.current = false;
+      setModalOpen(false);
+    }, SLUIT_NOODREM_MS);
+  }, [startOpen, stopNoodrem]);
 
   const naSluiten = useCallback(() => {
     const afronden = () => {
+      stopNoodrem();
       // De ouder hield de sheet open (onSluiten zette zichtbaar niet op false): terug omhoog.
       if (zichtbaarRef.current) {
         startOpen();
@@ -156,7 +183,7 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
     // en anders zou het vel voor niets eerst weer omhoog komen.
     if (zichtbaarRef.current) setTimeout(afronden, 0);
     else afronden();
-  }, [startOpen]);
+  }, [startOpen, stopNoodrem]);
 
   // Draait op de UI-thread (vanuit het sleepgebaar) en op de JS-thread (achtergrond, terugknop,
   // zichtbaar naar false). snelheid is de loslaatsnelheid in pt/s, 0 als er niet gesleept is.
@@ -188,10 +215,11 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
   const sluitDoorGebruiker = useCallback((alBezig: boolean) => {
     if (sluitendRef.current) return;
     sluitendRef.current = true;
+    startNoodrem();
     Keyboard.dismiss();
     if (!alBezig) animeerWeg(0);
     onSluitenRef.current();
-  }, [animeerWeg]);
+  }, [animeerWeg, startNoodrem]);
 
   useEffect(() => {
     if (zichtbaar) {
@@ -212,6 +240,7 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
     }
     if (!modalOpen || sluitendRef.current) return;
     sluitendRef.current = true;
+    startNoodrem();
     // Vroeger verdween de inhoud met de Modal meteen, en daarmee het toetsenbord. Nu blijft de
     // inhoud nog even staan tijdens het wegschuiven, dus halen we het toetsenbord zelf weg.
     Keyboard.dismiss();
@@ -219,18 +248,6 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
     // Bewust alleen zichtbaar en modalOpen: animeerWeg verandert mee met reduceMotion, en een
     // nieuwe versie ervan is geen reden om opnieuw te openen of te sluiten.
   }, [zichtbaar, modalOpen]);
-
-  // Zie SLUIT_NOODREM_MS. Een JS-timer zolang de Modal open is en zichtbaar false; heropenen,
-  // dichtgaan en unmounten ruimen hem op. Het openen zelf raakt dit niet.
-  useEffect(() => {
-    if (!modalOpen || zichtbaar) return;
-    const t = setTimeout(() => {
-      if (!sluitendRef.current || zichtbaarRef.current) return;
-      sluitendRef.current = false;
-      setModalOpen(false);
-    }, SLUIT_NOODREM_MS);
-    return () => clearTimeout(t);
-  }, [modalOpen, zichtbaar]);
 
   function opLayout(e: LayoutChangeEvent) {
     const h = e.nativeEvent.layout.height;

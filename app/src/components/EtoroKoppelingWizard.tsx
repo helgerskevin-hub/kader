@@ -135,6 +135,10 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
   const [plakUser, setPlakUser] = useState<PlakInfo | null>(null);
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
   const [bezigOpslaan, setBezigOpslaan] = useState(false);
+  // Tijdens "Koppeling verwijderen": de kluis wist nog, dus niets anders tikbaar (zelfde knoppen als
+  // bij opslaan, via bezig).
+  const [bezigWissen, setBezigWissen] = useState(false);
+  const bezig = bezigOpslaan || bezigWissen;
   const [bestondKoppeling, setBestondKoppeling] = useState(false);
   // Het paar zoals het bij het openen op het toestel stond. Nodig om te zien of iemand een NIEUWE
   // publieke sleutel plakt, want dan hoort de opgeslagen User Key er niet meer bij.
@@ -411,6 +415,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
   }
 
   function verwijderKoppeling() {
+    if (bezig) return;
     toonDialoog({
       variant: 'fout',
       titel: 'Koppeling verwijderen',
@@ -420,10 +425,12 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
           label: 'Verwijderen',
           soort: 'destructief',
           onDruk: async () => {
+            setBezigWissen(true);
             try {
               await wisSleutels();
-            } catch {
+            } catch (e) {
               // De sleutel staat er (deels) nog: melden en de wizard open laten.
+              console.warn('Koppeling verwijderen mislukt', e instanceof Error ? e.cause ?? e : e);
               toonDialoog({
                 variant: 'fout',
                 titel: 'Koppeling verwijderen',
@@ -431,6 +438,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
                 knoppen: [{ label: 'Oké' }],
               });
               return;
+            } finally {
+              setBezigWissen(false);
             }
             setApiKey('');
             setUserKey('');
@@ -446,8 +455,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
   }
 
   function vorige() {
-    // Tijdens het opslaan blijft alles staan: de kluis schrijft nog.
-    if (bezigOpslaan) return;
+    // Tijdens het opslaan of wissen blijft alles staan: de kluis werkt nog.
+    if (bezig) return;
     if (stap === STAP_TESTEN) {
       // Terug naar de sleutels is terug naar ongetest, ook vanaf het foutscherm.
       vergeetTest();
@@ -501,8 +510,10 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
           {bestondKoppeling && (
             <Drukbaar
               onPress={verwijderKoppeling}
+              disabled={bezig}
               accessibilityRole="button"
               accessibilityLabel="Koppeling verwijderen"
+              accessibilityState={{ disabled: bezig }}
               style={styles.verwijderKnop}
             >
               <Trash2 size={16} color={colors.verlies} strokeWidth={1.75} />
@@ -728,7 +739,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       if (foutScherm) return <GrootKnop label="Terug naar sleutels" onPress={vorige} />;
       if (testStatus === 'testing') return <GrootKnop label="Bezig met testen" uit onPress={() => {}} />;
       if (testStatus === 'klaar' && beeld?.kanOpslaan) {
-        return <GrootKnop label={slotVolgt ? 'Verder' : 'Opslaan'} uit={bezigOpslaan} onPress={naTest} />;
+        return <GrootKnop label={slotVolgt ? 'Verder' : 'Opslaan'} uit={bezig} onPress={naTest} />;
       }
       return <GrootKnop label="Test verbinding" onPress={testVerbinding} />;
     }
@@ -762,7 +773,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       // Android-terug doet hetzelfde als de knop linksboven: een stap terug, en alleen op de eerste
       // en laatste stap sluiten. Tijdens het opslaan gebeurt er niets, de kluis schrijft nog.
       onTerug={() => {
-        if (bezigOpslaan) return true;
+        if (bezig) return true;
         if (metSluitKnop) return false;
         if (opSlotStap && slotTerugRef.current?.()) return true;
         vorige();
@@ -775,14 +786,14 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
           <View style={styles.top}>
             <Drukbaar
               onPress={() => {
-                if (bezigOpslaan) return;
+                if (bezig) return;
                 if (metSluitKnop) sluit();
                 else vorige();
               }}
-              disabled={bezigOpslaan}
+              disabled={bezig}
               accessibilityRole="button"
               accessibilityLabel={metSluitKnop ? 'Sluiten' : 'Vorige stap'}
-              accessibilityState={{ disabled: bezigOpslaan }}
+              accessibilityState={{ disabled: bezig }}
               style={styles.topKnop}
               schaal={0.9}
             >

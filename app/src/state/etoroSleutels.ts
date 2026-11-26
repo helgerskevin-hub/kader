@@ -45,6 +45,9 @@ const SCHRIJFVLAG: Record<EtoroOmgeving, string> = {
 let geheugen: Sleutelpaar | null | undefined;
 let bronGeheugen: Sleutelbron = null;
 let omgevingGeheugen: EtoroOmgeving | null = null;
+// Telt elke wisSleutels(). Een lezing die tijdens of vóór een wissing begon (de demo-verhuizing in
+// haalSleutelpaar) ziet daarna een andere waarde: dan schrijft ze niets terug en onthoudt ze niets.
+let wisGeneratie = 0;
 
 // "Niet gekoppeld" en "de kluis deed het even niet" zijn verschillende verhalen. Ze door elkaar
 // halen gaf de melding "Nog geen eToro-koppeling" aan iemand met een prima sleutel, en een stille
@@ -180,6 +183,7 @@ async function wisGeheim(sleutel: string): Promise<void> {
 
 async function haalSleutelpaar(): Promise<Sleutelpaar | null> {
   if (geheugen !== undefined) return geheugen;
+  const generatie = wisGeneratie;
 
   let echtApi: string, echtUser: string, demoApi: string, demoUser: string;
   try {
@@ -194,6 +198,9 @@ async function haalSleutelpaar(): Promise<Sleutelpaar | null> {
     throw e instanceof Error ? e : new Error(KLUIS_ONBEREIKBAAR);
   }
 
+  // Intussen gewist (of nog bezig): wat hier gelezen is, is van vóór de wissing. Niet onthouden,
+  // niet verhuizen en niet uitdelen; de volgende lezing leest de kluis opnieuw.
+  if (generatie !== wisGeneratie) return null;
   const keuze = kiesSleutelbron({ apiKey: echtApi, userKey: echtUser }, { apiKey: demoApi, userKey: demoUser });
   if (!keuze) {
     geheugen = null;
@@ -210,7 +217,11 @@ async function haalSleutelpaar(): Promise<Sleutelpaar | null> {
   // Hij wordt vanaf nu alleen niet meer gelezen. Opruimen kan in een latere versie.
   if (keuze.bron === 'demo') {
     try {
+      // Vlak voor elke schrijfactie opnieuw kijken: een wissing die intussen begon mag deze
+      // verhuizing de sleutel niet laten terugzetten.
+      if (generatie !== wisGeneratie) return null;
       await schrijfGeheim(PAAR.api, keuze.apiKey);
+      if (generatie !== wisGeneratie) return null;
       await schrijfGeheim(PAAR.user, keuze.userKey);
     } catch {
       // Verhuizen lukt nu niet. De sleutel is deze sessie gewoon bruikbaar uit het geheugen
@@ -218,6 +229,7 @@ async function haalSleutelpaar(): Promise<Sleutelpaar | null> {
     }
   }
 
+  if (generatie !== wisGeneratie) return null;
   geheugen = { apiKey: keuze.apiKey, userKey: keuze.userKey };
   bronGeheugen = keuze.bron;
   return geheugen;
@@ -319,6 +331,11 @@ async function bewaarSleutelsInRij(invoer: SleutelInvoer): Promise<void> {
 export const MELDING_KOPPELING_NIET_WEG = 'De eToro-koppeling is niet verwijderd. Probeer het opnieuw.';
 
 export async function wisSleutels(): Promise<void> {
+  // Meteen het geheugen weg: een sync of order die tijdens het wissen leest, krijgt het oude paar
+  // niet meer uit het geheugen. De generatie houdt een lopende lezing of verhuizing tegen.
+  wisGeneratie += 1;
+  geheugen = undefined;
+  bronGeheugen = null;
   let gewist = false;
   try {
     // Ook het oude demo-slot leegmaken. Bij het verhuizen laten we het staan omdat we dan niets mogen
