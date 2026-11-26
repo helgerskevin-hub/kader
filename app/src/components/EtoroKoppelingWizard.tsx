@@ -733,7 +733,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       );
     }
     if (stap === STAP_PLAKKEN) {
-      return <GrootKnop label="Verder" uit={!kanVerderPlakken} onPress={() => setStap(STAP_TESTEN)} />;
+      return <GrootKnop label="Verder" uit={bezig || !kanVerderPlakken} onPress={() => setStap(STAP_TESTEN)} />;
     }
     if (stap === STAP_TESTEN) {
       if (foutScherm) return <GrootKnop label="Terug naar sleutels" onPress={vorige} />;
@@ -741,7 +741,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       if (testStatus === 'klaar' && beeld?.kanOpslaan) {
         return <GrootKnop label={slotVolgt ? 'Verder' : 'Opslaan'} uit={bezig} onPress={naTest} />;
       }
-      return <GrootKnop label="Test verbinding" onPress={testVerbinding} />;
+      return <GrootKnop label="Test verbinding" uit={bezig} onPress={testVerbinding} />;
     }
     if (!toonNaarPortfolio) return <GrootKnop label="Klaar" onPress={() => sluit()} />;
     return (
@@ -814,7 +814,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
           )}
 
           {opSlotStap && vergrendel ? (
-            <View style={styles.vul} pointerEvents={bezigOpslaan ? 'none' : 'auto'}>
+            <View style={styles.vul} pointerEvents={bezig ? 'none' : 'auto'}>
               <View style={styles.slotKop}>{kop('Beveilig Kader eerst', 'Een eToro-sleutel geeft toegang tot je account. Daarom vraagt Kader eerst een pincode. De sleutel wordt pas daarna op dit toestel bewaard.')}</View>
               <PinInstellenInhoud
                 reden="etoro"

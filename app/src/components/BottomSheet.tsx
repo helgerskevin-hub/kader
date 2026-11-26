@@ -150,23 +150,6 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
     y.value = withSpring(0, veer.standaard);
   }, [y, zicht, sluitendUI, stopNoodrem]);
 
-  // Vuurt de klaar-callback van de sluitanimatie niet, dan rondt dit alsnog af zoals naSluiten dat
-  // zou doen: hield de ouder de sheet open, dan terug omhoog, anders de Modal weg. Zonder dit bleef
-  // sluitendRef true en ving een onzichtbaar vel (of een scrim) elke aanraking op.
-  const startNoodrem = useCallback(() => {
-    stopNoodrem();
-    noodrem.current = setTimeout(() => {
-      noodrem.current = null;
-      if (!sluitendRef.current) return;
-      if (zichtbaarRef.current) {
-        startOpen();
-        return;
-      }
-      sluitendRef.current = false;
-      setModalOpen(false);
-    }, SLUIT_NOODREM_MS);
-  }, [startOpen, stopNoodrem]);
-
   const naSluiten = useCallback(() => {
     const afronden = () => {
       stopNoodrem();
@@ -184,6 +167,18 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
     if (zichtbaarRef.current) setTimeout(afronden, 0);
     else afronden();
   }, [startOpen, stopNoodrem]);
+
+  // Vuurt de klaar-callback van de sluitanimatie niet, dan rondt dit alsnog af via naSluiten: dat
+  // wacht zelf een tik als de ouder de sheet nog open lijkt te houden, en gaat dan terug omhoog of
+  // haalt de Modal weg. Zonder dit bleef sluitendRef true en ving een onzichtbaar vel (of een
+  // scrim) elke aanraking op.
+  const startNoodrem = useCallback(() => {
+    stopNoodrem();
+    noodrem.current = setTimeout(() => {
+      noodrem.current = null;
+      if (sluitendRef.current) naSluiten();
+    }, SLUIT_NOODREM_MS);
+  }, [naSluiten, stopNoodrem]);
 
   // Draait op de UI-thread (vanuit het sleepgebaar) en op de JS-thread (achtergrond, terugknop,
   // zichtbaar naar false). snelheid is de loslaatsnelheid in pt/s, 0 als er niet gesleept is.
