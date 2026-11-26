@@ -152,6 +152,8 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
 
   const naSluiten = useCallback(() => {
     const afronden = () => {
+      // Al afgerond of intussen heropend (een late klaar naast de noodrem): niets meer te doen.
+      if (!sluitendRef.current) return;
       stopNoodrem();
       // De ouder hield de sheet open (onSluiten zette zichtbaar niet op false): terug omhoog.
       if (zichtbaarRef.current) {
