@@ -102,7 +102,10 @@ cijfertoetsen zijn gedimd. De aftelling heeft rol `timer` en is geen live region
   blijft gemount tot die animatie klaar is (noodrem 1,5 s).
 - Afdeklaag: aan zonder animatie en in dezelfde commit (een gewone View met volle dekking, geen
   effect of Reanimated-waarde ertussen; een fade-in zou inhoud laten doorschemeren), uit met
-  `vervaag(duur.kort)` op een aparte Animated.View. Elke wrapper en de root zetten hem via
+  `vervaag(duur.kort)` op een aparte Animated.View die daarna (na `duur.kort` + 200 ms, via een
+  JS-timer) helemaal uit de boom gaat. Reanimated 4.3 vergeet een eindwaarde na twee seconden als zijn
+  JS-interval hem niet op tijd terugzet in de React-props, en de volgende React-commit zette de laag
+  dan terug op opacity 1. Een laag die weg is kan niet terugkomen. Elke wrapper en de root zetten hem via
   `WrapperAfdekking` (in `AfdekLaag.tsx`), zodat alleen die laag hertekent als de afdekking wisselt.
 - Minder beweging: geen schud, plof of schaal, alleen `vervaag`.
 
@@ -425,3 +428,14 @@ toestel heeft: het schermslot.
 - Onder API 30 hangt het herstel als Android de activity van Kader opruimt terwijl de
   schermslot-activity open staat en de JS-kant daarbij verloren gaat; de bevestiging rondt dan niet af
   tot een herstart. Niet gezien, wel denkbaar.
+- Een kluisfout op een toestel zonder schermslot heeft geen uitweg behalve de app-data van Kader
+  wissen. "Opnieuw proberen" leest de kluis opnieuw, maar "Pincode vergeten?" vraagt het schermslot,
+  en dat is er dan niet.
+- Recente apps rechtstreeks vanuit de open app (de overzichtsknop terwijl Kader in beeld is) toont de
+  live tegel met inhoud. `setRecentsScreenshotEnabled(false)` dekt alleen de schermafdruk die Android
+  na HOME bewaart. Alleen `FLAG_SECURE` zou de live tegel ook afdekken, en dat is bewust niet gekozen
+  (besluit 11: schermafbeeldingen blijven werken).
+- De wachttrap, ondubbelzinnig (zo rekent `slotPogingen.ts`): de eerste vier fouten geven geen
+  wachttijd. Vanaf de 5e fout escaleert elke volgende fout één trede: de 5e fout 30 s, de 6e 1 min, de
+  7e 5 min, de 8e en elke fout daarna 15 min. Besluit 8 bedoelt hetzelfde; "na 5 foute pogingen" is
+  daar dus "bij de 5e fout".

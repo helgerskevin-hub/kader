@@ -275,7 +275,9 @@ export async function wisSlot(): Promise<SchrijfUitkomst> {
   const pin = await wisEnControleer(SLEUTEL_PIN);
   if (pin.soort !== 'ok') {
     // Het record staat er nog: de hint weer aan, anders opent een latere kluisfout zonder koppeling.
-    await bewaarHintIngesteld(true);
+    // Eén herkansing; mislukt ook die, dan staat de hint uit naast een record (bepaalSlotStatus ziet
+    // het record en vergrendelt gewoon, alleen een latere kluisfout zonder koppeling opent dan).
+    if (!(await bewaarHintIngesteld(true))) await bewaarHintIngesteld(true);
     return pin;
   }
   // De teller weg is netjes maar niet kritiek: zonder record wordt hij nergens gelezen, en een

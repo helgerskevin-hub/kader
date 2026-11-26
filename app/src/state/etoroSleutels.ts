@@ -306,18 +306,27 @@ async function bewaarSleutelsInRij(invoer: SleutelInvoer): Promise<void> {
   meldSleutelWijziging();
 }
 
+// Melding als wisSleutels faalt. Een eigen tekst, zodat de UI geen technische fout toont.
+export const MELDING_KOPPELING_NIET_WEG = 'De eToro-koppeling is niet verwijderd. Probeer het opnieuw.';
+
 export async function wisSleutels(): Promise<void> {
-  // Ook het oude demo-slot leegmaken. Bij het verhuizen laten we het staan omdat we dan niets mogen
-  // verliezen, maar wie bewust zijn koppeling verwijdert wil er geen kopie meer van op zijn toestel.
-  await Promise.all([
-    wisGeheim(PAAR.api), wisGeheim(PAAR.user),
-    wisGeheim(OUD_DEMOPAAR.api), wisGeheim(OUD_DEMOPAAR.user),
-  ]);
-  await Promise.all([bewaarVlag(SCHRIJFVLAG.real, false), bewaarVlag(SCHRIJFVLAG.demo, false)]);
-  geheugen = null;
-  bronGeheugen = null;
-  omgevingGeheugen = null;
-  meldSleutelWijziging();
+  try {
+    // Ook het oude demo-slot leegmaken. Bij het verhuizen laten we het staan omdat we dan niets mogen
+    // verliezen, maar wie bewust zijn koppeling verwijdert wil er geen kopie meer van op zijn toestel.
+    await Promise.all([
+      wisGeheim(PAAR.api), wisGeheim(PAAR.user),
+      wisGeheim(OUD_DEMOPAAR.api), wisGeheim(OUD_DEMOPAAR.user),
+    ]);
+    await Promise.all([bewaarVlag(SCHRIJFVLAG.real, false), bewaarVlag(SCHRIJFVLAG.demo, false)]);
+  } catch {
+    throw new Error(MELDING_KOPPELING_NIET_WEG);
+  } finally {
+    // Ook na een halve wissing: het geheugen weg en de luisteraars laten teruglezen wat er echt staat.
+    geheugen = null;
+    bronGeheugen = null;
+    omgevingGeheugen = null;
+    meldSleutelWijziging();
+  }
 }
 
 // Een onbereikbare kluis is hier bewust false: dit stuurt alleen statusteksten en de koopknop aan,

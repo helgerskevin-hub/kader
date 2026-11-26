@@ -15,6 +15,7 @@ import {
   type SlotSchermProps,
   type SlotStand,
 } from '../../state/vergrendelTypes';
+import { MELDING_KOPPELING_NIET_WEG } from '../../state/etoroSleutels';
 import { PinInstellenInhoud } from './PinInstellen';
 import { PinPaneel, wachtAankondiging } from './PinPaneel';
 import { useSlotMaat } from './PinToetsenbord';
@@ -56,7 +57,6 @@ const VERWIJDER_TEKST =
   'Weet je zeker dat je je opgeslagen eToro-sleutel van dit toestel wilt wissen? Kader importeert en handelt daarna niets meer, niet in demo en niet in echt, tot je opnieuw koppelt. Daarna opent Kader zonder pincode.';
 // Niet in de bijlage: de herstelprompt faalde, en de kluis is niet leesbaar.
 const MELDING_HERSTEL_FOUT = 'Bevestigen lukte niet. Probeer het opnieuw.';
-const MELDING_KOPPELING_NIET_WEG = 'De koppeling is niet verwijderd. Probeer het opnieuw.';
 const KLUISFOUT_TITEL = 'Kader kan je pincode niet lezen';
 const KLUISFOUT_TEKST =
   'De beveiligde opslag van je telefoon reageert niet. Je gegevens staan er nog. Probeer het opnieuw.';

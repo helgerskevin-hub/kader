@@ -70,7 +70,13 @@ import {
 } from './slotOpslag';
 import { biometrie, PROMPT_BIOMETRIE_AAN, PROMPT_ONTGRENDEL, PROMPT_ORDER } from './biometrie';
 import { zetAfgedekt } from './afdekking';
-import { opSleutelWijziging, sleutelUitkomst, wisSleutels, zetOmgeving } from './etoroSleutels';
+import {
+  MELDING_KOPPELING_NIET_WEG,
+  opSleutelWijziging,
+  sleutelUitkomst,
+  wisSleutels,
+  zetOmgeving,
+} from './etoroSleutels';
 
 // ---------- Splash ----------
 
@@ -103,7 +109,6 @@ const LEES_TIJDSLIMIET_MS = 6000;
 
 const MELDING_GEEN_PINCODE = 'Er staat geen pincode op dit toestel.';
 const MELDING_NIET_VERGRENDELD = 'Kader is nu niet vergrendeld.';
-const MELDING_KOPPELING_NIET_WEG = 'De koppeling is niet verwijderd. Probeer het opnieuw.';
 
 // Copy voor de pincodevraag bij een order. Niet in de bijlage van het plan; de titel is die van het
 // slot, de ondertitel is de orderregel van de prompt ('Koop BTC, € 100. Echt geld.').
@@ -870,7 +875,11 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
     // opSleutelWijziging een verversing (PortfolioProvider) die de oude omgeving 'real' kan
     // teruglezen nadat demo al gezet is.
     await zetOmgeving('demo');
-    await wisSleutels();
+    try {
+      await wisSleutels();
+    } catch {
+      throw new Error(MELDING_KOPPELING_NIET_WEG);
+    }
     // Opnieuw lezen: mislukte het wissen (of is de kluis nu onleesbaar, dat telt als gekoppeld),
     // dan niet openen. De status blijft 'setupVerplicht' en SlotScherm toont de melding.
     if (await leesEtoro()) throw new Error(MELDING_KOPPELING_NIET_WEG);
