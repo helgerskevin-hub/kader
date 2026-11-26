@@ -27,6 +27,7 @@ const nep: Record<string, any> = {
     cancelAllScheduledNotificationsAsync: async () => {},
     scheduleNotificationAsync: async ({ content }: any) => { meldingen.push({ titel: content.title, tekst: content.body, data: content.data }); },
     AndroidImportance: { HIGH: 4, DEFAULT: 3 },
+    AndroidNotificationVisibility: { PUBLIC: 1, PRIVATE: 2, SECRET: 3 },
     SchedulableTriggerInputTypes: { DAILY: 'daily' },
   },
   'react-native': new Proxy({ Platform: { OS: 'android', select: (o: any) => o.android ?? o.default } }, {

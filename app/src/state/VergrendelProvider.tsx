@@ -77,6 +77,8 @@ import {
   wisSleutels,
   zetOmgeving,
 } from './etoroSleutels';
+import { tekenWidgetsNaSlotWijziging } from '../widget/widgetVerversen';
+import { herplanDagelijkseMelding } from '../notifications/meldingen';
 
 // ---------- Splash ----------
 
@@ -736,7 +738,7 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
 
   const stelPinIn = useCallback(
     (pin: string): Promise<InstelUitkomst> =>
-      inRij(async () => {
+      inRij(async (): Promise<InstelUitkomst> => {
         const keuring = keurPin(pin);
         if (keuring !== 'ok') return { soort: keuring };
         const b = await meetBiometrie();
@@ -790,6 +792,12 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
         const status = slotRef.current.status;
         if (status === 'setupVerplicht' || status === 'vergrendeld') slotInstelOpgeslagen.current = true;
         return { soort: 'ok' };
+      }).finally(() => {
+        // De widget toont zolang het slot aan staat alleen "Kader is vergrendeld", en de dagelijkse
+        // herinnering gaat naar het afgeschermde kanaal. Ook na een mislukking: de hint stond dan
+        // even aan.
+        void tekenWidgetsNaSlotWijziging();
+        void herplanDagelijkseMelding();
       }),
     [inRij, meetBiometrie, slotRef, zetPincode, zetPogingen],
   );
@@ -822,7 +830,7 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
 
   const zetSlotUit = useCallback(
     (pin: string): Promise<UitzetUitkomst> =>
-      inRij(async () => {
+      inRij(async (): Promise<UitzetUitkomst> => {
         if (await leesEtoro()) return { soort: 'etoroGekoppeld' };
         const c = await controleerKern(pin);
         if (c.soort !== 'ok') return c;
@@ -834,6 +842,11 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
         zetBiometrieAanStaat(false);
         zetPogingen({ ...LEGE_POGINGEN });
         return { soort: 'ok' };
+      }).finally(() => {
+        // Slot uit: de widget toont zijn cijfers weer en de dagelijkse herinnering gaat terug naar
+        // het gewone kanaal (of beide blijven afgeschermd als het wissen mislukte).
+        void tekenWidgetsNaSlotWijziging();
+        void herplanDagelijkseMelding();
       }),
     [controleerKern, inRij, leesEtoro, zetBiometrieAanStaat, zetPincode, zetPogingen],
   );

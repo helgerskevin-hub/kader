@@ -13,9 +13,11 @@ export async function widgetTaak({ widgetInfo, widgetAction, renderWidget }: Wid
   if (widgetAction !== 'WIDGET_ADDED' && widgetAction !== 'WIDGET_UPDATE' && widgetAction !== 'WIDGET_RESIZED') return;
 
   // Eerst meteen tekenen met wat er bewaard is, zodat de widget nooit leeg staat te wachten op het
-  // netwerk.
-  const { stand, weergave } = await laadWidgetInhoud();
-  renderWidget(widgetVoor(stand, weergave, widgetInfo.width));
+  // netwerk. Staat het slot aan, dan is dat de vergrendelde weergave: laadWidgetInhoud leest de
+  // slotstatus zonder React (slotStaatAan in state/slotOpslag.ts) en geeft dan geen stand mee. Een
+  // fout bij het lezen telt als vergrendeld.
+  const inhoud = await laadWidgetInhoud();
+  renderWidget(widgetVoor(inhoud, widgetInfo.width));
 
   // Bij vergroten veranderen de cijfers niet, alleen de opmaak.
   if (widgetAction === 'WIDGET_RESIZED') return;

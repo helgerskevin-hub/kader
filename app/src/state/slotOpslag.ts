@@ -326,6 +326,21 @@ export async function laadHintIngesteld(): Promise<boolean> {
   }
 }
 
+// Staat het slot aan? Voor wat buiten de provider draait en geen React heeft: de widget-taak, de
+// achtergrondtaak en het versturen van meldingen. Aan als er een pincode-record is, anders als de
+// hint aan staat. Fail-closed: een kluisfout, een kapot record, een leesfout of een time-out telt als
+// aan. Alleen 'geen record' met de hint uit is uit. Een eToro-koppeling zonder pincode telt hier niet
+// mee: dat is de verplichte setup, en die maakt meteen een pincode.
+export async function slotStaatAan(): Promise<boolean> {
+  try {
+    const rec = await leesPinRecord();
+    if (rec.soort !== 'nee') return true;
+    return await laadHintIngesteld();
+  } catch {
+    return true;
+  }
+}
+
 // true als de hint is weggeschreven. stelPinIn schrijft hem VOOR het record en stopt als dit
 // false geeft: een record zonder hint zou bij een latere kluisfout als "nooit ingesteld" tellen.
 export async function bewaarHintIngesteld(ingesteld: boolean): Promise<boolean> {
