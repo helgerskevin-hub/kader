@@ -46,10 +46,15 @@ export const TERMIJN_LABEL: Readonly<Record<SlotTermijn, string>> = {
 // Aantal cijfers. Het slot ontgrendelt bij het zesde cijfer, zonder bevestigknop.
 export const PIN_LENGTE = 6;
 
-// Startwaarde voor PBKDF2. Wordt afgestemd op ongeveer 200 ms op de emulator; een record met
-// minder iteraties dan de huidige waarde wordt na een geslaagde controle opnieuw gehasht
-// (moetHerhashen in engine/pinCode.ts).
-export const PBKDF2_ITERATIES = 100_000;
+// Aantal PBKDF2-iteraties (SecretKeyFactory "PBKDF2WithHmacSHA256" in de native module). Gekozen
+// op ongeveer 300 tot 500 ms per hash op de emulator, nooit onder 10.000 (de ondergrens van
+// geldigeIteraties in engine/pinCode.ts en van de native module). Meting november 2026, debug-build,
+// AVD kader (API 35, 2 vCPU), app stil na de marktscan, host-load 8 tot 10, emulator-load 4,5 tot
+// 6,5: 10.000 iteraties mediaan 529 ms (min 303, max 1742, n=7); 20.000 mediaan 954 ms. Een snellere
+// telefoon of een release-build kan later meer iteraties dragen: een record met minder iteraties
+// dan de huidige waarde wordt na een geslaagde controle opnieuw gehasht (moetHerhashen), dus
+// verhogen kan zonder migratie.
+export const PBKDF2_ITERATIES = 10_000;
 
 // Lengte van de salt in bytes (als hex dus twee keer zo lang).
 export const PIN_SALT_BYTES = 16;
@@ -110,12 +115,17 @@ export interface KlokStand {
   bron: 'monotoon' | 'wand';
 }
 
-// Een lopende wachttijd. Hoe je de resterende tijd bepaalt:
+// Een lopende wachttijd. Hoe je de resterende tijd bepaalt (uitgewerkt in engine/slotPogingen.ts):
 // - zelfde bootTeller (en niet -1) en bron 'monotoon': resterend = totMonotoon - nu.monotoon;
-// - anders (reboot, onbekende teller, geen monotone klok): resterend = resterendBijAnker -
-//   (nu.wand - wandAnker). Staat de wandklok vóór het anker (klok teruggezet), dan herankeren:
-//   wandAnker = nu.wand en resterendBijAnker ongewijzigd, zodat terugzetten de wachttijd niet
-//   verkort maar ook niet oneindig maakt.
+// - anders (reboot, onbekende teller, geen monotone klok): resterend = resterendBijAnker - verstreken,
+//   met verstreken = min(wandverschil sinds wandAnker, monotoon verschil sinds het anker). Het
+//   monotone verschil is nu.monotoon - (totMonotoon - resterendBijAnker); bij een zekere herstart
+//   (beide tellers bekend en verschillend) of een negatief verschil telt alleen nu.monotoon. Met
+//   een monotone klok telt dat verschil ook als de wandklok is teruggezet; zonder monotone klok
+//   wordt dan niets afgetrokken en wordt geherankerd (wandAnker = nu.wand, rest ongewijzigd).
+//   Een vooruitgezette wandklok levert zo nooit winst op.
+// - altijd geclampt op [0, duurMs]. Na een ONOPGEMERKTE reboot met dezelfde teller kan de
+//   uitkomst langer zijn dan de echte rest: de wachttijd duurt dan langer, nooit korter.
 // Na een herankering of een reboot schrijft de engine een vernieuwde Blokkade terug met de
 // actuele klok, zodat de monotone klok weer leidend is.
 export interface Blokkade {
@@ -143,7 +153,12 @@ export interface PogingenStand {
   blokkade: Blokkade | null;
 }
 
-export const LEGE_POGINGEN: PogingenStand = { v: 1, fouten: 0, blokkade: null };
+// Bevroren: een mutatie van deze gedeelde constante zou elke latere lege stand besmetten.
+export const LEGE_POGINGEN: Readonly<PogingenStand> = Object.freeze({
+  v: 1,
+  fouten: 0,
+  blokkade: null,
+});
 
 // ---------- Uitkomsten van opslag ----------
 
@@ -164,7 +179,11 @@ export type SchrijfUitkomst = { soort: 'ok' } | { soort: 'kluisfout'; bericht: s
 // - 'laden': koude start, de kluis is nog niet gelezen. De afdekking staat, er is nog niets te zien.
 // - 'vergrendeld': er is een pincode en de app is op slot. Met kluisfout = true als de kluis niet
 //   leesbaar was en de hint SLEUTELS.slotIngesteld zei dat er een pincode is (zie
-//   VergrendelContextWaarde.kluisfout).
+//   VergrendelContextWaarde.kluisfout). Beslisregel bij een kluisfout (engine/herslot.ts,
+//   bepaalSlotStatus met hintIngesteld): is er nooit een pincode ingesteld (hint SLEUTELS.slotIngesteld
+//   uit) en is er geen eToro-koppeling, dan is er niets te beschermen en wordt de status 'open'. In
+//   alle andere gevallen is het 'vergrendeld' met kluisfout = true; een kluisfout is nooit "geen
+//   pincode".
 // - 'open': ontgrendeld, of er is geen pincode en ook geen eToro-koppeling.
 // - 'setupVerplicht': eToro is gekoppeld maar er is geen pincode (migratie van bestaande
 //   gebruikers). Uitweg: pincode instellen of "Koppeling verwijderen".
@@ -266,8 +285,15 @@ export interface BiometrieApi {
   // Loopt er nu een prompt (biometrie of schermslot)? Dan beslist AppState 'active' nog niet over
   // hervergrendelen.
   promptBezig(): boolean;
-  // Lost op zodra de lopende prompt klaar is (meteen als er geen loopt).
-  opPromptKlaar(): Promise<void>;
+  // Roept cb één keer aan zodra de lopende prompt klaar is (meteen als er geen loopt). Geeft een
+  // functie terug die het wachten afzegt. Een tweede prompt terwijl er een loopt geeft direct
+  // 'geannuleerd' (vraagBiometrie, herstelViaToestel).
+  opPromptKlaar(cb: () => void): () => void;
+  // Noodklep voor een prompt die nooit afrondt: annuleert hem, zet promptBezig() terug en meldt de
+  // wachtende opPromptKlaar-callbacks één keer. Komt de oude belofte alsnog terug, dan geeft die
+  // 'geannuleerd'. De provider roept dit aan als de app uit 'background' terugkomt terwijl er nog
+  // een prompt 'bezig' is.
+  forceerPromptKlaar(): Promise<void>;
 }
 
 // ---------- Afdekking (Recente apps en geen inhoudsflits) ----------
