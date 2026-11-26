@@ -40,3 +40,6 @@ yarn-error.*
 /ios
 /android
 handelbaarheid-resultaat.json
+
+# build-uitvoer van lokale Expo-modules
+modules/*/android/build/
