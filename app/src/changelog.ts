@@ -43,7 +43,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    versie: 'Nog niet uitgebracht',
+    versie: '0.5.0',
     datum: '2026-11-26',
     nieuweFeatures: [
       {

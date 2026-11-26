@@ -4,7 +4,7 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
-## Nog niet uitgebracht
+## 0.5.0
 
 - Kader kan op slot met een pincode van zes cijfers, en ook met je vingerafdruk of gezicht. Het staat uit tot je het aanzet, bij de start van de app, in Instellingen onder Beveiliging of via Nieuw in Kader. Een te makkelijke pincode, zoals 111111 of 123456, weigert Kader
 - Heb je eToro gekoppeld, dan is een pincode verplicht. Na deze update vraagt Kader je bij het openen eerst een pincode in te stellen. Wil je dat niet, dan kun je de koppeling verwijderen; daarna opent Kader zonder pincode. Wie nieuw koppelt, stelt de pincode in voor de sleutel op je toestel wordt bewaard
