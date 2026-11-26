@@ -44,6 +44,12 @@
       ],
       "expo-background-task",
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Kader gebruikt Face ID om de app te ontgrendelen."
+        }
+      ],
       "expo-sharing",
       [
         "react-native-android-widget",
