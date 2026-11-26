@@ -7,6 +7,8 @@ import { useBeweging } from '../theme/useReduceMotion';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
+import { useNaSlot } from '../state/VergrendelProvider';
+import { WrapperAfdekking } from './slot/AfdekLaag';
 
 export interface MenuAnker {
   x: number;
@@ -29,7 +31,9 @@ interface Props {
 // Dropdown die onder het kebab-icoon in de header verschijnt, geankerd op de gemeten positie van
 // de knop (measureInWindow), zodat hij op elk device en met elke safe-area-inset op de juiste
 // plek uitklapt in plaats van op een hard-gecodeerde offset.
-export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldingen, onAchtergrond, onSignaalresultaat, onInstellingen }: Props) {
+export function SysteemMenu({ zichtbaar: gevraagd, onSluiten, anker, ongelezen, onMeldingen, onAchtergrond, onSignaalresultaat, onInstellingen }: Props) {
+  // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
+  const zichtbaar = useNaSlot(gevraagd);
   const { colors } = useTheme();
   const { etoroGekoppeld, omgeving } = usePortfolio();
   const { naar, reduceMotion } = useBeweging();
@@ -131,6 +135,7 @@ export function SysteemMenu({ zichtbaar, onSluiten, anker, ongelezen, onMeldinge
           />
         </Animated.View>
       </Pressable>
+      <WrapperAfdekking />
     </Modal>
   );
 }

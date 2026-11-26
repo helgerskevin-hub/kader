@@ -39,6 +39,11 @@ import { heeftWidgets } from './src/widget/widgetVerversen';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
 import { registreerAchtergrondtaak, stopAchtergrondtaak } from './src/notifications/achtergrondtaak';
+// Vroeg importeren: VergrendelProvider houdt op module-niveau de splash vast
+// (SplashScreen.preventAutoHideAsync) tot het slot getoond is of de app open is.
+import { VergrendelProvider, useVergrendeling } from './src/state/VergrendelProvider';
+import { SlotLaag } from './src/components/slot/SlotLaag';
+import { WrapperAfdekking } from './src/components/slot/AfdekLaag';
 import { MarktProvider, useMarkt } from './src/state/MarktProvider';
 import { KansenProvider } from './src/state/KansenProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
@@ -51,7 +56,7 @@ import { NieuwInKaderScherm } from './src/components/NieuwInKaderScherm';
 import { WelkomFeest } from './src/components/WelkomFeest';
 import { EtoroPromptSheet } from './src/components/EtoroPromptSheet';
 import { EtoroKoppelingWizard } from './src/components/EtoroKoppelingWizard';
-import { CHANGELOG, nieuwsteVersie } from './src/changelog';
+import { CHANGELOG, nieuwsteVersie, type NieuweFeature } from './src/changelog';
 import { useBeweging } from './src/theme/useReduceMotion';
 import { duur, veer, vervaag } from './src/theme/beweging';
 import { usePortfolio } from './src/state/PortfolioProvider';
@@ -523,7 +528,7 @@ function AppInhoud() {
         onVerder={() => { setWelkomOpen(false); toonNieuws(); }}
       />
       <ChangelogSheet zichtbaar={nieuwInVersie} onSluiten={sluitNieuwInVersie} alleenNieuwste />
-      <NieuwInKaderScherm zichtbaar={rondleidingOpen} onSluiten={sluitNieuwInVersie} features={nieuweFeatures} />
+      <NieuwInKaderMetActie zichtbaar={rondleidingOpen} onSluiten={sluitNieuwInVersie} features={nieuweFeatures} />
       <EtoroPromptSheet
         zichtbaar={etoroPromptOpen}
         onLater={() => setEtoroPromptOpen(false)}
@@ -538,6 +543,19 @@ function AppInhoud() {
     </View>
     </NavigatieProvider>
   );
+}
+
+// "Nieuw in Kader" met de knop Pincode instellen. Apart, zodat AppInhoud niet hertekent bij elke
+// wijziging in de vergrendel-context (bijvoorbeeld de aftelling van een wachttijd).
+function NieuwInKaderMetActie(props: Omit<React.ComponentProps<typeof NieuwInKaderScherm>, 'onActie'>) {
+  const { vraagPinInstellen } = useVergrendeling();
+  const onActie = useCallback(
+    (actie: NonNullable<NieuweFeature['actie']>) => {
+      if (actie === 'pincodeInstellen') void vraagPinInstellen('nieuwInKader');
+    },
+    [vraagPinInstellen],
+  );
+  return <NieuwInKaderScherm {...props} onActie={onActie} />;
 }
 
 export default function App() {
@@ -560,19 +578,30 @@ export default function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <MarktProvider>
-            <KansenProvider>
-              <PortfolioProvider>
-                {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
-                <DialoogProvider>
-                  {/* Binnen PortfolioProvider: de Copy-tab koppelt kopieën aan je eToro-posities. */}
-                  <CopyProvider>
-                    <AppInhoud />
-                  </CopyProvider>
-                </DialoogProvider>
-              </PortfolioProvider>
-            </KansenProvider>
-          </MarktProvider>
+          {/* Boven alle data-providers en boven DialoogProvider: het slot ligt over de hele app,
+              de tabs blijven eronder gemount. */}
+          <VergrendelProvider>
+            <View style={styles.root}>
+              <MarktProvider>
+                <KansenProvider>
+                  <PortfolioProvider>
+                    {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
+                    <DialoogProvider>
+                      {/* Binnen PortfolioProvider: de Copy-tab koppelt kopieën aan je eToro-posities. */}
+                      <CopyProvider>
+                        <AppInhoud />
+                      </CopyProvider>
+                    </DialoogProvider>
+                  </PortfolioProvider>
+                </KansenProvider>
+              </MarktProvider>
+              {/* Buiten de takken van AppInhoud (laden, onboarding, hoofdtak), zodat ze in elke tak
+                  staan en niet opnieuw mounten bij een wissel. De afdeklaag dekt de root-View af
+                  (Recente apps, koude start); de slot-Modal komt als laatste en ligt dus bovenop. */}
+              <WrapperAfdekking />
+              <SlotLaag />
+            </View>
+          </VergrendelProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

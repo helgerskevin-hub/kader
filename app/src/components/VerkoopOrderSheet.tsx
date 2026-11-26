@@ -354,6 +354,7 @@ export function VerkoopOrderSheet({ zichtbaar, onSluiten, trade, huidigePrijs }:
           onBevestig={bevestig}
           gelukt={gelukt}
           echtWaarschuwing="Echt geld. Houd de knop vast om te verkopen."
+          echtDetail={`Verkoop ${trade.symbool}${sluiting ? `, ${fmtBedrag(sluiting.terug)}` : ''}. Echt geld.`}
         />
       </ScrollView>
     </BottomSheet>

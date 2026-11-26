@@ -16,6 +16,7 @@ import * as SecureStore from 'expo-secure-store';
 import { EtoroOmgeving, EtoroSleutels } from '../engine/etoro';
 import { kiesSleutelbron, standaardOmgeving, Sleutelbron, Sleutelpaar } from '../engine/sleutelKeuze';
 import { SLEUTELS, laadTekst, laadVlag, bewaarTekst, bewaarVlag, verwijderSleutel } from '../storage/opslag';
+import { inSlotRij, leesPinRecord } from './slotOpslag';
 
 export { kiesSleutelbron, standaardOmgeving };
 export type { Sleutelbron, Sleutelpaar };
@@ -44,6 +45,22 @@ const SCHRIJFVLAG: Record<EtoroOmgeving, string> = {
 let geheugen: Sleutelpaar | null | undefined;
 let bronGeheugen: Sleutelbron = null;
 let omgevingGeheugen: EtoroOmgeving | null = null;
+// Telt elke wisSleutels() en bewaarSleutels(). Een lezing die daarvoor begon ziet daarna een andere
+// waarde: dan schrijft ze niets terug (demo-verhuizing), onthoudt ze niets en leest ze opnieuw.
+let schrijfGeneratie = 0;
+// De wissing die nu loopt. haalSleutelpaar wacht erop, zodat een lezing tijdens het wissen niet
+// half gewiste slots leest en via de verhuizing de sleutel terugzet. wisSleutels roept zelf nooit
+// haalSleutelpaar aan, dus wachten hierop kan niet vastlopen (ook niet binnen inSlotRij).
+let lopendeWissing: Promise<void> | null = null;
+// Hetzelfde voor bewaarSleutels, tussen de eerste schrijfactie en het vullen van het geheugen: een
+// lezing in dat stuk zou een gemengd paar zien (nieuwe api-sleutel naast de oude user-sleutel). Ook
+// bewaarSleutelsInRij roept in dat stuk geen haalSleutelpaar aan (vorige is dan al gelezen).
+let lopendeBewaring: Promise<void> | null = null;
+// Hoe lang een lezer op een lopende wissing of bewaring wacht, zoals leesMetLimiet in slotOpslag.
+// Hangt de kluis langer, dan een kluisfout: fail-closed.
+const WACHT_OP_SCHRIJVEN_MS = 6000;
+// Hoe vaak haalSleutelpaar opnieuw leest als er tijdens het lezen geschreven werd. Daarna fail-closed.
+const MAX_HERLEZINGEN = 1;
 
 // "Niet gekoppeld" en "de kluis deed het even niet" zijn verschillende verhalen. Ze door elkaar
 // halen gaf de melding "Nog geen eToro-koppeling" aan iemand met een prima sleutel, en een stille
@@ -54,6 +71,48 @@ export type SleutelUitkomst =
   | { soort: 'kluisfout'; bericht: string };
 
 const KLUIS_ONBEREIKBAAR = 'De sleutelkluis van dit toestel is nu niet bereikbaar.';
+
+// ---------- Wijzigingen melden ----------
+
+// De app-vergrendeling (VergrendelProvider) moet weten of er een koppeling is: dan is het slot
+// verplicht. Een abonnement in plaats van pollen, zodat koppelen of "Koppeling verwijderen" waar
+// dan ook (wizard, Instellingen, het slotscherm) meteen doorwerkt.
+const wijzigingLuisteraars = new Set<() => void>();
+
+// Roept cb aan na elke geslaagde bewaarSleutels() en na elke wisSleutels(). Geeft een functie
+// terug die het abonnement opzegt.
+export function opSleutelWijziging(cb: () => void): () => void {
+  wijzigingLuisteraars.add(cb);
+  return () => {
+    wijzigingLuisteraars.delete(cb);
+  };
+}
+
+function meldSleutelWijziging(): void {
+  for (const cb of [...wijzigingLuisteraars]) {
+    try {
+      cb();
+    } catch {
+      // Een falende luisteraar mag de rest niet tegenhouden.
+    }
+  }
+}
+
+// bewaarSleutels weigert zonder pincode. De aanroeper kan dit herkennen (instanceof) om de
+// pincode-stap te tonen in plaats van een algemene foutmelding. reden 'kluisfout': de kluis kon
+// niet zeggen of er een pincode is, en dan wordt er ook niets bewaard.
+export class GeenPincodeFout extends Error {
+  readonly reden: 'geenPincode' | 'kluisfout';
+  constructor(reden: 'geenPincode' | 'kluisfout') {
+    super(
+      reden === 'geenPincode'
+        ? 'Stel eerst een pincode in. Kader bewaart een eToro-sleutel alleen achter een pincode.'
+        : 'Kader kan nu niet controleren of er een pincode is. Probeer het opnieuw.',
+    );
+    this.name = 'GeenPincodeFout';
+    this.reden = reden;
+  }
+}
 
 // ---------- Secure store, met eenmalige migratie ----------
 
@@ -119,15 +178,57 @@ async function wisGeheim(sleutel: string): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(sleutel);
   } catch {
-    // Niets in de kluis is ook goed; de AsyncStorage-kopie gaat hieronder alsnog weg.
+    // Niets in de kluis is ook goed; de controle hieronder beslist of hij echt weg is.
   }
   await verwijderSleutel(sleutel);
+  // deleteItemAsync en verwijderSleutel slikken hun fouten, dus teruglezen. Kan de kluis niet gelezen
+  // worden, dan weten we niet of hij weg is: dat telt als niet gewist.
+  let over: string | null;
+  try {
+    over = await SecureStore.getItemAsync(sleutel);
+  } catch (e) {
+    throw new Error(KLUIS_ONBEREIKBAAR, { cause: e });
+  }
+  if (over || (await laadTekst(sleutel, ''))) throw new Error('De sleutel staat er na het wissen nog.');
 }
 
 // ---------- Sleutels ----------
 
-async function haalSleutelpaar(): Promise<Sleutelpaar | null> {
+// Wacht tot er geen wissing of bewaring meer loopt, met één grens voor het geheel. De beloftes
+// zelf falen nooit (ze lossen op in de finally van de schrijver).
+async function wachtOpSchrijven(): Promise<void> {
+  const grens = Date.now() + WACHT_OP_SCHRIJVEN_MS;
+  for (;;) {
+    const lopend = lopendeWissing ?? lopendeBewaring;
+    if (!lopend) return;
+    const rest = grens - Date.now();
+    if (rest <= 0) throw new Error(KLUIS_ONBEREIKBAAR);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const verlopen = await Promise.race([
+      lopend.then(() => false),
+      new Promise<boolean>(los => {
+        timer = setTimeout(() => los(true), rest);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (verlopen) throw new Error(KLUIS_ONBEREIKBAAR);
+  }
+}
+
+async function haalSleutelpaar(herlezing = 0): Promise<Sleutelpaar | null> {
   if (geheugen !== undefined) return geheugen;
+  await wachtOpSchrijven();
+  if (geheugen !== undefined) return geheugen;
+  const generatie = schrijfGeneratie;
+  // Begon er tijdens deze lezing een wissing of bewaring, dan is wat hier gelezen is mogelijk
+  // verouderd of gemengd: niet onthouden en niet uitdelen, maar opnieuw lezen (hooguit
+  // MAX_HERLEZINGEN keer, daarna een kluisfout; sleutelUitkomst maakt daar 'kluisfout' van, de rest
+  // leest het als geen sleutel). Dit vangt wat de generatie ziet; een native schrijfactie die na
+  // haar controle nog landt, valt erbuiten (zie het log).
+  const herlees = (): Promise<Sleutelpaar | null> => {
+    if (herlezing >= MAX_HERLEZINGEN) throw new Error(KLUIS_ONBEREIKBAAR);
+    return haalSleutelpaar(herlezing + 1);
+  };
 
   let echtApi: string, echtUser: string, demoApi: string, demoUser: string;
   try {
@@ -142,6 +243,7 @@ async function haalSleutelpaar(): Promise<Sleutelpaar | null> {
     throw e instanceof Error ? e : new Error(KLUIS_ONBEREIKBAAR);
   }
 
+  if (generatie !== schrijfGeneratie) return herlees();
   const keuze = kiesSleutelbron({ apiKey: echtApi, userKey: echtUser }, { apiKey: demoApi, userKey: demoUser });
   if (!keuze) {
     geheugen = null;
@@ -158,14 +260,17 @@ async function haalSleutelpaar(): Promise<Sleutelpaar | null> {
   // Hij wordt vanaf nu alleen niet meer gelezen. Opruimen kan in een latere versie.
   if (keuze.bron === 'demo') {
     try {
-      await schrijfGeheim(PAAR.api, keuze.apiKey);
-      await schrijfGeheim(PAAR.user, keuze.userKey);
+      // Vlak voor elke schrijfactie opnieuw kijken: een wissing of bewaring die intussen begon mag
+      // deze verhuizing het oude paar niet laten terugzetten.
+      if (generatie === schrijfGeneratie) await schrijfGeheim(PAAR.api, keuze.apiKey);
+      if (generatie === schrijfGeneratie) await schrijfGeheim(PAAR.user, keuze.userKey);
     } catch {
       // Verhuizen lukt nu niet. De sleutel is deze sessie gewoon bruikbaar uit het geheugen
       // hieronder, en de volgende start probeert het opnieuw.
     }
   }
 
+  if (generatie !== schrijfGeneratie) return herlees();
   geheugen = { apiKey: keuze.apiKey, userKey: keuze.userKey };
   bronGeheugen = keuze.bron;
   return geheugen;
@@ -201,60 +306,126 @@ export async function sleutelUitkomst(): Promise<SleutelUitkomst> {
 // faalt de tweede, dan zou er een nieuwe api-sleutel naast een oude user-sleutel staan: dat geeft
 // een 401 die de gebruiker pas dagen later ziet, want in deze sessie draait de app nog op het
 // modulegeheugen. Vandaar het terugdraaien.
-export async function bewaarSleutels(invoer: SleutelInvoer): Promise<void> {
+//
+// Zonder pincode-record weigert dit met een GeenPincodeFout, nog voor er iets geschreven wordt: een
+// sleutel die echt geld kan verplaatsen komt nooit zonder slot op het toestel. Ook een kluisfout bij
+// het lezen van het record is een weigering, geen "vast maar door".
+//
+// Loopt via inSlotRij (slotOpslag.ts), dezelfde rij als zetSlotUit in de VergrendelProvider: de
+// controle op het record en het schrijven van de sleutels kunnen zo niet tussen de eToro-controle
+// en het wissen van het record van zetSlotUit vallen.
+export function bewaarSleutels(invoer: SleutelInvoer): Promise<void> {
+  return inSlotRij(() => bewaarSleutelsInRij(invoer));
+}
+
+async function bewaarSleutelsInRij(invoer: SleutelInvoer): Promise<void> {
+  const pincode = await leesPinRecord();
+  if (pincode.soort !== 'ja') {
+    throw new GeenPincodeFout(pincode.soort === 'nee' ? 'geenPincode' : 'kluisfout');
+  }
+
   const apiKey = invoer.apiKey.trim();
   const userKey = invoer.userKey.trim();
 
   const vorige = await haalSleutelpaar().catch(() => null);
 
-  await schrijfGeheim(PAAR.api, apiKey);
+  // Vanaf hier is elke lezing die eerder begon verouderd (zie schrijfGeneratie), en nieuwe lezers
+  // wachten op lopendeBewaring. Alles tot de eerste await gebeurt synchroon.
+  schrijfGeneratie += 1;
+  geheugen = undefined;
+  bronGeheugen = null;
+  let klaar: () => void = () => {};
+  const bewaring = new Promise<void>(los => {
+    klaar = los;
+  });
+  lopendeBewaring = bewaring;
   try {
-    await schrijfGeheim(PAAR.user, userKey);
-  } catch (e) {
+    await schrijfGeheim(PAAR.api, apiKey);
     try {
-      if (vorige) await schrijfGeheim(PAAR.api, vorige.apiKey);
-      else await wisGeheim(PAAR.api);
-    } catch {
-      // Terugdraaien lukt ook niet. De fout hieronder is het verhaal dat de gebruiker moet zien;
-      // het geheugen wissen zorgt dat de app in elk geval niet op een half paar doorwerkt.
-      geheugen = undefined;
-      bronGeheugen = null;
+      await schrijfGeheim(PAAR.user, userKey);
+    } catch (e) {
+      // Alleen schrijfGeheim en wisGeheim, geen haalSleutelpaar: die zou op deze bewaring wachten.
+      try {
+        if (vorige) await schrijfGeheim(PAAR.api, vorige.apiKey);
+        else await wisGeheim(PAAR.api);
+      } catch {
+        // Terugdraaien lukt ook niet. De fout hieronder is het verhaal dat de gebruiker moet zien;
+        // het geheugen staat al op onbekend, dus de app werkt niet op een half paar door.
+      }
+      throw e;
     }
-    throw e;
+
+    // Beide vlaggen komen uit hetzelfde /me-antwoord, want dat geeft de scopes van alle omgevingen
+    // in één keer. Eerder werd alleen de vlag gezet van de omgeving waaronder je koppelde, en dan kon
+    // je na koppelen onder "echt" niet handelen in demo terwijl je sleutel dat wel mocht.
+    await Promise.all([
+      bewaarVlag(SCHRIJFVLAG.real, invoer.magSchrijven.real),
+      bewaarVlag(SCHRIJFVLAG.demo, invoer.magSchrijven.demo),
+    ]);
+
+    geheugen = { apiKey, userKey };
+    // 'beide' en niet 'echt': standaardOmgeving() geeft alleen 'real' terug voor een sleutel die al
+    // vóór deze versie uitsluitend in het echte slot stond. Wie hier nu koppelt is nieuw, en die
+    // hoort in demo te beginnen, niet met echt geld.
+    bronGeheugen = 'beide';
+
+    // Heeft deze gebruiker nog nooit een omgeving gekozen, leg dan nu demo vast. Zonder dit zou de
+    // eerstvolgende haalOmgeving() de keuze alsnog gaan afleiden, en dan belandt iemand die zich
+    // net voor het eerst koppelt op zijn echte account.
+    const opgeslagen = await laadTekst(SLEUTELS.etoroOmgeving, '');
+    if (opgeslagen !== 'real' && opgeslagen !== 'demo') await zetOmgeving('demo');
+  } finally {
+    // Vóór meldSleutelWijziging, zodat de luisteraars meteen kunnen lezen.
+    if (lopendeBewaring === bewaring) lopendeBewaring = null;
+    klaar();
   }
 
-  // Beide vlaggen komen uit hetzelfde /me-antwoord, want dat geeft de scopes van alle omgevingen in
-  // één keer. Eerder werd alleen de vlag gezet van de omgeving waaronder je koppelde, en dan kon je
-  // na koppelen onder "echt" niet handelen in demo terwijl je sleutel dat wel mocht.
-  await Promise.all([
-    bewaarVlag(SCHRIJFVLAG.real, invoer.magSchrijven.real),
-    bewaarVlag(SCHRIJFVLAG.demo, invoer.magSchrijven.demo),
-  ]);
-
-  geheugen = { apiKey, userKey };
-  // 'beide' en niet 'echt': standaardOmgeving() geeft alleen 'real' terug voor een sleutel die al
-  // vóór deze versie uitsluitend in het echte slot stond. Wie hier nu koppelt is nieuw, en die hoort
-  // in demo te beginnen, niet met echt geld.
-  bronGeheugen = 'beide';
-
-  // Heeft deze gebruiker nog nooit een omgeving gekozen, leg dan nu demo vast. Zonder dit zou de
-  // eerstvolgende haalOmgeving() de keuze alsnog gaan afleiden, en dan belandt iemand die zich net
-  // voor het eerst koppelt op zijn echte account.
-  const opgeslagen = await laadTekst(SLEUTELS.etoroOmgeving, '');
-  if (opgeslagen !== 'real' && opgeslagen !== 'demo') await zetOmgeving('demo');
+  meldSleutelWijziging();
 }
 
+// Melding als wisSleutels faalt. Een eigen tekst, zodat de UI geen technische fout toont.
+export const MELDING_KOPPELING_NIET_WEG = 'De eToro-koppeling is niet verwijderd. Probeer het opnieuw.';
+
 export async function wisSleutels(): Promise<void> {
-  // Ook het oude demo-slot leegmaken. Bij het verhuizen laten we het staan omdat we dan niets mogen
-  // verliezen, maar wie bewust zijn koppeling verwijdert wil er geen kopie meer van op zijn toestel.
-  await Promise.all([
-    wisGeheim(PAAR.api), wisGeheim(PAAR.user),
-    wisGeheim(OUD_DEMOPAAR.api), wisGeheim(OUD_DEMOPAAR.user),
-  ]);
-  await Promise.all([bewaarVlag(SCHRIJFVLAG.real, false), bewaarVlag(SCHRIJFVLAG.demo, false)]);
-  geheugen = null;
+  // Meteen het geheugen weg: een sync of order die tijdens het wissen leest, krijgt het oude paar
+  // niet meer uit het geheugen. Nieuwe lezingen wachten op lopendeWissing; de generatie houdt een
+  // lezing of verhuizing tegen die al liep. Alles hierboven de eerste await gebeurt synchroon.
+  schrijfGeneratie += 1;
+  geheugen = undefined;
   bronGeheugen = null;
-  omgevingGeheugen = null;
+  let klaar: () => void = () => {};
+  const wissing = new Promise<void>(los => {
+    klaar = los;
+  });
+  lopendeWissing = wissing;
+  let gewist = false;
+  try {
+    // Ook het oude demo-slot leegmaken. Bij het verhuizen laten we het staan omdat we dan niets mogen
+    // verliezen, maar wie bewust zijn koppeling verwijdert wil er geen kopie meer van op zijn toestel.
+    // allSettled: elk slot krijgt zijn poging, ook als een ander faalt, en de finally hieronder loopt
+    // pas als ze alle vier klaar zijn.
+    const uitkomsten = await Promise.allSettled([
+      wisGeheim(PAAR.api), wisGeheim(PAAR.user),
+      wisGeheim(OUD_DEMOPAAR.api), wisGeheim(OUD_DEMOPAAR.user),
+    ]);
+    await Promise.all([bewaarVlag(SCHRIJFVLAG.real, false), bewaarVlag(SCHRIJFVLAG.demo, false)]);
+    const fout = uitkomsten.find((u): u is PromiseRejectedResult => u.status === 'rejected');
+    if (fout) throw fout.reason;
+    gewist = true;
+  } catch (e) {
+    throw new Error(MELDING_KOPPELING_NIET_WEG, { cause: e });
+  } finally {
+    // Ook na een halve wissing: het geheugen weg en de luisteraars laten teruglezen wat er echt staat.
+    // null betekent "zeker geen sleutel"; alleen na een geslaagde wissing. Anders undefined, zodat de
+    // volgende lezing (ook de controle in verwijderKoppelingEnOpen) de kluis echt opnieuw leest.
+    geheugen = gewist ? null : undefined;
+    bronGeheugen = null;
+    omgevingGeheugen = null;
+    // Een latere wissing kan intussen de zijne gezet hebben; die ruimt zichzelf op.
+    if (lopendeWissing === wissing) lopendeWissing = null;
+    klaar();
+    meldSleutelWijziging();
+  }
 }
 
 // Een onbereikbare kluis is hier bewust false: dit stuurt alleen statusteksten en de koopknop aan,
@@ -282,8 +453,10 @@ export async function haalOmgeving(): Promise<EtoroOmgeving> {
   if (omgevingGeheugen) return omgevingGeheugen;
 
   const opgeslagen = await laadTekst(SLEUTELS.etoroOmgeving, '');
+  // Na elke await: heeft zetOmgeving intussen gekozen, dan wint die keuze. Anders kan een lezing
+  // die vóór "Koppeling verwijderen" begon, na zetOmgeving('demo') de oude 'real' terugzetten.
   if (opgeslagen === 'real' || opgeslagen === 'demo') {
-    omgevingGeheugen = opgeslagen;
+    omgevingGeheugen ??= opgeslagen;
     return omgevingGeheugen;
   }
 
@@ -292,6 +465,7 @@ export async function haalOmgeving(): Promise<EtoroOmgeving> {
   // onbereikbare kluis liet "heeft echte sleutels" false zijn en zette een echte-accountgebruiker zo
   // stilzwijgend op het demo-pad, met een 401 op een sleutel waar niets mis mee was.
   const paar = await haalSleutelpaar().catch(() => null);
+  if (omgevingGeheugen) return omgevingGeheugen;
   if (!paar) {
     // Niets gekoppeld, of de kluis is nu niet te lezen. In allebei de gevallen niets vastleggen en
     // niets cachen: demo is de veilige tussenstand, en zodra de kluis wél opengaat valt de keuze

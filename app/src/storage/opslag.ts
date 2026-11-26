@@ -173,6 +173,17 @@ export const SLEUTELS = {
   instrumentSymbolen: 'instrument_symbolen',
   // Gestarte "Kopieer alles via eToro"-copies, met referentie, Copy Stop Loss en uitkomst.
   allesCopies: 'alles_copies',
+  // App-vergrendeling. De pincode zelf en de pogingenteller staan in expo-secure-store (zie
+  // state/slotOpslag.ts), niet hier. Deze drie zijn instellingen en een hint, geen geheimen.
+  // Na hoeveel tijd op de achtergrond de app weer op slot gaat: een SlotTermijn uit
+  // state/vergrendelTypes.ts ('direct', '30s', '1m', '5m', '15m'). Ontbreekt hij, dan geldt 1 min.
+  slotTermijn: 'slot_termijn',
+  // Wil de gebruiker ontgrendelen met vingerafdruk of gezicht: 'true' of 'false'.
+  slotBiometrie: 'slot_biometrie',
+  // Hint dat er een pincode is ingesteld. Alleen gelezen als de kluis niet leesbaar is: dan wordt
+  // het een vergrendeld scherm met kluisfout in plaats van "geen pincode". Het slot staat aan
+  // zodra het pincode-record in de kluis bestaat, niet door deze hint.
+  slotIngesteld: 'slot_ingesteld',
 } as const;
 
 export async function laadLijst<T>(sleutel: string): Promise<T[]> {

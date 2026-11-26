@@ -7,13 +7,17 @@ import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { KaderLogo } from './KaderLogo';
 import { FeestConfetti } from './FeestConfetti';
+import { useNaSlot } from '../state/VergrendelProvider';
+import { WrapperAfdekking } from './slot/AfdekLaag';
 
 interface Props {
   zichtbaar: boolean;
   onVerder: () => void;
 }
 
-export function WelkomFeest({ zichtbaar, onVerder }: Props) {
+export function WelkomFeest({ zichtbaar: gevraagd, onVerder }: Props) {
+  // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
+  const zichtbaar = useNaSlot(gevraagd);
   const { colors } = useTheme();
 
   return (
@@ -46,6 +50,7 @@ export function WelkomFeest({ zichtbaar, onVerder }: Props) {
 
         <FeestConfetti actief={zichtbaar} />
       </SafeAreaView>
+      <WrapperAfdekking />
     </Modal>
   );
 }

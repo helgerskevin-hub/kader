@@ -16,7 +16,7 @@ interface Props {
 }
 
 // v2-geometrie: open vierkant kader van 4 losse hoekhaken, viewBox 0 0 96 96.
-const HOEKEN = [
+export const HOEKEN = [
   'M24 40 L24 24 L40 24',
   'M56 24 L72 24 L72 40',
   'M24 56 L24 72 L40 72',

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import Constants from 'expo-constants';
@@ -17,7 +17,7 @@ import { SegmentKnop, SegmentOptie } from './SegmentKnop';
 import { Disclaimer } from './Disclaimer';
 import { ChangelogSheet } from './ChangelogSheet';
 import { NieuwInKaderScherm } from './NieuwInKaderScherm';
-import { CHANGELOG } from '../changelog';
+import { CHANGELOG, type NieuweFeature } from '../changelog';
 import { EtoroKoppelingWizard } from './EtoroKoppelingWizard';
 import { heeftSleutels } from '../state/etoroSleutels';
 import { usePortfolio } from '../state/PortfolioProvider';
@@ -36,6 +36,8 @@ import { useWidgetWeergave, type WidgetHoofdgetal, type WidgetIndeling } from '.
 import type { WidgetVolgorde } from '../state/widgetStand';
 import { tekenWidgets } from '../widget/widgetVerversen';
 import { fmtBedrag } from '../engine/format';
+import { BeveiligingGroep } from './slot/BeveiligingGroep';
+import { useVergrendelingOpt } from '../state/VergrendelProvider';
 
 interface Props {
   zichtbaar: boolean;
@@ -120,6 +122,19 @@ async function bepaalStatus(): Promise<SleutelStatus> {
 }
 
 const VERSIE = Constants.expoConfig?.version ?? '';
+
+// "Nieuw in Kader" met de knop Pincode instellen. Apart, zodat alleen dit stuk hertekent als de
+// vergrendel-context wijzigt (tijdens een wachttijd elke seconde), niet de hele sheet.
+function RondleidingMetActie(props: Omit<React.ComponentProps<typeof NieuwInKaderScherm>, 'onActie'>) {
+  const vraagPinInstellen = useVergrendelingOpt()?.vraagPinInstellen;
+  const onActie = useCallback(
+    (actie: NonNullable<NieuweFeature['actie']>) => {
+      if (actie === 'pincodeInstellen') void vraagPinInstellen?.('nieuwInKader');
+    },
+    [vraagPinInstellen],
+  );
+  return <NieuwInKaderScherm {...props} onActie={vraagPinInstellen ? onActie : undefined} />;
+}
 
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
@@ -336,6 +351,8 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                 </View>
               </LijstGroep>
 
+              <BeveiligingGroep />
+
               <LijstGroep
                 titel="Handelen"
                 style={styles.groep}
@@ -512,7 +529,7 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
           setTimeout(() => setRondleidingOpen(true), 280);
         }}
       />
-      <NieuwInKaderScherm
+      <RondleidingMetActie
         zichtbaar={rondleidingOpen}
         onSluiten={() => setRondleidingOpen(false)}
         features={CHANGELOG[0]?.nieuweFeatures ?? []}

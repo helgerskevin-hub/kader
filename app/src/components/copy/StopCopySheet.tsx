@@ -102,6 +102,7 @@ export function StopCopySheet({ doel, onSluiten, onGestopt }: Props) {
         {fout ? <Text style={[Type.caption, { color: colors.verlies, lineHeight: 18 }]}>{fout}</Text> : null}
         <OrderBevestigKnop
           label="Stop copy"
+          echtDetail={`Verkoop copy van ${doel?.username ?? ''}. Echt geld.`}
           omgeving={omgeving}
           bezig={bezig}
           uitgeschakeld={!magHandelen || !doel}

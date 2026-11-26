@@ -597,6 +597,7 @@ export function KooporderSheet({
             ? 'Houd vast om te kopen'
             : 'Kopen in demo'}
           echtWaarschuwing="Echt geld. Houd de knop vast om te kopen."
+          echtDetail={`Koop ${symbool}, ${heeftBedrag ? fmtBedrag(bedragGetal, DOLLARS) : 'bedrag onbekend'}. Echt geld.`}
           omgeving={omgeving}
           bezig={bezig}
           uitgeschakeld={!magBevestigen}

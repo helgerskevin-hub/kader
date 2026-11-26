@@ -5,7 +5,7 @@ import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { noteerAutoKapitaal, wisAutoKapitaal } from './autoKapitaal';
 import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving, EtoroFout, EtoroSleutels, WachtendeOrder, OrderUitkomst, annuleerOrder, zoekOrderStatus, guid, echtNiveau } from '../engine/etoro';
-import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels } from './etoroSleutels';
+import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels, opSleutelWijziging } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { GeplaatsteOrder, heeftVerseLopendeOrder, isAfgerond, isMeldenswaard, kiesOmOpTeVragen, ruimOp, saldoOverOrders } from './orderUitkomsten';
 import { bronVan } from './portfolioTypes';
@@ -13,6 +13,7 @@ import { checkOpenTrades, checkPrijsalerts } from '../notifications/tradeChecks'
 import { checkNiveausGeraakt, meldEtoroSluitingen } from '../notifications/sluitingen';
 import { werkWidgetBij } from '../widget/widgetVerversen';
 import { isGenegeerd, positieSleutel } from './positieSleutel';
+import { MODAL_SPREIDING_MS, useBevestigIdentiteit } from './VergrendelProvider';
 
 export interface SyncResultaat {
   gekoppeld: boolean;                          // false = geen eToro-sleutels ingesteld
@@ -104,7 +105,8 @@ interface PortfolioContextWaarde {
   // Annuleert een wachtende order bij eToro. Nooit automatisch herhalen: net als bij een kooporder
   // is een afgebroken verzoek geen bewijs dat er niets gebeurd is. Neemt de hele order, niet alleen
   // het id, zodat de omgeving van de order tegen die van de sleutels gecontroleerd kan worden.
-  annuleerWachtendeOrder: (order: WachtendeOrder) => Promise<AnnuleerResultaat>;
+  // null: in Echt is de bevestiging (biometrie of pincode) geannuleerd; er is niets verstuurd.
+  annuleerWachtendeOrder: (order: WachtendeOrder) => Promise<AnnuleerResultaat | null>;
   // De gebruiker tikt "Begrepen" op een uitkomst-melding: verdwijnt uit de opslag.
   wisOrderUitkomst: (verzoekId: string) => Promise<void>;
 }
@@ -136,6 +138,7 @@ const VERZOEN_NA_ORDER_MS = [5_000, 20_000, 45_000, 90_000, 3 * 60_000, 5 * 60_0
 const NA_FOUT_WACHT_MS = 3 * 60_000;
 
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
+  const bevestigIdentiteit = useBevestigIdentiteit();
   const [trades, setTrades] = useState<PortfolioTrade[]>([]);
   const [geladen, setGeladen] = useState(false);
   const [livePrijzen, setLivePrijzen] = useState<Record<string, number>>({});
@@ -720,6 +723,11 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setEtoroGekoppeld(gekoppeld);
   }, []);
 
+  // Sleutels bewaard of gewist buiten deze provider om, zoals "Koppeling verwijderen" op het
+  // slotscherm (VergrendelProvider zit boven deze provider en kan setOmgeving niet aanroepen).
+  // Zonder dit bleef "gekoppeld" tot een herstart staan.
+  useEffect(() => opSleutelWijziging(() => { ververHandelStatus().catch(() => {}); }), [ververHandelStatus]);
+
   useEffect(() => {
     ververHandelStatus();
     // Meteen afstrepen tegen de bewaarde trades, zodat de banner ook zonder verbinding klopt.
@@ -825,7 +833,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   // Annuleert een wachtende order. Nooit automatisch herhalen: net als bij een kooporder beslist de
   // gebruiker, niet een retry-lus.
-  const annuleerWachtendeOrder = useCallback(async (order: WachtendeOrder): Promise<AnnuleerResultaat> => {
+  const annuleerWachtendeOrder = useCallback(async (order: WachtendeOrder): Promise<AnnuleerResultaat | null> => {
     const fout = (bericht: string): AnnuleerResultaat => ({ uitkomst: { soort: 'fout', bericht }, statusNa: null });
     const sleutels = await actieveSleutels();
     if (!sleutels) return fout('Er staat geen eToro-sleutel klaar voor deze omgeving.');
@@ -837,6 +845,18 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
     const orderId = order.orderId;
     if (orderId === null) return fout('Kader kan deze order niet herkennen en annuleert hem daarom niet.');
+    // Echt geld: eerst biometrie of pincode, net als bij een order plaatsen. Demo blijft zonder.
+    if (order.omgeving === 'real') {
+      if (!bevestigIdentiteit) return fout('Kader kan nu niet bevestigen dat jij het bent. Er is niets verstuurd.');
+      const symbool = order.symbool.trim();
+      // De bevestigdialoog sluit net. Valt de vraag terug op de pincodesheet, dan niet twee Modals in
+      // dezelfde tick (zie DialoogProvider en MODAL_SPREIDING_MS).
+      await new Promise(klaar => setTimeout(klaar, MODAL_SPREIDING_MS));
+      const u = await bevestigIdentiteit('order', {
+        detail: symbool ? `Annuleer order ${symbool}. Echt geld.` : 'Annuleer order. Echt geld.',
+      });
+      if (u !== 'ok') return null;
+    }
     const uitkomst = await annuleerOrder(orderId, sleutels, guid());
     // Ook bij 'onbekend': het annuleerverzoek kan wel degelijk aangekomen zijn, dus meteen kijken wat
     // er nu bij eToro staat in plaats van te wachten op de volgende ronde.
@@ -862,7 +882,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return { uitkomst, statusNa };
-  }, [verzoenNaOrder, bewaarGeplaatst]);
+  }, [verzoenNaOrder, bewaarGeplaatst, bevestigIdentiteit]);
 
   // Eén filter, één keer bij de bron, zodat elke consument het erft: het portfolio, de statistieken
   // en de historie tonen alleen de actieve omgeving. Handmatige trades horen bij geen omgeving en

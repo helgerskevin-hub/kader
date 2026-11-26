@@ -19,6 +19,8 @@ import { radii, shadow, spacing } from '../theme/tokens';
 import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 import { useBeweging } from '../theme/useReduceMotion';
 import { curve, duur, veer, vervaag } from '../theme/beweging';
+import { useNaSlot } from '../state/VergrendelProvider';
+import { WrapperAfdekking } from './slot/AfdekLaag';
 
 // Het vel is zelf de geanimeerde component, niet een wrapper eromheen. Vijf sheets zetten een
 // maxHeight in procenten op hun velStijl, en een percentage rekent tegen de hoogte van de ouder:
@@ -54,6 +56,11 @@ const DICHT_SNELHEID = 800;
 // de uitleg daar). Met 180ms animatie plus een render is deze Modal op tijd weg.
 const SLUIT_MS = 180;
 const SLUIT_MIN_MS = 110;
+// Noodrem voor het sluiten: is de sluiting na deze tijd niet afgerond, dan rondt hij alsnog af
+// (Modal weg, of terug omhoog als de ouder de sheet open hield). De afronding hangt aan de klaar-callback van een animatie; wordt die onderbroken
+// (afgerond false) of vuurt hij niet terwijl een prompt de activity pauzeert, dan bleef er een scrim
+// of een onzichtbaar vel staan dat elke aanraking opving.
+const SLUIT_NOODREM_MS = SLUIT_MS + 300;
 
 // Uitloop voor een veeg: begint op dezelfde snelheid als de vinger (de helling van deze curve op
 // t = 0 is 2) en remt dan af, zodat het vel niet eerst inhoudt en dan pas vertrekt.
@@ -81,7 +88,9 @@ function rubberband(afstand: number, maat: number): number {
 //
 // Minder beweging: geen glijden en geen veer, alleen een korte fade. Slepen blijft werken, want
 // dat doet de gebruiker zelf.
-export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props) {
+export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl }: Props) {
+  // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
+  const zichtbaar = useNaSlot(gevraagd);
   const { colors } = useTheme();
   const toetsenbordHoogte = useToetsenbordHoogte();
   const insets = useSafeAreaInsets();
@@ -113,6 +122,14 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
   reduceRef.current = reduceMotion;
   const sluitendRef = useRef(false);
   const wachtOpMaat = useRef(false);
+  // Zie SLUIT_NOODREM_MS. Gezet bij elke sluitendRef = true, opgeruimd bij elke afronding of
+  // heropening en bij unmount.
+  const noodrem = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopNoodrem = useCallback(() => {
+    if (noodrem.current) clearTimeout(noodrem.current);
+    noodrem.current = null;
+  }, []);
+  useEffect(() => stopNoodrem, [stopNoodrem]);
 
   // Tijdens het wegschuiven houden we de laatste inhoud vast. Veel sheets halen hun inhoud uit iets
   // dat bij het sluiten meteen null wordt (een sheet die een `trade` toont die bij sluiten null wordt), en dan zou het vel
@@ -121,6 +138,7 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
   if (zichtbaar) laatsteKinderen.current = children;
 
   const startOpen = useCallback(() => {
+    stopNoodrem();
     sluitendRef.current = false;
     sluitendUI.value = false;
     if (reduceRef.current) {
@@ -130,10 +148,13 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
     }
     zicht.value = 1;
     y.value = withSpring(0, veer.standaard);
-  }, [y, zicht, sluitendUI]);
+  }, [y, zicht, sluitendUI, stopNoodrem]);
 
   const naSluiten = useCallback(() => {
     const afronden = () => {
+      // Al afgerond of intussen heropend (een late klaar naast de noodrem): niets meer te doen.
+      if (!sluitendRef.current) return;
+      stopNoodrem();
       // De ouder hield de sheet open (onSluiten zette zichtbaar niet op false): terug omhoog.
       if (zichtbaarRef.current) {
         startOpen();
@@ -147,7 +168,19 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
     // en anders zou het vel voor niets eerst weer omhoog komen.
     if (zichtbaarRef.current) setTimeout(afronden, 0);
     else afronden();
-  }, [startOpen]);
+  }, [startOpen, stopNoodrem]);
+
+  // Vuurt de klaar-callback van de sluitanimatie niet, dan rondt dit alsnog af via naSluiten: dat
+  // wacht zelf een tik als de ouder de sheet nog open lijkt te houden, en gaat dan terug omhoog of
+  // haalt de Modal weg. Zonder dit bleef sluitendRef true en ving een onzichtbaar vel (of een
+  // scrim) elke aanraking op.
+  const startNoodrem = useCallback(() => {
+    stopNoodrem();
+    noodrem.current = setTimeout(() => {
+      noodrem.current = null;
+      if (sluitendRef.current) naSluiten();
+    }, SLUIT_NOODREM_MS);
+  }, [naSluiten, stopNoodrem]);
 
   // Draait op de UI-thread (vanuit het sleepgebaar) en op de JS-thread (achtergrond, terugknop,
   // zichtbaar naar false). snelheid is de loslaatsnelheid in pt/s, 0 als er niet gesleept is.
@@ -179,10 +212,11 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
   const sluitDoorGebruiker = useCallback((alBezig: boolean) => {
     if (sluitendRef.current) return;
     sluitendRef.current = true;
+    startNoodrem();
     Keyboard.dismiss();
     if (!alBezig) animeerWeg(0);
     onSluitenRef.current();
-  }, [animeerWeg]);
+  }, [animeerWeg, startNoodrem]);
 
   useEffect(() => {
     if (zichtbaar) {
@@ -203,6 +237,7 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
     }
     if (!modalOpen || sluitendRef.current) return;
     sluitendRef.current = true;
+    startNoodrem();
     // Vroeger verdween de inhoud met de Modal meteen, en daarmee het toetsenbord. Nu blijft de
     // inhoud nog even staan tijdens het wegschuiven, dus halen we het toetsenbord zelf weg.
     Keyboard.dismiss();
@@ -336,6 +371,8 @@ export function BottomSheet({ zichtbaar, onSluiten, children, velStijl }: Props)
             />
           </Animated.View>
         </GestureDetector>
+        {/* Ook boven een open sheet afgedekt in Recente apps en bij terugkomst. */}
+        <WrapperAfdekking />
       </GestureHandlerRootView>
     </Modal>
   );

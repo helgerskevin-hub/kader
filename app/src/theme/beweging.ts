@@ -66,6 +66,18 @@ export const curve = {
   verplaats: Easing.bezier(0.42, 0, 0.58, 1),
 } as const;
 
+// Het schudden van een foute pincode: uitslagen in dp met de duur van elke stap in ms (samen ongeveer
+// 300 ms). Een lijst van paren, zodat withSequence er rechtstreeks uit kan putten.
+export const schud = {
+  stappen: [
+    { naar: -12, duur: 50 },
+    { naar: 12, duur: 70 },
+    { naar: -8, duur: 60 },
+    { naar: 8, duur: 60 },
+    { naar: 0, duur: 60 },
+  ],
+} as const;
+
 // Lijsten die gestaffeld binnenkomen. De cap voorkomt dat de twintigste kaart pas na bijna een
 // seconde verschijnt: na maxTotaal komt alles tegelijk.
 export const stagger = {

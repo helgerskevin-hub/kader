@@ -12,19 +12,22 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TrendingUp, Target, Users, Shield, ArrowRight } from 'lucide-react-native';
+import { TrendingUp, Target, Users, Shield, Lock, Check, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii } from '../theme/tokens';
 import { KaderLogo } from '../components/KaderLogo';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { duur, vervaag } from '../theme/beweging';
+import { useVergrendelingOpt } from '../state/VergrendelProvider';
 
 interface Stap {
   Icon?: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
   isWelkom?: boolean;
   titel: string;
   body: string;
+  // Een knop op de pagina zelf. Nu alleen de pincode.
+  actie?: 'pincodeInstellen';
 }
 
 const STAPPEN: Stap[] = [
@@ -49,6 +52,12 @@ const STAPPEN: Stap[] = [
     body: 'Op Copy zie je de beste crypto-traders van eToro met een Kader-score. Tik op de ster en Kader meldt hun nieuwe trades. Vanuit die melding kopieer je met één druk, altijd met een stop-loss en zonder hefboom.',
   },
   {
+    Icon: Lock as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
+    titel: 'Beveilig\nde app',
+    body: 'Stel een pincode in, zodat alleen jij Kader opent. Je kunt ook je vingerafdruk of gezicht gebruiken. Zodra je eToro koppelt is een pincode verplicht. Overslaan kan; je vindt het later bij Instellingen, onder Beveiliging.',
+    actie: 'pincodeInstellen',
+  },
+  {
     Icon: Shield as React.ComponentType<{ size: number; color: string; strokeWidth?: number }>,
     titel: 'Disclaimer',
     body: 'Deze app geeft technische signalen op basis van historische koersdata, geen financieel advies.\n\nKader rekent met openbare marktdata. De koers op eToro kan afwijken, dus kijk daar vóór je een trade plaatst.',
@@ -63,9 +72,22 @@ interface Props {
 
 export function OnboardingScreen({ onKlaar }: Props) {
   const { colors } = useTheme();
+  const vergrendel = useVergrendelingOpt();
   const { width: breedte } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
   const [actieveStap, setActieveStap] = useState(0);
+  // Alleen tegen dubbel tikken terwijl de pincode-flow open is.
+  const [pinBezig, setPinBezig] = useState(false);
+
+  async function stelPincodeIn() {
+    if (!vergrendel || pinBezig) return;
+    setPinBezig(true);
+    try {
+      await vergrendel.vraagPinInstellen('optIn');
+    } finally {
+      setPinBezig(false);
+    }
+  }
   const isLaatsteStap = actieveStap === LAATSTE_STAP;
 
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
@@ -157,6 +179,9 @@ export function OnboardingScreen({ onKlaar }: Props) {
             scrollX={scrollX}
             reduceMotion={reduceMotion}
             stap={stap}
+            pincodeAan={vergrendel?.pincodeIngesteld ?? false}
+            kanInstellen={vergrendel != null}
+            onPincode={stelPincodeIn}
           />
         ))}
       </Animated.ScrollView>
@@ -240,12 +265,15 @@ interface PaginaProps {
   scrollX: SharedValue<number>;
   reduceMotion: boolean;
   stap: Stap;
+  pincodeAan: boolean;
+  kanInstellen: boolean;
+  onPincode: () => void;
 }
 
 // Eén stap. De illustratie (logo of icoon) hangt in zijn eigen laag: die krijgt bovenop de
 // gewone scrollverplaatsing nog een tegengestelde duw mee, zodat hij maar op ongeveer halve
 // snelheid van de tekst meekomt. Onder Minder beweging blijft die laag stilstaan.
-function OnboardingPagina({ index, breedte, scrollX, reduceMotion, stap }: PaginaProps) {
+function OnboardingPagina({ index, breedte, scrollX, reduceMotion, stap, pincodeAan, kanInstellen, onPincode }: PaginaProps) {
   const { colors } = useTheme();
 
   const illustratieStijl = useAnimatedStyle(() => {
@@ -286,6 +314,27 @@ function OnboardingPagina({ index, breedte, scrollX, reduceMotion, stap }: Pagin
             <Text style={[Type.body, styles.body, { color: colors.tekstGedimd }]}>
               {stap.body}
             </Text>
+            {stap.actie === 'pincodeInstellen' && kanInstellen && (
+              pincodeAan ? (
+                <View
+                  style={[styles.actieKnop, { backgroundColor: colors.winst + '24' }]}
+                  accessible
+                  accessibilityLabel="Pincode staat aan"
+                >
+                  <Check size={16} color={colors.winst} strokeWidth={2.5} />
+                  <Text style={[Type.body, { color: colors.winst, fontWeight: '600' }]}>Pincode staat aan</Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={onPincode}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pincode instellen"
+                  style={[styles.actieKnop, { backgroundColor: colors.cta }]}
+                >
+                  <Text style={[Type.body, { color: 'white', fontWeight: '600' }]}>Pincode instellen</Text>
+                </Pressable>
+              )
+            )}
           </>
         )}
       </View>
@@ -345,6 +394,17 @@ const styles = StyleSheet.create({
   body: {
     textAlign: 'center',
     lineHeight: 26,
+  },
+  actieKnop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.knop,
+    minHeight: 48,
   },
   navigatie: {
     flexDirection: 'row',
