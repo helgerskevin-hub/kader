@@ -60,6 +60,11 @@ const INHOUD_FADE_TOT = 0.4;
 // elke aanraking opslokt en lijkt de app bevroren.
 const START_TERUGVAL_MS = 250;
 
+// Noodrem voor het sluiten: rondAf hangt aan de klaar-callback van de sluitanimatie. Wordt die
+// onderbroken (af false) of vuurt hij niet terwijl een prompt de activity pauzeert, dan bleef de
+// Modal gemount en ving hij elke aanraking op. Ruim boven de ~0,7 s van de sluitveer.
+const SLUIT_NOODREM_MS = 1500;
+
 // Een veer die naar 0 gaat komt asymptotisch tot stilstand; de standaarddrempel wacht tot de
 // laatste fractie van een pixel en houdt de Modal dan nog honderden ms boven een tab die al vrij
 // lijkt. Bij 1e-4 van de beginenergie is het vlak op een procent na op zijn plek, en dat laatste
@@ -122,6 +127,12 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
   const interneSluiting = useRef(false);
   const gestart = useRef(false);
   const onSluitenRef = useRef(onSluiten);
+  const noodrem = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopNoodrem = useCallback(() => {
+    if (noodrem.current) clearTimeout(noodrem.current);
+    noodrem.current = null;
+  }, []);
+  useEffect(() => stopNoodrem, [stopNoodrem]);
   useEffect(() => {
     onSluitenRef.current = onSluiten;
   }, [onSluiten]);
@@ -129,13 +140,23 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
   const rondAf = useCallback(() => {
     // Intussen heropend: dan is dit het einde van een onderbroken sluiting, niet van het scherm.
     if (!sluitendRef.current) return;
+    stopNoodrem();
     const intern = interneSluiting.current;
     sluitendRef.current = false;
     interneSluiting.current = false;
     gestart.current = false;
     setGemount(false);
     if (intern) onSluitenRef.current();
-  }, []);
+  }, [stopNoodrem]);
+
+  // Bij elk begin van een sluiting (opnieuw) gezet; rondAf, heropenen en unmounten ruimen hem op.
+  const startNoodrem = useCallback(() => {
+    stopNoodrem();
+    noodrem.current = setTimeout(() => {
+      noodrem.current = null;
+      rondAf();
+    }, SLUIT_NOODREM_MS);
+  }, [rondAf, stopNoodrem]);
 
   const startOpenen = useCallback(() => {
     if (gestart.current || sluitendRef.current) return;
@@ -149,6 +170,7 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
   const startSluiten = useCallback((naarBron: boolean) => {
     sluitendRef.current = true;
     sluitendUI.value = true;
+    startNoodrem();
     const klaar = (af?: boolean) => {
       'worklet';
       if (af) scheduleOnRN(rondAf);
@@ -163,7 +185,7 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
     voortgang.value = modusRef.current === MODUS_FADE
       ? vervaag(0, duur.midden, klaar)
       : withSpring(0, SLUIT_VEER, klaar);
-  }, [modus, rondAf, sluitendUI, voortgang]);
+  }, [modus, rondAf, sluitendUI, startNoodrem, voortgang]);
 
   // Eigen sluiting: X, terugknop, of een knop in het scherm die ergens anders heen gaat.
   const sluit = useCallback<Sluit>((opties) => {
@@ -177,7 +199,8 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
   const markeerSwipeSluiting = useCallback(() => {
     sluitendRef.current = true;
     interneSluiting.current = true;
-  }, []);
+    startNoodrem();
+  }, [startNoodrem]);
 
   useEffect(() => {
     if (zichtbaar) {
@@ -192,6 +215,7 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
         voortgang.value = 0;
         sleep.value = 0;
         sluitendUI.value = false;
+        stopNoodrem();
         sluitendRef.current = false;
         interneSluiting.current = false;
         gestart.current = false;
@@ -202,6 +226,7 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
       if (sluitendRef.current) {
         // Heropend terwijl hij wegging: vanaf de huidige stand terug naar open, zonder opnieuw te
         // mounten. De lopende sluitanimatie wordt overschreven en meldt zich dan niet meer.
+        stopNoodrem();
         sluitendRef.current = false;
         interneSluiting.current = false;
         gestart.current = false;

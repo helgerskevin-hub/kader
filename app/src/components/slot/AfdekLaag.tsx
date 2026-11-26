@@ -11,8 +11,8 @@ interface Props {
   zichtbaar: boolean;
 }
 
-// Na deze tijd is de vervagende laag weg uit de boom, ook als de fade niet afliep. Ruim boven
-// duur.kort, en ruim onder de twee seconden waarna Reanimated zijn eindwaarde vergeet (zie onder).
+// Na deze tijd haalt een JS-timer de vervagende laag uit de boom, ook als de fade niet afliep. Ruim
+// boven duur.kort. De timing is niet de garantie, de unmount is dat (zie onder).
 const VERVAAG_WEG_MS = duur.kort + 200;
 
 // Een absolute, volledig dekkende laag met alleen de achtergrondkleur en het logo, geen inhoud.
@@ -32,7 +32,9 @@ const VERVAAG_WEG_MS = duur.kort + 200;
 // om een Animated.View, zoals in BottomSheet en PodiumScherm), dan vervalt de waarde. De eerstvolgende
 // React-commit zette de laag daarna terug op zijn begin-opacity 1: het logo stond weer over de app,
 // met pointerEvents none, dus aanrakingen gingen er dwars doorheen. Een laag die niet meer bestaat
-// kan niet terugkomen.
+// kan niet terugkomen. Staan de JS-timers langer dan twee seconden stil, dan kan het logo hooguit één
+// JS-beurt kort op opacity 1 flitsen (pointerEvents none) voordat de timer hem weghaalt; permanent
+// blijft het nooit.
 export function AfdekLaag({ zichtbaar }: Props) {
   const { colors, donkerActief } = useTheme();
   // Of de uit-laag nog vervaagt. Begint uit: mount de laag als uit (een Modal die opent terwijl de
@@ -49,7 +51,7 @@ export function AfdekLaag({ zichtbaar }: Props) {
   useEffect(() => {
     if (!vervaagt) return;
     // Een JS-timer, geen callback van de animatie: die zou in hetzelfde Reanimated-pad vallen. Staan
-    // de JS-timers even stil, dan vuurt hij bij de eerste beurt daarna.
+    // de JS-timers even stil, dan vuurt hij bij de eerste beurt daarna en is de laag dan alsnog weg.
     const t = setTimeout(() => setVervaagt(false), VERVAAG_WEG_MS);
     return () => clearTimeout(t);
   }, [vervaagt]);

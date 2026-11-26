@@ -56,6 +56,11 @@ const DICHT_SNELHEID = 800;
 // de uitleg daar). Met 180ms animatie plus een render is deze Modal op tijd weg.
 const SLUIT_MS = 180;
 const SLUIT_MIN_MS = 110;
+// Noodrem voor het sluiten: is de Modal na deze tijd nog open terwijl hij dicht hoort, dan gaat hij
+// alsnog weg. De afronding hangt aan de klaar-callback van een animatie; wordt die onderbroken
+// (afgerond false) of vuurt hij niet terwijl een prompt de activity pauzeert, dan bleef er een scrim
+// of een onzichtbaar vel staan dat elke aanraking opving.
+const SLUIT_NOODREM_MS = SLUIT_MS + 300;
 
 // Uitloop voor een veeg: begint op dezelfde snelheid als de vinger (de helling van deze curve op
 // t = 0 is 2) en remt dan af, zodat het vel niet eerst inhoudt en dan pas vertrekt.
@@ -214,6 +219,18 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
     // Bewust alleen zichtbaar en modalOpen: animeerWeg verandert mee met reduceMotion, en een
     // nieuwe versie ervan is geen reden om opnieuw te openen of te sluiten.
   }, [zichtbaar, modalOpen]);
+
+  // Zie SLUIT_NOODREM_MS. Een JS-timer zolang de Modal open is en zichtbaar false; heropenen,
+  // dichtgaan en unmounten ruimen hem op. Het openen zelf raakt dit niet.
+  useEffect(() => {
+    if (!modalOpen || zichtbaar) return;
+    const t = setTimeout(() => {
+      if (!sluitendRef.current || zichtbaarRef.current) return;
+      sluitendRef.current = false;
+      setModalOpen(false);
+    }, SLUIT_NOODREM_MS);
+    return () => clearTimeout(t);
+  }, [modalOpen, zichtbaar]);
 
   function opLayout(e: LayoutChangeEvent) {
     const h = e.nativeEvent.layout.height;

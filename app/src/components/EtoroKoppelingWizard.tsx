@@ -17,7 +17,15 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 import { haptiek } from '../theme/haptiek';
 import { EtoroOmgeving, EtoroSleutels, haalAccountInfo, haalEtoroPortfolio, magHandelenVolgensScopes } from '../engine/etoro';
-import { bewaarSleutels, GeenPincodeFout, haalOmgeving, haalSleutels, wisSleutels, Sleutelpaar } from '../state/etoroSleutels';
+import {
+  bewaarSleutels,
+  GeenPincodeFout,
+  haalOmgeving,
+  haalSleutels,
+  MELDING_KOPPELING_NIET_WEG,
+  wisSleutels,
+  Sleutelpaar,
+} from '../state/etoroSleutels';
 import { userKeyBijApiKeyWijziging } from '../engine/sleutelKeuze';
 import { beoordeelGeplakteSleutel } from '../engine/sleutelVorm';
 import { bouwKoppelBeeld, KoppelUitslag, OmgevingToets, RijStaat, TestRij } from '../engine/koppelTest';
@@ -412,7 +420,18 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
           label: 'Verwijderen',
           soort: 'destructief',
           onDruk: async () => {
-            await wisSleutels();
+            try {
+              await wisSleutels();
+            } catch {
+              // De sleutel staat er (deels) nog: melden en de wizard open laten.
+              toonDialoog({
+                variant: 'fout',
+                titel: 'Koppeling verwijderen',
+                tekst: MELDING_KOPPELING_NIET_WEG,
+                knoppen: [{ label: 'Oké' }],
+              });
+              return;
+            }
             setApiKey('');
             setUserKey('');
             setBestondKoppeling(false);

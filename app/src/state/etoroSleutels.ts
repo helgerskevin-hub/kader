@@ -162,9 +162,18 @@ async function wisGeheim(sleutel: string): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(sleutel);
   } catch {
-    // Niets in de kluis is ook goed; de AsyncStorage-kopie gaat hieronder alsnog weg.
+    // Niets in de kluis is ook goed; de controle hieronder beslist of hij echt weg is.
   }
   await verwijderSleutel(sleutel);
+  // deleteItemAsync en verwijderSleutel slikken hun fouten, dus teruglezen. Kan de kluis niet gelezen
+  // worden, dan weten we niet of hij weg is: dat telt als niet gewist.
+  let over: string | null;
+  try {
+    over = await SecureStore.getItemAsync(sleutel);
+  } catch (e) {
+    throw new Error(KLUIS_ONBEREIKBAAR, { cause: e });
+  }
+  if (over || (await laadTekst(sleutel, ''))) throw new Error('De sleutel staat er na het wissen nog.');
 }
 
 // ---------- Sleutels ----------
@@ -310,19 +319,27 @@ async function bewaarSleutelsInRij(invoer: SleutelInvoer): Promise<void> {
 export const MELDING_KOPPELING_NIET_WEG = 'De eToro-koppeling is niet verwijderd. Probeer het opnieuw.';
 
 export async function wisSleutels(): Promise<void> {
+  let gewist = false;
   try {
     // Ook het oude demo-slot leegmaken. Bij het verhuizen laten we het staan omdat we dan niets mogen
     // verliezen, maar wie bewust zijn koppeling verwijdert wil er geen kopie meer van op zijn toestel.
-    await Promise.all([
+    // allSettled: elk slot krijgt zijn poging, ook als een ander faalt, en de finally hieronder loopt
+    // pas als ze alle vier klaar zijn.
+    const uitkomsten = await Promise.allSettled([
       wisGeheim(PAAR.api), wisGeheim(PAAR.user),
       wisGeheim(OUD_DEMOPAAR.api), wisGeheim(OUD_DEMOPAAR.user),
     ]);
     await Promise.all([bewaarVlag(SCHRIJFVLAG.real, false), bewaarVlag(SCHRIJFVLAG.demo, false)]);
-  } catch {
-    throw new Error(MELDING_KOPPELING_NIET_WEG);
+    const fout = uitkomsten.find((u): u is PromiseRejectedResult => u.status === 'rejected');
+    if (fout) throw fout.reason;
+    gewist = true;
+  } catch (e) {
+    throw new Error(MELDING_KOPPELING_NIET_WEG, { cause: e });
   } finally {
     // Ook na een halve wissing: het geheugen weg en de luisteraars laten teruglezen wat er echt staat.
-    geheugen = null;
+    // null betekent "zeker geen sleutel"; alleen na een geslaagde wissing. Anders undefined, zodat de
+    // volgende lezing (ook de controle in verwijderKoppelingEnOpen) de kluis echt opnieuw leest.
+    geheugen = gewist ? null : undefined;
     bronGeheugen = null;
     omgevingGeheugen = null;
     meldSleutelWijziging();
