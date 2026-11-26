@@ -22,6 +22,9 @@ import { radii, shadow, spacing } from '../theme/tokens';
 import { useReduceMotion } from '../theme/useReduceMotion';
 import { curve, duur, veer, vervaag } from '../theme/beweging';
 import type { DialoogInhoud, DialoogKnop } from '../state/DialoogProvider';
+import { useNaSlot } from '../state/VergrendelProvider';
+import { useAfgedekt } from '../state/afdekking';
+import { AfdekLaag } from './slot/AfdekLaag';
 
 const IKONEN = {
   informatie: Info,
@@ -53,7 +56,10 @@ interface Props {
   onSluiten: () => void;
 }
 
-export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
+export function KaderDialoog({ inhoud, zichtbaar: gevraagd, onSluiten }: Props) {
+  // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
+  const zichtbaar = useNaSlot(gevraagd);
+  const afgedekt = useAfgedekt();
   const { colors, donkerActief } = useTheme();
   const reduceMotion = useReduceMotion();
 
@@ -291,6 +297,7 @@ export function KaderDialoog({ inhoud, zichtbaar, onSluiten }: Props) {
         ) : null}
       </Pressable>
       </View>
+      <AfdekLaag zichtbaar={afgedekt} />
     </Modal>
   );
 }

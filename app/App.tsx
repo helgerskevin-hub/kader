@@ -39,6 +39,12 @@ import { heeftWidgets } from './src/widget/widgetVerversen';
 // Importeert tegelijk de TaskManager-taakdefinitie op module-niveau: die moet bestaan zodra Android
 // de app wakker maakt voor de achtergrondcheck, niet pas als een component gemount is.
 import { registreerAchtergrondtaak, stopAchtergrondtaak } from './src/notifications/achtergrondtaak';
+// Vroeg importeren: VergrendelProvider houdt op module-niveau de splash vast
+// (SplashScreen.preventAutoHideAsync) tot het slot getoond is of de app open is.
+import { VergrendelProvider, useVergrendeling } from './src/state/VergrendelProvider';
+import { SlotLaag } from './src/components/slot/SlotLaag';
+import { AfdekLaag } from './src/components/slot/AfdekLaag';
+import { useAfgedekt } from './src/state/afdekking';
 import { MarktProvider, useMarkt } from './src/state/MarktProvider';
 import { KansenProvider } from './src/state/KansenProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
@@ -523,7 +529,7 @@ function AppInhoud() {
         onVerder={() => { setWelkomOpen(false); toonNieuws(); }}
       />
       <ChangelogSheet zichtbaar={nieuwInVersie} onSluiten={sluitNieuwInVersie} alleenNieuwste />
-      <NieuwInKaderScherm zichtbaar={rondleidingOpen} onSluiten={sluitNieuwInVersie} features={nieuweFeatures} />
+      <NieuwInKaderMetActie zichtbaar={rondleidingOpen} onSluiten={sluitNieuwInVersie} features={nieuweFeatures} />
       <EtoroPromptSheet
         zichtbaar={etoroPromptOpen}
         onLater={() => setEtoroPromptOpen(false)}
@@ -538,6 +544,25 @@ function AppInhoud() {
     </View>
     </NavigatieProvider>
   );
+}
+
+// "Nieuw in Kader" met de knop Pincode instellen. Apart, zodat AppInhoud niet hertekent bij elke
+// wijziging in de vergrendel-context (bijvoorbeeld de aftelling van een wachttijd).
+function NieuwInKaderMetActie(props: Omit<React.ComponentProps<typeof NieuwInKaderScherm>, 'onActie'>) {
+  const { vraagPinInstellen } = useVergrendeling();
+  return (
+    <NieuwInKaderScherm
+      {...props}
+      onActie={actie => {
+        if (actie === 'pincodeInstellen') void vraagPinInstellen('nieuwInKader');
+      }}
+    />
+  );
+}
+
+// Apart component, zodat alleen deze laag hertekent als de afdekking wisselt.
+function RootAfdekking() {
+  return <AfdekLaag zichtbaar={useAfgedekt()} />;
 }
 
 export default function App() {
@@ -560,19 +585,30 @@ export default function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <MarktProvider>
-            <KansenProvider>
-              <PortfolioProvider>
-                {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
-                <DialoogProvider>
-                  {/* Binnen PortfolioProvider: de Copy-tab koppelt kopieën aan je eToro-posities. */}
-                  <CopyProvider>
-                    <AppInhoud />
-                  </CopyProvider>
-                </DialoogProvider>
-              </PortfolioProvider>
-            </KansenProvider>
-          </MarktProvider>
+          {/* Boven alle data-providers en boven DialoogProvider: het slot ligt over de hele app,
+              de tabs blijven eronder gemount. */}
+          <VergrendelProvider>
+            <View style={styles.root}>
+              <MarktProvider>
+                <KansenProvider>
+                  <PortfolioProvider>
+                    {/* Binnen PortfolioProvider, zodat elk scherm en elke sheet een dialoog kan opvragen. */}
+                    <DialoogProvider>
+                      {/* Binnen PortfolioProvider: de Copy-tab koppelt kopieën aan je eToro-posities. */}
+                      <CopyProvider>
+                        <AppInhoud />
+                      </CopyProvider>
+                    </DialoogProvider>
+                  </PortfolioProvider>
+                </KansenProvider>
+              </MarktProvider>
+              {/* Buiten de takken van AppInhoud (laden, onboarding, hoofdtak), zodat ze in elke tak
+                  staan en niet opnieuw mounten bij een wissel. De afdeklaag dekt de root-View af
+                  (Recente apps, koude start); de slot-Modal komt als laatste en ligt dus bovenop. */}
+              <RootAfdekking />
+              <SlotLaag />
+            </View>
+          </VergrendelProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

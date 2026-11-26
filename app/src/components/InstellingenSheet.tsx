@@ -37,6 +37,7 @@ import type { WidgetVolgorde } from '../state/widgetStand';
 import { tekenWidgets } from '../widget/widgetVerversen';
 import { fmtBedrag } from '../engine/format';
 import { BeveiligingGroep } from './slot/BeveiligingGroep';
+import { useVergrendelingOpt } from '../state/VergrendelProvider';
 
 interface Props {
   zichtbaar: boolean;
@@ -124,6 +125,7 @@ const VERSIE = Constants.expoConfig?.version ?? '';
 
 export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
   const { colors, modus, setModus } = useTheme();
+  const vergrendel = useVergrendelingOpt();
   const extraKopruimte = useModalKopruimte();
   const { toonDialoog } = useDialoog();
   const { valuta, eurPerUsd, koersOntbreekt, kiesValuta } = useValuta();
@@ -519,6 +521,9 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
         zichtbaar={rondleidingOpen}
         onSluiten={() => setRondleidingOpen(false)}
         features={CHANGELOG[0]?.nieuweFeatures ?? []}
+        onActie={vergrendel ? actie => {
+          if (actie === 'pincodeInstellen') void vergrendel.vraagPinInstellen('nieuwInKader');
+        } : undefined}
       />
       <EtoroKoppelingWizard
         zichtbaar={wizardOpen}

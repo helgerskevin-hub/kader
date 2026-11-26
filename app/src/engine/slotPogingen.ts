@@ -157,7 +157,10 @@ export function pogingenTotBlokkade(stand: PogingenStand): number {
 
 // ponytail: self-check ipv testframework, run met `npx tsx src/engine/slotPogingen.ts` (vanuit app/)
 if (require.main === module) {
-  const assert: typeof import('node:assert/strict') = require('node:assert/strict');
+  // Via een alias: Metro bundelt elke require('...') met een vaste string, ook in dit blok dat in
+  // de app nooit draait, en kent node:assert en node:crypto niet (de app startte dan niet).
+  const nodeRequire: typeof require = require;
+  const assert: typeof import('node:assert/strict') = nodeRequire('node:assert/strict');
 
   const SEC = 1000;
   const MIN = 60 * SEC;

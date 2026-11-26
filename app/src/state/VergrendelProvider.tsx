@@ -1188,3 +1188,11 @@ export function useNaSlot(zichtbaar: boolean): boolean {
   if (mag !== getoond) setGetoond(mag);
   return mag;
 }
+
+// Is de app nu vrij (status 'open' en de slot-Modal helemaal weg)? Voor navigatie die niet via een
+// Modal-wrapper loopt, zoals een meldingstik of een kader://-link die van tab wisselt: die wacht tot
+// dit true is, zodat het doel pas na het ontgrendelen in beeld komt. Buiten de provider: true.
+export function useSlotVrij(): boolean {
+  const ctx = useContext(NaSlotContext);
+  return ctx === null ? true : ctx.vrij;
+}

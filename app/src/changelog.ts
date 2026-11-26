@@ -55,8 +55,15 @@ export const CHANGELOG: ChangelogEntry[] = [
         actie: 'pincodeInstellen',
       },
     ],
-    // De gewone regels volgen van de integrator.
-    punten: [],
+    punten: [
+      'Kader kan op slot met een pincode van zes cijfers, en ook met je vingerafdruk of gezicht. Het staat uit tot je het aanzet, bij de start van de app, in Instellingen onder Beveiliging of via Nieuw in Kader. Een te makkelijke pincode, zoals 111111 of 123456, weigert Kader',
+      'Heb je eToro gekoppeld, dan is een pincode verplicht. Na deze update vraagt Kader je bij het openen eerst een pincode in te stellen. Wil je dat niet, dan kun je de koppeling verwijderen; daarna opent Kader zonder pincode. Wie nieuw koppelt, stelt de pincode in voor de sleutel op je toestel wordt bewaard',
+      'Je kiest zelf hoe snel Kader weer op slot gaat als de app op de achtergrond staat: direct, na 30 seconden, 1 minuut (standaard), 5 of 15 minuten. Na een herstart van de app is hij altijd op slot',
+      'Pincode vergeten? Dan bevestig je met het schermslot van je telefoon en kies je een nieuwe pincode. Je gegevens blijven staan. Daarom kun je alleen een pincode instellen als je telefoon zelf een schermslot heeft',
+      'Na vijf onjuiste pincodes volgt een wachttijd: eerst 30 seconden, daarna 1 minuut, 5 minuten en vanaf dan 15 minuten. Een goede pincode zet de teller terug. Kader wist nooit iets. Vingerafdruk, gezicht en het herstel via je schermslot blijven tijdens het wachten werken',
+      'Een echte order vraagt na het vasthouden van de knop nog om je vingerafdruk, gezicht of pincode. Annuleer je dat, dan gaat de order niet weg. In demo blijft het bij vasthouden',
+      'Zolang het slot aan staat, ziet niemand je saldo of posities in Recente apps. Gewone schermafbeeldingen blijven werken',
+    ],
   },
   {
     versie: '0.4.5',

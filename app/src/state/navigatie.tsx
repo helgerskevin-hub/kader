@@ -1,8 +1,9 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Tab } from '../components/BottomNav';
 import { MeldingDoel, leesDoel } from '../notifications/meldingDoel';
+import { useSlotVrij } from './VergrendelProvider';
 
 // Navigatie op verzoek van iets dat zelf niet weet welk tabblad er open staat, zoals het
 // meldingenlog in de header. Dat log zit in ScreenHeader en die staat op elk scherm, dus een tik
@@ -52,6 +53,23 @@ export function NavigatieProvider({ wisselTab, children }: {
 
   const wisDoel = useCallback(() => setDoel(null), []);
 
+  // Een meldingstik of kader://-link terwijl het app-slot er staat (ook bij een koude start, als de
+  // status nog 'laden' is) wacht tot het slot weg is. Anders zou de tab onder het slot al wisselen
+  // en het doel bij het ontgrendelen meteen in beeld staan, of erger, ervoor openen.
+  const vrij = useSlotVrij();
+  const vrijRef = useRef(vrij);
+  vrijRef.current = vrij;
+  const [wachtend, setWachtend] = useState<MeldingDoel | null>(null);
+  const gaNaarNaSlot = useCallback((volgende: MeldingDoel) => {
+    if (vrijRef.current) gaNaar(volgende);
+    else setWachtend(volgende);
+  }, [gaNaar]);
+  useEffect(() => {
+    if (!vrij || !wachtend) return;
+    setWachtend(null);
+    gaNaar(wachtend);
+  }, [vrij, wachtend, gaNaar]);
+
   // Een tik op een push-melding in de notificatiebalk. stuurTradeMelding geeft een losse melding
   // haar doel mee in de data; hier gaat dat doel dezelfde weg als een tik in het meldingenlog. De
   // hook geeft ook de tik terug die de app vanuit een koude start opende. Na verwerken gewist, anders
@@ -68,19 +86,19 @@ export function NavigatieProvider({ wisselTab, children }: {
     } catch {
       // Niet beschikbaar op dit platform: dan navigeren we gewoon, hooguit een keer te veel.
     }
-    if (volgende) gaNaar(volgende);
-  }, [laatsteTik, gaNaar]);
+    if (volgende) gaNaarNaSlot(volgende);
+  }, [laatsteTik, gaNaarNaSlot]);
 
   // Een tik op de widget op het startscherm opent kader://portfolio (zie widget/widgetVerversen.ts).
   // getInitialURL voor een koude start, het url-event als de app al draaide.
   useEffect(() => {
     const verwerk = (url: string | null) => {
-      if (url && url.startsWith('kader://portfolio')) gaNaar({ soort: 'portfolio' });
+      if (url && url.startsWith('kader://portfolio')) gaNaarNaSlot({ soort: 'portfolio' });
     };
     Linking.getInitialURL().then(verwerk).catch(() => {});
     const sub = Linking.addEventListener('url', e => verwerk(e.url));
     return () => sub.remove();
-  }, [gaNaar]);
+  }, [gaNaarNaSlot]);
 
   const waarde = useMemo<NavigatieWaarde>(() => ({ doel, gaNaar, wisDoel }), [doel, gaNaar, wisDoel]);
 

@@ -103,8 +103,11 @@ export function moetHerhashen(record: PinRecord, iteraties: number = PBKDF2_ITER
 
 // ponytail: self-check ipv testframework, run met `npx tsx src/engine/pinCode.ts` (vanuit app/)
 if (require.main === module) {
-  const assert: typeof import('node:assert/strict') = require('node:assert/strict');
-  const crypto = require('node:crypto') as typeof import('node:crypto');
+  // Via een alias: Metro bundelt elke require('...') met een vaste string, ook in dit blok dat in
+  // de app nooit draait, en kent node:assert en node:crypto niet (de app startte dan niet).
+  const nodeRequire: typeof require = require;
+  const assert: typeof import('node:assert/strict') = nodeRequire('node:assert/strict');
+  const crypto = nodeRequire('node:crypto') as typeof import('node:crypto');
 
   const nodeKdf: Kdf = async (pin, saltHex, it) =>
     crypto.pbkdf2Sync(Buffer.from(pin, 'utf8'), Buffer.from(saltHex, 'hex'), it, 32, 'sha256').toString('hex');

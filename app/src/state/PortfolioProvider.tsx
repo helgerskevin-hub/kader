@@ -5,7 +5,7 @@ import { haalLaatstePrijzen } from '../engine/marketData';
 import { laadLijst, bewaarLijst, laadTekst, bewaarTekst, SLEUTELS } from '../storage/opslag';
 import { noteerAutoKapitaal, wisAutoKapitaal } from './autoKapitaal';
 import { importeerEtoroAlles, EtoroOvergeslagenPositie, EtoroOmgeving, EtoroFout, EtoroSleutels, WachtendeOrder, OrderUitkomst, annuleerOrder, zoekOrderStatus, guid, echtNiveau } from '../engine/etoro';
-import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels } from './etoroSleutels';
+import { sleutelUitkomst, haalOmgeving, zetOmgeving, heeftSleutels, magHandelen as magNuHandelen, actieveSleutels, opSleutelWijziging } from './etoroSleutels';
 import { OnbekendeOrder, ruimOnbekendeOrdersOp } from './lopendeOrders';
 import { GeplaatsteOrder, heeftVerseLopendeOrder, isAfgerond, isMeldenswaard, kiesOmOpTeVragen, ruimOp, saldoOverOrders } from './orderUitkomsten';
 import { bronVan } from './portfolioTypes';
@@ -719,6 +719,11 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setMagHandelen(mag);
     setEtoroGekoppeld(gekoppeld);
   }, []);
+
+  // Sleutels bewaard of gewist buiten deze provider om, zoals "Koppeling verwijderen" op het
+  // slotscherm (VergrendelProvider zit boven deze provider en kan setOmgeving niet aanroepen).
+  // Zonder dit bleef "gekoppeld" tot een herstart staan.
+  useEffect(() => opSleutelWijziging(() => { ververHandelStatus().catch(() => {}); }), [ververHandelStatus]);
 
   useEffect(() => {
     ververHandelStatus();
