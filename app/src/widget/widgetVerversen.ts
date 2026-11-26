@@ -15,7 +15,7 @@ import { WidgetWeergave, laadWidgetWeergave } from '../state/widgetWeergave';
 import { bruikbaar, laadHandmatig } from '../state/handelskapitaal';
 import { laadAutoKapitaal } from '../state/autoKapitaal';
 import { heeftEnigeSleutel } from '../state/etoroSleutels';
-import { slotStaatAan } from '../state/slotOpslag';
+import { slotStaatAan } from '../state/slotStaat';
 import { berekenPortfolioWaarde } from '../state/statistieken';
 import { lightTokens, darkTokens } from '../theme/tokens';
 
@@ -63,6 +63,12 @@ export async function tekenWidgets(): Promise<void> {
       widgetName: WIDGET_NAAM,
       renderWidget: info => widgetVoor(inhoud, info.width),
     });
+    // Ging het slot aan terwijl we tekenden (bijvoorbeeld een tekening vanuit Instellingen die buiten
+    // de rij loopt), dan meteen de vergrendelde weergave erover.
+    if (!inhoud.vergrendeld && (await slotStaatAan())) {
+      const dicht: WidgetInhoud = { ...inhoud, stand: null, vergrendeld: true };
+      await requestWidgetUpdate({ widgetName: WIDGET_NAAM, renderWidget: info => widgetVoor(dicht, info.width) });
+    }
   } catch {
     // Geen widget-module (bijvoorbeeld een oude dev-build): niets te tekenen.
   }

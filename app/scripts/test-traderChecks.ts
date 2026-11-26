@@ -39,6 +39,8 @@ const nepPaden: Record<string, any> = {
   [path.join(APP, 'engine/marketData')]: { haalLaatstePrijzen: async (s: string[]) => Object.fromEntries(s.map(x => [x, x === 'BTC' ? 63000 : 1])) },
   [path.join(APP, 'state/etoroSleutels')]: { actieveSleutels: async () => ({ apiKey: 'a', userKey: 'b', omgeving: 'demo' }) },
   [path.join(APP, 'state/meldingVoorkeur')]: { meldingenAan: async () => true },
+  // Slot uit: de meldingen houden hun gewone tekst (met slot aan gaat een neutrale tekst uit).
+  [path.join(APP, 'state/slotStaat')]: { slotStaatAan: async () => false },
   [path.join(APP, 'engine/etoroTraders')]: {
     haalLivePortfolio: async (naam: string) => {
       if (tijdensOphalen) { const f = tijdensOphalen; tijdensOphalen = null; f(); }

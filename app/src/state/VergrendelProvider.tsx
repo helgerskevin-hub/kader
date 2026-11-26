@@ -78,7 +78,7 @@ import {
   zetOmgeving,
 } from './etoroSleutels';
 import { tekenWidgetsNaSlotWijziging } from '../widget/widgetVerversen';
-import { herplanDagelijkseMelding } from '../notifications/meldingen';
+import { herplanDagelijkseMelding, verbergMeldingenMetInhoud } from '../notifications/meldingen';
 
 // ---------- Splash ----------
 
@@ -793,11 +793,13 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
         if (status === 'setupVerplicht' || status === 'vergrendeld') slotInstelOpgeslagen.current = true;
         return { soort: 'ok' };
       }).finally(() => {
-        // De widget toont zolang het slot aan staat alleen "Kader is vergrendeld", en de dagelijkse
-        // herinnering gaat naar het afgeschermde kanaal. Ook na een mislukking: de hint stond dan
-        // even aan.
+        // De widget toont zolang het slot aan staat alleen "Kader is vergrendeld", de dagelijkse
+        // herinnering gaat naar het kanaal met slot, en meldingen met inhoud die al in de balk
+        // stonden gaan weg (verbergMeldingenMetInhoud kijkt zelf of het slot nu aan staat). Ook na
+        // een mislukking: de hint stond dan even aan.
         void tekenWidgetsNaSlotWijziging();
         void herplanDagelijkseMelding();
+        void verbergMeldingenMetInhoud();
       }),
     [inRij, meetBiometrie, slotRef, zetPincode, zetPogingen],
   );

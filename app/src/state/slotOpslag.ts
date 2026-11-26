@@ -326,12 +326,11 @@ export async function laadHintIngesteld(): Promise<boolean> {
   }
 }
 
-// Staat het slot aan? Voor wat buiten de provider draait en geen React heeft: de widget-taak, de
-// achtergrondtaak en het versturen van meldingen. Aan als er een pincode-record is, anders als de
-// hint aan staat. Fail-closed: een kluisfout, een kapot record, een leesfout of een time-out telt als
-// aan. Alleen 'geen record' met de hint uit is uit. Een eToro-koppeling zonder pincode telt hier niet
-// mee: dat is de verplichte setup, en die maakt meteen een pincode.
-export async function slotStaatAan(): Promise<boolean> {
+// Het pincode-deel van "staat het slot aan?": aan als er een pincode-record is, anders als de hint
+// aan staat. Fail-closed: een kluisfout, een kapot record, een leesfout of een time-out telt als aan.
+// Alleen 'geen record' met de hint uit is uit. De volledige vraag, met de eToro-koppeling erbij, is
+// slotStaatAan in slotStaat.ts; die staat apart omdat etoroSleutels.ts dit bestand importeert.
+export async function pincodeOfHintAan(): Promise<boolean> {
   try {
     const rec = await leesPinRecord();
     if (rec.soort !== 'nee') return true;

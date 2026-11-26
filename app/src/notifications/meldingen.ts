@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { MeldingDoel } from './meldingDoel';
-import { slotStaatAan } from '../state/slotOpslag';
+import { slotStaatAan } from '../state/slotStaat';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -21,22 +21,30 @@ const DAGELIJKSE_ID = 'dagelijkse-herinnering';
 // verwijst voor details toch naar de app, dus een overschreven oudere kost geen informatie.
 const TRADE_MELDING_ID = 'trade-melding';
 
-// Twee kanalen per soort melding: het oude voor als het app-slot uit staat, een afgeschermd kanaal
-// voor als het aan staat. Per melding kiest kanaalVoor op het moment van versturen (of inplannen).
+// Zolang het app-slot aan staat (slotStaatAan, fail-closed) gaat een trade-melding uit met alleen
+// deze neutrale titel en tekst: geen coin, koers, bedrag of trader. Dat is de garantie dat er niets
+// op het vergrendelscherm van de telefoon komt. Het doel in de data blijft, zodat een tik na het
+// ontgrendelen op de juiste plek uitkomt. Geen disclaimer erbij: de tekst noemt geen koers en geeft
+// geen advies. Slot uit: de gewone tekst, zoals altijd.
 //
-// Waarom nieuwe kanalen: Android neemt een gewijzigde lockscreenVisibility van een bestaand kanaal
-// niet over (na het aanmaken zijn alleen naam en beschrijving nog te wijzigen). De oude kanalen
-// 'dagelijks' en 'trades' blijven daarom staan en houden hun functie voor slot uit; zo blijven ook
-// de instellingen die de gebruiker er zelf op zette (geluid, belang, uit) gewoon gelden.
-//
-// Waarom SECRET en niet PRIVATE: bij VISIBILITY_PRIVATE toont Android op een beveiligd
-// vergrendelscherm alsnog de volledige inhoud zolang de systeeminstelling "Alle meldingsinhoud
-// tonen" aan staat, en dat is op de meeste toestellen de standaard. Alleen met "Gevoelige inhoud
-// verbergen" verschijnt dan "Inhoud verborgen". Dat zou bij de standaardinstelling dus niets
-// afschermen. VISIBILITY_SECRET laat de melding op een beveiligd vergrendelscherm helemaal weg;
-// na het ontgrendelen van de telefoon staat hij gewoon in de meldingenbalk. Een pincode instellen
-// kan alleen met een schermslot, dus het vergrendelscherm is altijd beveiligd als dit kanaal gekozen
-// wordt.
+// Waarom de tekst en niet alleen het kanaal: op Android 15 (gemeten op de emulator, standaard-
+// instellingen) kwam lockscreenVisibility SECRET van het kanaal niet aan; dumpsys toonde -1000
+// (NO_OVERRIDE) en de volledige inhoud stond op het vergrendelscherm. AOSP overschrijft bij het
+// aanmaken van een kanaal door een app de lockscreenVisibility met de app-brede waarde
+// (PreferencesHelper.createNotificationChannel: channel.setLockscreenVisibility(r.visibility)),
+// expo-notifications zet hem wel (AndroidXNotificationsChannelManager), maar dat wordt dus genegeerd.
+// De zichtbaarheid per melding (Notification.setVisibility) biedt expo-notifications niet aan voor
+// lokale meldingen; dat zou een native wijziging zijn. PRIVATE zou trouwens ook niet volstaan: bij de
+// standaardinstelling "Alle meldingsinhoud tonen" laat Android dan de volledige inhoud zien.
+export const NEUTRALE_TITEL = 'Kader';
+export const NEUTRALE_TEKST = 'Er is een nieuwe melding. Open Kader om hem te zien.';
+
+// Twee kanalen per soort melding: het oude voor slot uit, een apart kanaal voor slot aan. De
+// SECRET-instelling hieronder komt op Android 15 niet aan (zie boven) en is dus geen bescherming;
+// de kanalen blijven omdat ze bestaan en de gebruiker het kanaal "met slot" in de systeeminstellingen
+// zelf apart kan instellen. Nieuwe ids omdat Android van een bestaand kanaal alleen naam en
+// beschrijving nog bijwerkt. De oude kanalen 'dagelijks' en 'trades' blijven staan voor slot uit;
+// zo blijven de instellingen die de gebruiker er zelf op zette gewoon gelden.
 const KANAAL_DAGELIJKS = 'dagelijks';
 const KANAAL_TRADES = 'trades';
 const KANAAL_DAGELIJKS_AFGESCHERMD = 'dagelijks-afgeschermd';
@@ -61,6 +69,8 @@ async function zorgVoorPermissie(): Promise<boolean> {
 // Maakt het kanaal voor de dagelijkse herinnering aan en geeft zijn id: afgeschermd als het slot aan
 // staat. Setten van een bestaand kanaal is onschuldig; Android werkt dan alleen de naam bij.
 async function zorgVoorDagelijksKanaal(): Promise<string> {
+  // De dagelijkse herinnering heeft een vaste tekst zonder posities of bedragen; die blijft dus
+  // ook met slot aan zoals hij is. Alleen het kanaal volgt het slot.
   if (await slotAan()) {
     await Notifications.setNotificationChannelAsync(KANAAL_DAGELIJKS_AFGESCHERMD, {
       name: 'Dagelijkse marktanalyse (met slot)',
@@ -110,9 +120,9 @@ export async function stelDagelijkseMeldingIn(uur = 9, minuut = 0): Promise<bool
 
 // Eigen kanaal voor trade-meldingen: die zijn tijdgevoelig (je doel komt in zicht, je momentum
 // vlakt af) en mogen dus opvallender binnenkomen dan de dagelijkse herinnering. Geeft de id van het
-// kanaal dat nu geldt: afgeschermd als het slot aan staat (of bij twijfel), anders het gewone.
-export async function zorgVoorTradeKanaal(): Promise<string> {
-  if (await slotAan()) {
+// kanaal dat geldt: het kanaal "met slot" als het slot aan staat (of bij twijfel), anders het gewone.
+async function zorgVoorTradeKanaal(afgeschermd: boolean): Promise<string> {
+  if (afgeschermd) {
     await Notifications.setNotificationChannelAsync(KANAAL_TRADES_AFGESCHERMD, {
       name: 'Trades en posities (met slot)',
       importance: Notifications.AndroidImportance.HIGH,
@@ -128,7 +138,7 @@ export async function zorgVoorTradeKanaal(): Promise<string> {
 }
 
 // Stuurt een melding direct. De disclaimer wordt hier aangeplakt zodat geen enkele aanroeper 'm
-// kan vergeten.
+// kan vergeten. Met het slot aan gaat alleen de neutrale tekst uit (zie NEUTRALE_TEKST).
 //
 // De trigger bepaalt het kanaal, niet de content: een trigger met alleen een channelId is expo's
 // ChannelAwareTriggerInput, die direct bezorgt én op het juiste kanaal landt. Met `trigger: null`
@@ -138,12 +148,13 @@ export async function zorgVoorTradeKanaal(): Promise<string> {
 // (zie NavigatieProvider in state/navigatie.tsx). Zonder doel opent een tik gewoon de app.
 export async function stuurTradeMelding(titel: string, tekst: string, doel?: MeldingDoel): Promise<boolean> {
   if (!await zorgVoorPermissie()) return false;
-  const kanaal = Platform.OS === 'android' ? await zorgVoorTradeKanaal() : null;
+  const afgeschermd = await slotAan();
+  const kanaal = Platform.OS === 'android' ? await zorgVoorTradeKanaal(afgeschermd) : null;
   await Notifications.scheduleNotificationAsync({
     identifier: TRADE_MELDING_ID,
     content: {
-      title: titel,
-      body: `${tekst} ${DISCLAIMER}`,
+      title: afgeschermd ? NEUTRALE_TITEL : titel,
+      body: afgeschermd ? NEUTRALE_TEKST : `${tekst} ${DISCLAIMER}`,
       ...(doel ? { data: { doel } } : {}),
     },
     trigger: kanaal ? { channelId: kanaal } : null,
@@ -161,7 +172,16 @@ export async function wisAlleGeplandeMeldingen(): Promise<void> {
 // Na het aan- of uitzetten van het slot: de dagelijkse herinnering staat bij Android ingepland met
 // het kanaal van toen. Staat hij in de wachtrij, dan opnieuw inplannen op het kanaal van nu. Zonder
 // geplande herinnering (meldingen uit) gebeurt er niets; vraagt nooit om toestemming.
-export async function herplanDagelijkseMelding(): Promise<void> {
+//
+// Eén tegelijk, in volgorde: elke ronde leest de slotstatus pas als hij aan de beurt is, dus na snel
+// aan- en uitzetten wint de laatste wisseling.
+let herplanRij: Promise<void> = Promise.resolve();
+export function herplanDagelijkseMelding(): Promise<void> {
+  herplanRij = herplanRij.then(herplanNu, herplanNu);
+  return herplanRij;
+}
+
+async function herplanNu(): Promise<void> {
   if (Platform.OS !== 'android') return;
   try {
     const gepland = await Notifications.getAllScheduledNotificationsAsync();
@@ -176,5 +196,21 @@ export async function herplanDagelijkseMelding(): Promise<void> {
   } catch {
     // Lukt het niet, dan blijft de oude herinnering staan. Zijn tekst is vast en noemt geen
     // posities of bedragen.
+  }
+}
+
+// Na het aanzetten van het slot: meldingen die al in de meldingenbalk stonden, zijn verstuurd toen het
+// slot uit was en tonen dus hun inhoud, ook op het vergrendelscherm. Haal alles weg wat niet de
+// neutrale tekst heeft. Alleen als het slot nu echt aan staat (of bij twijfel). Een fout doet niets.
+export async function verbergMeldingenMetInhoud(): Promise<void> {
+  try {
+    if (!(await slotAan())) return;
+    const getoond = await Notifications.getPresentedNotificationsAsync();
+    const metInhoud = getoond.filter(
+      m => m.request.content.title !== NEUTRALE_TITEL || m.request.content.body !== NEUTRALE_TEKST,
+    );
+    await Promise.all(metInhoud.map(m => Notifications.dismissNotificationAsync(m.request.identifier)));
+  } catch {
+    // Geen meldingen-module of geen toegang: niets weg te halen.
   }
 }

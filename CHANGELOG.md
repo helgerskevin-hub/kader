@@ -13,7 +13,7 @@ gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 - Na vijf onjuiste pincodes volgt een wachttijd: eerst 30 seconden, daarna 1 minuut, 5 minuten en vanaf dan 15 minuten. Een goede pincode zet de teller terug. Kader wist nooit iets. Vingerafdruk, gezicht en het herstel via je schermslot blijven tijdens het wachten werken
 - Een echte order vraagt na het vasthouden van de knop nog om je vingerafdruk, gezicht of pincode, en een wachtende echte order annuleren ook. Annuleer je dat, dan gebeurt er niets. In demo blijft het zoals het was
 - Zolang het slot aan staat, ziet niemand je saldo of posities in Recente apps (vanaf Android 13). Gewone schermafbeeldingen blijven werken
-- Zolang het slot aan staat, toont de Kader-widget op je startscherm alleen dat Kader vergrendeld is, zonder resultaat of posities. Een tik opent Kader, dat dan om je pincode vraagt. Meldingen van Kader staan dan niet op het vergrendelscherm van je telefoon; na het ontgrendelen van je telefoon zie je ze gewoon
+- Zolang het slot aan staat, toont de Kader-widget op je startscherm alleen dat Kader vergrendeld is, zonder resultaat of posities. Een tik opent Kader, dat dan om je pincode vraagt. Meldingen van Kader zeggen dan alleen dat er een nieuwe melding is, zonder coin, koers of bedrag, zodat er niets op je vergrendelscherm staat. Een tik opent Kader, en na je pincode kom je op de juiste plek uit
 
 ## 0.4.5
 

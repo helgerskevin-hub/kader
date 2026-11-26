@@ -8,16 +8,23 @@
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
 import { laadWidgetInhoud, ververWidgetMetVerseKoersen, widgetVoor } from './widgetVerversen';
 import { registreerAchtergrondtaak } from '../notifications/achtergrondtaak';
+import { slotStaatAan } from '../state/slotStaat';
 
 export async function widgetTaak({ widgetInfo, widgetAction, renderWidget }: WidgetTaskHandlerProps): Promise<void> {
   if (widgetAction !== 'WIDGET_ADDED' && widgetAction !== 'WIDGET_UPDATE' && widgetAction !== 'WIDGET_RESIZED') return;
 
   // Eerst meteen tekenen met wat er bewaard is, zodat de widget nooit leeg staat te wachten op het
   // netwerk. Staat het slot aan, dan is dat de vergrendelde weergave: laadWidgetInhoud leest de
-  // slotstatus zonder React (slotStaatAan in state/slotOpslag.ts) en geeft dan geen stand mee. Een
+  // slotstatus zonder React (slotStaatAan in state/slotStaat.ts) en geeft dan geen stand mee. Een
   // fout bij het lezen telt als vergrendeld.
   const inhoud = await laadWidgetInhoud();
   renderWidget(widgetVoor(inhoud, widgetInfo.width));
+  // Deze taak loopt buiten de rij van widgetVerversen. Ging het slot net aan terwijl we lazen, dan
+  // de vergrendelde weergave er meteen overheen.
+  if (!inhoud.vergrendeld && (await slotStaatAan())) {
+    renderWidget(widgetVoor({ ...inhoud, stand: null, vergrendeld: true }, widgetInfo.width));
+    return;
+  }
 
   // Bij vergroten veranderen de cijfers niet, alleen de opmaak.
   if (widgetAction === 'WIDGET_RESIZED') return;
