@@ -8,8 +8,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Type } from '../theme/typography';
 import { spacing, radii, shadow } from '../theme/tokens';
 import { useNaSlot } from '../state/VergrendelProvider';
-import { useAfgedekt } from '../state/afdekking';
-import { AfdekLaag } from './slot/AfdekLaag';
+import { WrapperAfdekking } from './slot/AfdekLaag';
 
 export interface MenuAnker {
   x: number;
@@ -35,7 +34,6 @@ interface Props {
 export function SysteemMenu({ zichtbaar: gevraagd, onSluiten, anker, ongelezen, onMeldingen, onAchtergrond, onSignaalresultaat, onInstellingen }: Props) {
   // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
   const zichtbaar = useNaSlot(gevraagd);
-  const afgedekt = useAfgedekt();
   const { colors } = useTheme();
   const { etoroGekoppeld, omgeving } = usePortfolio();
   const { naar, reduceMotion } = useBeweging();
@@ -137,7 +135,7 @@ export function SysteemMenu({ zichtbaar: gevraagd, onSluiten, anker, ongelezen, 
           />
         </Animated.View>
       </Pressable>
-      <AfdekLaag zichtbaar={afgedekt} />
+      <WrapperAfdekking />
     </Modal>
   );
 }

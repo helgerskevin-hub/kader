@@ -76,6 +76,9 @@ export interface SlotStatusUitkomst {
 // uitzondering is dat er nooit een pincode was (hint staat uit) en er ook geen eToro-koppeling is:
 // dan is er niets te beschermen en wordt het 'open'. In elk ander geval van een kluisfout is het
 // 'vergrendeld' met kluisfout = true, ook zonder koude start.
+// Geen record terwijl de hint aan staat, is ook een kluisfout: een legitiem uitzetten zet eerst de
+// hint uit en wist pas daarna het record, dus dit hoort niet voor te komen. Een record dat zomaar
+// weg is, mag het slot niet openen; herstel via het schermslot blijft de uitweg.
 export function bepaalSlotStatus({
   pinRecord,
   etoroGekoppeld,
@@ -89,6 +92,7 @@ export function bepaalSlotStatus({
   if (pinRecord.soort === 'ja') {
     return { status: koudeStart ? 'vergrendeld' : 'open', kluisfout: false };
   }
+  if (hintIngesteld) return { status: 'vergrendeld', kluisfout: true };
   // Geen pincode: bij een eToro-koppeling is het slot verplicht (migratie), anders is er niets te slotten.
   return { status: etoroGekoppeld ? 'setupVerplicht' : 'open', kluisfout: false };
 }
@@ -178,12 +182,22 @@ if (require.main === module) {
   assert.deepEqual(bepaalSlotStatus({ pinRecord: ja, etoroGekoppeld: false, koudeStart: true, hintIngesteld: true }), { status: 'vergrendeld', kluisfout: false });
   assert.deepEqual(bepaalSlotStatus({ pinRecord: ja, etoroGekoppeld: true, koudeStart: true, hintIngesteld: true }), { status: 'vergrendeld', kluisfout: false });
   assert.deepEqual(bepaalSlotStatus({ pinRecord: ja, etoroGekoppeld: true, koudeStart: false, hintIngesteld: true }), { status: 'open', kluisfout: false });
-  assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: true, koudeStart: true, hintIngesteld: true }), { status: 'setupVerplicht', kluisfout: false });
-  assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: true, koudeStart: false, hintIngesteld: true }), { status: 'setupVerplicht', kluisfout: false });
-  assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: false, koudeStart: true, hintIngesteld: true }), { status: 'open', kluisfout: false });
-  assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: false, koudeStart: false, hintIngesteld: true }), { status: 'open', kluisfout: false });
-  // Zonder pincode in de kluis maar met hint of koppeling blijft 'nee' gewoon 'nee' (hint telt alleen bij kluisfout).
+  // Geen record, hint uit: migratie (koppeling) of niets te beschermen.
+  assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: true, koudeStart: true, hintIngesteld: false }), { status: 'setupVerplicht', kluisfout: false });
+  assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: true, koudeStart: false, hintIngesteld: false }), { status: 'setupVerplicht', kluisfout: false });
   assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: false, koudeStart: true, hintIngesteld: false }), { status: 'open', kluisfout: false });
+  assert.deepEqual(bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld: false, koudeStart: false, hintIngesteld: false }), { status: 'open', kluisfout: false });
+  // Geen record terwijl de hint aan staat: het record is zonder uitzetten verdwenen, dus vergrendeld
+  // met kluisfout (herstel is de uitweg), met en zonder koppeling, koud en warm.
+  for (const etoroGekoppeld of [true, false]) {
+    for (const koudeStart of [true, false]) {
+      assert.deepEqual(
+        bepaalSlotStatus({ pinRecord: nee, etoroGekoppeld, koudeStart, hintIngesteld: true }),
+        { status: 'vergrendeld', kluisfout: true },
+        'geen record met hint (eToro ' + etoroGekoppeld + ', koud ' + koudeStart + ')',
+      );
+    }
+  }
   // Kluisfout is nooit 'geen pincode', behalve als er nooit een pincode was (hint uit) en geen koppeling.
   for (const etoroGekoppeld of [true, false]) {
     for (const koudeStart of [true, false]) {

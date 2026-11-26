@@ -262,18 +262,25 @@ export function bewaarPogingen(stand: PogingenStand): Promise<SchrijfUitkomst> {
   return schrijfEnLeesTerug(SLEUTEL_POGINGEN, JSON.stringify(stand));
 }
 
-// Bij uitzetten: eerst het record (daarmee staat het slot uit), dan de pogingen, dan de hint en de
-// biometrie-voorkeur. Faalt het record, dan stopt het hier: liever een slot dat nog aan staat dan
-// een half gewist slot.
+// Bij uitzetten: eerst de hint, dan het record (daarmee staat het slot uit), dan de pogingen en de
+// biometrie-voorkeur. Faalt de hint of het record, dan stopt het hier: liever een slot dat nog aan
+// staat dan een half gewist slot.
 export async function wisSlot(): Promise<SchrijfUitkomst> {
+  // Eerst de hint uit, dan pas het record weg. 'Geen record' met de hint aan telt als kluisfout
+  // (bepaalSlotStatus), dus andersom zou een legitiem uitzetten dat halverwege stopt in het
+  // kluisfout-slot eindigen. Lukt de hint niet, dan blijft alles staan.
+  if (!(await bewaarHintIngesteld(false))) {
+    return { soort: 'kluisfout', bericht: 'Kader kon de instelling van het slot niet opslaan.' };
+  }
   const pin = await wisEnControleer(SLEUTEL_PIN);
-  if (pin.soort !== 'ok') return pin;
+  if (pin.soort !== 'ok') {
+    // Het record staat er nog: de hint weer aan, anders opent een latere kluisfout zonder koppeling.
+    await bewaarHintIngesteld(true);
+    return pin;
+  }
   // De teller weg is netjes maar niet kritiek: zonder record wordt hij nergens gelezen, en een
   // nieuw record begint met een verse teller (stelPinIn schrijft LEGE_POGINGEN).
   await wisEnControleer(SLEUTEL_POGINGEN);
-  // Mislukt dit, dan blijft de hint aan: bij een latere kluisfout wordt het dan een slot in plaats
-  // van 'open', de veilige kant.
-  await bewaarHintIngesteld(false);
   await bewaarBiometrieAan(false);
   return { soort: 'ok' };
 }

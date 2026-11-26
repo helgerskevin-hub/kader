@@ -8,8 +8,7 @@ import { spacing, radii } from '../theme/tokens';
 import { KaderLogo } from './KaderLogo';
 import { FeestConfetti } from './FeestConfetti';
 import { useNaSlot } from '../state/VergrendelProvider';
-import { useAfgedekt } from '../state/afdekking';
-import { AfdekLaag } from './slot/AfdekLaag';
+import { WrapperAfdekking } from './slot/AfdekLaag';
 
 interface Props {
   zichtbaar: boolean;
@@ -19,7 +18,6 @@ interface Props {
 export function WelkomFeest({ zichtbaar: gevraagd, onVerder }: Props) {
   // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
   const zichtbaar = useNaSlot(gevraagd);
-  const afgedekt = useAfgedekt();
   const { colors } = useTheme();
 
   return (
@@ -52,7 +50,7 @@ export function WelkomFeest({ zichtbaar: gevraagd, onVerder }: Props) {
 
         <FeestConfetti actief={zichtbaar} />
       </SafeAreaView>
-      <AfdekLaag zichtbaar={afgedekt} />
+      <WrapperAfdekking />
     </Modal>
   );
 }

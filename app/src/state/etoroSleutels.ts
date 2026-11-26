@@ -345,8 +345,10 @@ export async function haalOmgeving(): Promise<EtoroOmgeving> {
   if (omgevingGeheugen) return omgevingGeheugen;
 
   const opgeslagen = await laadTekst(SLEUTELS.etoroOmgeving, '');
+  // Na elke await: heeft zetOmgeving intussen gekozen, dan wint die keuze. Anders kan een lezing
+  // die vóór "Koppeling verwijderen" begon, na zetOmgeving('demo') de oude 'real' terugzetten.
   if (opgeslagen === 'real' || opgeslagen === 'demo') {
-    omgevingGeheugen = opgeslagen;
+    omgevingGeheugen ??= opgeslagen;
     return omgevingGeheugen;
   }
 
@@ -355,6 +357,7 @@ export async function haalOmgeving(): Promise<EtoroOmgeving> {
   // onbereikbare kluis liet "heeft echte sleutels" false zijn en zette een echte-accountgebruiker zo
   // stilzwijgend op het demo-pad, met een 401 op een sleutel waar niets mis mee was.
   const paar = await haalSleutelpaar().catch(() => null);
+  if (omgevingGeheugen) return omgevingGeheugen;
   if (!paar) {
     // Niets gekoppeld, of de kluis is nu niet te lezen. In allebei de gevallen niets vastleggen en
     // niets cachen: demo is de veilige tussenstand, en zodra de kluis wél opengaat valt de keuze

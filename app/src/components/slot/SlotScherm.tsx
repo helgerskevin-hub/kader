@@ -56,6 +56,7 @@ const VERWIJDER_TEKST =
   'Weet je zeker dat je je opgeslagen eToro-sleutel van dit toestel wilt wissen? Kader importeert en handelt daarna niets meer, niet in demo en niet in echt, tot je opnieuw koppelt. Daarna opent Kader zonder pincode.';
 // Niet in de bijlage: de herstelprompt faalde, en de kluis is niet leesbaar.
 const MELDING_HERSTEL_FOUT = 'Bevestigen lukte niet. Probeer het opnieuw.';
+const MELDING_KOPPELING_NIET_WEG = 'De koppeling is niet verwijderd. Probeer het opnieuw.';
 const KLUISFOUT_TITEL = 'Kader kan je pincode niet lezen';
 const KLUISFOUT_TEKST =
   'De beveiligde opslag van je telefoon reageert niet. Je gegevens staan er nog. Probeer het opnieuw.';
@@ -267,8 +268,15 @@ export function SlotScherm({
 
   async function verwijderKoppeling() {
     setBezig(true);
+    setUitlegFout(null);
     try {
       await onKoppelingVerwijderen();
+    } catch (e) {
+      // De provider gooit als de sleutels er na het wissen nog staan; terug naar de uitleg.
+      if (gemount.current) {
+        setBevestigVerwijderen(false);
+        setUitlegFout(e instanceof Error && e.message ? e.message : MELDING_KOPPELING_NIET_WEG);
+      }
     } finally {
       if (gemount.current) setBezig(false);
     }
@@ -474,9 +482,16 @@ export function SlotScherm({
       icoon: <KeyRound size={40} strokeWidth={1.75} color={colors.primair} />,
       titel: 'Beveilig Kader met een pincode',
       tekst: SETUP_TEKST,
+      fout: uitlegFout,
       knoppen: (
         <>
-          <PrimaireKnop label="Pincode instellen" onPress={() => setModus('setupInstellen')} />
+          <PrimaireKnop
+            label="Pincode instellen"
+            onPress={() => {
+              setUitlegFout(null);
+              setModus('setupInstellen');
+            }}
+          />
           <TekstKnop
             label="Koppeling verwijderen"
             kleur={colors.verlies}

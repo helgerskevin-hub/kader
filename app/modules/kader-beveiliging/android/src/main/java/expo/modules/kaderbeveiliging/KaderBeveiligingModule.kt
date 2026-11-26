@@ -1,9 +1,18 @@
 package expo.modules.kaderbeveiliging
 
+import android.annotation.TargetApi
+import android.app.Activity
+import android.app.KeyguardManager
+import android.content.Context
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
+import android.os.CancellationSignal
 import android.os.SystemClock
 import android.provider.Settings
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.functions.Coroutine
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.security.SecureRandom
@@ -18,6 +27,12 @@ import kotlinx.coroutines.withContext
 // die een force-stop overleeft; daarom deze kleine module.
 class KaderBeveiligingModule : Module() {
   private val willekeur = SecureRandom()
+
+  // De lopende schermslot-bevestiging. Alleen op de main thread gelezen en geschreven (de functies
+  // draaien op Queues.MAIN, de prompt-callbacks op de mainExecutor, onActivityResult op de main
+  // thread), dus geen locking nodig.
+  private var lopend: Promise? = null
+  private var annuleerSignaal: CancellationSignal? = null
 
   override fun definition() = ModuleDefinition {
     Name("KaderBeveiliging")
@@ -85,6 +100,125 @@ class KaderBeveiligingModule : Module() {
         }
       }
     }
+
+    // "Pincode vergeten?": bevestigen met ALLEEN het schermslot van het toestel (pincode, patroon
+    // of wachtwoord), nooit met biometrie. Een vingerafdruk of gezicht mag de pincode van Kader niet
+    // vervangen: dan zou een zwakke gezichtsherkenning genoeg zijn om een nieuwe pincode te kiezen.
+    // API 30 en hoger: de framework-BiometricPrompt met alleen DEVICE_CREDENTIAL. Daaronder bestaat
+    // dat niet; dan de schermslot-activity van KeyguardManager (de app gaat dan naar de achtergrond).
+    // Uitkomst: 'ok', 'geannuleerd', 'geenSchermslot' of 'fout'. Eén tegelijk: een tweede aanroep
+    // terwijl er een loopt geeft meteen 'geannuleerd'.
+    AsyncFunction("bevestigSchermslot") { titel: String, ondertitel: String?, promise: Promise ->
+      if (lopend != null) {
+        promise.resolve("geannuleerd")
+        return@AsyncFunction
+      }
+      val activiteit = appContext.currentActivity
+      if (activiteit == null) {
+        promise.resolve("fout")
+        return@AsyncFunction
+      }
+      val keyguard = activiteit.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+      if (keyguard == null) {
+        promise.resolve("fout")
+        return@AsyncFunction
+      }
+      if (!keyguard.isDeviceSecure) {
+        promise.resolve("geenSchermslot")
+        return@AsyncFunction
+      }
+      lopend = promise
+      try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          vraagViaPrompt(activiteit, titel, ondertitel, promise)
+        } else {
+          vraagViaKeyguard(activiteit, keyguard, titel, ondertitel, promise)
+        }
+      } catch (e: Exception) {
+        rondAf(promise, "fout")
+      }
+    }.runOnQueue(Queues.MAIN)
+
+    // Noodklep (forceerPromptKlaar in JS): sluit een lopende schermslot-bevestiging af met
+    // 'geannuleerd'. Zonder lopende bevestiging doet dit niets.
+    AsyncFunction<Unit>("annuleerSchermslot") {
+      val belofte = lopend ?: return@AsyncFunction
+      val signaal = annuleerSignaal
+      rondAf(belofte, "geannuleerd")
+      signaal?.cancel()
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        appContext.currentActivity?.finishActivity(VERZOEK_SCHERMSLOT)
+      }
+    }.runOnQueue(Queues.MAIN)
+
+    // Uitslag van de schermslot-activity onder API 30.
+    OnActivityResult { _, (verzoek, resultaat, _) ->
+      if (verzoek != VERZOEK_SCHERMSLOT) return@OnActivityResult
+      val belofte = lopend ?: return@OnActivityResult
+      rondAf(belofte, if (resultaat == Activity.RESULT_OK) "ok" else "geannuleerd")
+    }
+  }
+
+  // Lost de belofte precies één keer op, en alleen als hij nog de lopende is (een late callback na
+  // annuleerSchermslot doet niets meer).
+  private fun rondAf(belofte: Promise, uitkomst: String) {
+    if (lopend !== belofte) return
+    lopend = null
+    annuleerSignaal = null
+    belofte.resolve(uitkomst)
+  }
+
+  @TargetApi(Build.VERSION_CODES.R)
+  private fun vraagViaPrompt(activiteit: Activity, titel: String, ondertitel: String?, belofte: Promise) {
+    val signaal = CancellationSignal()
+    annuleerSignaal = signaal
+    // Geen setNegativeButton: met DEVICE_CREDENTIAL toont het systeem zelf een annuleerknop, en
+    // de bouwer weigert de combinatie.
+    val bouwer = BiometricPrompt.Builder(activiteit)
+      .setTitle(titel)
+      .setAllowedAuthenticators(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+    if (!ondertitel.isNullOrEmpty()) bouwer.setSubtitle(ondertitel)
+    bouwer.build().authenticate(
+      signaal,
+      activiteit.mainExecutor,
+      object : BiometricPrompt.AuthenticationCallback() {
+        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
+          rondAf(belofte, "ok")
+        }
+
+        override fun onAuthenticationError(code: Int, tekst: CharSequence?) {
+          val uitkomst = when (code) {
+            BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED,
+            BiometricPrompt.BIOMETRIC_ERROR_CANCELED -> "geannuleerd"
+            BiometricPrompt.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL -> "geenSchermslot"
+            else -> "fout"
+          }
+          rondAf(belofte, uitkomst)
+        }
+      },
+    )
+  }
+
+  @Suppress("DEPRECATION")
+  private fun vraagViaKeyguard(
+    activiteit: Activity,
+    keyguard: KeyguardManager,
+    titel: String,
+    ondertitel: String?,
+    belofte: Promise,
+  ) {
+    // null betekent: geen beveiligd schermslot (isDeviceSecure zei net nog van wel, dus zeldzaam).
+    val intent = keyguard.createConfirmDeviceCredentialIntent(titel, ondertitel)
+    if (intent == null) {
+      rondAf(belofte, "geenSchermslot")
+      return
+    }
+    activiteit.startActivityForResult(intent, VERZOEK_SCHERMSLOT)
+  }
+
+  private companion object {
+    // Past in de onderste 16 bits, want FragmentActivity weigert grotere verzoekcodes.
+    const val VERZOEK_SCHERMSLOT = 0x4B42
   }
 
   private fun hexNaarBytes(hex: String): ByteArray {

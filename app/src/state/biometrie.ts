@@ -1,4 +1,10 @@
-// Biometrie en schermslot via expo-local-authentication (zie BiometrieApi in vergrendelTypes.ts).
+// Biometrie via expo-local-authentication en het schermslot via de eigen native module
+// kader-beveiliging (zie BiometrieApi in vergrendelTypes.ts).
+//
+// Herstel ("Pincode vergeten?") loopt bewust NIET via expo: authenticateAsync met
+// disableDeviceFallback: false maakt er BIOMETRIC_WEAK | DEVICE_CREDENTIAL van, en dan zou een
+// zwakke gezichtsherkenning genoeg zijn om een nieuwe pincode te kiezen. Besluit 6 is herstel via
+// het schermslot, dus bevestigSchermslot staat alleen DEVICE_CREDENTIAL toe.
 //
 // Keuze bij gelijktijdige prompts: er loopt hooguit één prompt. Een tweede aanroep terwijl er een
 // loopt wacht niet en hergebruikt de lopende belofte ook niet (een biometrie-prompt en een
@@ -17,8 +23,19 @@ import type {
   BiometrieBeschikbaarheid,
   BiometrieUitkomst,
   HerstelUitkomst,
+  KaderBeveiligingModule,
   PromptTekst,
 } from './vergrendelTypes';
+
+// In een try, zoals in slotOpslag.ts: zonder gelinkte module (Node, een oude build) geeft herstel
+// 'fout', nooit 'ok'.
+let natief: KaderBeveiligingModule | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  natief = (require('../../modules/kader-beveiliging') as { default: KaderBeveiligingModule }).default;
+} catch {
+  natief = null;
+}
 
 const STANDAARD_ANNULEER_LABEL = 'Gebruik pincode';
 
@@ -89,6 +106,11 @@ async function forceerPromptKlaar(): Promise<void> {
   } catch {
     // Geen prompt meer om te annuleren of de module weigert: niets aan te doen.
   }
+  try {
+    await natief?.annuleerSchermslot();
+  } catch {
+    // Idem voor de schermslot-bevestiging.
+  }
   meldPromptKlaar();
 }
 
@@ -139,30 +161,14 @@ async function veilig<T>(werk: () => Promise<T>, terugval: T): Promise<T> {
   }
 }
 
-// niveauOnbekend: getEnrolledLevelAsync faalde. Dan weten we niet of er een schermslot is; het
-// niveau valt terug op 'geen', maar herstelViaToestel behandelt dat niet als "geen schermslot".
-async function meetBeschikbaarheid(): Promise<{
-  b: BiometrieBeschikbaarheid;
-  niveauOnbekend: boolean;
-}> {
-  let niveauOnbekend = false;
+async function beschikbaarheid(): Promise<BiometrieBeschikbaarheid> {
   const [hardware, ingeschreven, level] = await Promise.all([
     veilig(() => LocalAuthentication.hasHardwareAsync(), false),
     veilig(() => LocalAuthentication.isEnrolledAsync(), false),
-    LocalAuthentication.getEnrolledLevelAsync().catch(() => {
-      niveauOnbekend = true;
-      return SecurityLevel.NONE;
-    }),
+    veilig(() => LocalAuthentication.getEnrolledLevelAsync(), SecurityLevel.NONE),
   ]);
   const niveau = niveauNaam(level);
-  return {
-    b: { hardware, ingeschreven, toestelBeveiligd: niveau !== 'geen', niveau },
-    niveauOnbekend,
-  };
-}
-
-async function beschikbaarheid(): Promise<BiometrieBeschikbaarheid> {
-  return (await meetBeschikbaarheid()).b;
+  return { hardware, ingeschreven, toestelBeveiligd: niveau !== 'geen', niveau };
 }
 
 // ---------- Prompts ----------
@@ -209,34 +215,16 @@ async function vraagBiometrie(tekst: PromptTekst): Promise<BiometrieUitkomst> {
   return uitkomst ?? 'geannuleerd';
 }
 
+const HERSTEL_UITKOMSTEN: readonly HerstelUitkomst[] = ['ok', 'geannuleerd', 'geenSchermslot', 'fout'];
+
+// Alleen het schermslot (zie bovenaan). Of er een schermslot is, beslist de native kant
+// (KeyguardManager.isDeviceSecure); een onbekend antwoord telt als 'fout'.
 async function herstelViaToestel(): Promise<HerstelUitkomst> {
   const uitkomst = await metPrompt<HerstelUitkomst>(async () => {
+    if (!natief) return 'fout';
     try {
-      // Vooraf kijken: zonder schermslot geeft de prompt toch niets om te bevestigen.
-      const { b, niveauOnbekend } = await meetBeschikbaarheid();
-      if (niveauOnbekend) return 'fout';
-      if (!b.toestelBeveiligd) return 'geenSchermslot';
-      const r = await LocalAuthentication.authenticateAsync({
-        promptMessage: PROMPT_HERSTEL,
-        cancelLabel: 'Annuleren',
-        disableDeviceFallback: false,
-        biometricsSecurityLevel: 'weak',
-      });
-      if (r.success) return 'ok';
-      switch (r.error) {
-        case 'app_cancel':
-          waarschuwAppCancel();
-          return 'geannuleerd';
-        case 'user_cancel':
-        case 'system_cancel':
-        case 'user_fallback':
-          return 'geannuleerd';
-        case 'not_enrolled':
-        case 'passcode_not_set':
-          return 'geenSchermslot';
-        default:
-          return 'fout';
-      }
+      const r: unknown = await natief.bevestigSchermslot(PROMPT_HERSTEL);
+      return HERSTEL_UITKOMSTEN.includes(r as HerstelUitkomst) ? (r as HerstelUitkomst) : 'fout';
     } catch {
       return 'fout';
     }

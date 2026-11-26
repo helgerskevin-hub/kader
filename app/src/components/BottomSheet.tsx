@@ -20,8 +20,7 @@ import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 import { useBeweging } from '../theme/useReduceMotion';
 import { curve, duur, veer, vervaag } from '../theme/beweging';
 import { useNaSlot } from '../state/VergrendelProvider';
-import { useAfgedekt } from '../state/afdekking';
-import { AfdekLaag } from './slot/AfdekLaag';
+import { WrapperAfdekking } from './slot/AfdekLaag';
 
 // Het vel is zelf de geanimeerde component, niet een wrapper eromheen. Vijf sheets zetten een
 // maxHeight in procenten op hun velStijl, en een percentage rekent tegen de hoogte van de ouder:
@@ -87,7 +86,6 @@ function rubberband(afstand: number, maat: number): number {
 export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl }: Props) {
   // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
   const zichtbaar = useNaSlot(gevraagd);
-  const afgedekt = useAfgedekt();
   const { colors } = useTheme();
   const toetsenbordHoogte = useToetsenbordHoogte();
   const insets = useSafeAreaInsets();
@@ -343,7 +341,7 @@ export function BottomSheet({ zichtbaar: gevraagd, onSluiten, children, velStijl
           </Animated.View>
         </GestureDetector>
         {/* Ook boven een open sheet afgedekt in Recente apps en bij terugkomst. */}
-        <AfdekLaag zichtbaar={afgedekt} />
+        <WrapperAfdekking />
       </GestureHandlerRootView>
     </Modal>
   );

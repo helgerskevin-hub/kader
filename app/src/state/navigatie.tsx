@@ -1,9 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Tab } from '../components/BottomNav';
 import { MeldingDoel, leesDoel } from '../notifications/meldingDoel';
-import { useSlotVrij } from './VergrendelProvider';
+import { useNaVoorgrondBeslissing, useSlotVrij } from './VergrendelProvider';
 
 // Navigatie op verzoek van iets dat zelf niet weet welk tabblad er open staat, zoals het
 // meldingenlog in de header. Dat log zit in ScreenHeader en die staat op elk scherm, dus een tik
@@ -59,11 +59,19 @@ export function NavigatieProvider({ wisselTab, children }: {
   const vrij = useSlotVrij();
   const vrijRef = useRef(vrij);
   vrijRef.current = vrij;
+  const naVoorgrond = useNaVoorgrondBeslissing();
   const [wachtend, setWachtend] = useState<MeldingDoel | null>(null);
   const gaNaarNaSlot = useCallback((volgende: MeldingDoel) => {
+    // Een meldingstik komt binnen vóór AppState 'active'. De app is dan nog 'open', maar kan bij
+    // terugkomst alsnog op slot gaan (termijn verstreken). Dus eerst die beslissing afwachten; het
+    // effect hieronder navigeert pas als het slot vrij is.
+    if (naVoorgrond && AppState.currentState === 'background') {
+      naVoorgrond(() => setWachtend(volgende));
+      return;
+    }
     if (vrijRef.current) gaNaar(volgende);
     else setWachtend(volgende);
-  }, [gaNaar]);
+  }, [gaNaar, naVoorgrond]);
   useEffect(() => {
     if (!vrij || !wachtend) return;
     setWachtend(null);

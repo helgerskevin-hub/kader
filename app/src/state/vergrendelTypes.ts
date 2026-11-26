@@ -183,7 +183,9 @@ export type SchrijfUitkomst = { soort: 'ok' } | { soort: 'kluisfout'; bericht: s
 //   bepaalSlotStatus met hintIngesteld): is er nooit een pincode ingesteld (hint SLEUTELS.slotIngesteld
 //   uit) en is er geen eToro-koppeling, dan is er niets te beschermen en wordt de status 'open'. In
 //   alle andere gevallen is het 'vergrendeld' met kluisfout = true; een kluisfout is nooit "geen
-//   pincode".
+//   pincode". Ook 'geen record' terwijl de hint aan staat telt als kluisfout: een record dat
+//   zonder uitzetten verdwijnt, mag het slot niet openzetten (zetSlotUit zet de hint daarom eerst
+//   uit en wist pas daarna het record). Herstel via het schermslot blijft de uitweg.
 // - 'open': ontgrendeld, of er is geen pincode en ook geen eToro-koppeling.
 // - 'setupVerplicht': eToro is gekoppeld maar er is geen pincode (migratie van bestaande
 //   gebruikers). Uitweg: pincode instellen of "Koppeling verwijderen".
@@ -258,9 +260,10 @@ export const BIOMETRIE_MELDING: Readonly<Partial<Record<BiometrieUitkomst, strin
   fout: 'Niet herkend. Gebruik je pincode.',
 };
 
-// Uitkomst van "Pincode vergeten?": de schermslot-prompt (disableDeviceFallback: false).
-// 'geenSchermslot': de telefoon heeft geen schermslot meer (vooraf gezien via beschikbaarheid(),
-// of expo gaf 'not_enrolled'/'passcode_not_set'). Copy: "Stel eerst weer een schermslot in op je
+// Uitkomst van "Pincode vergeten?": de schermslot-bevestiging van de native module
+// (KaderBeveiligingModule.bevestigSchermslot, alleen het schermslot, geen biometrie).
+// 'geenSchermslot': de telefoon heeft geen schermslot meer (KeyguardManager.isDeviceSecure is
+// false, of het systeem meldt dat er geen schermslot is). Copy: "Stel eerst weer een schermslot in op je
 // telefoon, dan kun je je pincode herstellen."
 export type HerstelUitkomst = 'ok' | 'geannuleerd' | 'geenSchermslot' | 'fout';
 
@@ -279,8 +282,8 @@ export interface BiometrieApi {
   beschikbaarheid(): Promise<BiometrieBeschikbaarheid>;
   // Biometrie zonder terugval op het schermslot; de pincode is de terugval in Kader zelf.
   vraagBiometrie(tekst: PromptTekst): Promise<BiometrieUitkomst>;
-  // Schermslot (of biometrie) van het toestel, voor "Pincode vergeten?". Prompt: 'Bevestig dat
-  // jij het bent'.
+  // Alleen het schermslot van het toestel (geen biometrie), voor "Pincode vergeten?". Prompt:
+  // 'Bevestig dat jij het bent'.
   herstelViaToestel(): Promise<HerstelUitkomst>;
   // Loopt er nu een prompt (biometrie of schermslot)? Dan beslist AppState 'active' nog niet over
   // hervergrendelen.
@@ -326,6 +329,14 @@ export interface KaderBeveiligingModule {
   // Activity.setRecentsScreenshotEnabled(toestaan) op API 33 en hoger, anders niets.
   // false zolang het slot aan staat, zodat Recente apps geen saldo laat zien.
   zetRecentsAfbeelding(toestaan: boolean): void;
+  // "Pincode vergeten?": bevestigen met alleen het schermslot (pincode, patroon, wachtwoord), nooit
+  // met biometrie. API 30+: framework-BiometricPrompt met alleen DEVICE_CREDENTIAL; daaronder de
+  // schermslot-activity van KeyguardManager (de app gaat dan naar 'background'). Geen schermslot:
+  // 'geenSchermslot'. Eén tegelijk: een tweede aanroep terwijl er een loopt geeft 'geannuleerd'.
+  // De annuleerknop is die van het systeem (niet in te stellen naast DEVICE_CREDENTIAL).
+  bevestigSchermslot(titel: string, ondertitel?: string): Promise<HerstelUitkomst>;
+  // Sluit een lopende bevestigSchermslot af met 'geannuleerd' (noodklep, forceerPromptKlaar).
+  annuleerSchermslot(): Promise<void>;
 }
 
 // ---------- Uitkomsten van de provider ----------
@@ -460,8 +471,9 @@ export interface VergrendelContextWaarde {
   // schermslot-activity onder API 30). Zolang aan: AppState 'background' vergrendelt niet.
   // Altijd weer uitzetten, ook bij een fout (finally).
   meldEigenSysteemScherm(aan: boolean): void;
-  // De uitweg bij 'setupVerplicht' (na de inline bevestiging): wisSleutels(), omgeving terug naar
-  // demo, status 'open'.
+  // De uitweg bij 'setupVerplicht' (na de inline bevestiging): omgeving terug naar demo,
+  // wisSleutels(), status 'open'. Staan de sleutels er daarna nog (of is de kluis onleesbaar), dan
+  // blijft de status 'setupVerplicht' en gooit hij een Error met de melding voor de gebruiker.
   verwijderKoppelingEnOpen(): Promise<void>;
   // Bij een kluisfout: de kluis opnieuw lezen en de status opnieuw bepalen.
   opnieuwProberen(): Promise<void>;
@@ -510,7 +522,8 @@ export interface SlotSchermProps {
   // Na 'herstel' of bij 'setupVerplicht': de inline PinInstellenInhoud krijgt deze props mee
   // (zonder reden; SlotScherm vult 'herstel' of 'setupVerplicht' zelf in).
   pinInstellen: Omit<PinInstellenInhoudProps, 'reden'>;
-  // 'setupVerplicht' > Koppeling verwijderen > bevestigd.
+  // 'setupVerplicht' > Koppeling verwijderen > bevestigd. Gooit met een melding als de koppeling
+  // niet weg is.
   onKoppelingVerwijderen(): Promise<void>;
   // 'kluisfout' > opnieuw proberen.
   onOpnieuwProberen(): Promise<void>;

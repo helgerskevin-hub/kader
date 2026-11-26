@@ -731,7 +731,10 @@ export function PortfolioScreen() {
     if (orderId === null) return;
     setAnnuleerBezigId(orderId);
     try {
-      const { uitkomst, statusNa } = await annuleerWachtendeOrder(order);
+      const resultaat = await annuleerWachtendeOrder(order);
+      // Bevestiging (echt geld) geannuleerd: er is niets verstuurd en er valt niets te melden.
+      if (!resultaat) return;
+      const { uitkomst, statusNa } = resultaat;
       if (uitkomst.soort === 'ok') {
         // Alleen als het nog onderweg kan zijn (6 of onbekend). Wacht de order gewoon door (1, 2, 5,
         // 11, 12), dan moet de knop blijven, anders kun je niet opnieuw annuleren zolang dit scherm

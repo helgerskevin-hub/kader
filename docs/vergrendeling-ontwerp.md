@@ -21,7 +21,8 @@ terugdraait.
    blijft altijd de terugval.
 5. Opt-in vanuit de onboarding, Instellingen > Beveiliging en "Nieuw in Kader". Verplicht bij een
    eToro-koppeling.
-6. Pincode vergeten: herstel via het Android-schermslot. De data blijft staan.
+6. Pincode vergeten: herstel via het Android-schermslot (alleen pincode, patroon of wachtwoord van
+   het toestel, geen biometrie). De data blijft staan.
 7. Instellen kan alleen met een schermslot op de telefoon. Is dat later weg, dan zegt "Pincode
    vergeten?" dat het eerst terug moet. Geen doodlopende route.
 8. Na 5 foute pogingen een wachttijd: 30 s, 1 min, 5 min, daarna steeds 15 min. Een goede pincode zet
@@ -99,8 +100,10 @@ cijfertoetsen zijn gedimd. De aftelling heeft rol `timer` en is geen live region
 - Schudden: -12, +12, -8, +8, 0 in ongeveer 300 ms (token `schud.stappen`).
 - Slot weg: haken 8 dp naar binnen, dan `vervaag(duur.midden)` plus schaal naar 1,04. De slot-Modal
   blijft gemount tot die animatie klaar is (noodrem 1,5 s).
-- Afdeklaag: aan zonder animatie (een fade-in zou inhoud laten doorschemeren), uit met
-  `vervaag(duur.kort)`.
+- Afdeklaag: aan zonder animatie en in dezelfde commit (een gewone View met volle dekking, geen
+  effect of Reanimated-waarde ertussen; een fade-in zou inhoud laten doorschemeren), uit met
+  `vervaag(duur.kort)` op een aparte Animated.View. Elke wrapper en de root zetten hem via
+  `WrapperAfdekking` (in `AfdekLaag.tsx`), zodat alleen die laag hertekent als de afdekking wisselt.
 - Minder beweging: geen schud, plof of schaal, alleen `vervaag`.
 
 ### Toegankelijkheid
@@ -219,7 +222,9 @@ herhalen, klaar (1,2 s, daarna verder) en het biometrie-aanbod.
 - Inline `Pincode vergeten?` / `Bevestig met het schermslot van je telefoon. Daarna kies je een nieuwe
   pincode voor Kader. Je gegevens blijven staan.`
 - Knoppen `Doorgaan` / `Annuleren`
-- Prompt `Bevestig dat jij het bent`, annuleren `Annuleren`
+- Prompt `Bevestig dat jij het bent`. De annuleerknop is die van het systeem (naast
+  `DEVICE_CREDENTIAL` is geen eigen knop toegestaan), dus de tekst `Annuleren` uit het plan is niet
+  in te stellen; Android toont zijn eigen vertaling.
 - Zonder schermslot: `Stel eerst weer een schermslot in op je telefoon, dan kun je je pincode
   herstellen.`
 
@@ -252,6 +257,10 @@ Niet in de bijlage van het plan; nalopen bij een volgende copyronde.
 - Wizard, tijdens het bewaren na de pincode-stap: `Sleutel wordt bewaard`.
 - Inline bevestiging "Koppeling verwijderen": de tekst van de bestaande wizard-dialoog plus `Daarna
   opent Kader zonder pincode.`, knoppen `Verwijderen` / `Annuleren`.
+- Koppeling verwijderen mislukt (sleutels staan er na het wissen nog): `De koppeling is niet
+  verwijderd. Probeer het opnieuw.`
+- Wachtende order annuleren in Echt: prompt `Bevestig je order` / `Annuleer order {SYMBOOL}. Echt
+  geld.` (zonder symbool `Annuleer order. Echt geld.`).
 
 ## Opslag
 
@@ -268,7 +277,13 @@ Niet in de bijlage van het plan; nalopen bij een volgende copyronde.
 - Volgorde bij een poging: eerst `fouten + 1` wegschrijven, dan verifiëren. Een app-kill midden in de
   controle levert zo geen gratis poging op.
 - `stelPinIn` schrijft in deze volgorde: hint, lege teller, record. Mislukt de hint, dan komt er geen
-  record (een record zonder hint zou bij een latere kluisfout als "nooit ingesteld" tellen).
+  record (een record zonder hint zou bij een latere kluisfout als "nooit ingesteld" tellen). Mislukt
+  daarna de teller of het record terwijl er vooraf geen pincode stond (en nog steeds niet staat), dan
+  gaat de hint weer uit.
+- Geen record terwijl de hint aan staat, telt als kluisfout ('vergrendeld' met `kluisfout`): een
+  record dat zonder uitzetten verdwijnt, mag het slot niet openzetten. Herstel via het schermslot
+  blijft de uitweg. Daarom zet uitzetten (`wisSlot`) eerst de hint uit en wist pas daarna het record;
+  mislukt het wissen, dan gaat de hint weer aan. De koude start zet de hint nooit zelf terug naar uit.
 - Alles wat het record, de teller of de eToro-sleutels schrijft loopt via één rij op moduleniveau
   (`inSlotRij` in `slotOpslag.ts`), ook `bewaarSleutels`. Zo kan een sleutel nooit opgeslagen worden
   tussen de eToro-controle en het wissen van het record bij uitzetten. Niet nesten.
@@ -307,6 +322,24 @@ de gedeelde AsyncFunction-wachtrij van Expo (ook die van expo-secure-store) niet
   vooruitgezette wandklok wint dus niets, en na een herstart telt de tijd uit niet mee.
 - Biometrie zet de teller niet terug; alleen een goede pincode doet dat.
 
+## Herstel via het schermslot
+
+"Pincode vergeten?" gebruikt `bevestigSchermslot` uit de eigen module, niet expo-local-authentication.
+`authenticateAsync` met `disableDeviceFallback: false` maakt er `BIOMETRIC_WEAK | DEVICE_CREDENTIAL`
+van, en dan zou een zwakke gezichtsherkenning genoeg zijn om een nieuwe pincode te kiezen. De pincode
+van Kader beschermt meer dan de telefoon zelf (echte orders), dus herstel vraagt het sterkste dat het
+toestel heeft: het schermslot.
+
+- API 30 en hoger: de framework-`BiometricPrompt` met alleen
+  `setAllowedAuthenticators(DEVICE_CREDENTIAL)`. Het systeem toont het schermslot in een eigen venster;
+  de app krijgt alleen `blur`, geen `background`.
+- Onder API 30: `KeyguardManager.createConfirmDeviceCredentialIntent` via `startActivityForResult`, de
+  uitslag via `OnActivityResult` van de Expo Modules API. Dat is een eigen activity, dus de app gaat
+  naar `background`; de provider zet daarom `eigenSysteemScherm` rond de aanroep.
+- `KeyguardManager.isDeviceSecure` false: `geenSchermslot`. Eén bevestiging tegelijk (een tweede
+  geeft `geannuleerd`). `annuleerSchermslot` is de noodklep achter `forceerPromptKlaar`.
+- Geen `FLAG_SECURE`.
+
 ## AppState en het slot boven Modals
 
 - Plek in de boom: `ThemeProvider > VergrendelProvider > View > (MarktProvider > ... > AppInhoud),
@@ -332,7 +365,13 @@ de gedeelde AsyncFunction-wachtrij van Expo (ook die van expo-secure-store) niet
   Elke wrapper heeft `AfdekLaag` als laatste kind, zodat ook een open sheet afgedekt is in Recente
   apps.
 - Meldingstikken en `kader://`-links die van tab wisselen, wachten in `NavigatieProvider` tot het slot
-  weg is (`useSlotVrij`). Het doel komt dus pas na het ontgrendelen in beeld.
+  weg is (`useSlotVrij`). Het doel komt dus pas na het ontgrendelen in beeld. Een meldingstik komt
+  binnen vóór AppState `active`, terwijl de status nog `open` is: komt er een navigatie binnen terwijl
+  `AppState.currentState` nog `background` is, dan wacht hij op de beslissing van `opVoorgrond`
+  (`useNaVoorgrondBeslissing`). Die beslissing en de wachtende navigatie vallen in dezelfde synchrone
+  beurt, dus React ziet in één render al dat het slot er ligt; de tab wisselt pas na het ontgrendelen.
+- Komt de app terug zonder dat er een `background` gezien is, terwijl de status `open` is en er een
+  pincode is, dan vergrendelt hij (onbekend tijdstip, zoals `moetHervergrendelen` bij twijfel).
 - Het slot gebruikt nooit `toonDialoog`; bevestigingen staan inline. De terugknop in het slot doet een
   stap terug of `BackHandler.exitApp()`; tijdens de ontgrendel-animatie wordt hij geslikt.
 - Sluiten gebeurt gespreid (300 ms): twee Modals in dezelfde tick sluiten gaf eerder een ANR, zie
@@ -348,8 +387,14 @@ de gedeelde AsyncFunction-wachtrij van Expo (ook die van expo-secure-store) niet
 - **`bewaarSleutels`** weigert zonder pincode-record (`GeenPincodeFout`), ook bij een kluisfout.
   `opSleutelWijziging` meldt bewaren en wissen; `PortfolioProvider` ververst daarop zijn eToro-stand.
 - **Migratie**: eToro gekoppeld zonder pincode geeft `setupVerplicht`. Een kluisfout bij het lezen van
-  de eToro-sleutel telt als gekoppeld (fail-closed). "Koppeling verwijderen" wist de sleutels (ook het
-  oude demo-slot), zet de omgeving op demo en opent de app.
+  de eToro-sleutel telt als gekoppeld (fail-closed). "Koppeling verwijderen" zet eerst de omgeving op
+  demo en wist dan de sleutels (ook het oude demo-slot); andersom kon de verversing die het wissen
+  aankondigt de oude omgeving 'real' teruglezen. `haalOmgeving` overschrijft na een await ook nooit een
+  keuze die intussen gezet is. Daarna leest de provider de sleutels opnieuw: staan ze er nog, dan
+  blijft het `setupVerplicht` met een melding, anders opent de app.
+- **Wachtende order annuleren**: in Echt eerst `bevestigIdentiteit('order', {detail})` (via de stabiele
+  `useBevestigIdentiteit`, zodat `PortfolioProvider` niet elke seconde hertekent tijdens een
+  wachttijd). Bij `geannuleerd` gebeurt er niets. Demo blijft zonder.
 - **Orders**: in Echt na het vasthouden `bevestigIdentiteit('order', {detail})`. Alleen bij 'ok', als
   de knop nog gemount is en de status 'open' is, gaat de order uit; de sheets controleren saldo en
   stand dan opnieuw. Valt het slot tijdens de pincodevraag, dan is de uitkomst 'geannuleerd'. Foute
@@ -372,3 +417,11 @@ de gedeelde AsyncFunction-wachtrij van Expo (ook die van expo-secure-store) niet
 - Een wrapper die in exact dezelfde render opent als het slot valt, kan in theorie boven het slot
   komen; `useNaSlot` maakt dat venster zo klein mogelijk.
 - Een tweede biometrische prompt terwijl er een loopt, wordt geannuleerd in plaats van gedeeld.
+- Onder API 33 zijn Recente apps niet afgedekt: `setRecentsScreenshotEnabled` bestaat pas vanaf
+  API 33. Tijdelijk `FLAG_SECURE` alleen zolang de app op de achtergrond staat zou het oplossen, maar
+  besluit 11 sluit `FLAG_SECURE` uit; dat vraagt een besluit van Thom.
+- De homescreen-widget en de trade-meldingen tonen portfolio- en koersdata buiten het slot. Gesignaleerd,
+  niet aangepast.
+- Onder API 30 hangt het herstel als Android de activity van Kader opruimt terwijl de
+  schermslot-activity open staat en de JS-kant daarbij verloren gaat; de bevestiging rondt dan niet af
+  tot een herstart. Niet gezien, wel denkbaar.

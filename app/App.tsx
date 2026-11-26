@@ -43,8 +43,7 @@ import { registreerAchtergrondtaak, stopAchtergrondtaak } from './src/notificati
 // (SplashScreen.preventAutoHideAsync) tot het slot getoond is of de app open is.
 import { VergrendelProvider, useVergrendeling } from './src/state/VergrendelProvider';
 import { SlotLaag } from './src/components/slot/SlotLaag';
-import { AfdekLaag } from './src/components/slot/AfdekLaag';
-import { useAfgedekt } from './src/state/afdekking';
+import { WrapperAfdekking } from './src/components/slot/AfdekLaag';
 import { MarktProvider, useMarkt } from './src/state/MarktProvider';
 import { KansenProvider } from './src/state/KansenProvider';
 import { laadValutaBijStart } from './src/state/useValuta';
@@ -57,7 +56,7 @@ import { NieuwInKaderScherm } from './src/components/NieuwInKaderScherm';
 import { WelkomFeest } from './src/components/WelkomFeest';
 import { EtoroPromptSheet } from './src/components/EtoroPromptSheet';
 import { EtoroKoppelingWizard } from './src/components/EtoroKoppelingWizard';
-import { CHANGELOG, nieuwsteVersie } from './src/changelog';
+import { CHANGELOG, nieuwsteVersie, type NieuweFeature } from './src/changelog';
 import { useBeweging } from './src/theme/useReduceMotion';
 import { duur, veer, vervaag } from './src/theme/beweging';
 import { usePortfolio } from './src/state/PortfolioProvider';
@@ -550,19 +549,13 @@ function AppInhoud() {
 // wijziging in de vergrendel-context (bijvoorbeeld de aftelling van een wachttijd).
 function NieuwInKaderMetActie(props: Omit<React.ComponentProps<typeof NieuwInKaderScherm>, 'onActie'>) {
   const { vraagPinInstellen } = useVergrendeling();
-  return (
-    <NieuwInKaderScherm
-      {...props}
-      onActie={actie => {
-        if (actie === 'pincodeInstellen') void vraagPinInstellen('nieuwInKader');
-      }}
-    />
+  const onActie = useCallback(
+    (actie: NonNullable<NieuweFeature['actie']>) => {
+      if (actie === 'pincodeInstellen') void vraagPinInstellen('nieuwInKader');
+    },
+    [vraagPinInstellen],
   );
-}
-
-// Apart component, zodat alleen deze laag hertekent als de afdekking wisselt.
-function RootAfdekking() {
-  return <AfdekLaag zichtbaar={useAfgedekt()} />;
+  return <NieuwInKaderScherm {...props} onActie={onActie} />;
 }
 
 export default function App() {
@@ -605,7 +598,7 @@ export default function App() {
               {/* Buiten de takken van AppInhoud (laden, onboarding, hoofdtak), zodat ze in elke tak
                   staan en niet opnieuw mounten bij een wissel. De afdeklaag dekt de root-View af
                   (Recente apps, koude start); de slot-Modal komt als laatste en ligt dus bovenop. */}
-              <RootAfdekking />
+              <WrapperAfdekking />
               <SlotLaag />
             </View>
           </VergrendelProvider>

@@ -18,8 +18,7 @@ import { haptiekVanUI } from '../theme/haptiek';
 import { radii } from '../theme/tokens';
 import { neemBron, type BronRect } from '../state/bronRect';
 import { useNaSlot } from '../state/VergrendelProvider';
-import { useAfgedekt } from '../state/afdekking';
-import { AfdekLaag } from './slot/AfdekLaag';
+import { WrapperAfdekking } from './slot/AfdekLaag';
 
 // De gedeelde schil voor elk full-screen scherm (coin-detail, historie, verdeling, uitleg).
 //
@@ -97,7 +96,6 @@ interface Props {
 export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children }: Props) {
   // Wacht met openen zolang het app-slot er staat; wat al open was blijft staan (useNaSlot).
   const zichtbaar = useNaSlot(gevraagd);
-  const afgedekt = useAfgedekt();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
@@ -386,7 +384,7 @@ export function PodiumScherm({ zichtbaar: gevraagd, onSluiten, onTerug, children
           </Animated.View>
         </GestureDetector>
         {/* Ook boven een open scherm afgedekt in Recente apps en bij terugkomst. */}
-        <AfdekLaag zichtbaar={afgedekt} />
+        <WrapperAfdekking />
       </GestureHandlerRootView>
     </Modal>
   );

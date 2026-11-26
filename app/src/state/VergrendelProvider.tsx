@@ -103,6 +103,7 @@ const LEES_TIJDSLIMIET_MS = 6000;
 
 const MELDING_GEEN_PINCODE = 'Er staat geen pincode op dit toestel.';
 const MELDING_NIET_VERGRENDELD = 'Kader is nu niet vergrendeld.';
+const MELDING_KOPPELING_NIET_WEG = 'De koppeling is niet verwijderd. Probeer het opnieuw.';
 
 // Copy voor de pincodevraag bij een order. Niet in de bijlage van het plan; de titel is die van het
 // slot, de ondertitel is de orderregel van de prompt ('Koop BTC, € 100. Echt geld.').
@@ -165,8 +166,14 @@ export interface SlotIntern {
 
 const VergrendelContext = createContext<VergrendelContextWaarde | null>(null);
 const SlotInternContext = createContext<SlotIntern | null>(null);
+// Alleen bevestigIdentiteit (stabiel). Voor providers die geen hertekening per seconde willen als de
+// hoofdcontext tijdens een wachttijd aftelt (PortfolioProvider).
+const IdentiteitContext = createContext<VergrendelContextWaarde['bevestigIdentiteit'] | null>(null);
 // Klein en apart, zodat de vijf Modal-wrappers alleen hertekenen als dit verandert.
-const NaSlotContext = createContext<{ vrij: boolean } | null>(null);
+const NaSlotContext = createContext<{
+  vrij: boolean;
+  naVoorgrondBeslissing: (cb: () => void) => void;
+} | null>(null);
 
 // ---------- Hulpjes ----------
 
@@ -393,7 +400,8 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
       koudeStart: false,
       hintIngesteld: hint,
     });
-    zetPincode(false);
+    // Met de hint aan is dit een kluisfout (vergrendeld): dan geldt er nog een pincode.
+    zetPincode(s.kluisfout);
     if (s.status === 'open') open('anders');
     else zetSlot({ status: s.status, kluisfout: s.kluisfout });
   }, [etoroRef, open, zetPincode, zetSlot]);
@@ -506,12 +514,12 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
       if (!actief || slotRef.current.status !== 'laden') return;
       zetTermijnStaat(t);
       zetBiometrieAanStaat(bioAan);
-      zetPincode(rec.soort === 'ja' || (rec.soort === 'kluisfout' && hint));
-      // De hint bijwerken als hij achterloopt (alleen bij een zeker antwoord van de kluis).
+      // De hint bijwerken als hij achterloopt. Alleen omhoog: 'geen record' met hint aan is juist het
+      // geval dat als kluisfout telt (zie bepaalSlotStatus), dus die hint blijft staan.
       if (rec.soort === 'ja' && !hint) void bewaarHintIngesteld(true);
-      if (rec.soort === 'nee' && hint) void bewaarHintIngesteld(false);
 
       const s = bepaalSlotStatus({ pinRecord: rec, etoroGekoppeld: gekoppeld, koudeStart: true, hintIngesteld: hint });
+      zetPincode(rec.soort === 'ja' || s.kluisfout);
       if (s.status === 'open') open('anders');
       else zetSlot({ status: s.status, kluisfout: s.kluisfout, openVia: null, episode: slotRef.current.episode + 1 });
 
@@ -559,7 +567,27 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
 
   // ---------- AppState ----------
 
+  // Navigatie die binnenkomt terwijl de app nog op de achtergrond staat (een meldingstik komt vóór
+  // AppState 'active'), wacht tot opVoorgrond over hervergrendelen heeft beslist. Anders wisselt de
+  // tab terwijl de app nog 'open' is en valt het slot er pas daarna overheen.
+  const voorgrondWachters = useRef<(() => void)[]>([]);
+  const naVoorgrondBeslissing = useCallback((cb: () => void) => {
+    voorgrondWachters.current.push(cb);
+  }, []);
+
   useEffect(() => {
+    const meldVoorgrondBeslist = () => {
+      const wachtend = voorgrondWachters.current;
+      voorgrondWachters.current = [];
+      for (const cb of wachtend) {
+        try {
+          cb();
+        } catch {
+          // Een falende wachter mag de rest niet tegenhouden.
+        }
+      }
+    };
+
     const beslis = (a: Achtergrond | null) => {
       const s = slotRef.current;
       const hervergrendelen =
@@ -577,9 +605,12 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
       if (hervergrendelen) {
         // De afdekking blijft staan tot onShow van de slot-Modal (of de nieuwe episode).
         vergrendel();
-        return;
+      } else if (slotRef.current.status === 'open') {
+        zetAfgedekt(false);
       }
-      if (slotRef.current.status === 'open') zetAfgedekt(false);
+      // In dezelfde synchrone beurt als vergrendel(): React bundelt de updates, dus een wachtende
+      // navigatie ziet in één render al dat het slot er ligt.
+      meldVoorgrondBeslist();
     };
 
     const opAchtergrond = () => {
@@ -611,9 +642,15 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
       const a = achtergrond.current;
       achtergrond.current = null;
       if (!a) {
-        // Geen achtergrond gezien (start op de achtergrond, of een gemiste gebeurtenis zonder
-        // pincode-gevolg): alleen de afdekking rechtzetten.
+        // Geen achtergrond gezien (start op de achtergrond, of een gemiste gebeurtenis). Open met een
+        // pincode: het tijdstip is onbekend, dus vergrendelen zoals moetHervergrendelen bij twijfel
+        // doet (beslis(null)). Anders alleen de afdekking rechtzetten.
+        if (slotRef.current.status === 'open' && pincodeRef.current) {
+          beslis(null);
+          return;
+        }
         if (slotRef.current.status === 'open') zetAfgedekt(false);
+        meldVoorgrondBeslist();
         return;
       }
       if (a.viaEigenScherm) {
@@ -720,13 +757,26 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
         if (!(await bewaarHintIngesteld(true))) {
           return { soort: 'kluisfout', bericht: 'Kader kon de instelling van het slot niet opslaan.' };
         }
+        // Stond er geen pincode en komt er ook geen, dan de hint terug uit. Anders telt 'geen record'
+        // met hint aan bij de volgende start als kluisfout (zie bepaalSlotStatus). Niet na een
+        // herstel: dan was 'geen record' met hint aan juist de kluisfout, en die blijft staan.
+        const hintTerugBijMislukking = async () => {
+          if (herstel || rec.soort !== 'nee') return;
+          if ((await leesPinRecord()).soort === 'nee') await bewaarHintIngesteld(false);
+        };
         const leeg = registreerSucces();
         const teller = await bewaarPogingenMetHerkansing(leeg);
-        if (teller.soort !== 'ok') return teller;
+        if (teller.soort !== 'ok') {
+          await hintTerugBijMislukking();
+          return teller;
+        }
         zetPogingen(leeg);
 
         const w = await bewaarPinRecord(record);
-        if (w.soort !== 'ok') return w;
+        if (w.soort !== 'ok') {
+          await hintTerugBijMislukking();
+          return w;
+        }
 
         herstelToegestaan.current = false;
         zetPincode(true);
@@ -816,16 +866,20 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
 
   const verwijderKoppelingEnOpen = useCallback(async () => {
     if (slotRef.current.status !== 'setupVerplicht') return;
-    // Zoals "Koppeling verwijderen" in de wizard en Instellingen: sleutels weg (wisSleutels meldt
-    // dat via opSleutelWijziging), daarna de omgeving terug naar demo.
-    await wisSleutels();
+    // Eerst de omgeving naar demo, dan de sleutels weg. Andersom vuurt wisSleutels via
+    // opSleutelWijziging een verversing (PortfolioProvider) die de oude omgeving 'real' kan
+    // teruglezen nadat demo al gezet is.
     await zetOmgeving('demo');
-    zetEtoro(false);
+    await wisSleutels();
+    // Opnieuw lezen: mislukte het wissen (of is de kluis nu onleesbaar, dat telt als gekoppeld),
+    // dan niet openen. De status blijft 'setupVerplicht' en SlotScherm toont de melding.
+    if (await leesEtoro()) throw new Error(MELDING_KOPPELING_NIET_WEG);
     const [rec, hint] = await Promise.all([leesPinRecord(), laadHintIngesteld()]);
     const s = bepaalSlotStatus({ pinRecord: rec, etoroGekoppeld: false, koudeStart: false, hintIngesteld: hint });
+    zetPincode(rec.soort === 'ja' || s.kluisfout);
     if (s.status === 'open') open('anders');
     else zetSlot({ status: s.status, kluisfout: s.kluisfout });
-  }, [open, slotRef, zetEtoro, zetSlot]);
+  }, [leesEtoro, open, slotRef, zetPincode, zetSlot]);
 
   const opnieuwProberen = useCallback(async () => {
     let gelezen: [Awaited<ReturnType<typeof leesPinRecord>>, boolean, boolean, SlotTermijn, boolean];
@@ -843,9 +897,9 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
     zetTermijnStaat(t);
     zetBiometrieAanStaat(bioAan);
     void meetBiometrie();
-    zetPincode(rec.soort === 'ja' || (rec.soort === 'kluisfout' && hint));
     if (rec.soort === 'ja' && !hint) void bewaarHintIngesteld(true);
     const s = bepaalSlotStatus({ pinRecord: rec, etoroGekoppeld: gekoppeld, koudeStart: true, hintIngesteld: hint });
+    zetPincode(rec.soort === 'ja' || s.kluisfout);
     if (s.status === 'open') open('anders');
     else zetSlot({ status: s.status, kluisfout: s.kluisfout });
     if (rec.soort === 'ja') {
@@ -1144,12 +1198,14 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
   );
 
   const vrij = slot.status === 'open' && !slotBezet;
-  const naSlot = useMemo(() => ({ vrij }), [vrij]);
+  const naSlot = useMemo(() => ({ vrij, naVoorgrondBeslissing }), [vrij, naVoorgrondBeslissing]);
 
   return (
     <VergrendelContext.Provider value={waarde}>
       <SlotInternContext.Provider value={intern}>
-        <NaSlotContext.Provider value={naSlot}>{children}</NaSlotContext.Provider>
+        <NaSlotContext.Provider value={naSlot}>
+          <IdentiteitContext.Provider value={bevestigIdentiteit}>{children}</IdentiteitContext.Provider>
+        </NaSlotContext.Provider>
       </SlotInternContext.Provider>
     </VergrendelContext.Provider>
   );
@@ -1167,6 +1223,12 @@ export function useVergrendeling(): VergrendelContextWaarde {
 // buiten de boom kunnen staan (of in een self-check).
 export function useVergrendelingOpt(): VergrendelContextWaarde | null {
   return useContext(VergrendelContext);
+}
+
+// bevestigIdentiteit zonder de rest van de context (die tijdens een wachttijd elke seconde
+// wijzigt). null buiten de provider.
+export function useBevestigIdentiteit(): VergrendelContextWaarde['bevestigIdentiteit'] | null {
+  return useContext(IdentiteitContext);
 }
 
 // Alleen voor SlotLaag. null buiten de provider.
@@ -1195,4 +1257,11 @@ export function useNaSlot(zichtbaar: boolean): boolean {
 export function useSlotVrij(): boolean {
   const ctx = useContext(NaSlotContext);
   return ctx === null ? true : ctx.vrij;
+}
+
+// Roept cb aan zodra de provider bij de volgende AppState 'active' over hervergrendelen heeft
+// beslist. Voor navigatie die binnenkomt terwijl de app nog op de achtergrond staat. Buiten de
+// provider: null.
+export function useNaVoorgrondBeslissing(): ((cb: () => void) => void) | null {
+  return useContext(NaSlotContext)?.naVoorgrondBeslissing ?? null;
 }
