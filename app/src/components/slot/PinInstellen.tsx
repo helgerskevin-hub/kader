@@ -68,13 +68,39 @@ export interface PinVraagInhoudProps {
   onAnnuleer?(): void;
   // Een melding om mee te beginnen (bijvoorbeeld "Onjuiste pincode." na een terugsprong).
   beginMelding?: string;
+  // Er loopt al een wachttijd bij het openen (ms): meteen de wachtstaat tonen (en aankondigen),
+  // zonder dat er eerst zes cijfers voor niets ingetikt worden.
+  beginBlokkadeMs?: number;
+  // De volle duur van die trede (ms), voor de weergave. Ontbreekt hij, dan geldt de rest.
+  beginBlokkadeDuurMs?: number;
 }
 
 // Eén pagina met stippen en toetsenbord die om een bestaande pincode vraagt. Hergebruikt door de
 // eerste stap van "Pincode wijzigen", "App vergrendelen uitzetten" en de pincodevraag bij een
 // order (SlotLaag). Een wachttijd wordt hier lokaal afgeteld vanaf de uitkomst 'geblokkeerd'.
-export function PinVraagInhoud({ titel, sub, onPin, onKlaar, onAnnuleer, beginMelding }: PinVraagInhoudProps) {
-  const [blok, setBlok] = useState<{ tot: number; duurMs: number } | null>(null);
+export function PinVraagInhoud({
+  titel,
+  sub,
+  onPin,
+  onKlaar,
+  onAnnuleer,
+  beginMelding,
+  beginBlokkadeMs,
+  beginBlokkadeDuurMs,
+}: PinVraagInhoudProps) {
+  const [blok, setBlok] = useState<{ tot: number; duurMs: number } | null>(() =>
+    beginBlokkadeMs && beginBlokkadeMs > 0
+      ? {
+          tot: Date.now() + beginBlokkadeMs,
+          duurMs: Math.max(beginBlokkadeMs, beginBlokkadeDuurMs ?? 0),
+        }
+      : null,
+  );
+  useEffect(() => {
+    if (beginBlokkadeMs && beginBlokkadeMs > 0) kondigAan(wachtAankondiging(beginBlokkadeMs));
+    // Alleen bij het mounten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [nu, setNu] = useState(Date.now());
   const okTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -147,6 +173,13 @@ export function PinVraagInhoud({ titel, sub, onPin, onKlaar, onAnnuleer, beginMe
 
 // ---------- Pincode instellen ----------
 
+// Extra prop naast het contract: een plek met een eigen Android-terugknop (de koppelwizard) kan
+// hiermee eerst een stap terug binnen het instellen doen. terugRef.current() geeft true als hij een
+// stap terugging (van 'herhaal' naar 'kies'), false als de plek zelf terug moet.
+export type PinInstellenInhoudExtraProps = PinInstellenInhoudProps & {
+  terugRef?: React.MutableRefObject<(() => boolean) | null>;
+};
+
 type Stap = 'geenSlot' | 'huidige' | 'kies' | 'herhaal' | 'klaar' | 'aanbod';
 
 // Alle stappen van een pincode instellen, wijzigen of herstellen: (huidige), kiezen, herhalen,
@@ -162,7 +195,8 @@ export function PinInstellenInhoud({
   biometrieAanbod,
   onKlaar,
   onAnnuleer,
-}: PinInstellenInhoudProps) {
+  terugRef,
+}: PinInstellenInhoudExtraProps) {
   const { colors } = useTheme();
   const wijzigen = reden === 'wijzigen';
   const [stap, setStap] = useState<Stap>(
@@ -242,6 +276,23 @@ export function PinInstellenInhoud({
   );
 
   const invoer = usePinInvoer(sla);
+
+  // Android-terug: van herhalen naar kiezen, met een lege invoer. Elders beslist de plek zelf.
+  const { leegmaken, setMelding } = invoer;
+  useEffect(() => {
+    if (!terugRef) return;
+    terugRef.current = () => {
+      if (stapRef.current !== 'herhaal' || invoer.bezig) return false;
+      gekozen.current = '';
+      leegmaken();
+      setMelding(null);
+      naarStap('kies');
+      return true;
+    };
+    return () => {
+      terugRef.current = null;
+    };
+  }, [terugRef, leegmaken, setMelding, naarStap, invoer.bezig]);
 
   // "Pincode ingesteld": een succesmoment, daarna het aanbod of het einde.
   useEffect(() => {

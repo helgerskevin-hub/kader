@@ -1,5 +1,5 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { KaderLogo } from '../KaderLogo';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Type } from '../../theme/typography';
@@ -31,6 +31,8 @@ interface Props {
   onWis(): void;
   biometrieToets?: boolean;
   onBiometrie?(): void;
+  // Na het zesde cijfer, zolang de controle loopt (de KDF kost op de emulator 0,3 tot 1,7 s). Na
+  // BEZIG_NA_MS verschijnt in de statusregel een draaiertje, zodat het scherm niet bevroren lijkt.
   bezig?: boolean;
   // Extra ruimte onderaan (bijvoorbeeld de gesturebalk), bovenop de standaard 32.
   onderMarge?: number;
@@ -62,6 +64,19 @@ export function PinPaneel({
   const maat = useSlotMaat();
   const wacht = blokkade != null && blokkade.resterendMs > 0;
 
+  // Pas na een korte pauze, zodat een snelle stap (kiezen, een snelle telefoon) niet flitst. Alleen
+  // in de normale stand: bij succes of fout vertellen de stippen het al.
+  const [toonBezig, setToonBezig] = useState(false);
+  const controleert = !!bezig && stippenStand === 'normaal' && !wacht;
+  useEffect(() => {
+    if (!controleert) {
+      setToonBezig(false);
+      return;
+    }
+    const t = setTimeout(() => setToonBezig(true), BEZIG_NA_MS);
+    return () => clearTimeout(t);
+  }, [controleert]);
+
   const toonTitel = wacht ? 'Even wachten' : titel;
   const toonStatus = wacht
     ? { tekst: 'Te veel onjuiste pogingen. Probeer het opnieuw over', soort: 'info' as StatusSoort }
@@ -92,7 +107,16 @@ export function PinPaneel({
         >
           {toonTitel}
         </Text>
-        <StatusRegel tekst={toonStatus.tekst} soort={toonStatus.soort} />
+        {toonBezig && controleert && !melding ? (
+          <View style={styles.bezig}>
+            <ActivityIndicator
+              color={colors.tekstGedimd}
+              accessibilityLabel="Pincode wordt gecontroleerd"
+            />
+          </View>
+        ) : (
+          <StatusRegel tekst={toonStatus.tekst} soort={toonStatus.soort} />
+        )}
       </ScrollView>
 
       <View style={styles.stippen}>
@@ -126,7 +150,10 @@ export function wachtAankondiging(ms: number): string {
   return `Even wachten. Te veel onjuiste pogingen. Probeer het opnieuw over ${aftellingInWoorden(ms)}.`;
 }
 
+const BEZIG_NA_MS = 150;
+
 const styles = StyleSheet.create({
+  bezig: { height: 48, alignItems: 'center', justifyContent: 'center' },
   vul: { flex: 1, alignItems: 'center' },
   kopScroll: { alignSelf: 'stretch', flex: 1 },
   kop: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },

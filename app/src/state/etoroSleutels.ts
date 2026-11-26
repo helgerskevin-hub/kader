@@ -16,6 +16,7 @@ import * as SecureStore from 'expo-secure-store';
 import { EtoroOmgeving, EtoroSleutels } from '../engine/etoro';
 import { kiesSleutelbron, standaardOmgeving, Sleutelbron, Sleutelpaar } from '../engine/sleutelKeuze';
 import { SLEUTELS, laadTekst, laadVlag, bewaarTekst, bewaarVlag, verwijderSleutel } from '../storage/opslag';
+import { inSlotRij, leesPinRecord } from './slotOpslag';
 
 export { kiesSleutelbron, standaardOmgeving };
 export type { Sleutelbron, Sleutelpaar };
@@ -54,6 +55,48 @@ export type SleutelUitkomst =
   | { soort: 'kluisfout'; bericht: string };
 
 const KLUIS_ONBEREIKBAAR = 'De sleutelkluis van dit toestel is nu niet bereikbaar.';
+
+// ---------- Wijzigingen melden ----------
+
+// De app-vergrendeling (VergrendelProvider) moet weten of er een koppeling is: dan is het slot
+// verplicht. Een abonnement in plaats van pollen, zodat koppelen of "Koppeling verwijderen" waar
+// dan ook (wizard, Instellingen, het slotscherm) meteen doorwerkt.
+const wijzigingLuisteraars = new Set<() => void>();
+
+// Roept cb aan na elke geslaagde bewaarSleutels() en na elke wisSleutels(). Geeft een functie
+// terug die het abonnement opzegt.
+export function opSleutelWijziging(cb: () => void): () => void {
+  wijzigingLuisteraars.add(cb);
+  return () => {
+    wijzigingLuisteraars.delete(cb);
+  };
+}
+
+function meldSleutelWijziging(): void {
+  for (const cb of [...wijzigingLuisteraars]) {
+    try {
+      cb();
+    } catch {
+      // Een falende luisteraar mag de rest niet tegenhouden.
+    }
+  }
+}
+
+// bewaarSleutels weigert zonder pincode. De aanroeper kan dit herkennen (instanceof) om de
+// pincode-stap te tonen in plaats van een algemene foutmelding. reden 'kluisfout': de kluis kon
+// niet zeggen of er een pincode is, en dan wordt er ook niets bewaard.
+export class GeenPincodeFout extends Error {
+  readonly reden: 'geenPincode' | 'kluisfout';
+  constructor(reden: 'geenPincode' | 'kluisfout') {
+    super(
+      reden === 'geenPincode'
+        ? 'Stel eerst een pincode in. Kader bewaart een eToro-sleutel alleen achter een pincode.'
+        : 'Kader kan nu niet controleren of er een pincode is. Probeer het opnieuw.',
+    );
+    this.name = 'GeenPincodeFout';
+    this.reden = reden;
+  }
+}
 
 // ---------- Secure store, met eenmalige migratie ----------
 
@@ -201,7 +244,24 @@ export async function sleutelUitkomst(): Promise<SleutelUitkomst> {
 // faalt de tweede, dan zou er een nieuwe api-sleutel naast een oude user-sleutel staan: dat geeft
 // een 401 die de gebruiker pas dagen later ziet, want in deze sessie draait de app nog op het
 // modulegeheugen. Vandaar het terugdraaien.
-export async function bewaarSleutels(invoer: SleutelInvoer): Promise<void> {
+//
+// Zonder pincode-record weigert dit met een GeenPincodeFout, nog voor er iets geschreven wordt: een
+// sleutel die echt geld kan verplaatsen komt nooit zonder slot op het toestel. Ook een kluisfout bij
+// het lezen van het record is een weigering, geen "vast maar door".
+//
+// Loopt via inSlotRij (slotOpslag.ts), dezelfde rij als zetSlotUit in de VergrendelProvider: de
+// controle op het record en het schrijven van de sleutels kunnen zo niet tussen de eToro-controle
+// en het wissen van het record van zetSlotUit vallen.
+export function bewaarSleutels(invoer: SleutelInvoer): Promise<void> {
+  return inSlotRij(() => bewaarSleutelsInRij(invoer));
+}
+
+async function bewaarSleutelsInRij(invoer: SleutelInvoer): Promise<void> {
+  const pincode = await leesPinRecord();
+  if (pincode.soort !== 'ja') {
+    throw new GeenPincodeFout(pincode.soort === 'nee' ? 'geenPincode' : 'kluisfout');
+  }
+
   const apiKey = invoer.apiKey.trim();
   const userKey = invoer.userKey.trim();
 
@@ -242,6 +302,8 @@ export async function bewaarSleutels(invoer: SleutelInvoer): Promise<void> {
   // voor het eerst koppelt op zijn echte account.
   const opgeslagen = await laadTekst(SLEUTELS.etoroOmgeving, '');
   if (opgeslagen !== 'real' && opgeslagen !== 'demo') await zetOmgeving('demo');
+
+  meldSleutelWijziging();
 }
 
 export async function wisSleutels(): Promise<void> {
@@ -255,6 +317,7 @@ export async function wisSleutels(): Promise<void> {
   geheugen = null;
   bronGeheugen = null;
   omgevingGeheugen = null;
+  meldSleutelWijziging();
 }
 
 // Een onbereikbare kluis is hier bewust false: dit stuurt alleen statusteksten en de koopknop aan,

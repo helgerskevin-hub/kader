@@ -402,12 +402,28 @@ export function SlotScherm({
 
   let inhoud: React.ReactNode;
 
-  if (stand === 'kluisfout') {
+  // De herstel-modi gaan voor de kluisfout-tak: vanaf het kluisfout-scherm kan "Pincode vergeten?"
+  // het herstel via het schermslot starten (een blijvend onleesbaar record is anders een doodlopende
+  // route; de provider laat stelPinIn na herstel ook bij een kluisfout overschrijven).
+  if (stand === 'kluisfout' && modus !== 'herstelUitleg' && modus !== 'herstelInstellen') {
     inhoud = uitleg({
       icoon: <TriangleAlert size={40} strokeWidth={1.75} color={colors.letOp} />,
       titel: KLUISFOUT_TITEL,
       tekst: KLUISFOUT_TEKST,
-      knoppen: <PrimaireKnop label="Opnieuw proberen" bezig={bezig} onPress={opnieuwProberen} />,
+      knoppen: (
+        <>
+          <PrimaireKnop label="Opnieuw proberen" bezig={bezig} onPress={opnieuwProberen} />
+          <TekstKnop
+            label="Pincode vergeten?"
+            minHoogte={48}
+            uitgeschakeld={bezig}
+            onPress={() => {
+              setUitlegFout(null);
+              setModus('herstelUitleg');
+            }}
+          />
+        </>
+      ),
     });
   } else if (modus === 'herstelInstellen' || modus === 'setupInstellen') {
     const reden = modus === 'herstelInstellen' ? 'herstel' : 'setupVerplicht';
