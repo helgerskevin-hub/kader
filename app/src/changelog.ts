@@ -2,11 +2,14 @@
 // Handmatig gelijk houden met CHANGELOG.md in de projectmap. Nieuwste eerst.
 
 export interface NieuweFeature {
-  icoon: 'risico' | 'doel' | 'kansen' | 'benchmark' | 'spreiding' | 'export' | 'widget' | 'copy' | 'melding' | 'ontdek' | 'ster';
+  icoon: 'risico' | 'doel' | 'kansen' | 'benchmark' | 'spreiding' | 'export' | 'widget' | 'copy' | 'melding' | 'ontdek' | 'ster' | 'slot';
   kleur: 'cta' | 'primair' | 'letOp' | 'winst' | 'goud';
   titel: string;
   tekst: string;
   plek: string;
+  // Knop op de pagina. Een sleutel en geen callback: de plek die het scherm toont koppelt hem aan
+  // een functie (onActie van NieuwInKaderScherm).
+  actie?: 'pincodeInstellen';
 }
 
 export interface ChangelogEntry {
@@ -39,6 +42,22 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    versie: 'Nog niet uitgebracht',
+    datum: '2026-11-26',
+    nieuweFeatures: [
+      {
+        icoon: 'slot',
+        kleur: 'cta',
+        titel: 'Kader met pincode',
+        tekst: 'Open Kader met een pincode, of met je vingerafdruk of gezicht. Zo ziet niemand anders je portfolio als je telefoon even ligt. Je kiest zelf hoe snel de app weer op slot gaat.',
+        plek: 'Instellingen, Beveiliging',
+        actie: 'pincodeInstellen',
+      },
+    ],
+    // De gewone regels volgen van de integrator.
+    punten: [],
+  },
   {
     versie: '0.4.5',
     datum: '2026-11-18',

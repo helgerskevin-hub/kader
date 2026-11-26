@@ -4,6 +4,11 @@
 //
 // In demo is het een gewone tik. In echt is de knop inktkleurig, staat er een rode regel boven dat
 // het om echt geld gaat, en moet je 'm ingedrukt houden: een losse tik doet dan niets.
+//
+// Na het vasthouden vraagt echt daarnaast om biometrie (bevestigIdentiteit uit de vergrendeling),
+// met de pincode als terugval. Pas bij 'ok' gaat onBevestig af. Demo vraagt nooit om identiteit.
+// Buiten een VergrendelProvider kan echt de identiteit niet controleren en verstuurt dus niets
+// (fail-closed). Alleen demo bevestigt zonder provider direct.
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, ActivityIndicator, type LayoutChangeEvent } from 'react-native';
 import { AlertTriangle } from 'lucide-react-native';
@@ -22,6 +27,7 @@ import { useBeweging } from '../theme/useReduceMotion';
 import { useVasthouden } from '../theme/useVasthouden';
 import { haptiek } from '../theme/haptiek';
 import { EtoroOmgeving } from '../engine/etoro';
+import { useVergrendelingOpt } from '../state/VergrendelProvider';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -48,9 +54,12 @@ interface Props {
   gelukt?: boolean;
   // Overschrijft de standaardtekst boven de knop in echt-modus.
   echtWaarschuwing?: string;
+  // De regel in de biometrie-prompt en de pincodevraag, letterlijk
+  // '{Koop|Verkoop} {SYMBOOL}, {bedrag}. Echt geld.'. Zonder valt de provider terug op zijn standaardtekst.
+  echtDetail?: string;
 }
 
-export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, gelukt = false, echtWaarschuwing }: Props) {
+export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBevestig, gelukt = false, echtWaarschuwing, echtDetail }: Props) {
   const { colors, donkerActief } = useTheme();
   const { reduceMotion } = useBeweging();
   const isEcht = omgeving === 'real';
@@ -65,14 +74,68 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
 
   // Ook dicht zodra eToro ja heeft gezegd: het vinkje staat nog even, en een tik of vasthouden in
   // die tijd mag geen tweede order worden.
-  const geblokkeerd = uitgeschakeld || bezig || gelukt;
+  // Tijdens de biometrie of pincodevraag staat de knop dicht: anders kan een tweede vasthouden een
+  // tweede vraag (en dus een tweede order) starten.
+  const [controleert, setControleert] = useState(false);
+  const [nietVerstuurd, setNietVerstuurd] = useState(false);
+  const vergrendeling = useVergrendelingOpt();
+  const bevestigIdentiteit = vergrendeling?.bevestigIdentiteit;
+  const slotStatus = vergrendeling?.status;
+  const gemount = useRef(true);
+  useEffect(() => {
+    gemount.current = true;
+    return () => {
+      gemount.current = false;
+    };
+  }, []);
+  // Altijd de actuele onBevestig en status: de vraag kan seconden duren, en de sheet controleert in
+  // zijn eigen bevestig() saldo en stand opnieuw met wat er dan geldt.
+  const onBevestigRef = useRef(onBevestig);
+  onBevestigRef.current = onBevestig;
+  const statusRef = useRef(slotStatus);
+  statusRef.current = slotStatus;
+
+  const geblokkeerd = uitgeschakeld || bezig || gelukt || controleert;
+  // Wat de ouder dichtzet, zoals het NU is: de vraag kan seconden duren.
+  const ouderDicht = uitgeschakeld || bezig || gelukt;
+  const ouderDichtRef = useRef(ouderDicht);
+  ouderDichtRef.current = ouderDicht;
+  // Synchrone vlag tegen dubbel vasthouden: state is pas bij de volgende render bijgewerkt.
+  const vraagBezig = useRef(false);
+
+  async function vraagIdentiteit(alleenPincode: boolean) {
+    if (vraagBezig.current || ouderDichtRef.current) return;
+    if (!bevestigIdentiteit) {
+      // Zonder vergrendeling kan echt de identiteit niet controleren: niets versturen.
+      if (isEcht) setNietVerstuurd(true);
+      else onBevestigRef.current();
+      return;
+    }
+    vraagBezig.current = true;
+    setControleert(true);
+    setNietVerstuurd(false);
+    try {
+      let uitkomst: 'ok' | 'geannuleerd' = 'geannuleerd';
+      try {
+        uitkomst = await bevestigIdentiteit('order', { detail: echtDetail, alleenPincode });
+      } catch {
+        uitkomst = 'geannuleerd';
+      }
+      if (!gemount.current) return;
+      setControleert(false);
+      if (uitkomst === 'ok' && statusRef.current === 'open' && !ouderDichtRef.current) onBevestigRef.current();
+      else setNietVerstuurd(true);
+    } finally {
+      vraagBezig.current = false;
+    }
+  }
   // De wekker, de haptiek onderweg, het terugveren en de controle op de actuele stand zodra de tijd
   // om is (komt in die 800 ms het saldo binnen en past de order niet meer, dan gaat hij niet) zitten
   // in useVasthouden.
   const { voortgang, start: startVasthouden, stop: stopVasthouden } = useVasthouden({
     duurMs: HOUD_VAST_MS,
     geblokkeerd,
-    onVoltooid: onBevestig,
+    onVoltooid: () => { void vraagIdentiteit(false); },
   });
 
   function opKnopLayout(e: LayoutChangeEvent) {
@@ -97,6 +160,7 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
   function tik() {
     // In echt doet een losse tik met opzet niets: daar geldt alleen ingedrukt houden.
     if (isEcht || geblokkeerd) return;
+    setNietVerstuurd(false);
     // Bij vasthouden geeft het volle moment al 'stevig'; een tik krijgt zijn eigen, lichtere klik.
     haptiek('vastklikken');
     onBevestig();
@@ -137,7 +201,7 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
 
       <Pressable
         onPress={tik}
-        onPressIn={isEcht ? startVasthouden : undefined}
+        onPressIn={isEcht ? () => { setNietVerstuurd(false); startVasthouden(); } : undefined}
         onPressOut={isEcht ? stopVasthouden : undefined}
         onLayout={opKnopLayout}
         disabled={geblokkeerd}
@@ -181,6 +245,27 @@ export function OrderBevestigKnop({ label, omgeving, bezig, uitgeschakeld, onBev
             </Text>
           )}
       </Pressable>
+
+      {isEcht && nietVerstuurd && !controleert && (
+        <View style={styles.nietVerstuurd}>
+          <Text style={[Type.caption, { color: colors.tekstGedimd }]}>Order niet verstuurd.</Text>
+          {bevestigIdentiteit && (
+          <Pressable
+            onPress={() => {
+              if (geblokkeerd) return;
+              void vraagIdentiteit(true);
+            }}
+            disabled={geblokkeerd}
+            accessibilityRole="button"
+            accessibilityLabel="Bevestig met pincode"
+            hitSlop={8}
+            style={styles.pincodeKnop}
+          >
+            <Text style={[Type.body, { color: colors.cta, fontWeight: '600' }]}>Bevestig met pincode</Text>
+          </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -211,6 +296,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   label: { fontWeight: '600', textAlign: 'center' },
+  nietVerstuurd: { alignItems: 'center', gap: 2, marginTop: spacing.sm },
+  pincodeKnop: { minHeight: 44, paddingHorizontal: spacing.md, justifyContent: 'center' },
 });
 
 // Het gelukt-moment voor een sheet met deze knop. vier() krijgt wat er na het vinkje moet gebeuren

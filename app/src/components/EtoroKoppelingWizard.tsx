@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, findNodeHandle,
+  AccessibilityInfo, ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, findNodeHandle,
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,12 +17,16 @@ import { useReduceMotion } from '../theme/useReduceMotion';
 import { useToetsenbordHoogte } from '../theme/useToetsenbordHoogte';
 import { haptiek } from '../theme/haptiek';
 import { EtoroOmgeving, EtoroSleutels, haalAccountInfo, haalEtoroPortfolio, magHandelenVolgensScopes } from '../engine/etoro';
-import { bewaarSleutels, haalOmgeving, haalSleutels, wisSleutels, Sleutelpaar } from '../state/etoroSleutels';
+import { bewaarSleutels, GeenPincodeFout, haalOmgeving, haalSleutels, wisSleutels, Sleutelpaar } from '../state/etoroSleutels';
 import { userKeyBijApiKeyWijziging } from '../engine/sleutelKeuze';
 import { beoordeelGeplakteSleutel } from '../engine/sleutelVorm';
 import { bouwKoppelBeeld, KoppelUitslag, OmgevingToets, RijStaat, TestRij } from '../engine/koppelTest';
 import { useDialoog } from '../state/DialoogProvider';
 import { useNavigatie } from '../state/navigatie';
+import { useVergrendelingOpt } from '../state/VergrendelProvider';
+import { isGeldigePin, isZwakkePin } from '../engine/pinCode';
+import type { PinKeuring } from '../state/vergrendelTypes';
+import { PinInstellenInhoud } from './slot/PinInstellen';
 import { PodiumScherm, type Sluit } from './PodiumScherm';
 import { StapOvergang } from './StapOvergang';
 import { PilKnop } from './PilKnop';
@@ -39,12 +43,19 @@ interface Props {
 }
 
 // Stappen tellen vanaf 0 in de code, op het scherm vanaf 1.
-const AANTAL_STAPPEN = 5;
+// STAP_SLOT (pincode instellen) is alleen een echte stap als metSlotStap waar is (dan schuift klaar
+// op naar 5). Zonder slot-stap is 4 gewoon klaar: gebruik dus altijd opSlotStap, nooit stap === STAP_SLOT.
 const STAP_KEUZE = 0;
 const STAP_MAKEN = 1;
 const STAP_PLAKKEN = 2;
 const STAP_TESTEN = 3;
-const STAP_KLAAR = 4;
+const STAP_SLOT = 4;
+
+function keurPin(pin: string): PinKeuring {
+  if (!isGeldigePin(pin)) return 'ongeldig';
+  if (isZwakkePin(pin)) return 'zwak';
+  return 'ok';
+}
 
 // Wat je van plan bent. Dit verandert alleen de uitleg: wat er bewaard wordt, ook of Kader mag
 // handelen, komt altijd uit de scopes die eToro bij de test teruggeeft.
@@ -88,9 +99,25 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
   const { colors } = useTheme();
   const { toonDialoog } = useDialoog();
   const { gaNaar } = useNavigatie();
+  const vergrendel = useVergrendelingOpt();
   const insets = useSafeAreaInsets();
   const toetsenbordHoogte = useToetsenbordHoogte();
   const [stap, setStap] = useState(STAP_KEUZE);
+  // Volgt er een pincode-stap? Vastgelegd bij het openen, zodat het aantal stappen niet verandert
+  // zodra de pincode er midden in de wizard is.
+  const [metSlotStap, setMetSlotStap] = useState(false);
+  const pincodeNu = useRef(false);
+  pincodeNu.current = vergrendel?.pincodeIngesteld ?? false;
+  // Is in deze wizard een pincode opgeslagen? Dan hoeft de slot-stap niet opnieuw.
+  const pinGezet = useRef(false);
+  // Krijgt de slot-stap een biometrie-aanbod? Vastgelegd bij het binnenkomen van die stap. Live
+  // berekend zou het aanbod verdwijnen zodra zetBiometrie(true) biometrieAan omzet, en dan flitst
+  // "Kies een pincode" terwijl opslaan() nog loopt.
+  const [slotAanbod, setSlotAanbod] = useState(false);
+  // Android-terug binnen PinInstellenInhoud (van herhalen naar kiezen).
+  const slotTerugRef = useRef<(() => boolean) | null>(null);
+  const AANTAL_STAPPEN = metSlotStap ? 6 : 5;
+  const STAP_KLAAR = AANTAL_STAPPEN - 1;
   const [keuze, setKeuze] = useState<Keuze>('schrijven');
   const [apiKey, setApiKey] = useState('');
   const [userKey, setUserKey] = useState('');
@@ -135,6 +162,8 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
     opslaanBezig.current = false;
     testBezig.current = false;
     setStap(STAP_KEUZE);
+    setMetSlotStap(vergrendel != null && !pincodeNu.current);
+    pinGezet.current = false;
     setKeuze('schrijven');
     setTestStatus('idle');
     setUitslag(null);
@@ -164,9 +193,10 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
   // Eén keer een tik van succes als het laatste scherm verschijnt.
   useEffect(() => {
     if (stap === STAP_KLAAR) haptiek('succes');
-  }, [stap]);
+  }, [stap, STAP_KLAAR]);
 
   const beeld = useMemo(() => (uitslag ? bouwKoppelBeeld(uitslag) : null), [uitslag]);
+  const opSlotStap = metSlotStap && stap === STAP_SLOT;
   const foutScherm = stap === STAP_TESTEN && testStatus === 'klaar' && beeld?.foutstaat != null;
 
   // Na een stapwissel de schermlezer naar de titel van de nieuwe stap, pas als de overgang klaar
@@ -323,6 +353,21 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       // gelukt is terwijl de koppeling er niet is.
       opslaanBezig.current = false;
       setBezigOpslaan(false);
+      // Terug naar de teststap: de pincode-stap zou niets meer doen als de pincode er al is.
+      setStap(s => (metSlotStap && s === STAP_SLOT ? STAP_TESTEN : s));
+      if (e instanceof GeenPincodeFout) {
+        // Hoort niet meer voor te komen (de pincode-stap gaat vooraf), maar nooit "Opslaan mislukt".
+        pinGezet.current = false;
+        toonDialoog({
+          variant: 'fout',
+          titel: e.reden === 'kluisfout' ? 'Pincode niet te controleren' : 'Eerst een pincode',
+          tekst: e.reden === 'kluisfout'
+            ? 'Kader kan nu niet controleren of er een pincode is, dus de sleutel is niet bewaard. Probeer het opnieuw.'
+            : 'Kader bewaart een eToro-sleutel alleen achter een pincode. De sleutel is niet bewaard. Stel eerst een pincode in.',
+          knoppen: [{ label: 'Oké' }],
+        });
+        return;
+      }
       toonDialoog({
         variant: 'fout',
         titel: 'Opslaan mislukt',
@@ -345,6 +390,16 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
     setKlaarUitslag(getest);
     onOpgeslagen?.();
     setStap(STAP_KLAAR);
+  }
+
+  // Op de teststap: eerst de pincode als die er nog niet is, anders meteen bewaren.
+  const slotVolgt = metSlotStap && !pinGezet.current && !pincodeNu.current;
+  function naTest() {
+    if (slotVolgt) {
+      const b = vergrendel?.biometrieBeschikbaar;
+      setSlotAanbod(!!(b?.hardware && b.ingeschreven && !vergrendel?.biometrieAan));
+      setStap(STAP_SLOT);
+    } else opslaan();
   }
 
   function verwijderKoppeling() {
@@ -568,6 +623,14 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
                 />
               ))}
           </View>
+          {rijen && beeld?.kanOpslaan && slotVolgt && (
+            <View style={styles.kluis}>
+              <Lock size={16} color={colors.winst} strokeWidth={1.75} style={styles.kluisIcoon} />
+              <Text style={[Type.caption, styles.flexTekst, { color: colors.tekstGedimd }]}>
+                Je stelt hierna een pincode in.
+              </Text>
+            </View>
+          )}
           {rijen && keuze === 'schrijven' && !kanHandelen && (
             <View style={styles.kluis}>
               <Info size={16} color={colors.tekstGedimd} strokeWidth={1.75} style={styles.kluisIcoon} />
@@ -646,7 +709,7 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       if (foutScherm) return <GrootKnop label="Terug naar sleutels" onPress={vorige} />;
       if (testStatus === 'testing') return <GrootKnop label="Bezig met testen" uit onPress={() => {}} />;
       if (testStatus === 'klaar' && beeld?.kanOpslaan) {
-        return <GrootKnop label="Opslaan" uit={bezigOpslaan} onPress={opslaan} />;
+        return <GrootKnop label={slotVolgt ? 'Verder' : 'Opslaan'} uit={bezigOpslaan} onPress={naTest} />;
       }
       return <GrootKnop label="Test verbinding" onPress={testVerbinding} />;
     }
@@ -682,12 +745,14 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
       onTerug={() => {
         if (bezigOpslaan) return true;
         if (metSluitKnop) return false;
+        if (opSlotStap && slotTerugRef.current?.()) return true;
         vorige();
         return true;
       }}
     >
       {(sluit) => (
         <View style={styles.root}>
+          {!opSlotStap && (
           <View style={styles.top}>
             <Drukbaar
               onPress={() => {
@@ -716,21 +781,59 @@ export function EtoroKoppelingWizard({ zichtbaar, onSluiten, onOpgeslagen, toonN
               {stap === STAP_KLAAR ? 'klaar' : `${stap + 1}/${AANTAL_STAPPEN}`}
             </Text>
           </View>
+          )}
 
-          <ScrollView
-            style={styles.vul}
-            contentContainerStyle={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <StapOvergang stapIndex={stap * 2 + (foutScherm ? 1 : 0)} style={styles.stapInhoud}>
-              {inhoud()}
-            </StapOvergang>
-          </ScrollView>
+          {opSlotStap && vergrendel ? (
+            <View style={styles.vul} pointerEvents={bezigOpslaan ? 'none' : 'auto'}>
+              <View style={styles.slotKop}>{kop('Beveilig Kader eerst', 'Een eToro-sleutel geeft toegang tot je account. Daarom vraagt Kader eerst een pincode. De sleutel wordt pas daarna op dit toestel bewaard.')}</View>
+              <PinInstellenInhoud
+                reden="etoro"
+                keurPin={keurPin}
+                onOpslaan={async nieuw => {
+                  const u = await vergrendel.stelPinIn(nieuw);
+                  if (u.soort === 'ok') pinGezet.current = true;
+                  return u;
+                }}
+                toestelBeveiligd={vergrendel.biometrieBeschikbaar?.toestelBeveiligd ?? true}
+                biometrieAanbod={slotAanbod ? { onZetAan: () => vergrendel.zetBiometrie(true) } : null}
+                terugRef={slotTerugRef}
+                // Pas na een geslaagde pincode bewaren.
+                onKlaar={() => { opslaan(); }}
+                // Annuleren bewaart nooit een sleutel, ook niet als de pincode al staat: die blijft
+                // gewoon bestaan.
+                onAnnuleer={() => setStap(STAP_TESTEN)}
+              />
+              {/* Na de pincode bewaart opslaan() de sleutel. Zolang dat loopt is niets tikbaar
+                  (pointerEvents hierboven) en staat er een bezig-laag over het aanbod. */}
+              {bezigOpslaan && (
+                <View
+                  style={[StyleSheet.absoluteFill, styles.slotBezig, { backgroundColor: colors.achtergrond }]}
+                  accessibilityLiveRegion="polite"
+                  accessibilityLabel="Sleutel wordt bewaard"
+                >
+                  <ActivityIndicator color={colors.tekstGedimd} />
+                  <Text style={[Type.body, { color: colors.tekstGedimd, marginTop: spacing.base }]}>Sleutel wordt bewaard</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <>
+              <ScrollView
+                style={styles.vul}
+                contentContainerStyle={styles.scroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <StapOvergang stapIndex={stap * 2 + (foutScherm ? 1 : 0)} style={styles.stapInhoud}>
+                  {inhoud()}
+                </StapOvergang>
+              </ScrollView>
 
-          <View style={[styles.voet, { backgroundColor: colors.achtergrond }]}>
-            {voet(sluit)}
-          </View>
+              <View style={[styles.voet, { backgroundColor: colors.achtergrond }]}>
+                {voet(sluit)}
+              </View>
+            </>
+          )}
           {toetsenbordRuimte > 0 && <View style={{ height: toetsenbordRuimte }} />}
         </View>
       )}
@@ -1049,6 +1152,8 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
     flexShrink: 0,
   },
+  slotKop: { paddingHorizontal: spacing.base },
+  slotBezig: { alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingHorizontal: spacing.base, paddingTop: spacing.sm, paddingBottom: spacing.base },
   stapInhoud: { gap: spacing.base },
   kop: { gap: 6, paddingTop: spacing.xs },

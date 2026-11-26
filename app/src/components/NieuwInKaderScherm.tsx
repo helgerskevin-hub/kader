@@ -22,6 +22,7 @@ import {
   Eye,
   Share,
   ShieldCheck,
+  Lock,
   Smartphone,
   Target,
   type LucideIcon,
@@ -35,6 +36,7 @@ import { radii, spacing } from '../theme/tokens';
 import type { NieuweFeature } from '../changelog';
 import { PodiumScherm } from './PodiumScherm';
 import { PilKnop } from './PilKnop';
+import { useSlotIntern, useVergrendeling } from '../state/VergrendelProvider';
 
 // Het scherm dat na een update laat zien wat er nieuw is: per feature een pagina met een icoon dat
 // op een veer binnenkomt (elk met een kleine eigen beweging), daaronder titel, uitleg en de plek
@@ -48,6 +50,9 @@ interface Props {
   // Voor een rondleiding buiten de versie-update, zoals de intro van de Copy-tab.
   kop?: string;
   laatsteLabel?: string;
+  // Een feature met `actie` krijgt een knop als dit er is. De plek die het scherm toont koppelt
+  // de sleutel aan een functie (bijvoorbeeld vraagPinInstellen('nieuwInKader')).
+  onActie?: (actie: NonNullable<NieuweFeature['actie']>) => void;
 }
 
 const ICONEN: Record<NieuweFeature['icoon'], LucideIcon> = {
@@ -62,6 +67,7 @@ const ICONEN: Record<NieuweFeature['icoon'], LucideIcon> = {
   melding: Bell,
   ontdek: Compass,
   ster: Star,
+  slot: Lock,
 };
 
 // Waar het icoon vandaan komt, zodat elke feature een eigen beweging heeft: het schild klikt vast,
@@ -86,6 +92,7 @@ const START: Record<NieuweFeature['icoon'], Start> = {
   melding: { schaal: 0.7, rot: -24, x: 0, y: 0 },
   ontdek: { schaal: 0.6, rot: -90, x: 0, y: 0 },
   ster: { schaal: 0.4, rot: 72, x: 0, y: 0 },
+  slot: { schaal: 0.6, rot: 0, x: 0, y: -16 },
 };
 
 const TEGEL = 112;
@@ -96,7 +103,7 @@ const RING_SCHAAL = 1.55;
 const EERSTE_VERTRAGING = 320;
 const SLOT = 18;
 
-export function NieuwInKaderScherm({ zichtbaar, onSluiten, features, kop = 'NIEUW IN KADER', laatsteLabel = 'Aan de slag' }: Props) {
+export function NieuwInKaderScherm({ zichtbaar, onSluiten, features, kop = 'NIEUW IN KADER', laatsteLabel = 'Aan de slag', onActie }: Props) {
   // Elke keer dat het scherm opent beginnen we met verse staat, ook als de modal zijn kinderen
   // tussendoor bewaart.
   const openTeller = useRef(0);
@@ -108,12 +115,12 @@ export function NieuwInKaderScherm({ zichtbaar, onSluiten, features, kop = 'NIEU
 
   return (
     <PodiumScherm zichtbaar={zichtbaar} onSluiten={onSluiten}>
-      {sluit => <Inhoud key={openTeller.current} features={features} kop={kop} laatsteLabel={laatsteLabel} onKlaar={() => sluit()} />}
+      {sluit => <Inhoud key={openTeller.current} features={features} kop={kop} laatsteLabel={laatsteLabel} onActie={onActie} onKlaar={() => sluit()} />}
     </PodiumScherm>
   );
 }
 
-function Inhoud({ features, kop, laatsteLabel, onKlaar }: { features: NieuweFeature[]; kop: string; laatsteLabel: string; onKlaar: () => void }) {
+function Inhoud({ features, kop, laatsteLabel, onActie, onKlaar }: { features: NieuweFeature[]; kop: string; laatsteLabel: string; onActie?: Props['onActie']; onKlaar: () => void }) {
   const { colors } = useTheme();
   const { reduceMotion } = useBeweging();
   const { width: schermBreedte } = useWindowDimensions();
@@ -216,6 +223,7 @@ function Inhoud({ features, kop, laatsteLabel, onKlaar }: { features: NieuweFeat
             breedte={breedte}
             actief={i === actief}
             startVertraging={i === 0 ? EERSTE_VERTRAGING : 0}
+            onActie={onActie}
           />
         ))}
       </Animated.ScrollView>
@@ -245,8 +253,8 @@ function Inhoud({ features, kop, laatsteLabel, onKlaar }: { features: NieuweFeat
 }
 
 function Pagina({
-  feature, breedte, actief, startVertraging,
-}: { feature: NieuweFeature; breedte: number; actief: boolean; startVertraging: number }) {
+  feature, breedte, actief, startVertraging, onActie,
+}: { feature: NieuweFeature; breedte: number; actief: boolean; startVertraging: number; onActie?: Props['onActie'] }) {
   const { colors } = useTheme();
   const { reduceMotion, naar } = useBeweging();
   const kleur = colors[feature.kleur];
@@ -356,6 +364,28 @@ function Pagina({
           Te vinden: <Text style={{ color: colors.tekstPrimair, fontFamily: Fonts.sansSemiBold }}>{feature.plek}</Text>
         </Text>
       </Animated.View>
+      {feature.actie && onActie ? <ActieKnop actie={feature.actie} onActie={onActie} /> : null}
+    </View>
+  );
+}
+
+// De knop "Pincode instellen" staat er alleen als er nog geen pincode is en eToro niet gekoppeld
+// is (dan is het slot al verplicht en dus geregeld). Dat komt uit useVergrendeling() in plaats van
+// uit props: de aanroeper hoeft de slotstand dan niet door te geven. Buiten de VergrendelProvider
+// (useSlotIntern() is daar null) is er geen slot en dus geen knop; de hook wordt daarom pas in het
+// binnenste component aangeroepen.
+function ActieKnop(props: { actie: NonNullable<NieuweFeature['actie']>; onActie: NonNullable<Props['onActie']> }) {
+  const intern = useSlotIntern();
+  if (!intern) return null;
+  return <ActieKnopInhoud {...props} />;
+}
+
+function ActieKnopInhoud({ actie, onActie }: { actie: NonNullable<NieuweFeature['actie']>; onActie: NonNullable<Props['onActie']> }) {
+  const { pincodeIngesteld, etoroGekoppeld } = useVergrendeling();
+  if (actie === 'pincodeInstellen' && (pincodeIngesteld || etoroGekoppeld)) return null;
+  return (
+    <View style={styles.actie}>
+      <PilKnop label="Pincode instellen" variant="tweede" onPress={() => onActie(actie)} />
     </View>
   );
 }
@@ -411,6 +441,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radii.pill,
   },
+  actie: { marginTop: spacing.base, alignSelf: 'stretch' },
   voet: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.base,

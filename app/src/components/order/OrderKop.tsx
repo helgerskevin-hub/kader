@@ -7,6 +7,9 @@ import { radii } from '../../theme/tokens';
 import { CoinLogo } from '../CoinLogo';
 import { Drukbaar } from '../Drukbaar';
 
+// Het rood van de ECHT-badge, exact deze waarde voor het contrast (ook in het mockup).
+const ECHT_ROOD = '#B91C1C';
+
 interface Props {
   symbool: string;
   titel: string;
@@ -40,13 +43,13 @@ export function OrderKop({ symbool, titel, sub, omgeving, onSluiten }: Props) {
           style={[
             styles.badge,
             echt
-              ? { borderColor: colors.tekstPrimair }
+              ? { borderColor: ECHT_ROOD }
               // 24 hex is ongeveer 14% dekking, zoals de DEMO-badge in het ontwerp.
               : { backgroundColor: `${colors.letOp}24` },
           ]}
         >
           <Text
-            style={[styles.badgeTekst, { color: echt ? colors.tekstPrimair : colors.letOp }]}
+            style={[styles.badgeTekst, { color: echt ? ECHT_ROOD : colors.letOp }]}
             importantForAccessibility="no"
           >
             {echt ? 'ECHT' : 'DEMO'}

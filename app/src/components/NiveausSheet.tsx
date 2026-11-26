@@ -615,6 +615,7 @@ export function NiveausSheet({ zichtbaar, onSluiten, trade, huidigePrijs, afbouw
         onBevestig={bevestig}
         gelukt={gelukt}
         echtWaarschuwing="Echt geld. Houd de knop vast om door te geven."
+        echtDetail={`Niveaus ${trade.symbool}, stop en doel wijzigen. Echt geld.`}
       />
     </BottomSheet>
   );

@@ -276,6 +276,7 @@ export function AllesKopierenSheet({ zichtbaar, onSluiten, username, cid, advies
 
             <OrderBevestigKnop
               label="Start copy"
+              echtDetail={`Koop copy van ${username}, ${heeftBedrag ? fmtBedrag(bedragGetal, DOLLARS) : 'bedrag onbekend'}. Echt geld.`}
               omgeving={omgeving}
               bezig={bezig}
               uitgeschakeld={!magBevestigen}

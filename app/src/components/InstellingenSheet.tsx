@@ -36,6 +36,7 @@ import { useWidgetWeergave, type WidgetHoofdgetal, type WidgetIndeling } from '.
 import type { WidgetVolgorde } from '../state/widgetStand';
 import { tekenWidgets } from '../widget/widgetVerversen';
 import { fmtBedrag } from '../engine/format';
+import { BeveiligingGroep } from './slot/BeveiligingGroep';
 
 interface Props {
   zichtbaar: boolean;
@@ -335,6 +336,8 @@ export function InstellingenSheet({ zichtbaar, onSluiten }: Props) {
                   )}
                 </View>
               </LijstGroep>
+
+              <BeveiligingGroep />
 
               <LijstGroep
                 titel="Handelen"
