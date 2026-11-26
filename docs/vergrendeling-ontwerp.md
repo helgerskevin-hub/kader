@@ -437,7 +437,9 @@ toestel heeft: het schermslot.
   instellen; de SECRET-instelling erop is geen bescherming. De dagelijkse herinnering heeft een vaste
   tekst zonder persoonlijke gegevens en blijft daarom ongewijzigd; alleen zijn kanaal volgt het slot.
   Na het aanzetten haalt `verbergMeldingenMetInhoud` alles uit de meldingenbalk wat niet de neutrale
-  tekst heeft. Na het aan- of uitzetten plant `herplanDagelijkseMelding` (één tegelijk, de laatste
+  tekst heeft, behalve de dagelijkse herinnering (vaste tekst, geen data). Gaat het slot aan tussen het
+  lezen van de status en het versturen, dan verstuurt `stuurTradeMelding` dezelfde melding daarna
+  neutraal opnieuw onder dezelfde identifier, die de vorige vervangt. Na het aan- of uitzetten plant `herplanDagelijkseMelding` (één tegelijk, de laatste
   wisseling wint) de dagelijkse herinnering opnieuw in op het kanaal van nu, alleen als hij al
   ingepland stond en de toestemming er is.
 - **Recente apps**: `setRecentsScreenshotEnabled(false)` (API 33+) zolang er een pincode, een koppeling
@@ -476,6 +478,17 @@ toestel heeft: het schermslot.
   live tegel met inhoud. `setRecentsScreenshotEnabled(false)` dekt alleen de schermafdruk die Android
   na HOME bewaart. Alleen `FLAG_SECURE` zou de live tegel ook afdekken, en dat is bewust niet gekozen
   (besluit 11: schermafbeeldingen blijven werken).
+- Open punten (laag, bewust niet opgelost voor de release):
+  - `slotStaatAan` heeft geen eigen tijdslimiet. Het pincode-deel wel (`leesMetLimiet`, 6 s), maar
+    `sleutelUitkomst` en `leesGeheimEenmalig` in `etoroSleutels.ts` niet. Een hangende kluis kan de
+    widget-taak of een melding dan laten wachten. Er komt nooit inhoud in beeld, want er wordt niets
+    getekend of verstuurd zolang de status niet bekend is.
+  - Tijdens de verplichte setup (eToro gekoppeld, nog geen pincode) blijven meldingen met inhoud die
+    al in de balk stonden staan tot de pincode is ingesteld. Nieuwe meldingen zijn dan wel neutraal.
+  - De kanalen met slot houden op Android 15 `NO_OVERRIDE` als lockscreenVisibility (AOSP overschrijft
+    de waarde van de app); zie Integraties, Meldingen. Alleen de neutrale tekst beschermt.
+  - De eerste tik op de widget na een force-stop van Kader opent de app soms niet; een tweede tik
+    wel. Gezien op de emulator, oorzaak niet onderzocht.
 - De wachttrap, ondubbelzinnig (zo rekent `slotPogingen.ts`): de eerste vier fouten geven geen
   wachttijd. Vanaf de 5e fout escaleert elke volgende fout één trede: de 5e fout 30 s, de 6e 1 min, de
   7e 5 min, de 8e en elke fout daarna 15 min. Besluit 8 bedoelt hetzelfde; "na 5 foute pogingen" is

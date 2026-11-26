@@ -148,17 +148,23 @@ async function zorgVoorTradeKanaal(afgeschermd: boolean): Promise<string> {
 // (zie NavigatieProvider in state/navigatie.tsx). Zonder doel opent een tik gewoon de app.
 export async function stuurTradeMelding(titel: string, tekst: string, doel?: MeldingDoel): Promise<boolean> {
   if (!await zorgVoorPermissie()) return false;
+  const verstuur = async (afgeschermd: boolean) => {
+    const kanaal = Platform.OS === 'android' ? await zorgVoorTradeKanaal(afgeschermd) : null;
+    await Notifications.scheduleNotificationAsync({
+      identifier: TRADE_MELDING_ID,
+      content: {
+        title: afgeschermd ? NEUTRALE_TITEL : titel,
+        body: afgeschermd ? NEUTRALE_TEKST : `${tekst} ${DISCLAIMER}`,
+        ...(doel ? { data: { doel } } : {}),
+      },
+      trigger: kanaal ? { channelId: kanaal } : null,
+    });
+  };
   const afgeschermd = await slotAan();
-  const kanaal = Platform.OS === 'android' ? await zorgVoorTradeKanaal(afgeschermd) : null;
-  await Notifications.scheduleNotificationAsync({
-    identifier: TRADE_MELDING_ID,
-    content: {
-      title: afgeschermd ? NEUTRALE_TITEL : titel,
-      body: afgeschermd ? NEUTRALE_TEKST : `${tekst} ${DISCLAIMER}`,
-      ...(doel ? { data: { doel } } : {}),
-    },
-    trigger: kanaal ? { channelId: kanaal } : null,
-  });
+  await verstuur(afgeschermd);
+  // Ging het slot aan tussen het lezen en het versturen (en liep verbergMeldingenMetInhoud dus al),
+  // dan dezelfde melding neutraal opnieuw: dezelfde identifier vervangt hem in de balk.
+  if (!afgeschermd && (await slotAan())) await verstuur(true);
   return true;
 }
 
@@ -202,12 +208,15 @@ async function herplanNu(): Promise<void> {
 // Na het aanzetten van het slot: meldingen die al in de meldingenbalk stonden, zijn verstuurd toen het
 // slot uit was en tonen dus hun inhoud, ook op het vergrendelscherm. Haal alles weg wat niet de
 // neutrale tekst heeft. Alleen als het slot nu echt aan staat (of bij twijfel). Een fout doet niets.
+// De dagelijkse herinnering blijft staan: die heeft een vaste tekst zonder posities of bedragen.
 export async function verbergMeldingenMetInhoud(): Promise<void> {
   try {
     if (!(await slotAan())) return;
     const getoond = await Notifications.getPresentedNotificationsAsync();
     const metInhoud = getoond.filter(
-      m => m.request.content.title !== NEUTRALE_TITEL || m.request.content.body !== NEUTRALE_TEKST,
+      m =>
+        m.request.identifier !== DAGELIJKSE_ID &&
+        (m.request.content.title !== NEUTRALE_TITEL || m.request.content.body !== NEUTRALE_TEKST),
     );
     await Promise.all(metInhoud.map(m => Notifications.dismissNotificationAsync(m.request.identifier)));
   } catch {
