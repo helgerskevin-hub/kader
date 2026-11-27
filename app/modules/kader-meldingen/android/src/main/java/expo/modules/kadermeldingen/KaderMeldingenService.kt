@@ -32,26 +32,34 @@ class AfschermendePresentatie(context: Context) : ExpoPresentationDelegate(conte
     // in de data. De dagelijkse herinnering heeft geen bedragen en blijft zoals hij is.
     val scherm = notification.notificationRequest?.content?.body?.optJSONObject(DATA_SLEUTEL)
       ?: return melding
-    val titel = scherm.optString("titel").ifEmpty { "Kader" }
-    val tekst = scherm.optString("tekst")
+    // Gaat er iets mis bij het afschermen, dan liever geen melding op het vergrendelscherm dan een
+    // crash of een lek: SECRET.
+    try {
+      val titel = scherm.optString("titel").ifEmpty { "Kader" }
+      val tekst = scherm.optString("tekst")
 
-    val bouwer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && melding.channelId != null) {
-      Notification.Builder(context, melding.channelId)
-    } else {
-      @Suppress("DEPRECATION")
-      Notification.Builder(context)
+      // minSdk is 24, dus de Builder zonder kanaal blijft nodig onder Android 8.
+      val bouwer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && melding.channelId != null) {
+        Notification.Builder(context, melding.channelId)
+      } else {
+        @Suppress("DEPRECATION")
+        Notification.Builder(context)
+      }
+      bouwer.setContentTitle(titel).setContentText(tekst).setColor(melding.color)
+      // Alleen het icoon van de melding zelf, geen terugval op het launcher-icoon.
+      melding.smallIcon?.let { bouwer.setSmallIcon(it) }
+      melding.publicVersion = bouwer.build()
+
+      // PRIVATE: op een beveiligd vergrendelscherm de publicVersion, na het ontgrendelen alles. Maar
+      // Android redigeert PRIVATE alleen als de gebruiker "Gevoelige inhoud verbergen" koos; bij "Alle
+      // meldingsinhoud tonen" (de standaard) staat de volledige tekst er toch. Dan SECRET: de melding
+      // staat niet op het vergrendelscherm en na het ontgrendelen volledig in de balk. Bij twijfel
+      // (instelling niet leesbaar) ook SECRET.
+      melding.visibility = if (systeemRedigeert(context)) Notification.VISIBILITY_PRIVATE else Notification.VISIBILITY_SECRET
+    } catch (e: Exception) {
+      Log.w("KaderMeldingen", "Afschermen mislukt, melding op SECRET gezet", e)
+      melding.visibility = Notification.VISIBILITY_SECRET
     }
-    bouwer.setContentTitle(titel).setContentText(tekst).setColor(melding.color)
-    val icoon = melding.smallIcon
-    if (icoon != null) bouwer.setSmallIcon(icoon) else bouwer.setSmallIcon(context.applicationInfo.icon)
-    melding.publicVersion = bouwer.build()
-
-    // PRIVATE: op een beveiligd vergrendelscherm de publicVersion, na het ontgrendelen alles. Maar
-    // Android redigeert PRIVATE alleen als de gebruiker "Gevoelige inhoud verbergen" koos; bij "Alle
-    // meldingsinhoud tonen" (de standaard) staat de volledige tekst er toch. Dan SECRET: de melding
-    // staat niet op het vergrendelscherm en na het ontgrendelen volledig in de balk. Bij twijfel
-    // (instelling niet leesbaar) ook SECRET.
-    melding.visibility = if (systeemRedigeert(context)) Notification.VISIBILITY_PRIVATE else Notification.VISIBILITY_SECRET
     return melding
   }
 

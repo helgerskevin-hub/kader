@@ -102,6 +102,9 @@ async function zorgVoorTradeKanaal(): Promise<string> {
 
 // Stuurt een melding direct. De disclaimer wordt hier aangeplakt zodat geen enkele aanroeper 'm
 // kan vergeten. Op het vergrendelscherm staat alleen VERGRENDELSCHERM (zie boven).
+// Dit is de enige plek waar een melding met bedragen mag worden gepost: alleen deze route krijgt via
+// app/modules/kader-meldingen de publicVersion en visibility. Andere callers (ook tradeChecks.ts en
+// traderChecks.ts) horen via stuurTradeMelding te gaan, nooit rechtstreeks naar scheduleNotificationAsync.
 //
 // De trigger bepaalt het kanaal, niet de content: een trigger met alleen een channelId is expo's
 // ChannelAwareTriggerInput, die direct bezorgt én op het juiste kanaal landt. Met `trigger: null`
