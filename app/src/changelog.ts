@@ -45,6 +45,15 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     versie: '0.5.1',
     datum: '2026-11-27',
+    nieuweFeatures: [
+      {
+        icoon: 'melding',
+        kleur: 'cta',
+        titel: 'Meldingen en widget met slot',
+        tekst: 'Ook met het slot van Kader aan zie je je meldingen weer gewoon zodra je telefoon ontgrendeld is, en toont de widget weer je resultaat en posities. Op het vergrendelscherm staat nooit een coin, koers of bedrag.',
+        plek: 'Meldingen en de Kader-widget',
+      },
+    ],
     punten: [
       'Meldingen van Kader over je posities en trades tonen weer gewoon hun volledige tekst zodra je telefoon ontgrendeld is, ook met het slot van Kader aan. Op het vergrendelscherm staat nooit een coin, koers of bedrag: koos je in Android voor het verbergen van gevoelige inhoud, dan staat er alleen dat er een nieuwe melding is; anders verschijnt de melding pas na het ontgrendelen. Een tik brengt je nog steeds op de juiste plek, na je pincode',
       'De Kader-widget op je startscherm toont weer je resultaat en posities, ook als het slot van Kader aan staat. Een tik opent Kader, dat dan zoals altijd om je pincode vraagt',
