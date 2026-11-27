@@ -326,20 +326,6 @@ export async function laadHintIngesteld(): Promise<boolean> {
   }
 }
 
-// Het pincode-deel van "staat het slot aan?": aan als er een pincode-record is, anders als de hint
-// aan staat. Fail-closed: een kluisfout, een kapot record, een leesfout of een time-out telt als aan.
-// Alleen 'geen record' met de hint uit is uit. De volledige vraag, met de eToro-koppeling erbij, is
-// slotStaatAan in slotStaat.ts; die staat apart omdat etoroSleutels.ts dit bestand importeert.
-export async function pincodeOfHintAan(): Promise<boolean> {
-  try {
-    const rec = await leesPinRecord();
-    if (rec.soort !== 'nee') return true;
-    return await laadHintIngesteld();
-  } catch {
-    return true;
-  }
-}
-
 // true als de hint is weggeschreven. stelPinIn schrijft hem VOOR het record en stopt als dit
 // false geeft: een record zonder hint zou bij een latere kluisfout als "nooit ingesteld" tellen.
 export async function bewaarHintIngesteld(ingesteld: boolean): Promise<boolean> {
