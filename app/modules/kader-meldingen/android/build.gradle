@@ -1,0 +1,29 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.kader.app'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.kadermeldingen"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // De afscherming haakt in op expo-notifications (een eigen NotificationsService met een eigen
+  // presentatie); zie KaderMeldingenService.kt.
+  // compileOnly: de app zelf haalt expo-notifications al binnen. Expo levert hem als voorgebouwde
+  // AAR (geen gradle-project ':expo-notifications'), tenzij hij uit de bron gebouwd wordt.
+  if (findProject(':expo-notifications')) {
+    compileOnly project(':expo-notifications')
+  } else {
+    def pakket = new groovy.json.JsonSlurper().parse(new File(projectDir, '../../../node_modules/expo-notifications/package.json'))
+    compileOnly "host.exp.exponent:expo.modules.notifications:${pakket.version}"
+  }
+  compileOnly 'androidx.core:core:1.17.0'
+}
