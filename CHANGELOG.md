@@ -4,6 +4,11 @@ Alle noemenswaardige wijzigingen aan de Kader-app staan hier per versie,
 nieuwste bovenaan. Zie ook `app/src/changelog.ts`, de bron die de app zelf
 gebruikt voor het wijzigingen-scherm en de "nieuw in deze versie"-melding.
 
+## 0.5.1
+
+- Meldingen van Kader over je posities en trades tonen weer gewoon hun volledige tekst zodra je telefoon ontgrendeld is, ook met het slot van Kader aan. Op het vergrendelscherm staat nooit een coin, koers of bedrag: koos je in Android voor het verbergen van gevoelige inhoud, dan staat er alleen dat er een nieuwe melding is; anders verschijnt de melding pas na het ontgrendelen. Een tik brengt je nog steeds op de juiste plek, na je pincode
+- De Kader-widget op je startscherm toont weer je resultaat en posities, ook als het slot van Kader aan staat. Een tik opent Kader, dat dan zoals altijd om je pincode vraagt
+
 ## 0.5.0
 
 - Kader kan op slot met een pincode van zes cijfers, en ook met je vingerafdruk of gezicht. Het staat uit tot je het aanzet, bij de start van de app, in Instellingen onder Beveiliging of via Nieuw in Kader. Een te makkelijke pincode, zoals 111111 of 123456, weigert Kader

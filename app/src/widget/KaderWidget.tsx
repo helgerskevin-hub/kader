@@ -1,20 +1,18 @@
 'use no memo';
 // De Android-widget op het startscherm: het open resultaat van je portfolio (in procenten, dollars
 // of R, naar keuze) of je vermogen, en op de brede versie een paar posities, desgewenst met een baan
-// van stop naar doel. Wat hij toont staat in state/widgetWeergave.ts. Staat het app-slot aan, dan
-// alleen het logo en "Kader is vergrendeld" (zie Vergrendeld hieronder).
+// van stop naar doel. Wat hij toont staat in state/widgetWeergave.ts.
 //
 // Dit is geen gewoon React-component. react-native-android-widget roept de functies hieronder aan
 // en zet het resultaat om naar een native widget; hooks werken hier dus niet, en de React Compiler
 // mag dit bestand niet herschrijven (vandaar 'use no memo' bovenaan).
 
 import React from 'react';
-import { FlexWidget, SvgWidget, TextWidget, type HexColor } from 'react-native-android-widget';
+import { FlexWidget, TextWidget, type HexColor } from 'react-native-android-widget';
 import { kiesPosities, type WidgetPositie, type WidgetStand } from '../state/widgetStand';
 import type { WidgetWeergave } from '../state/widgetWeergave';
 import { fmtPct, fmtR, fmtResultaatUsd } from '../engine/format';
-import { type ColorTokens, darkTokens, radii, spacing } from '../theme/tokens';
-import { HOEKEN } from '../components/KaderLogo';
+import { type ColorTokens, radii, spacing } from '../theme/tokens';
 
 // De lettertypen staan via de plugin in app.json in de app; de naam is de bestandsnaam.
 const SANS = 'IBMPlexSans_400Regular';
@@ -34,8 +32,6 @@ interface Props {
   kleuren: ColorTokens;
   nu: number;
   uri: string;
-  // Het app-slot staat aan: geen cijfers, geen posities, geen tijd. stand is dan ook null.
-  vergrendeld: boolean;
 }
 
 // Ouder dan dit en de tijd rechtsboven wordt oranje: de cijfers zijn dan niet meer van nu.
@@ -348,46 +344,7 @@ function Vermogen({ stand, vermogen, kleuren, breed, posities, nu }: {
   );
 }
 
-// Het logo zoals KaderLogo het tekent (gevuld vlak met witte hoekhaken), als SVG-tekst: een widget
-// kent geen react-native-svg. Licht het donkerblauwe vlak, donker het helderblauwe.
-function logoSvg(kleuren: ColorTokens): string {
-  const vlak = kleuren === darkTokens ? '#2563EB' : '#1E3A8A';
-  const paden = HOEKEN.map(d => `<path d="${d}"/>`).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="${vlak}"/><g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">${paden}</g></svg>`;
-}
-
-// De neutrale weergave zolang het slot aan staat. Bewust niets uit de stand of de weergave-keuzes
-// (ook geen Demo-label): alleen dat Kader er is en op slot zit. Een tik opent de app via dezelfde
-// link als altijd; het slot vraagt daar om de pincode voor Portfolio in beeld komt.
-function Vergrendeld({ kleuren, uri }: { kleuren: ColorTokens; uri: string }) {
-  return (
-    <FlexWidget
-      clickAction="OPEN_URI"
-      clickActionData={{ uri }}
-      accessibilityLabel="Kader is vergrendeld, open Kader"
-      style={{
-        width: 'match_parent',
-        height: 'match_parent',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: hex(kleuren.kaart),
-        borderRadius: radii.kaart,
-        padding: spacing.base,
-      }}
-    >
-      <SvgWidget svg={logoSvg(kleuren)} style={{ width: 40, height: 40 }} />
-      <TextWidget
-        text="Kader is vergrendeld"
-        maxLines={2}
-        style={{ fontSize: 13, fontFamily: SANS_KOP, color: hex(kleuren.tekstPrimair), marginTop: spacing.sm, textAlign: 'center' }}
-      />
-    </FlexWidget>
-  );
-}
-
-export function KaderWidget({ stand, weergave, breedte, kleuren, nu, uri, vergrendeld }: Props) {
-  if (vergrendeld) return <Vergrendeld kleuren={kleuren} uri={uri} />;
+export function KaderWidget({ stand, weergave, breedte, kleuren, nu, uri }: Props) {
   const breed = breedte >= BREED_VANAF;
   const aantal = stand?.aantalOpen ?? 0;
   const vermogen = weergave.indeling === 'vermogen' && weergave.bedragen ? getal(stand?.vermogen) : null;

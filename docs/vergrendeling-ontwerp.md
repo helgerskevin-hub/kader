@@ -402,46 +402,50 @@ toestel heeft: het schermslot.
   de knop nog gemount is en de status 'open' is, gaat de order uit; de sheets controleren saldo en
   stand dan opnieuw. Valt het slot tijdens de pincodevraag, dan is de uitkomst 'geannuleerd'. Foute
   pincodes tellen in dezelfde teller.
-- **Widget op het startscherm**: zolang het slot aan staat toont de widget alleen het logo en `Kader
-  is vergrendeld`, geen resultaat, posities, stop of doel en ook geen Demo-label of tijd. Aan betekent:
-  er is een pincode-record, of anders staat de hint `slotIngesteld` aan, of er is een eToro-koppeling
-  zonder pincode; een kluisfout, kapot record of leesfout telt als aan (`slotStaatAan`, zonder React,
-  zodat de widget-taak en de achtergrondtaak hem ook kunnen lezen). `laadWidgetInhoud` leest de bewaarde stand dan niet eens uit AsyncStorage, dus
-  ook een gecachete stand komt niet in beeld; hij blijft wel bewaard en bijgewerkt. Verse koersen
-  ophalen voor de widget gebeurt niet zolang het slot aan staat. Een tik opent `kader://portfolio`
-  zoals altijd; het slot vraagt dan eerst de pincode. Na `stelPinIn` en `zetSlotUit` (ook als die
-  mislukken) tekent de provider de widget opnieuw via `tekenWidgetsNaSlotWijziging`, dat in de rij van
-  `werkWidgetBij` loopt, zodat een oudere ronde de cijfers niet over de vergrendelde weergave zet.
-  Ontgrendelen tekent niets: de widget blijft vergrendeld zolang het slot aan staat, ook als de app
-  open is. `tekenWidgets` en de widget-taak lezen na het tekenen de slotstatus nog eens; staat hij
-  dan aan, dan gaat de vergrendelde weergave er meteen overheen (tekeningen buiten de rij, zoals
-  vanuit Instellingen of door Android zelf). `slotStaatAan` staat in `slotStaat.ts` en telt ook een
-  eToro-koppeling zonder pincode (verplichte setup) en een kluisfout bij het lezen van de sleutel als
-  aan; het pincode-deel is `pincodeOfHintAan` in `slotOpslag.ts`.
-- **Meldingen**: zolang het slot aan staat (`slotStaatAan`, fail-closed) gaat elke trade-melding
-  (`stuurTradeMelding`: trade-checks, trader-checks, sluitingen, weekrapport) uit met titel `Kader` en
-  tekst `Er is een nieuwe melding. Open Kader om hem te zien.`, zonder coin, koers, bedrag of trader
-  en zonder disclaimer (er staat geen koers of advies in). Het `doel` in de data blijft, dus een tik
-  opent na het ontgrendelen de juiste plek. Slot uit: de gewone tekst, ongewijzigd. De neutrale tekst
-  is de garantie, want de kanaalroute werkt niet: op Android 15 (emulator, standaardinstellingen)
-  stond `trades-afgeschermd` in `dumpsys` op `mLockscreenVisibility=-1000` (NO_OVERRIDE) en stond de
-  volledige inhoud op het vergrendelscherm. Oorzaak: AOSP `PreferencesHelper.createNotificationChannel`
-  zet bij een kanaal dat een app aanmaakt de lockscreenVisibility op de app-brede waarde
-  (`channel.setLockscreenVisibility(r.visibility)`), wat expo-notifications ook meegeeft. De
-  zichtbaarheid per melding (`Notification.setVisibility`) biedt expo-notifications niet aan voor
-  lokale meldingen; dat zou een native wijziging zijn en is bewust niet gedaan. PRIVATE zou ook niet
-  volstaan: bij "Alle meldingsinhoud tonen" (de standaard) toont Android dan toch de inhoud.
-  Kanalen: slot uit `trades` en `dagelijks` (bestaand, niet opgeruimd), slot aan of twijfel
-  `trades-afgeschermd` ("Trades en posities (met slot)") en `dagelijks-afgeschermd`. Ze blijven,
-  omdat ze al bestaan en de gebruiker het kanaal met slot in de systeeminstellingen apart kan
-  instellen; de SECRET-instelling erop is geen bescherming. De dagelijkse herinnering heeft een vaste
-  tekst zonder persoonlijke gegevens en blijft daarom ongewijzigd; alleen zijn kanaal volgt het slot.
-  Na het aanzetten haalt `verbergMeldingenMetInhoud` alles uit de meldingenbalk wat niet de neutrale
-  tekst heeft, behalve de dagelijkse herinnering (vaste tekst, geen data). Gaat het slot aan tussen het
-  lezen van de status en het versturen, dan verstuurt `stuurTradeMelding` dezelfde melding daarna
-  neutraal opnieuw onder dezelfde identifier, die de vorige vervangt. Na het aan- of uitzetten plant `herplanDagelijkseMelding` (één tegelijk, de laatste
-  wisseling wint) de dagelijkse herinnering opnieuw in op het kanaal van nu, alleen als hij al
-  ingepland stond en de toestemming er is.
+- **Widget op het startscherm** (sinds 0.5.1): de widget toont altijd de bewaarde stand, ook met het
+  slot aan. Hij staat op het startscherm, dus achter het schermslot van de telefoon; wie daar is, is
+  al voorbij het toestelslot. Een tik opent `kader://portfolio` zoals altijd en het slot van Kader
+  vraagt dan eerst de pincode. 0.5.0 toonde met het slot aan alleen het logo en `Kader is vergrendeld`
+  (met `slotStaatAan`, `tekenWidgetsNaSlotWijziging` en een herteken-ronde na elke slotwissel); dat is
+  weg, de widgetcode is weer zoals voor 0.5.0.
+- **Meldingen** (sinds 0.5.1): elke trade-melding (`stuurTradeMelding`: trade-checks, trader-checks,
+  sluitingen, weekrapport) gaat uit met de volledige titel en tekst plus de disclaimer, slot aan of
+  uit. Op het vergrendelscherm staat nooit een coin, koers, bedrag of trader:
+  - De melding draagt in haar data `vergrendelscherm: { titel: 'Kader', tekst: 'Nieuwe melding over
+    je posities. Ontgrendel om hem te zien.' }`. De lokale module `app/modules/kader-meldingen` haakt
+    in op expo-notifications: een eigen `NotificationsService` (`KaderMeldingenService`, manifest-
+    prioriteit 0 tegen -1 van expo; expo neemt de eerste ontvanger die `queryBroadcastReceivers`
+    geeft) met een eigen presentatie (`AfschermendePresentatie`, subklasse van
+    `ExpoPresentationDelegate`). Die laat expo de melding bouwen en zet er dan `publicVersion` (de
+    tekst hierboven) en de zichtbaarheid op. Posten, de vaste tag `trade-melding` (een nieuwe melding
+    vervangt de vorige), de kanalen en de PendingIntent van expo blijven dus van expo, en een tik
+    komt via `useLastNotificationResponse` bij `NavigatieProvider` aan, koud en warm.
+  - Zichtbaarheid: `VISIBILITY_PRIVATE` als Android op "Gevoelige inhoud verbergen" staat
+    (`Settings.Secure` `lock_screen_allow_private_notifications` = 0): dan toont het vergrendelscherm
+    de publicVersion. Anders `VISIBILITY_SECRET`: Android redigeert PRIVATE alleen bij die keuze, en
+    bij "Alle meldingsinhoud tonen" (de standaard) zou de volledige tekst er toch staan. SECRET houdt
+    de melding van het vergrendelscherm; na het ontgrendelen staat ze volledig in de balk. Is de
+    instelling niet leesbaar, dan ook SECRET. De keuze valt bij het tonen; een latere wijziging van de
+    instelling raakt een melding die al in de balk staat niet. Gemeten op de emulator (Android 17,
+    toestelpincode aan): standaardinstelling gaf `vis=SECRET` in `dumpsys notification` en geen
+    melding op het vergrendelscherm; met de instelling op 0 `vis=PRIVATE` en alleen de neutrale tekst;
+    na het ontgrendelen in beide gevallen de volledige tekst; een tik opende Copy, warm en koud.
+  - Dit hangt niet meer van het slot van Kader af, dus de 0.5.0-logica is weg: de neutrale tekst met
+    slot aan, `verbergMeldingenMetInhoud`, het neutraal opnieuw versturen en
+    `herplanDagelijkseMelding`. `slotStaat.ts` en `pincodeOfHintAan` zijn daarmee ook weg.
+  - Waarom niet via het kanaal: AOSP `PreferencesHelper.createNotificationChannel` zet bij een kanaal
+    dat een app aanmaakt de lockscreenVisibility op de app-brede waarde
+    (`channel.setLockscreenVisibility(r.visibility)`); op Android 15 stond `trades-afgeschermd` in
+    `dumpsys` op `-1000` (NO_OVERRIDE). Per melding kan expo-notifications geen zichtbaarheid of
+    publicVersion meegeven, vandaar de module.
+  - Kanalen: alleen nog `trades` en `dagelijks`. `trades-afgeschermd` en `dagelijks-afgeschermd` uit
+    0.5.0 worden niet meer gebruikt maar ook niet gewist: Android ruimt een kanaal alleen op verzoek op
+    en de gebruiker kan er instellingen op gezet hebben. De dagelijkse herinnering heeft een vaste
+    tekst zonder bedragen en krijgt geen afscherming; bij het opstarten plant `App.tsx` hem opnieuw in,
+    dan op `dagelijks`.
+  - De module leunt op interne Kotlin-klassen van expo-notifications (56.0.18). Bij een update van
+    expo-notifications opnieuw controleren dat `createNotification` en `getPresentationDelegate` nog
+    open zijn en dat de ontvanger nog via `queryBroadcastReceivers` gekozen wordt.
 - **Recente apps**: `setRecentsScreenshotEnabled(false)` (API 33+) zolang er een pincode, een koppeling
   of een kluisfout is, plus de afdeklaag bij `background`.
 
@@ -463,11 +467,9 @@ toestel heeft: het schermslot.
 - Onder API 33 zijn Recente apps niet afgedekt: `setRecentsScreenshotEnabled` bestaat pas vanaf
   API 33. Tijdelijk `FLAG_SECURE` alleen zolang de app op de achtergrond staat zou het oplossen, maar
   besluit 11 sluit `FLAG_SECURE` uit; dat vraagt een besluit van Thom.
-- Met het slot aan staat er op het vergrendelscherm wel dat Kader een melding heeft (titel `Kader`,
-  neutrale tekst), alleen niet wat erin staat. Volledig verbergen kan alleen met de zichtbaarheid per
-  melding, en die vraagt een native wijziging (zie Integraties, Meldingen). De kanalen met slot
-  beginnen met de standaardinstellingen: wat de gebruiker zelf op de oude kanalen zette (geluid, uit),
-  gaat niet mee.
+- Bij de Android-standaard "Alle meldingsinhoud tonen" staat een trade-melding helemaal niet op het
+  vergrendelscherm (SECRET), ook niet als neutrale regel. Een neutrale regel tonen kan Android dan niet
+  zonder de volledige inhoud; alleen wie "Gevoelige inhoud verbergen" kiest, ziet de neutrale tekst.
 - Onder API 30 hangt het herstel als Android de activity van Kader opruimt terwijl de
   schermslot-activity open staat en de JS-kant daarbij verloren gaat; de bevestiging rondt dan niet af
   tot een herstart. Niet gezien, wel denkbaar.
@@ -479,14 +481,6 @@ toestel heeft: het schermslot.
   na HOME bewaart. Alleen `FLAG_SECURE` zou de live tegel ook afdekken, en dat is bewust niet gekozen
   (besluit 11: schermafbeeldingen blijven werken).
 - Open punten (laag, bewust niet opgelost voor de release):
-  - `slotStaatAan` heeft geen eigen tijdslimiet. Het pincode-deel wel (`leesMetLimiet`, 6 s), maar
-    `sleutelUitkomst` en `leesGeheimEenmalig` in `etoroSleutels.ts` niet. Een hangende kluis kan de
-    widget-taak of een melding dan laten wachten. Er komt nooit inhoud in beeld, want er wordt niets
-    getekend of verstuurd zolang de status niet bekend is.
-  - Tijdens de verplichte setup (eToro gekoppeld, nog geen pincode) blijven meldingen met inhoud die
-    al in de balk stonden staan tot de pincode is ingesteld. Nieuwe meldingen zijn dan wel neutraal.
-  - De kanalen met slot houden op Android 15 `NO_OVERRIDE` als lockscreenVisibility (AOSP overschrijft
-    de waarde van de app); zie Integraties, Meldingen. Alleen de neutrale tekst beschermt.
   - De eerste tik op de widget na een force-stop van Kader opent de app soms niet; een tweede tik
     wel. Gezien op de emulator, oorzaak niet onderzocht.
 - De wachttrap, ondubbelzinnig (zo rekent `slotPogingen.ts`): de eerste vier fouten geven geen

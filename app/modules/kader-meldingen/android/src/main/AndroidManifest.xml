@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      expo-notifications zoekt zijn ontvanger op met queryBroadcastReceivers en neemt de eerste. Die
+      van expo zelf staat op prioriteit -1, deze op 0 en wint dus. Alleen de expo-actie: opstarten en
+      updates blijven bij de ontvanger van expo.
+    -->
+    <receiver
+      android:name="expo.modules.kadermeldingen.KaderMeldingenService"
+      android:enabled="true"
+      android:exported="false">
+      <intent-filter android:priority="0">
+        <action android:name="expo.modules.notifications.NOTIFICATION_EVENT" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

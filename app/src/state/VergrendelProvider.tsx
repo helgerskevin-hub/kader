@@ -77,8 +77,6 @@ import {
   wisSleutels,
   zetOmgeving,
 } from './etoroSleutels';
-import { tekenWidgetsNaSlotWijziging } from '../widget/widgetVerversen';
-import { herplanDagelijkseMelding, verbergMeldingenMetInhoud } from '../notifications/meldingen';
 
 // ---------- Splash ----------
 
@@ -792,14 +790,6 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
         const status = slotRef.current.status;
         if (status === 'setupVerplicht' || status === 'vergrendeld') slotInstelOpgeslagen.current = true;
         return { soort: 'ok' };
-      }).finally(() => {
-        // De widget toont zolang het slot aan staat alleen "Kader is vergrendeld", de dagelijkse
-        // herinnering gaat naar het kanaal met slot, en meldingen met inhoud die al in de balk
-        // stonden gaan weg (verbergMeldingenMetInhoud kijkt zelf of het slot nu aan staat). Ook na
-        // een mislukking: de hint stond dan even aan.
-        void tekenWidgetsNaSlotWijziging();
-        void herplanDagelijkseMelding();
-        void verbergMeldingenMetInhoud();
       }),
     [inRij, meetBiometrie, slotRef, zetPincode, zetPogingen],
   );
@@ -844,11 +834,6 @@ export function VergrendelProvider({ children }: { children: React.ReactNode }) 
         zetBiometrieAanStaat(false);
         zetPogingen({ ...LEGE_POGINGEN });
         return { soort: 'ok' };
-      }).finally(() => {
-        // Slot uit: de widget toont zijn cijfers weer en de dagelijkse herinnering gaat terug naar
-        // het gewone kanaal (of beide blijven afgeschermd als het wissen mislukte).
-        void tekenWidgetsNaSlotWijziging();
-        void herplanDagelijkseMelding();
       }),
     [controleerKern, inRij, leesEtoro, zetBiometrieAanStaat, zetPincode, zetPogingen],
   );
