@@ -43,6 +43,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    versie: '0.5.1',
+    datum: '2026-11-27',
+    punten: [
+      'Meldingen van Kader over je posities en trades tonen weer gewoon hun volledige tekst zodra je telefoon ontgrendeld is, ook met het slot van Kader aan. Op het vergrendelscherm staat nooit een coin, koers of bedrag: koos je in Android voor het verbergen van gevoelige inhoud, dan staat er alleen dat er een nieuwe melding is; anders verschijnt de melding pas na het ontgrendelen. Een tik brengt je nog steeds op de juiste plek, na je pincode',
+      'De Kader-widget op je startscherm toont weer je resultaat en posities, ook als het slot van Kader aan staat. Een tik opent Kader, dat dan zoals altijd om je pincode vraagt',
+    ],
+  },
+  {
     versie: '0.5.0',
     datum: '2026-11-26',
     nieuweFeatures: [
